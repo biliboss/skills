@@ -1,0 +1,20 @@
+# wiki.config, pt-BR preset: the conventions of a Portuguese wiki (diario/, Mapa:, criado/atualizado).
+# Copy to <repo>/.wiki/wiki.config. Sh-sourceable KEY=value; lint.py reads the same file.
+WIKI_LANG=pt-BR
+DIARY_DIR=diario
+INBOX=inbox.md
+INDEX=index.md
+MAIN_BRANCH=main
+FOOTER_PREFIX='Mapa:'
+HISTORY_HEADING='## Histórico'
+CREATED_KEY=criado
+UPDATED_KEY=atualizado
+NO_TIME_PREFIX=sem-hora
+DAY_TITLE='Diário de'
+PREV_LABEL='Dia anterior'
+NEXT_LABEL='Dia seguinte'
+# The sentence under the day index title; %s is the day. Name here the command that generates it.
+GEN_NOTE='Índice gerado por `npm run wiki:diario`; não edite. Cada nota é um arquivo em `%s/`.'
+# Only used in lint messages: how to regenerate.
+CMD_DAY_INDEX='npm run wiki:diario'
+CMD_DATES='npm run wiki:datas'

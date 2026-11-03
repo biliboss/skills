@@ -1,0 +1,79 @@
+---
+name: lp-draft
+description: >-
+  Draft a product or version landing page as a single HTML prototype in the repo's
+  `.wiki/resources/` (not the final LP, and no Markdown copy): grill the user about the product
+  with AskUserQuestion, absorb the product's design system (DESIGN.md or tokens, a UI package,
+  the live site, a Design System artifact) or create one next to the page, write the page,
+  serve it with Vite hot reload, check it with screenshots, and link it in the wiki. Use when
+  the user says "lp", "landing page", "cria a LP da versão X", "transforma em LP", "LP em
+  .wiki/resources", "draft a landing page", "protótipo da landing". Not impeccable: that one
+  designs and critiques any interface; lp-draft runs the whole LP draft and loads impeccable
+  for the design part. Not wiki-smith: lp-draft calls it only to link the page.
+metadata:
+  version: 0.1.0
+  license: MIT
+---
+
+# lp-draft — a landing page prototype in `.wiki/resources/`
+
+The draft LP is **one HTML file**, `.wiki/resources/<produto>-<versão>-lp.html`, for seeing and discussing the product's pitch. It is a prototype, not the final landing page: no Markdown version, no deploy, no real form.
+
+## Step 0 — Read the repo's rules
+
+1. `AGENTS.md` / `CLAUDE.md` of the repo, and the wiki's HTML rule: `rg -n -i 'resources/' .wiki/manter-wiki.md` (or the repo's maintenance page).
+2. The copy ruler: `rg -l -i 'copywriting|escrever-bem|writing' .wiki`, then read only the matching section (in biliboss: `moc-copywriting` and `escrever-bem`, with *O Alquimista* as the bar for the opening paragraph). No ruler in the repo: short sentences, concrete words, the reader's problem before the product.
+3. What the conversation and the wiki already say about the product: `rg -n -i '<produto>' .wiki`. Read the product's page, if any.
+
+## Step 1 — Grill the product (AskUserQuestion)
+
+Ask only what the conversation has not answered, up to 4 questions per call, recommended option first with "(Recommended)", each question self-contained. Cover:
+
+- **Who reads it** (the buyer, in their words) and **the promise in one sentence**.
+- **The call to action** and where it goes (WhatsApp, form, email). No destination yet → a placeholder, said so in the page footer.
+- **What is fact and what is open**: price, niche, numbers, names of people, clients, years of experience, testimonials. Open items stay out of the page.
+- **Brand and tone**, unless a design system answers it (Step 2).
+
+Pitfall: never fill a gap with an invented fact (initials for the founders, "90+ years", a client logo, a testimonial) — a draft that looks finished gets shown to clients as is. An illustrative example (a sample chat, sample numbers) is fine when it reads as an example.
+
+## Step 2 — Absorb or create the design system
+
+Look for one, in this order, and use the first that exists:
+
+1. **Tokens in the product repo**: `DESIGN.md`, `tokens.css`, `tailwind.config.*`, CSS custom properties.
+2. **A UI package** (e.g. `@mukutu/ui`): its colors, fonts and components' look.
+3. **The live site or a URL**: read colors, fonts and logo with the browser.
+4. **A Design System artifact**: `Artifact` with `action: "list"`, `scope: "types"`, then list that type's artifacts and read the product's one.
+
+None → **create** it: `.wiki/resources/<produto>/tokens.css` (colors, fonts, radius, spacing, light and dark) and `.wiki/resources/<produto>/design.md` (a few lines: the palette and why, the fonts, the tone). Pick it from the audience and brand, and load the `impeccable` skill for the design choices. The next version of the LP reuses these files.
+
+Details and the token contract: [references/design-system.md](references/design-system.md).
+
+## Step 3 — Write the page
+
+- **File**: `.wiki/resources/<produto>-<versão>-lp.html` (slug in lowercase, version like `0.1.0`).
+- **Fragment**: start with `<meta charset="utf-8">`, the viewport meta and `<title>` (the product name, 1–3 words); no `<!doctype>`, `<html>` or `<body>`, so the same file can be published as an Artifact.
+- **Tokens**: `<link rel="stylesheet" href="<produto>/tokens.css">` (or the absorbed source), and every color from a token. Dark mode under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`, and again under `:root[data-theme="dark"]`.
+- **Libraries** only from a CDN with an exact version; fonts only from Google Fonts.
+- **Layout**: works at 390px with a 16px gutter and no horizontal scroll; `prefers-reduced-motion` respected.
+- **Structure is free, per product.** The only fixed parts: the promise at the top with the CTA, an opening paragraph that passes the copy ruler, and the CTA again at the end. Footer: product, version and "rascunho".
+
+## Step 4 — Serve with hot reload
+
+```sh
+npx -y vite@6.4.5 .wiki/resources --port 5180 --strictPort --open /<produto>-<versão>-lp.html
+```
+
+Run it in the background. If 5180 is taken, a server is probably already up: open `http://localhost:5180/<file>` instead of starting another. A sandboxed agent (T3 Code) cannot reach a server it starts; the user runs the command.
+
+## Step 5 — Look at it
+
+With the browser tools (Claude in Chrome), on `http://localhost:5180/<file>`: screenshot at 390px and at desktop width, in light and in dark (set `document.documentElement.dataset.theme = 'dark'` with the JavaScript tool). Fix what breaks (overflow, contrast, a section that collapses badly) and look again. Say in the report what you looked at; if the browser was unavailable, say the page was not seen.
+
+## Step 6 — Link it in the wiki
+
+Load `wiki-smith` and let it do the wiki part: one line in `index.md` and in the product's `moc-*` pointing to `resources/<produto>-<versão>-lp.html` (with "`npm run wiki:resources` para abrir" or the Vite command), a diary note, dates, lint, and a commit of only these paths (the page, the product's `tokens.css` / `design.md`, the index and moc lines, the note). No push.
+
+## Report
+
+The URL being served, the file path, where the design system came from (absorbed from X, or created), what is a placeholder (CTA destination, sample numbers), what was seen in the screenshots, and the commit.

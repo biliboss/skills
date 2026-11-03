@@ -1,0 +1,14 @@
+{
+  "name": "biliboss",
+  "owner": { "name": "Gabriel Fonseca", "url": "https://github.com/biliboss" },
+  "description": "Os plugins do biliboss para Claude Code.",
+  "plugins": [
+    {
+      "name": "biliboss-skills",
+      "source": "./",
+      "description": "wiki-smith, skill-smith, sync, lp-draft e o setup por repo.",
+      "category": "productivity",
+      "keywords": ["wiki", "skills", "git", "sync"]
+    }
+  ]
+}

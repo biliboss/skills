@@ -1,0 +1,19 @@
+# wiki.config: the conventions of this repo's wiki. Copy to <repo>/.wiki/wiki.config.
+# Plain sh KEY=value (scripts/*.sh source it; scripts/lint.py parses the same lines).
+# Every key is optional; these are the defaults. See references/config.md.
+WIKI_LANG=en
+DIARY_DIR=journal
+INBOX=inbox.md
+INDEX=index.md
+MAIN_BRANCH=main
+FOOTER_PREFIX='Map:'
+HISTORY_HEADING='## History'
+CREATED_KEY=created
+UPDATED_KEY=updated
+NO_TIME_PREFIX=no-time
+DAY_TITLE='Journal of'
+PREV_LABEL='Previous day'
+NEXT_LABEL='Next day'
+GEN_NOTE='Generated index (scripts/day-index.sh); do not edit. Each note is a file in `%s/`.'
+CMD_DAY_INDEX='scripts/day-index.sh'
+CMD_DATES='scripts/dates.sh'

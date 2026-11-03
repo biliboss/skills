@@ -1,0 +1,16 @@
+{
+  "name": "biliboss-skills",
+  "version": "0.1.0",
+  "description": "Os skills do biliboss para qualquer repo: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync) e o setup por repo.",
+  "author": { "name": "Gabriel Fonseca", "url": "https://github.com/biliboss" },
+  "repository": "https://github.com/biliboss/skills",
+  "license": "MIT",
+  "keywords": ["wiki", "skills", "git", "sync", "landing-page", "agents"],
+  "skills": [
+    "./skills/setup-biliboss",
+    "./skills/wiki-smith",
+    "./skills/skill-smith",
+    "./skills/sync",
+    "./skills/lp-draft"
+  ]
+}
