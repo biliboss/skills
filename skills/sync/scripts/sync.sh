@@ -19,7 +19,8 @@ estado() {
 lint_wiki() {
   r=$1; shift
   # só quando algum caminho do commit está no .wiki
-  if printf '%s\n' "$@" | grep -q '^\.wiki/' && [ -d "$r/.wiki" ]; then
+  # só num wiki do wiki-smith (com .wiki/wiki.config); outro wiki tem outras regras, e o dates.sh mexeria nele
+  if printf '%s\n' "$@" | grep -q '^\.wiki/' && [ -f "$r/.wiki/wiki.config" ]; then
     # o wiki-smith vem no mesmo plugin: ../../wiki-smith/scripts a partir deste script
     L=$(cd "$(dirname "$0")/../../wiki-smith/scripts" 2>/dev/null && pwd)
     if [ -d "$L" ]; then

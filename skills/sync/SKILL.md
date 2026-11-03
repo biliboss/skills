@@ -2,7 +2,7 @@
 name: sync
 description: Leave every repo the session touched equal to the remote and clean — commit this session's work by path, rebase on origin, lint the .wiki when it is touched, push, and report what is left dirty and whose it is. Manual, run when closing a piece of work. Use when the user says "commit and sync", "sincroniza", "commit e push", "sync all", "deixa tudo igual ao remoto", "não deixa sujo", "fecha e sobe". Not wiki-smith (that writes and commits wiki pages through its own sync.sh) nor delegate-and-review (a PR on a run/* branch): this one closes the session's work straight on the branch it is on.
 metadata:
-  version: 0.1.1
+  version: 0.1.2
 ---
 
 # sync — o repo igual ao remoto, sem sujeira
@@ -35,7 +35,7 @@ Escreva a mensagem num arquivo (assunto + corpo + as linhas de atribuição) e m
 $S enviar ~/biliboss "$SCRATCH/msg.txt" .wiki/moc-x.md apps/y/server.mjs
 ```
 
-O script faz, nesta ordem: o lint do `.wiki` (se algum caminho está nele: datas, índice do dia, lint), o `add` por caminho, o commit, o `pull --rebase --autostash` e o `push`. Ele para no primeiro erro e diz qual.
+O script faz, nesta ordem: o lint do `.wiki` (se algum caminho está nele e o wiki tem `.wiki/wiki.config`: datas, índice do dia, lint; um wiki sem `wiki.config` tem outras regras e fica como está), o `add` por caminho, o commit, o `pull --rebase --autostash` e o `push`. Ele para no primeiro erro e diz qual.
 
 - **Lint vermelho para tudo.** Corrija e rode de novo; nunca encadeie comandos com `;` depois de um lint, porque o commit sai mesmo vermelho.
 - **Arquivo compartilhado com linhas de outra sessão** (o `.wiki/index.md`, o índice do dia, o inbox): não passe o arquivo inteiro. Monte a versão com só as suas linhas sobre o `HEAD` e ponha no índice com `git update-index --cacheinfo 100644,$(git hash-object -w <arquivo>),<caminho>`. Depois rode o `enviar` com os outros caminhos (o que está no índice vai junto no commit).
