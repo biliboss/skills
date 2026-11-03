@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.1.0
+  version: 0.1.1
   license: MIT
 ---
 
@@ -79,6 +79,7 @@ Rules for the content ([Hermes `_LESSON_LAYER_BLOCK`](https://github.com/NousRes
 - **One lesson, one rule.** Search the skill for the rule first; strengthen it instead of appending a second copy.
 - **Fix in place.** Edit the sentence that misled; never append "UPDATE: actually…".
 - **Don't restate the environment**: what `AGENTS.md`, `CLAUDE.md` or a tool's own description already teach.
+- **Actions are `.sh` scripts in `scripts/`, not an MCP server** (the user's preference): a script is faster to iterate, runs from any shell or agent, and is read before it is run. Reach for an MCP only when the action needs a long-lived connection or state that a script cannot keep.
 - **Always-on rules live in SKILL.md** (aim for under ~200 lines). `references/` holds topical depth, one file per topic, never `<date>-<incident>.md`.
 
 Frontmatter (format per the [Agent Skills spec](https://agentskills.io/specification) and [Claude Code skills docs](https://docs.claude.com/en/docs/claude-code/skills)):

@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.1.2] - 2026-11-03
+
+### Changed
+
+- `skill-smith`: as ações de um skill são scripts `.sh`, não um servidor MCP.
+
 ## [0.1.1] - 2026-11-03
 
 ### Changed

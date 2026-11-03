@@ -3,6 +3,12 @@
 All notable changes to skill-smith are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-03
+
+### Added
+
+- Rule: a skill's actions are `.sh` scripts in `scripts/`, not an MCP server, unless they need a long-lived connection or state.
+
 ## [Unreleased]
 
 ## [0.1.0] - 2026-11-03
