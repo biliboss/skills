@@ -2,7 +2,7 @@
 name: sync
 description: Leave every repo the session touched equal to the remote and clean — commit this session's work by path, rebase on origin, lint the .wiki when it is touched, push, and report what is left dirty and whose it is. Manual, run when closing a piece of work. Use when the user says "commit and sync", "sincroniza", "commit e push", "sync all", "deixa tudo igual ao remoto", "não deixa sujo", "fecha e sobe". Not wiki-smith (that writes and commits wiki pages through its own sync.sh) nor delegate-and-review (a PR on a run/* branch): this one closes the session's work straight on the branch it is on.
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # sync — o repo igual ao remoto, sem sujeira
@@ -23,7 +23,7 @@ Para cada arquivo sujo, decida de quem é:
 | O arquivo | O que fazer |
 |---|---|
 | a sessão escreveu (Write/Edit, ou um comando seu) | entra no commit |
-| já estava sujo no começo da sessão, ou outra sessão mexeu (o `git-sync` avisa) | fica fora; só entra se o Gabriel disser "commit all" |
+| já estava sujo, ou outra sessão mexeu | também entra: é trabalho do Gabriel. Rode o lint, leia o diff e faça **um commit separado**, com o assunto do que aquilo é, para não misturar com o seu |
 | gerado (`__pycache__/`, `*.pyc`, `node_modules/`) | `.gitignore`, nunca commit |
 | vazio ou temporário de outra ferramenta (`*.n`, `*.orig`) | pergunte; não commite nem apague |
 
@@ -44,4 +44,4 @@ O script faz, nesta ordem: o lint do `.wiki` (se algum caminho está nele: datas
 
 ## 3. Relatar
 
-Uma linha por repo: os commits (hash curto e assunto), se ficou igual ao `origin`, e o que sobrou sujo, dizendo de quem é e por que ficou. Nunca diga "tudo sincronizado" com arquivo da sessão ainda sujo.
+Uma linha por repo: os commits (hash curto e assunto) e se ficou igual ao `origin`. O normal é não sobrar nada sujo; se sobrar (um temporário que você perguntou), diga o quê e por quê. Nunca diga "tudo sincronizado" com arquivo da sessão ainda sujo.
