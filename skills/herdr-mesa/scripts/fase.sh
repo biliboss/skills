@@ -5,10 +5,10 @@
 #   mover <tab> <fase>  leva a aba inteira (o grupo) para a fase, numa aba nova com o mesmo nome
 #   focar <tab>         leva o item para o focus: o resumo em cima à esquerda (70%), a barra do agente da frente
 #                       (barra.py, o vigia do focus) e o agente embaixo (o worker à direita dele) e o Bili (o pane
-#                       MESA_BILI, H01) à direita, de cima a baixo
+#                       MESA_BILI, H00) à direita, de cima a baixo
 #   concluir <tab>      fecha os agentes do item (imprime o id para retomar) e deixa só o cartão no done today
 # <tab> é o tab_id (w5R:t2D) ou o nome da aba. As fases mudam com MESA_FASES (separadas por "|").
-# O Bili (MESA_BILI, padrão H01) mora no focus: vai de um item ao próximo e nunca é fechado pelo concluir.
+# O Bili (MESA_BILI, padrão H00) mora no focus: vai de um item ao próximo e nunca é fechado pelo concluir.
 # Não lê stdin. Anda pelo terminal_id: o pane_id muda quando o pane troca de workspace, e o rótulo do pane se perde.
 set -eu
 AQUI="$(cd "$(dirname "$0")" && pwd)"
@@ -16,7 +16,7 @@ CARTAO="$AQUI/cartao.py"
 AGENTE="$AQUI/../../herdr-agentes/scripts/agente.sh"
 FASES="${MESA_FASES:-focus|backlog|working|ready to review|done today}"
 CWD="${MESA_CWD:-$HOME}"
-BILI="${MESA_BILI:-H01}"
+BILI="${MESA_BILI:-H00}"
 uso() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 cmd=$1; shift

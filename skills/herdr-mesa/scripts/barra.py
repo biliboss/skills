@@ -5,7 +5,7 @@
 """barra.py: a barra de título do agente da frente no focus, e o vigia do focus.
 
 Roda num pane de uma linha (rótulo "barra"), entre o resumo (o pane "card", em cima à esquerda) e o agente da frente
-(embaixo à esquerda). O Bili (o pane MESA_BILI, padrão H01) fica à direita, de cima a baixo. A cada volta (2 s) ela:
+(embaixo à esquerda). O Bili (o pane MESA_BILI, padrão H00) fica à direita, de cima a baixo. A cada volta (2 s) ela:
 
 - escreve numa linha o nome, o estado e o harness do agente da frente ("● H14 - duplo-eval-tasks · trabalhando · pi");
 - devolve as proporções do focus quando o agente da frente troca ou some, ou quando saem do lugar: o resumo com 70% da
@@ -26,7 +26,7 @@ import sys
 import tempfile
 import time
 
-BILI = os.environ.get("MESA_BILI", "H01")
+BILI = os.environ.get("MESA_BILI", "H00")
 MUX = os.environ.get("MESA_MUX", os.path.expanduser("~/src/skills.wt-prime-mux/skills/prime-agent/scripts/mux.sh"))
 HERMES = re.compile(r"\b(Bili|Hermes)\b")
 NOME = {"working": "trabalhando", "blocked": "perguntando", "done": "terminou", "idle": "parado"}
@@ -83,13 +83,49 @@ def nats(evento: str, dados: dict) -> None:
         subprocess.run(["nats", "pub", f"mesa.focus.{evento}", json.dumps(dados, ensure_ascii=False)], capture_output=True)
 
 
+LIMITE = re.compile(r"hit your (\S+) limit\s*·\s*resets\s+(\d{1,2}(?::\d{2})?\s*[ap]m)", re.I)
+PERGUNTA = re.compile(r"\b(approve|aprovar|allow|permitir)\b.*\?|\(y/n\)|\[y/N\]", re.I)
+
+
+def subagentes(pane: str) -> bool:
+    """O pi diz "N running agent" no rodapé quando um subagente segue rodando: o item não parou."""
+    txt = subprocess.run(["herdr", "pane", "read", pane, "--source", "recent", "--lines", "4"], capture_output=True, text=True).stdout
+    return bool(re.search(r"\d+ running agent", txt))
+
+
+def motivo(pane: str) -> str:
+    """O que prende o agente, lido das últimas linhas do pane: o limite do Claude, uma aprovação. Vazio se nada."""
+    txt = subprocess.run(["herdr", "pane", "read", pane, "--source", "recent-unwrapped", "--lines", "25"],
+                         capture_output=True, text=True).stdout
+    m = None
+    for m in LIMITE.finditer(txt):
+        pass
+    if m:
+        h = time.strptime(m.group(2).replace(" ", "").upper(), "%I:%M%p" if ":" in m.group(2) else "%I%p")
+        agora = time.localtime()
+        quando = f"{h.tm_hour:02d}:{h.tm_min:02d}"
+        passou = (agora.tm_hour, agora.tm_min) >= (h.tm_hour, h.tm_min)
+        return f"limite do Claude ({m.group(1)}) {'renovou às ' + quando + ', religar' if passou else 'até ' + quando}"
+    if PERGUNTA.search("\n".join(txt.splitlines()[-6:])):
+        return "esperando aprovação"
+    return ""
+
+
 def desenha(frente: dict | None, largura: int) -> None:
     if not frente:
         linha = "\033[90m· sem agente na frente: o Bili puxa o próximo\033[0m"
     else:
         harness, st = estado(frente)
-        linha = (f"\033[{COR.get(st, '90')}m{ICONE.get(st, '·')} \033[1;97m{base(frente.get('label')) or '?'}"
-                 f"\033[0;90m · {NOME.get(st, st)} · {harness}\033[0m")
+        nome = base(frente.get("label")) or "?"
+        if st in ("idle", "done") and subagentes(frente["pane_id"]):
+            st = "working"
+        porque = motivo(frente["pane_id"]) if st != "working" else ""
+        if porque:
+            linha = (f"\033[1;33m⚠ \033[1;97m{nome}\033[0;90m · {harness} · "
+                     f"\033[1;33mbloqueado: {porque}\033[0m")
+        else:
+            linha = (f"\033[{COR.get(st, '90')}m{ICONE.get(st, '·')} \033[1;97m{nome}"
+                     f"\033[0;90m · {harness} · {NOME.get(st, st)}\033[0m")
     sys.stdout.write("\033[H\033[2J\033[3J" + linha[: largura + 40])
     sys.stdout.flush()
 
@@ -141,6 +177,8 @@ def main() -> None:
 
         fid = frente["pane_id"] if frente else ""
         st = estado(frente)[1] if frente else ""
+        if st in ("idle", "done") and subagentes(fid):
+            st = "working"
         nome = base(frente.get("label")) if frente else ""
         if fid != frente_antes:
             proporcoes(card, eu, fid or None, r)
