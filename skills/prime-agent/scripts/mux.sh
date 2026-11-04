@@ -124,7 +124,7 @@ case "$cmd" in
 
   manda|fila)
     [ $# -eq 2 ] || uso
-    tecla_fim=Enter; [ "$cmd" = fila ] && tecla_fim=Tab
+    tecla_fim=Enter
     f=$2; [ -f "$f" ] || { echo "mux: não achei o arquivo $f" >&2; exit 1; }
     registra_envio "$1" "$f"
     d=$(dono "$1") || exit 1; set -- $d
@@ -132,6 +132,13 @@ case "$cmd" in
     else tm load-buffer -b mux "$f" && tm paste-buffer -d -b mux -t "$2"; fi
     # Um texto colado às vezes fica na caixa: o Enter vai depois de uma pausa.
     sleep 1
+    # fila: o Tab só enfileira com o agente ocupado (o rodapé do Hermes diz "queue a message"/"redirect this turn");
+    # com ele parado o Tab não manda nada e o texto fica na caixa, então vai Enter.
+    if [ "$cmd" = fila ]; then
+      if [ "$1" = herdr ]; then rodape=$(herdr pane read "$2" --source recent-unwrapped --lines 6 2>/dev/null)
+      else rodape=$(tm capture-pane -p -J -t "$2" -S -6 2>/dev/null); fi
+      if printf '%s' "$rodape" | grep -q -i -E 'queue a message for after|redirect this turn|Tab queues'; then tecla_fim=Tab; fi
+    fi
     if [ "$1" = herdr ]; then herdr pane send-keys "$2" "$tecla_fim" >/dev/null
     else tm send-keys -t "$2" "$tecla_fim"; fi ;;
 
