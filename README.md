@@ -12,11 +12,14 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `bili` | falar com o Bili (o agente de vida longa) por um cartão do Linear: pedir, esperar, ler |
 | `linear` | o Linear do dono: ler um projeto, criar cartões, marcos e updates, subir imagens |
 | `herdr-agentes` | abrir, conduzir, fechar e retomar sessões de agente (Claude Code ou pi) nas abas do herdr |
+| `herdr-mesa` | a mesa do herdr em fases (um workspace por fase), com o cartão de cada item no focus |
 | `delegate-and-review` | passar uma tarefa de código a um subagente que abre um PR, e revisar e corrigir depois |
 | `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP |
 | `interview` | formulários de perguntas ricos (pi-interview) numa janela única com fila; rascunho salvo a cada mudança, e o tempo limite não perde respostas |
+| `envless` | usar um segredo do cofre (envless) num comando sem que o valor passe pela conversa |
+| `disky` | achar onde mora o espaço do disco com o disky e propor a limpeza numa tabela que o dono aprova |
 
 ## Instalar
 

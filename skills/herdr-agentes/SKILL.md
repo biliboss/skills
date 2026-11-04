@@ -2,7 +2,7 @@
 name: herdr-agentes
 description: Abrir, conduzir, fechar e retomar sessões de agente locais (Claude Code ou pi) nas abas do herdr do Mac, onde cada aba é uma fila de trabalho. Cobre criar um agente com nome, pôr em foco à direita, mover para uma aba, mandar uma mensagem ou um comando com barra (/goal, /rename, /reload), esperar, ler o pane, fechar e retomar pelo id da sessão. Use quando o dono disser "cria um agente", "novo agente no pi", "abre uma sessão para X", "põe em foco", "move para outra tab", "check pane", "manda reload", "fecha a tab", "fecha as outras", "retoma a sessão". Não é a `bili` (trabalho que o Bili faz na VPS, pedido por um cartão do Linear) nem a `delegate-and-review` (um subagente desta sessão que abre um PR).
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # herdr-agentes — as sessões locais, uma por aba
@@ -51,22 +51,9 @@ herdr-events esperar <pane> --until idle,done,blocked --timeout 1800   # só com
 - **Pergunta da sessão (`blocked`)** é do dono. Você só responde por ele quando ele mandar.
 - **Mover:** `herdr pane move <pane> --new-tab --no-focus` e `herdr tab rename <tab> <tema>`; para o foco, `herdr pane move <pane> --tab <tab> --split right --target-pane $HERDR_PANE_ID --no-focus`.
 
-## 2b. O fluxo da mesa: backlog → preparing → doing → review
+## 2b. A mesa
 
-```sh
-M=<pasta desta skill>/scripts/mesa.sh
-$M organizar        # uma passada
-$M vigiar 15        # em segundo plano (run_in_background), a cada 15 s
-```
-
-`mesa.sh` (ao lado do `agente.sh`) arruma as sessões pelo estado: quem está `working` vai para a aba **doing (N)**, lado a lado, com N = o WIP; quem parou (`idle`, `done`, `blocked`) vai para a aba **review (N)**, que é a fila de revisão do dono. A sessão do dono (o `$HERDR_PANE_ID` de onde a mesa é ligada, ou `MESA_DONO=<pane>`) nunca se move, e **nada fora do workspace dela é tocado**: uma sessão aberta noutro workspace do herdr fica onde está (o `MESA_WORKSPACE` troca o workspace). Os nomes das abas mudam com `MESA_ABA_TRABALHO` e `MESA_ABA_REVISAO`.
-
-- **As quatro fases:** **backlog** (a sessão desligada, com a ficha), **preparing** (a aba do dono: o agente ao lado dele, montando o trabalho junto), **doing** (o agente segue sozinho) e **review** (parou; a fila de revisão humana). O vigia nunca mexe na aba do dono, então o que está em preparing fica ao lado até o dono soltar.
-- **Puxar para preparing:** `backlog.sh puxar <tema>` retoma a sessão à direita do dono e tira a ficha (ela fica em `puxadas/`). Primeira mensagem: pedir onde parou e uma proposta de entrega, com o resultado verificável numa linha, **sem executar**. O dono dá o sim.
-- **Soltar para doing:** depois do sim, `herdr pane move <pane> --tab <aba doing> --split right --target-pane <último pane dela> --no-focus` (ou o `/goal` e deixar o vigia levar, se a aba não for a do dono). A aba do dono volta a ter só a sessão dele.
-- **Trabalho passado ao Bili:** quando a sessão local pede algo ao Bili (`linear-bili.sh pedir`, que imprime o `<desde>`), ela não fica esperando no foco. `bili-trabalho.sh acompanhar <tema> <cartão> <desde> claude|pi <id> "<o que conferir na volta>"` abre na doing um pane `bili: <tema>` que mostra ao vivo as atividades da sessão de agente do Bili no cartão, o tempo desde o pedido e desde a última atividade; depois `agente.sh fecha <pane>` fecha a sessão local. Quando o Bili responde no cartão, o pane vai para a review com a resposta, o ciclo e o que conferir; Enter retoma a sessão local para validar.
-- **Desligar sem perder:** `backlog.sh guardar <tema> claude|pi <id|arquivo> "<o que é>" "<onde parou>" "<próximo passo>"` guarda a ficha e remonta a aba **backlog (N)**, antes da doing: uma grade igual (até 3 colunas), um pane por sessão, com o banner O QUE É / ONDE PAROU / PRÓXIMO. Enter no pane retoma a sessão ali mesmo; ela volta a trabalhar e a mesa a leva para a doing. `backlog.sh tirar <tema>` tira a ficha, `arrumar` remonta, `lista` mostra. Feche o pane do agente só depois de guardar a ficha, e escreva o próximo passo como uma ação, não como estado.
-- **Revisou?** Feche com `agente.sh fecha <pane>` (o id vai para a foto) ou mande a próxima tarefa; a sessão volta a trabalhar e a mesa a leva de novo para a aba doing.
+Organizar a mesa (as fases como workspaces, o item no focus com o cartão, mover e concluir) é da skill `herdr-mesa`; o `mesa.sh` e as abas doing/review saíram de uso.
 
 ## 3. Fechar e retomar
 

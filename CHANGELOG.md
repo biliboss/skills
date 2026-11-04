@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.4.0] - 2026-11-04
+
+### Added
+
+- `envless` 0.1.0: o segredo entra no comando pelo `envless exec`, nunca na conversa; `list` sem valores, `set` pelo stdin, `get` só com `--confirm`; quando usar o CLI e quando o `envless mcp`. As armadilhas: o envless não sobe de pasta e um `--env` inexistente volta vazio, os dois com exit 0.
+- `disky` 0.1.0: o diagnóstico de disco com o disky (`scan`, `dirs`/`top`/`ext`/`query` com `--physical`, `cleanup` em dry-run) e a tabela (caminho, tamanho, o que é, se se regenera) que o dono aprova antes de qualquer apagamento; o espaço liberado medido pelo `df`, porque no APFS o tamanho apagado não é o liberado.
+- `herdr-mesa` 0.1.0: a mesa do herdr em fases, um workspace por fase (focus, backlog, working, ready to review, done today), uma aba por item e o cartão de cada item no focus (`scripts/fase.sh`, `scripts/cartao.py`).
+
+### Changed
+
+- `herdr-agentes` 0.6.0: o fluxo da mesa (o `mesa.sh` e as abas doing/review) saiu; a seção aponta para a `herdr-mesa`.
+
 ## [0.3.0] - 2026-11-04
 
 ### Added

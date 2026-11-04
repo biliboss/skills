@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.0] - 2026-11-04
+
+### Changed
+- A seção "2b. O fluxo da mesa" virou uma linha que aponta para a skill `herdr-mesa`: as fases agora são workspaces, e o `mesa.sh` com as abas doing/review saiu de uso.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added
