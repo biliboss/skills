@@ -3,7 +3,7 @@
 #   Antes de usar uma ferramenta pela primeira vez: linear.sh --ver <ferramenta> (mostra os parâmetros).
 #   Lista as ferramentas: linear.sh --lista. Exemplos:
 #     linear.sh get_issue id:='"<TIME>-205"'
-#     linear.sh save_status_update project:='"Sygnal"' health:='"onTrack"' body:="$(jq -Rs . < corpo.md)"
+#     linear.sh save_status_update project:='"<Projeto>"' health:='"onTrack"' body:="$(jq -Rs . < corpo.md)"
 #   Se o login venceu, ele diz o que o dono precisa rodar (o OAuth abre no navegador).
 set -eu
 if [ $# -lt 1 ]; then sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; fi
