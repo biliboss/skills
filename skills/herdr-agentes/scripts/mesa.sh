@@ -3,7 +3,7 @@
 #   organizar   uma passada: quem está trabalhando vai para a aba "doing (N)" (lado a lado, N = o WIP);
 #               quem parou (idle, done, blocked) vai para a aba "review (N)", para o dono revisar.
 #   vigiar [s]  repete a passada a cada s segundos (padrão 15); rode em segundo plano.
-# A sessão do dono (o pane de onde a mesa é ligada, $HERDR_PANE_ID, ou MESA_DONO=<pane>) nunca se move,
+# A aba do dono (a do pane de onde a mesa é ligada, $HERDR_PANE_ID, ou MESA_DONO=<pane>) é o foco e nunca se mexe,
 # as abas que não têm agente ficam como estão, e nada fora do workspace do dono é tocado. Não lê stdin.
 set -eu
 
@@ -14,6 +14,8 @@ DONO="${MESA_DONO:-${HERDR_PANE_ID:-}}"
 # Só o workspace do dono: as sessões de outros workspaces nunca são tocadas.
 WS="${MESA_WORKSPACE:-$(herdr pane list | jq -r --arg p "$DONO" '.result.panes[] | select(.pane_id == $p) | .workspace_id')}"
 [ -n "$WS" ] || { echo "mesa: não achei o workspace do pane $DONO" >&2; exit 1; }
+# A aba do dono é o foco: o que está nela (a sessão do dono e o que ele puxou para o lado) não se move.
+FOCO=$(herdr pane list | jq -r --arg p "$DONO" '.result.panes[] | select(.pane_id == $p) | .tab_id')
 
 uso() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
@@ -46,7 +48,7 @@ mover() {
 organizar() {
   herdr pane list | jq -r --arg w "$WS" '.result.panes[] | select(.workspace_id == $w and .agent) | [.pane_id, .tab_id, .agent_status] | @tsv' |
   while IFS="$(printf '\t')" read -r pane tab estado; do
-    [ "$pane" != "$DONO" ] || continue
+    [ "$pane" != "$DONO" ] && [ "$tab" != "$FOCO" ] || continue
     case "$estado" in
       working) destino=$TRAB ;;
       idle|done|blocked) destino=$REV ;;

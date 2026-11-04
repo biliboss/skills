@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.0] - 2026-11-04
+
+### Added
+- O fluxo backlog → preparing → doing → review: `backlog.sh puxar <tema>` retoma a sessão ao lado do dono (preparing), e o vigia não mexe na aba do dono.
+
 ## [0.3.1] - 2026-11-04
 
 ### Fixed

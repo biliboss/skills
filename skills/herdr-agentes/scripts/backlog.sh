@@ -4,7 +4,8 @@
 # Enter no pane retoma a sessão ali mesmo; ela vira agente trabalhando e o mesa.sh a leva para a doing.
 #   guardar <tema> claude|pi <id|arquivo.jsonl> "<o que é>" "<onde parou>" "<próximo passo>"
 #                     guarda a ficha e remonta a aba
-#   tirar <tema>      tira a ficha (a sessão foi retomada de vez ou não volta) e remonta a aba
+#   puxar <tema>      retoma a sessão à direita de quem chama (o foco), tira a ficha e remonta a aba
+#   tirar <tema>      tira a ficha (a sessão não volta) e remonta a aba
 #   arrumar           remonta a aba backlog em grade, a partir das fichas
 #   mostrar <tema>    (roda no pane) o banner; Enter retoma
 #   lista             as fichas guardadas
@@ -25,7 +26,7 @@ TRAB="${MESA_ABA_TRABALHO:-doing}"
 REV="${MESA_ABA_REVISAO:-review}"
 # Só o workspace de quem chama (ou MESA_WORKSPACE): nada fora dele é tocado.
 WS="${MESA_WORKSPACE:-$(herdr pane list | jq -r --arg p "${HERDR_PANE_ID:-}" '.result.panes[] | select(.pane_id == $p) | .workspace_id')}"
-uso() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+uso() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 cmd=$1; shift
 
@@ -101,6 +102,21 @@ case "$cmd" in
     printf 'tema=%s\nharness=%s\nid=%s\nquando=%s\noque=%s\nparou=%s\nproximo=%s\n' \
       "$1" "$2" "$3" "$(date '+%d/%m %H:%M')" "$4" "$5" "$6" > "$DIR/$1.ficha"
     arrumar
+    ;;
+  puxar)
+    [ $# -eq 1 ] || uso
+    f="$DIR/$1.ficha"; [ -f "$f" ] || { echo "backlog: sem ficha $f" >&2; exit 1; }
+    [ -n "${HERDR_PANE_ID:-}" ] || { echo "backlog: puxar precisa de HERDR_PANE_ID (rode de dentro do herdr)" >&2; exit 1; }
+    harness=$(campo harness "$f"); id=$(campo id "$f")
+    pane=$(herdr pane split "$HERDR_PANE_ID" --direction right --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '[.. | .pane_id? // empty][0]')
+    case "$harness" in
+      claude) herdr pane run "$pane" "CLAUDE_CONFIG_DIR=$CASA_CONTA_PRINCIPAL_DIR claude --dangerously-skip-permissions --resume $id" >/dev/null ;;
+      pi) herdr pane run "$pane" "sh $PI_CLAUDE $CASA_CONTA_PRINCIPAL_NOME --model claude-bridge/claude-opus-5-5 --thinking medium --session $id" >/dev/null ;;
+    esac
+    herdr pane rename "$pane" "$1" >/dev/null
+    mkdir -p "$DIR/puxadas"; mv "$f" "$DIR/puxadas/"
+    arrumar
+    echo "$pane"
     ;;
   tirar)
     [ $# -eq 1 ] || uso
