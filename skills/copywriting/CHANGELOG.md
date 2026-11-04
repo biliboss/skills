@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-11-04
+
+### Added
+- No artigo, o passo do SEO antes de publicar: o título de SEO com até 60 caracteres, a descrição de 140 a 160 e o exemplo de "A quarta sócia". O estudo e o checklist ficam na página `moc-seo` da wiki. O template ganha a linha do SEO nos Bastidores.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added

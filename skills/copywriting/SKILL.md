@@ -2,7 +2,7 @@
 name: copywriting
 description: Use when writing, rewriting or reviewing text by Gabriel Fonseca that sells an idea (a LinkedIn post, the series "Diário de um Dev em Desconstrução", a LinkedIn article, Marketing Pessoal, a short pitch). Reads the project's premises in Linear first, writes in his voice (acid with ideas, generous with people), opens with a concrete image, measures the draft with scripts/metricas.py, shows it in the Hermes side panel as a LinkedIn-style HTML, makes images only after he approves the text, and only after his OK saves to Linear. Rules live in the biliboss wiki page marketing-pessoal-voz; learnings in references/experiencias.md. Not `linear` (edits Linear itself), `linkedin-publish` (publishes) nor `estudo-html` (studies a tool).
 metadata:
-  version: 0.2.0
+  version: 0.2.1
   license: MIT
 ---
 
@@ -55,6 +55,20 @@ A regra 24 da voz. O esqueleto aprovado está em [templates/artigo.html](templat
 - **A capa** tem **1920 × 1080 px (16:9)**, em **PNG ou JPG, nunca GIF**. É a única regra oficial: a [ajuda do LinkedIn sobre imagens e capa no artigo](https://www.linkedin.com/help/linkedin/answer/a516987) diz que o tamanho ideal é 1920 × 1080, que a capa é cortada em 16:9, que aceita JPEG, JPG, PNG e WEBP e que GIF não pode mais ser capa (conferido em 04/11/2026). A capa também tem de ser **entendida pequena**, porque vira a miniatura do feed e do e-mail: uma ideia só, poucos elementos, contraste alto, sem texto miúdo.
 - **No corpo vão 3 a 4 imagens**, uma a cada ~250 palavras, cada uma simbolizando um conceito do texto, **nunca enfeite**. Se não dá para dizer numa frase qual conceito a imagem carrega, ela sai.
 - **De onde vem o resto:** fora a capa, é opinião de praticante, não regra do LinkedIn. O estudo mais citado é o de Paul Shapiro no OkDork, de 2014 ([How to Post on LinkedIn: 10 Tips from Analyzing 3000 Posts](https://okdork.com/linkedin-publishing-success/)), que achou mais visualizações nos artigos com 8 imagens. É **correlação** (artigos que já iam bem tinham mais imagens; não prova que a imagem causou nada) e **antigo** (o LinkedIn de 2014 não é o de hoje). Os 3 a 4 por artigo são escolha nossa, pelo ritmo de leitura; não cite o estudo como prova.
+
+### O SEO antes de publicar
+
+Antes de publicar, preencha o SEO do artigo. No editor do LinkedIn, fica em **Gerenciar → Configurações → SEO**:
+
+- **Título de SEO:** até **60 caracteres**, com o que a pessoa digitaria no Google. O título do artigo continua criativo; os dois são diferentes de propósito.
+- **Descrição de SEO:** de **140 a 160 caracteres**, com a palavra-chave e o resumo.
+- **Conte os caracteres** com `len()` e escreva o número ao lado de cada um, no rascunho.
+
+Exemplo de "A quarta sócia":
+- título: "IA para pequenas empresas sem perder o atendimento humano" (57);
+- descrição: "Como usar IA na pequena empresa sem tirar o atendimento humano: o caso de um BPO financeiro e um exercício de 15 minutos para achar a sua quarta sócia." (151).
+
+O estudo e o checklist do SEO ficam na página `moc-seo` da wiki do biliboss, que o Bili local está escrevendo. Siga a página, sem repetir aqui o que está nela.
 
 ## Pitfalls
 
