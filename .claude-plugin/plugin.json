@@ -39,6 +39,7 @@
     "./skills/estudo-html",
     "./skills/design",
     "./skills/prime-agent",
-    "./skills/interview"
+    "./skills/interview",
+    "./skills/postmortem"
   ]
 }
