@@ -3,7 +3,7 @@ name: linear
 description: >-
   Work the owner's Linear (workspace `$CASA_LINEAR_WORKSPACE`, team `$CASA_LINEAR_TIME_CHAVE`) the way he wants it: read a project before touching it, write the project's description and content, create result cards with an owner and a way to check, keep milestones honest, and post project updates that read well (O Alquimista style) with images and links. The main path is the official Linear MCP through mcpc (@linear, the Bili app's voice), wrapped by scripts/linear.sh; the scripts cover what the MCP does not (a project snapshot, image upload, the owner's own inbox). Use when the user says "atualiza o projeto no Linear", "cria os cartões", "posta um update", "o update não apareceu", "revisa o marco", "põe no Linear", "update the Linear project". Not `to-tickets` (turns a plan into tickets anywhere) nor `bili` (asks the Hermes agent to do work): this one edits Linear itself.
 metadata:
-  version: 0.2.1
+  version: 0.2.2
 ---
 
 # linear — o Linear do dono, do jeito dele
@@ -49,7 +49,7 @@ O Linear é o lugar de toda a conversa. Escolha o nível antes de escrever:
    - Um cartão é um **resultado**, não uma tarefa. O título diz o que passa a ser verdade ("O servidor de demonstração fica no ar").
    - O corpo tem quem faz (👤 pessoa ou 🤖 agente), **Objetivo:** numa frase, **Como conferir:** com um teste, uma URL ou um número, e os links (PR, spec).
    - O responsável é sempre o dono.
-   - Trabalho de agente é delegado ao app Bili (`$CASA_LINEAR_APP_BILI_ID`).
+   - Trabalho de agente é do app Bili (`$CASA_LINEAR_APP_BILI_ID`), numa sessão só por cartão: delegar já abre a sessão dele, e uma menção depois abre outra. Para pedir com contexto, crie sem delegado e marque-o uma vez (skill `bili`); cartão já delegado não leva menção nova.
    - O passo que só uma pessoa faz (merge, conta, segredo, conversa com o cliente) fica sem delegado.
    - Não apague, não feche nem cancele cartões sem o pedido do dono.
 4. **Os marcos contam a verdade.**

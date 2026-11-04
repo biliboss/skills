@@ -2,7 +2,7 @@
 name: bili
 description: Talk to Bili, the owner's long-lived Hermes agent on the VPS, through Linear — mention him on the card where the subject lives (that opens his agent session — duplo-server → NATS → Bili), wait for his reply on the card, read the thread, check how something is going. Linear is the only channel — never talk to Bili directly (no Hermes API, no SSH, no duplo MCP), and the Mattermost is off. Use when the user says "pede pro bili", "pergunta pro bili", "manda pro bili", "marca o bili", "manda um ping pro bili", "o que o bili respondeu", "em que pé o bili está". Not `linear` (that edits Linear itself — projects, cards, updates) nor `delegate` (another Claude Code session in a herdr pane) nor `delegate-and-review` (a subagent that opens a PR) — this one asks the agent that keeps the memory.
 metadata:
-  version: 0.4.3
+  version: 0.4.4
 ---
 
 # bili — falar com o Bili pelo Linear
@@ -15,6 +15,7 @@ O script é `scripts/linear-bili.sh` (nesta pasta). Ele usa o `dono.sh` da skill
 
 - **O pedido vai no cartão onde o assunto mora.** Procure antes (`S/projeto.sh` da skill `linear`): o cartão da frente, ou o cartão de conversa do marco.
 - **Sem cartão, crie um** com a skill `linear` (um resultado, no projeto e no marco certos) e marque o Bili nele.
+- **Uma sessão por cartão:** delegar o cartão ao Bili já abre uma sessão de agente dele, e uma menção depois abre outra, e as duas trabalham o mesmo cartão. Crie o cartão **sem delegado** e mande o pedido por uma menção, com o contexto inteiro; ou, se o cartão já está delegado, ponha o contexto no corpo e não o marque de novo até ele responder.
 - **Comentário de projeto e de Doc ainda não chegam a ele** (falta o "Inbox notifications" do app e o tipo no duplo-server). Peça sempre num cartão.
 
 ## 2. Mandar

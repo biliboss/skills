@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `bili`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-11-04
+
+### Fixed
+- Uma sessão por cartão: delegar já abre a sessão do Bili, e uma menção depois abre uma segunda no mesmo cartão. Cartão novo vai sem delegado, com o pedido numa menção só; cartão já delegado leva o contexto no corpo, sem nova menção.
+
 ## [0.4.3] - 2026-11-04
 
 ### Changed

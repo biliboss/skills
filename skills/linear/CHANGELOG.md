@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `linear`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-11-04
+
+### Fixed
+- Uma sessão do Bili por cartão: delegar já abre a sessão dele; para pedir com contexto, cartão sem delegado e uma menção só (skill `bili`).
+
 ## [0.2.1] - 2026-11-04
 
 ### Changed

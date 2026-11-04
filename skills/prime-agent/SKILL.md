@@ -3,7 +3,7 @@ name: prime-agent
 description: >-
   Run Prime Agent (Prime Intellect) as a data-analysis notebook on the GLM coding plan, never on the Claude subscription. It opens Prime Agent in a herdr pane to the right, in its own folder per analysis, writes the BRIEF.md (read-only, numbers plus the exact queries in a file), sends it, follows the session, checks the numbers, and closes every analysis as wiki pages (wiki-smith), promoting the queries that worked to a script, a DuckDB macro or a tile. Every action is a script in scripts/. Use when the user says "usa o prime agent", "abre um prime agent", "analisa com o prime", "prime agent no glm", "caderno de análise", "o que o prime descobriu", "instala o prime agent". Not `pi` (the pi.dev agent with the Claude accounts) nor `herdr-agentes` (Claude Code or pi sessions); this one drives Prime Agent for analysis.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # prime-agent — o caderno de análise no GLM
@@ -30,6 +30,7 @@ O Prime Agent é um agente de terminal cuja única ferramenta é um REPL Python 
    - as páginas do `.wiki` para ler antes, só leitura;
    - **só leitura** (no HyperDX, nada de `save_`, `delete_` ou `patch_`) e nada fora da pasta do tema; pacote Python só num `.venv` dentro dela (um DuckDB local ajuda a guardar e cruzar o que ele junta);
    - a entrega **em arquivo na pasta do tema**, com os números e a consulta exata de cada um.
+   - **Para o HyperDX, use a receita** `references/receita-hyperdx.md`: o briefing, o padrão de funções que funciona, a conferência e o fecho.
 4. **Mandar:** uma linha mandando ler o arquivo, pela skill `herdr-agentes`: `agente.sh manda <pane> <arquivo-da-mensagem>`.
 5. **Acompanhar:** o herdr mostra o Prime Agent como `unknown`, então `herdr-events esperar` não avisa quando ele para.
    - `S/sessao.sh <tema>` mostra a sessão da pasta: o id, as células do REPL com o tamanho do resultado, os erros e os tokens por turno.
@@ -42,6 +43,14 @@ O Prime Agent é um agente de terminal cuja única ferramenta é um REPL Python 
    - o que vale além da análise vai para a página do assunto (por exemplo, a regra nova de um painel).
 8. **Promover o que deu certo:** a consulta que vai se repetir sai do REPL e vira um script do repo, uma macro do DuckDB (skill `database-skill-creator`) ou um tile do HyperDX. O estado do REPL (`kernel-state.dill`) não é fonte de verdade: quebra num upgrade e nenhum outro agente o lê.
 9. **Agir sobre os achados:** trabalho da VPS vai para o Bili num cartão (skills `linear` e `bili`), seguindo o AGENTS.md do Linear: um cartão de resultado com os achados como checklist, não um cartão por achado.
+
+## Exemplo: sugestões a partir do HyperDX
+
+1. `S/abrir.sh hyperdx glm-5.3-flash` abre o pane em `$PRIME_LAB/hyperdx`.
+2. O `BRIEF.md` da pasta segue a `references/receita-hyperdx.md`: 3 sugestões, 48 h, só leitura, com o tile e o SQL de cada número.
+3. Em ~6 min ele entrega o `sugestoes.md`; `S/sessao.sh hyperdx` mostra como chegou lá.
+4. Você confere 2 ou 3 números com o `mcpc` e as contas que ele fez por cima.
+5. O fecho é a página `prime-agent-hyperdx.md` no wiki e um cartão de resultado com os achados como checklist, para o Bili.
 
 ## O que pega
 

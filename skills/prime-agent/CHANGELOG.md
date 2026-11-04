@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `prime-agent`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-04
+
+### Added
+- A receita `references/receita-hyperdx.md` (o briefing, o padrão de funções que funciona com o `mcpc`, a conferência e o fecho) e um exemplo de uso de ponta a ponta na SKILL.md.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added
