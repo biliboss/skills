@@ -17,12 +17,18 @@ O texto vem de ~/.local/state/<tema>.cartao.md, escrito pela sessão do item no 
 
 Sem ele, mostra o objetivo do briefing (~/.local/state/<tema>.md) e a última fala do agente. Só lê.
 
-    uv run cartao.py [segundos]        o cartão da aba onde o pane mora (HERDR_PANE_ID); redesenha a cada N s
+O pane do cartão mostra só o resumo. O nome e o estado de cada agente da aba vão no rótulo do pane dele, na barra
+do herdr ("H14 - duplo-eval-tasks · parado · pi"), que o cartão mantém a cada volta. O Hermes (o Bili) o herdr não
+reconhece como agente: o cartão o trata como "hermes" pelo título do terminal ou pelo id em MESA_BILI (H01).
+
+    uv run cartao.py [segundos]        o cartão da aba onde o pane mora (HERDR_PANE_ID); redesenha a cada N s,
+                                       num resize (SIGWINCH) e quando a largura do pane muda
     uv run cartao.py --uma             desenha uma vez e sai
 """
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -34,12 +40,9 @@ from rich.padding import Padding
 from rich.text import Text
 
 ESTADO = Path.home() / ".local/state"
-ICONE = {
-    "working": ("● trabalhando", "green"),
-    "blocked": ("? perguntando", "bold yellow"),
-    "done": ("✓ terminou", "cyan"),
-    "idle": ("○ parado", "grey50"),
-}
+ESTADO_NOME = {"working": "trabalhando", "blocked": "perguntando", "done": "terminou", "idle": "parado"}
+BILI = os.environ.get("MESA_BILI", "H01")
+HERMES = re.compile(r"\b(Bili|Hermes)\b")
 RUIDO = re.compile(
     r"[─━═]{6,}|░▒▓|INSERT|MCP:|subagents|bypass permissions|ctrl\+o|^Took |^❯|^\$ |^goal_complete"
     r"|Working|Thinking|recap:|\(timeout|^[│┊]"
@@ -98,36 +101,60 @@ def secoes(md: str) -> list:
     return partes
 
 
-def cartao(eu: str) -> Group:
+def base(rotulo: str) -> str:
+    """O rótulo sem o estado que o cartão acrescenta (\"H14 - tema · parado · pi\" -> \"H14 - tema\")."""
+    return rotulo.split(" · ")[0]
+
+
+def agente_de(p: dict) -> tuple[str, str]:
+    """(agente, estado) do pane. O Hermes não é reconhecido pelo herdr: vem do título (⏳ = trabalhando) ou do id."""
+    if p.get("agent"):
+        return p["agent"], ESTADO_NOME.get(p.get("agent_status"), "?")
+    titulo = p.get("terminal_title_stripped") or ""
+    if HERMES.search(titulo) or base(p.get("label") or "").startswith(f"{BILI} - "):
+        return "hermes", "trabalhando" if "⏳" in titulo else "parado"
+    return "", ""
+
+
+def da_aba(eu: str) -> tuple[str, list]:
     panes = herdr("pane", "list").get("panes", [])
     tab = next((p["tab_id"] for p in panes if p["pane_id"] == eu), None)
     tabs = herdr("tab", "list").get("tabs", [])
     tema = next((t["label"] for t in tabs if t["tab_id"] == tab), "?")
-    outros = [p for p in panes if p["tab_id"] == tab and p["pane_id"] != eu and p.get("label") != "card"]
+    return tema, [p for p in panes if p["tab_id"] == tab and p["pane_id"] != eu and p.get("label") != "card"]
 
-    partes: list = [Text(tema, style="grey50")]
+
+def rotula(outros: list) -> None:
+    """Põe o estado de cada agente no rótulo do pane dele (a barra do herdr), só quando muda."""
     for p in outros:
-        icone, cor = ICONE.get(p.get("agent_status"), ("· sem agente", "grey50"))
-        nome = p.get("label") or p.get("terminal_title_stripped") or "?"
-        partes.append(Text.assemble((icone, cor), "  ", (f"{nome} · {p.get('agent') or '-'}", "grey50")))
+        agente, estado = agente_de(p)
+        atual = p.get("label") or ""
+        if not agente or not atual:
+            continue
+        novo = f"{base(atual)} · {estado} · {agente}"
+        if novo != atual:
+            subprocess.run(["herdr", "pane", "rename", p["pane_id"], novo], capture_output=True)
 
+
+def cartao(tema: str, outros: list) -> Group:
+    """Só o resumo: o cartão escrito pela sessão do item, ou o objetivo do briefing e a última fala."""
     escrito = ESTADO / f"{tema}.cartao.md"
     if escrito.exists():
-        partes += secoes(escrito.read_text())
-        return Group(*partes)
+        partes = secoes(escrito.read_text())
+        return Group(*(partes[1:] if partes and not str(partes[0]) else partes))
 
+    partes: list = []
     briefing = ESTADO / f"{tema}.md"
     if briefing.exists():
         b = briefing.read_text()
         m = re.search(r"^## Objetivo[^\n]*\n(.*?)(?=^## |\Z)", b, re.S | re.M)
         obj = (m.group(1) if m else b.splitlines()[0].lstrip("# ")).strip()
-        partes += [Text(""), Text("OBJETIVO", style="grey50"), Markdown(obj)]
+        partes += [Text(tema, style="bold bright_white"), Text(""), Text("OBJETIVO", style="grey50"), Markdown(obj)]
     for p in outros:
-        if p.get("agent"):
+        if agente_de(p)[0] and not base(p.get("label") or "").startswith(f"{BILI} - "):
             fala = ultima_fala(p["pane_id"])
             if fala:
-                nome = p.get("label") or "agente"
-                partes += [Text(""), Text(f"ÚLTIMA FALA · {nome}", style="grey50"), Text(fala)]
+                partes += [Text(""), Text(f"ÚLTIMA FALA · {base(p.get('label') or 'agente')}", style="grey50"), Text(fala)]
     return Group(*partes)
 
 
@@ -139,12 +166,14 @@ def largura(eu: str) -> int:
     return 80
 
 
-def desenha(eu: str) -> None:
-    w = largura(eu)
+def desenha(eu: str, w: int | None = None) -> None:
+    w = w or largura(eu)
+    tema, outros = da_aba(eu)
+    rotula(outros)
     con = Console(width=w, force_terminal=True, color_system="256")
     with con.capture() as cap:
-        con.print(Padding(cartao(eu), (1, 2, 0, 2)))
-    sys.stdout.write("\033[H\033[2J" + cap.get())
+        con.print(Padding(cartao(tema, outros), (0, 2, 0, 2)))
+    sys.stdout.write("\033[H\033[2J\033[3J" + cap.get())
     sys.stdout.flush()
 
 
@@ -154,9 +183,15 @@ def main() -> None:
         desenha(eu)
         return
     n = next((int(a) for a in sys.argv[1:] if a.isdigit()), 15)
+    redesenhar = True
+    signal.signal(signal.SIGWINCH, lambda *_: globals().__setitem__("_WINCH", True))
+    w_antes, proxima = 0, 0.0
     while True:
-        desenha(eu)
-        time.sleep(n)
+        w = largura(eu)
+        if redesenhar or globals().pop("_WINCH", False) or w != w_antes or time.monotonic() >= proxima:
+            desenha(eu, w)
+            w_antes, proxima, redesenhar = w, time.monotonic() + n, False
+        time.sleep(1)
 
 
 if __name__ == "__main__":
