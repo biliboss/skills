@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.2] - 2026-11-04
+
+### Changed
+- O passo do SEO do artigo não tem regra própria. Ele carrega as skills públicas `seo-keyword-research` e `seo-aeo-best-practices`, instaladas pelo catálogo do Hermes se faltarem, e segue o checklist da casa em `.wiki/seo-cheatsheet.md` (mapa `moc-seo`). Os limites e o exemplo saíram da skill e ficam na wiki.
+
 ## [0.2.1] - 2026-11-04
 
 ### Added

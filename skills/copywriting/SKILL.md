@@ -2,7 +2,7 @@
 name: copywriting
 description: Use when writing, rewriting or reviewing text by Gabriel Fonseca that sells an idea (a LinkedIn post, the series "Diário de um Dev em Desconstrução", a LinkedIn article, Marketing Pessoal, a short pitch). Reads the project's premises in Linear first, writes in his voice (acid with ideas, generous with people), opens with a concrete image, measures the draft with scripts/metricas.py, shows it in the Hermes side panel as a LinkedIn-style HTML, makes images only after he approves the text, and only after his OK saves to Linear. Rules live in the biliboss wiki page marketing-pessoal-voz; learnings in references/experiencias.md. Not `linear` (edits Linear itself), `linkedin-publish` (publishes) nor `estudo-html` (studies a tool).
 metadata:
-  version: 0.2.1
+  version: 0.2.2
   license: MIT
 ---
 
@@ -58,17 +58,14 @@ A regra 24 da voz. O esqueleto aprovado está em [templates/artigo.html](templat
 
 ### O SEO antes de publicar
 
-Antes de publicar, preencha o SEO do artigo. No editor do LinkedIn, fica em **Gerenciar → Configurações → SEO**:
+Não existe skill de SEO própria da casa: usamos as públicas, que quem as publica mantém em dia, e a wiki guarda o que é nosso. Neste passo:
 
-- **Título de SEO:** até **60 caracteres**, com o que a pessoa digitaria no Google. O título do artigo continua criativo; os dois são diferentes de propósito.
-- **Descrição de SEO:** de **140 a 160 caracteres**, com a palavra-chave e o resumo.
-- **Conte os caracteres** com `len()` e escreva o número ao lado de cada um, no rascunho.
+1. **Para escolher o tema e a frase de busca,** carregue a skill pública `seo-keyword-research`. No catálogo do Hermes ela é `skills-sh/thibaultbm/claude-seo-geo/seo-keyword-research`.
+2. **Para revisar o rascunho para a busca em IA,** carregue a `seo-aeo-best-practices`, que no catálogo é `skills-sh/sanity-io/agent-toolkit/seo-aeo-best-practices`.
+3. **Siga o checklist da casa** em `.wiki/seo-cheatsheet.md` do biliboss, que tem o mapa `moc-seo.md`. Lá estão os campos do LinkedIn (Gerenciar → Configurações → SEO: o título de SEO e a descrição de SEO) e os exemplos reais.
 
-Exemplo de "A quarta sócia":
-- título: "IA para pequenas empresas sem perder o atendimento humano" (57);
-- descrição: "Como usar IA na pequena empresa sem tirar o atendimento humano: o caso de um BPO financeiro e um exercício de 15 minutos para achar a sua quarta sócia." (151).
+Se uma das duas skills não estiver instalada no perfil, instale-a antes pelo catálogo. As duas são só texto: não pedem chave nem mandam dados para fora.
 
-O estudo e o checklist do SEO ficam na página `moc-seo` da wiki do biliboss, que o Bili local está escrevendo. Siga a página, sem repetir aqui o que está nela.
 
 ## Pitfalls
 
