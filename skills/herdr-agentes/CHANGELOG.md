@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] - 2026-11-04
+
+### Added
+- `mesa.sh organizar|vigiar`: as sessões vão para a aba "doing (N)" enquanto trabalham e para "review (N)" quando param; N é o WIP de cada aba.
+
 ## [0.2.1] - 2026-11-04
 
 ### Changed
