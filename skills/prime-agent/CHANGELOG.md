@@ -5,7 +5,10 @@ Todas as mudanças do skill `prime-agent`. Formato: [Keep a Changelog 1.1.0](htt
 ## [0.3.0] - 2026-11-04
 
 ### Changed
-- A skill não depende mais do herdr: `scripts/mux.sh` (qual, abrir, ler, tecla, manda) fala com o herdr ou com o tmux, detectados por `$HERDR_PANE_ID` e `$TMUX` (ou `$MUX`); sem multiplexador, `abrir.sh` imprime o comando. Os passos usam só o `mux.sh`, e o envio da mensagem deixou de passar pela skill `herdr-agentes`. Os panes do tmux têm um nome manual `TNN - nome` nas opções `@tnn`/`@nome` (verbo `nomear`), e o `mux.sh` escolhe o multiplexador pelo id.
+- A skill não depende mais do herdr: `scripts/mux.sh` (qual, abrir, ler, tecla, manda) fala com o herdr ou com o tmux, detectados por `$HERDR_PANE_ID` e `$TMUX` (ou `$MUX`); sem multiplexador, `abrir.sh` imprime o comando. Os passos usam só o `mux.sh`, e o envio da mensagem deixou de passar pela skill `herdr-agentes`. Cada pane tem um id: `TNN` no tmux (opções `@tnn`/`@nome`) e `HNN` no herdr (rótulo `HNN - nome`); verbos `panes` e `nomear`, e o `mux.sh` escolhe o multiplexador pelo id. `abrir.sh` aceita uma pasta (com barra) além de um tema do `$PRIME_LAB`.
+
+### Added
+- A skill Python `mux` do Prime Agent (`python/mux/`), que embrulha o `mux.sh` para o REPL.
 
 ## [0.2.0] - 2026-11-04
 
