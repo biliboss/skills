@@ -57,6 +57,6 @@ O Prime Agent é um agente de terminal cuja única ferramenta é um REPL Python 
 - **Retomar:** `S/rodar.sh --resume <id>` de dentro da pasta do tema, com o mesmo modelo; o id vem do `S/sessao.sh`.
 - **`prime-agent model list` só mostra o `zai` com a chave no ambiente:** rode-o pelo `S/rodar.sh model list`.
 - **Ele imprime arquivos inteiros quando lê contexto:** peça no briefing que leia só as seções que importam, para não gastar contexto à toa.
-- **Só `S/mux.sh` fala com o multiplexador:** os passos não chamam `herdr` nem `tmux` direto, para a skill rodar em qualquer um. Outro multiplexador entra como um ramo novo no `mux.sh`, com os mesmos quatro verbos. O id diz o dono: `TNN` (dois dígitos) é um pane do tmux, `w..:p..` um do herdr, e a mesma sessão conduz os dois.
+- **Só `S/mux.sh` fala com o multiplexador:** os passos não chamam `herdr` nem `tmux` direto, para a skill rodar em qualquer um. Outro multiplexador entra como um ramo novo no `mux.sh`, com os mesmos quatro verbos. O id diz o dono: `TNN` (dois dígitos) é um pane do tmux, `w..:p..` um do herdr, e a mesma sessão conduz os dois. No tmux o nome "TNN - nome" mora nas opções `@tnn`/`@nome` do pane (o `abrir` dá o próximo livre; `S/mux.sh nomear <pane> <nome> [TNN]` renomeia), não no título, que o Claude Code sobrescreve.
 - **No tmux, ligue `set -g extended-keys on`** no `~/.tmux.conf`: sem isso o Prime Agent avisa que o Enter com modificador (nova linha na caixa) pode falhar.
 - **No herdr, registre o pane** na foto do `.wiki/herdr-sessoes.md`, como qualquer sessão de agente.
