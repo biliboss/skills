@@ -1,0 +1,9 @@
+{
+  "name": "skill-design",
+  "private": true,
+  "type": "module",
+  "description": "Os scripts da skill design: wrapper.ts (build, conferir, pastas, foto).",
+  "dependencies": {
+    "playwright-core": "1.64.1"
+  }
+}
