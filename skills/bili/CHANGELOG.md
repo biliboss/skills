@@ -2,6 +2,17 @@
 
 Todas as mudanças do skill `bili`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-04
+
+### Added
+- Três rotas escolhidas por configuração (`CASA_BILI_ROTA=local|remoto|linear`, padrão `local`) e uma porta só, `scripts/bili.sh` (`pedir`, `esperar`, `ler`, `rota [local|remoto|linear]`). `rota` mostra a rota e, com argumento, grava no `casa.env`.
+- `scripts/nats-bili.sh`: as rotas local e remoto publicam `mesa.agent.request.received` (gramática do libs/local-events) com a CLI `nats` e leem a resposta `mesa.agent.request.answered` pelo `trace_id`.
+- `BILI_SECO=1` no `linear-bili.sh pedir`: imprime a menção exata, sem comentar.
+- `casa.env.example`: `CASA_BILI_ROTA` e as URLs, streams, usuário e arquivo de senha do NATS.
+
+### Changed
+- O `linear-bili.sh` passa a ser a rota `linear`, chamada pelo `bili.sh`. O grill binário continua. O passo 3 do passo 0 manda pela rota, não mais por digitar na fila do pane.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added

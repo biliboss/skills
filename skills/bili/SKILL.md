@@ -1,19 +1,46 @@
 ---
 name: bili
-description: Hand a request to Bili, the owner's Hermes agent. On the Mac every request goes first to the local Bili (its pane, $CASA_BILI_LOCAL_PANE), after grilling the owner with AskUserQuestion; the local Bili does it, delegates to its subagents, or asks the VPS Bili through Linear (a mention on the card where the subject lives, never the Hermes API, SSH or duplo MCP). Also waits for and reads the VPS Bili's reply on the card. Use when the user says "pede pro bili", "manda pro bili", "roteia pro bili", "pergunta pro bili", "marca o bili", "o que o bili respondeu", "em que pé o bili está". Not `linear` (that edits Linear itself) nor `herdr-agentes` (other agent sessions in herdr) nor `delegate-and-review` (a subagent that opens a PR); this one asks the agent that keeps the memory.
+description: Hand a request to Bili, the owner's Hermes agent, by one of three routes chosen by configuration (CASA_BILI_ROTA, default local) through a single script, bili.sh pedir|esperar|ler|rota. local = an event on the Mac's NATS for the local Bili; remoto = an event on the VPS NATS for the VPS Bili; linear = a mention on the Linear card where the subject lives (project or card work). The Mac request is grilled first with AskUserQuestion, one binary question at a time. Never the Hermes API, SSH or duplo MCP. Also waits for and reads the reply, and shows or switches the route. Use when the user says "troca a rota do bili", "pede pro bili", "manda pro bili", "roteia pro bili", "pergunta pro bili", "marca o bili", "o que o bili respondeu", "em que pé o bili está". Not `linear` (that edits Linear itself) nor `herdr-agentes` (other agent sessions in herdr) nor `delegate-and-review` (a subagent that opens a PR); this one asks the agent that keeps the memory.
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # bili — mandar um pedido ao Bili
 
-## 0. No Mac: grill primeiro, depois o Bili local
+## A rota: local, remoto ou Linear
 
-Todo pedido do dono feito no Mac vai ao **Bili local** (o Hermes local, no pane `$CASA_BILI_LOCAL_PANE`). É ele quem faz, delega aos subagentes dele ou pede ao Bili da VPS pelo Linear (as seções 1 a 5, que ele mesmo usa). Uma sessão do Mac não chama o Bili da VPS direto.
+Uma porta só: `scripts/bili.sh` (`B=<pasta desta skill>/scripts/bili.sh`). A rota vem do `casa.env` (`CASA_BILI_ROTA`, padrão `local`).
+
+| Rota | O que faz | Use quando |
+|---|---|---|
+| `local` | publica um evento no NATS do Mac; o Bili local pega e responde por evento | pedido de dia a dia do Mac (padrão) |
+| `remoto` | publica um evento no NATS da VPS (pela tailnet); o Bili da VPS pega | o trabalho é da VPS (clones, Ansible, o que roda lá) |
+| `linear` | uma menção ao Bili num cartão do Linear (seções 1 a 5) | **trabalho de projeto ou de cartão**: a conversa e o ciclo ficam visíveis no cartão |
+
+```sh
+sh $B rota                    # mostra a rota de agora e de onde veio
+sh $B rota remoto             # troca: grava CASA_BILI_ROTA=remoto no casa.env
+BILI_ROTA=linear sh $B pedir <TIME>-231 pedido.md    # só esta chamada, sem gravar
+sh $B pedir pedido.md         # local/remoto: imprime "<trace_id> <desde>"
+sh $B esperar <trace_id> 300  # a resposta (evento answered); 124 sem resposta
+sh $B ler 5                   # as últimas 5 respostas
+```
+
+- **Quando o dono pedir para trocar a rota** ("manda direto pra VPS", "volta pro local"), rode `rota <nome>` e confirme com `rota`.
+- **Pedido sobre um projeto ou cartão do Linear** (ex.: Via Corretor) vai pela rota `linear`, mesmo com a rota padrão em `local`: use `BILI_ROTA=linear` na chamada.
+- **No linear** os argumentos são os do `linear-bili.sh` (cartão primeiro); nas outras, o arquivo do pedido e o `trace_id`.
+- **O evento** segue a gramática do `libs/local-events` do repo da casa: `mesa.agent.request.received` (com `trace_id`, `sender`, `text`) e, na volta, `mesa.agent.request.answered`. O pedido com cara de segredo é recusado.
+- **Teste nunca no stream real:** `CASA_BILI_NATS_RAIZ=test` troca a raiz do subject (`test.agent.request.received`).
+- **Valores da casa** (`CASA_BILI_NATS_LOCAL_URL`, `CASA_BILI_NATS_REMOTO_URL`, usuário e arquivo da senha, stream) estão no `casa.env.example`. A senha vem de um arquivo e nunca é impressa.
+- **O lado de quem recebe** é de cada máquina: no Mac, um trigger do sistema de triggers da mesa; na VPS, uma rota do plugin hermes-jetstream do Bili. Sem ele aplicado, o pedido publicado fica sem resposta (o `esperar` sai com 124).
+
+## 0. No Mac: grill primeiro, depois a rota
+
+Todo pedido do dono feito no Mac vai ao **Bili local** (o Hermes local, no pane `$CASA_BILI_LOCAL_PANE`). É ele quem faz, delega aos subagentes dele ou pede ao Bili da VPS pelo Linear (as seções 1 a 5, que ele mesmo usa). Uma sessão do Mac chama o Bili da VPS direto só quando a rota configurada for `remoto`, ou `linear` para trabalho de projeto.
 
 1. **Grill antes de mandar, sempre, com a ferramenta AskUserQuestion: uma pergunta por vez, binária.** Cada chamada leva uma pergunta só, com duas opções concretas (a recomendada primeiro, marcada "(Recommended)", com o porquê em uma linha), escrita para quem não viu a conversa: o que se decide e o que muda em cada resposta. Pergunte em sequência só o que é do dono (o resultado, o escopo, quem faz, o limite) e pare quando o pedido estiver claro; uma resposta confusa pede a mesma pergunta reescrita, nunca uma rodada maior.
 2. **Escreva o pedido num arquivo** (o scratchpad, ou `~/.local/state/<tema>.md` quando for longo): o objetivo verificável, as decisões do grill com as respostas do dono, o contexto (repo, caminho, commit, cartão), o que não fazer e como responder (em até 5 linhas).
-3. **Mande pela fila:** `sh <mux.sh da skill prime-agent> fila $CASA_BILI_LOCAL_PANE <arquivo>` (uma linha mandando ler o arquivo, quando ele for longo). `manda $CASA_BILI_LOCAL_PANE` só para corrigir o rumo do turno em curso; uma correção urgente, que não pode esperar o turno, vai como steer pelo `manda`.
+3. **Mande pela rota:** `sh $B pedir <arquivo>` (guarde o `trace_id`), e `sh $B esperar <trace_id>` em segundo plano. Na rota `local`, o evento vira um turno do Bili local, e ele responde com um evento. Para corrigir o rumo de um turno em curso, e só para isso, use o `manda $CASA_BILI_LOCAL_PANE` do `mux.sh` (skill `prime-agent`); a correção urgente, que não pode esperar o turno, vai como steer pelo `manda`.
 4. **Junte o que chega junto:** vários pedidos numa mensagem numerada, nunca uma rajada de mensagens soltas.
 5. **Arme o monitor do NATS** (se ainda não estiver de pé), pela ferramenta Monitor do Claude Code, com o tempo máximo:
    `uv run -q --script <pasta desta skill>/scripts/watch.py asks errors panes`
