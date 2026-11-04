@@ -19,7 +19,7 @@ Sem ele, mostra o objetivo do briefing (~/.local/state/<tema>.md) e a última fa
 
 O pane do cartão mostra só o resumo. O nome, o estado e o harness do agente da frente vão na barra (barra.py), um
 pane de 2 linhas logo acima dele. O Hermes (o Bili) o herdr não
-reconhece como agente: o cartão o trata como "hermes" pelo título do terminal ou pelo id em MESA_BILI (H01).
+reconhece como agente: o cartão o trata como "hermes" pelo título do terminal ou pelo id em MESA_BILI (H00).
 
     uv run cartao.py [segundos]        o cartão da aba onde o pane mora (HERDR_PANE_ID); redesenha a cada N s,
                                        num resize (SIGWINCH) e quando a largura do pane muda
@@ -41,7 +41,7 @@ from rich.text import Text
 
 ESTADO = Path.home() / ".local/state"
 ESTADO_NOME = {"working": "trabalhando", "blocked": "perguntando", "done": "terminou", "idle": "parado"}
-BILI = os.environ.get("MESA_BILI", "H01")
+BILI = os.environ.get("MESA_BILI", "H00")
 HERMES = re.compile(r"\b(Bili|Hermes)\b")
 RUIDO = re.compile(
     r"[─━═]{6,}|░▒▓|INSERT|MCP:|subagents|bypass permissions|ctrl\+o|^Took |^❯|^\$ |^goal_complete"
@@ -80,29 +80,39 @@ def ultima_fala(pane: str) -> str:
 
 
 def secoes(md: str) -> list:
-    """Título em negrito, rótulos apagados, o corpo de cada seção em markdown."""
+    """Título em negrito, rótulos de seção em ciano forte, "Bloqueio" em destaque, o corpo em markdown."""
     partes, corpo = [], []
+    bloqueio = False
 
     def fecha():
         if "".join(corpo).strip():
-            partes.append(Markdown("\n".join(corpo), hyperlinks=False))
+            md_corpo = Markdown("\n".join(corpo), hyperlinks=False)
+            partes.append(Padding(md_corpo, (0, 0, 0, 0), style="bold yellow") if bloqueio else md_corpo)
         corpo.clear()
 
     for linha in md.splitlines():
         if linha.startswith("# "):
             fecha()
-            partes += [Text(""), Text(linha[2:].strip(), style="bold bright_white")]
+            partes += [Text(linha[2:].strip(), style="bold bright_white")]
         elif linha.startswith("## "):
             fecha()
-            partes += [Text(""), Text(linha[3:].strip().upper(), style="grey50")]
+            rotulo = linha[3:].strip()
+            bloqueio = rotulo.lower().startswith("bloque")
+            partes += [Text(""), Text(("⚠ " if bloqueio else "") + rotulo.upper(), style="bold yellow" if bloqueio else "bold bright_cyan")]
         else:
             corpo.append(linha)
     fecha()
     return partes
 
 
+def idade(arquivo: Path) -> Text:
+    s = int(time.time() - arquivo.stat().st_mtime)
+    txt = "agora" if s < 60 else f"há {s // 60} min" if s < 3600 else f"há {s // 3600} h {s % 3600 // 60:02d} min"
+    return Text(f"atualizado {txt}", style="grey50" if s < 3600 else "yellow")
+
+
 def base(rotulo: str | None) -> str:
-    """O rótulo sem um sufixo " · ..." (\"H14 - tema · parado\" -> \"H14 - tema\")."""
+    """O rótulo sem um sufixo " · ..." ("H14 - tema · parado" -> "H14 - tema")."""
     return (rotulo or "").split(" · ")[0]
 
 
@@ -133,8 +143,7 @@ def cartao(tema: str, outros: list) -> Group:
     """Só o resumo: o cartão escrito pela sessão do item, ou o objetivo do briefing e a última fala."""
     escrito = ESTADO / f"{tema}.cartao.md"
     if escrito.exists():
-        partes = secoes(escrito.read_text())
-        return Group(*(partes[1:] if partes and not str(partes[0]) else partes))
+        return Group(idade(escrito), *secoes(escrito.read_text()))
 
     partes: list = []
     briefing = ESTADO / f"{tema}.md"
