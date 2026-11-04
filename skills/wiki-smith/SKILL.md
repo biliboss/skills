@@ -13,7 +13,7 @@ description: >-
   wiki pages. Needs a repo with a `.wiki/` folder; names and language come from
   `.wiki/wiki.config`.
 metadata:
-  version: 0.1.2
+  version: 0.1.3
   license: MIT
 ---
 
@@ -41,6 +41,7 @@ Read the session (and `git diff`, `git log` for the work done). Pick **every** r
 | A decision, delivery, change of course, incident or research | A daily note: `scripts/note.sh -b "Title that says what changed"` with the paragraph piped in. Then the day's line in the inbox. |
 | A rule, lesson or fact that holds beyond today | Also fix the **topic page**: the rule as it holds now, no history (history stays in the note and in the page's History section). Correct what the page said before; never stack "it used to be". |
 | A new subject with several facets (it will come back, and one page would mix kinds) | A map of content `moc-<topic>.md` plus pages `<topic>-<facet>.md` (cheatsheet, install, integration, comparison with the current tool...). See "New subject" below. |
+| A public skill was installed or studied | **Absorb it**: only what is new goes into the topic's map, with its origin, plus the install id and when to load it. See "Absorbing a public skill" below. |
 | Nothing worth recording (only intermediate steps, or what a commit already says) | Say so in one line and create nothing. Padding the diary makes it unreadable. |
 
 Only a fresh note is ever created for the diary; never rewrite another agent's note.
@@ -68,6 +69,16 @@ Only a fresh note is ever created for the diary; never rewrite another agent's n
 5. **Push only when the user asked to sync:** the same call with `-p` (fetch, rebase, `push HEAD:<main>`, fast-forward the checkout, remove the worktree). Never force, never touch other people's modified files: a file that differs from what you pushed and may hold another session's edits (index, inbox) is left as it is. If the checkout cannot be fast-forwarded (local `<main>` diverged, or overlapping local edits) it says so and still exits 0, because the push worked. Open a PR only when asked.
 
 Commit what you wrote in the same session without waiting to be asked; publishing is the user's call.
+
+## Absorbing a public skill
+
+When a public skill covers the subject, do not write a house skill for it: use the public one and let the wiki hold what is ours.
+
+1. **Find and vet before installing:** search the catalog (official over well-known community); it must be text only, with no script, API key, paid service or data sent out (nothing to a vendor's telemetry). Read the code of any plugin first. Install only with the owner's OK and note the catalog id.
+2. **Read it whole and sort it:** what fits this case × what does not (one line on why); evidence (official source, study) × practitioner heuristic, marked as such.
+3. **Ingest only the new** into the topic's map or page, with the origin (the skill plus the source it cites, linked). Never copy the whole skill.
+4. **Record in the map:** which public skills exist, the id to install on another profile or machine, and when to load each.
+5. **Own skill or public?** Own only when the knowledge is ours (house procedure, voice, internal tool); fast-changing public knowledge stays in the public skill. A house skill points to the public one and to the wiki, without duplicating either.
 
 ## Consulting the wiki
 
