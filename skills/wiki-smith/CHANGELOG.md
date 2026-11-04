@@ -5,6 +5,12 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-04
+
+### Added
+
+- Routing row "A public skill was installed or studied" and the section "Absorbing a public skill": vet it (text only, no script, key, paid service or data sent out), read it whole, ingest only the new into the topic's map with its origin, record the install id and when to load it, and prefer the public skill over an own one unless the knowledge is the house's.
+
 ## [0.1.2] - 2026-11-03
 
 ### Changed
