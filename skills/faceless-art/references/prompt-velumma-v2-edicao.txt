@@ -1,0 +1,7 @@
+Use your native image generation tool (image_gen / gpt-image) to EDIT the reference image at <DIR>/post-velumma.png and produce ONE square 1:1 PNG (1024x1024 or larger). Start from that image: keep the composition, the two-floor cutaway, the basement, the faceless robots, the labels "ATENDIMENTO", "CONCILIAÇÃO", "LANÇAMENTOS", "DOCUMENTOS PENDENTES", the microwave with the badge "ATENDENTE", the clients, colors and style exactly as they are.
+
+CHANGE ONLY the three women on the top floor. They must be plump, full-bodied, real women (round arms, soft bellies, wide hips), portrayed with warmth and dignity, never as caricature. One of them is Black (dark brown skin). The other two are white; one of them has traits of a Brazilian northeasterner (slightly tanned/morena skin, dark hair). Varied, ordinary work clothes (e.g. blouse and trousers, cardigan and skirt, shirt and apron). They remain FACELESS: smooth mannequin-like heads and faces with no eyes, nose or mouth; emotion only through welcoming posture (serving coffee, handshake, listening).
+
+Style: Brazilian editorial humor illustration, clean strong linework, light background, no logos, square 1:1. All text in correct Brazilian Portuguese with accents, spelled exactly. Do not write the word Velumma. No other text.
+
+Save the result as PNG at <DIR>/post-velumma-v2.png (copy the generated file there if needed).

@@ -1,0 +1,5 @@
+Use your native image generation tool (image_gen / gpt-image) to create ONE square 1:1 image (1024x1024 or larger) and save it as PNG at <DIR>/post-velumma.png (copy the generated file there if needed).
+
+Art direction: Brazilian editorial humor illustration, clean strong linework, light background, no logos. All characters FACELESS with smooth mannequin-like heads: no eyes, nose or mouth; emotion only through posture. All text in the art in correct Brazilian Portuguese with accents, spelled exactly.
+
+Concept: cutaway of a building in two floors. TOP FLOOR, bright and welcoming: three women (faceless) serving faceless clients with coffee, a handshake, listening posture; a sign reading "ATENDIMENTO". BASEMENT: smooth-headed faceless robots happily working among piles of paper and spreadsheets, with labels "CONCILIAÇÃO", "LANÇAMENTOS", "DOCUMENTOS PENDENTES". Humor detail: a microwave oven wearing a badge "ATENDENTE", tossed in a corner of the basement, rejected. Do not write the word Velumma anywhere. No other text.
