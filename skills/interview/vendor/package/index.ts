@@ -1,0 +1,1754 @@
+import { Type } from "typebox";
+import { Value } from "typebox/value";
+import { StringEnum, type Api, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
+import { Text } from "@earendil-works/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import * as path from "node:path";
+import * as os from "node:os";
+import * as net from "node:net";
+import * as fs from "node:fs";
+import { randomUUID } from "node:crypto";
+import { execSync, execFile, execFileSync, spawn as spawnProcess } from "node:child_process";
+import { createRequire } from "node:module";
+import {
+	startInterviewServer,
+	getActiveSessions,
+	type ChoiceResponseValue,
+	type ResponseItem,
+	type InterviewServerCallbacks,
+	type SavedOptionInsight,
+	type AskModelOption,
+	type OptionInsightResult,
+} from "./server.ts";
+import { getOptionLabel, isRichOption, validateQuestions, sanitizeLLMJSON, type OptionValue, type Question, type QuestionsFile } from "./schema.ts";
+import { loadSettings, type InterviewSettings, type InterviewThemeSettings } from "./settings.ts";
+
+interface GlimpseWindow {
+	on(event: "closed", handler: () => void): void;
+	close(): void;
+}
+
+let glimpseOpen: ((html: string, opts: Record<string, unknown>) => GlimpseWindow) | null | undefined;
+// Retains why a resolved glimpseui module failed to load, so an explicit "glimpse" launcher
+// can report a broken install instead of a missing one.
+let glimpseLoadError: string | null = null;
+
+function findGlimpseMjs(): string | null {
+	// Local node_modules
+	try {
+		const req = createRequire(import.meta.url);
+		return req.resolve("glimpseui");
+	} catch {}
+	// Global npm install
+	try {
+		const globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf-8" }).trim();
+		const entry = path.join(globalRoot, "glimpseui", "src", "glimpse.mjs");
+		if (fs.existsSync(entry)) return entry;
+	} catch {}
+	return null;
+}
+
+async function getGlimpseOpen() {
+	if (glimpseOpen !== undefined) return glimpseOpen;
+	const resolved = findGlimpseMjs();
+	if (resolved) {
+		try {
+			glimpseOpen = (await import(resolved)).open;
+			return glimpseOpen;
+		} catch (error) {
+			glimpseLoadError = describeLaunchFailure("glimpseui import", error);
+		}
+	}
+	glimpseOpen = null;
+	return glimpseOpen;
+}
+
+function escapeHtml(str: string): string {
+	return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function openInGlimpse(
+	open: (html: string, opts: Record<string, unknown>) => GlimpseWindow,
+	url: string,
+	title: string | undefined,
+	floating: boolean,
+): GlimpseWindow {
+	const safeTitle = escapeHtml(title || "Interview");
+	const shellHTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>${safeTitle}</title></head>
+<body style="margin:0; background:#1a1a2e;">
+  <script>window.location.replace(${JSON.stringify(url)});</script>
+</body>
+</html>`;
+
+	return open(shellHTML, {
+		width: 800,
+		height: 700,
+		title: title || "Interview",
+		floating,
+	});
+}
+
+// Glimpse is attempted in auto mode (no launcher configured) and when explicitly selected;
+// explicit "browser" and "orca" must never open a Glimpse window. A Glimpse window opened on
+// a remote host display is unwatched and closing it cancels the interview, so definite ssh/mosh
+// sessions never use it.
+export function shouldAttemptGlimpse(
+	launcher: InterviewSettings["launcher"],
+	platform: string,
+	remoteSession: boolean,
+): boolean {
+	if (launcher === "browser" || launcher === "orca") return false;
+	return platform === "darwin" && !remoteSession;
+}
+
+// An explicit "glimpse" launcher reports why the window could not open rather than quietly
+// using a browser, so a broken install is distinguishable from a missing or ineligible one.
+export function describeGlimpseUnavailable(
+	failure: string | null,
+	platform: string,
+	remoteSession: boolean,
+): string {
+	if (failure) return `Glimpse launcher unavailable: ${failure}`;
+	if (platform !== "darwin") return "Glimpse launcher unavailable: requires macOS";
+	if (remoteSession) return "Glimpse launcher unavailable: skipped for remote ssh/mosh sessions";
+	return "Glimpse launcher unavailable: install the glimpseui package";
+}
+
+function formatTimeAgo(timestamp: number): string {
+	const seconds = Math.floor((Date.now() - timestamp) / 1000);
+	if (seconds < 0) return "just now";
+	if (seconds < 60) return `${seconds} seconds ago`;
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+	const hours = Math.floor(minutes / 60);
+	return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
+
+type DetachedLauncher = (command: string, args: string[]) => Promise<void>;
+
+const LINUX_BROWSER_EXEC_TIMEOUT_MS = 5000;
+
+function spawnDetached(command: string, args: string[]): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const child = spawnProcess(command, args, {
+			detached: true,
+			shell: false,
+			stdio: "ignore",
+		});
+		child.once("spawn", () => {
+			child.unref();
+			resolve();
+		});
+		child.once("error", reject);
+	});
+}
+
+function describeLaunchFailure(command: string, error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	return `${command}: ${message}`;
+}
+
+function describeExecFailure(command: string, result: Awaited<ReturnType<ExtensionAPI["exec"]>>): string {
+	const status = result.killed ? `killed (exit code ${result.code})` : `exit code ${result.code}`;
+	const output = [result.stderr, result.stdout].filter(Boolean).join("\n");
+	return `${command}: ${status}${output ? `: ${output}` : ""}`;
+}
+
+function assertExecSucceeded(command: string, result: Awaited<ReturnType<ExtensionAPI["exec"]>>): void {
+	if (result.code !== 0 || result.killed) {
+		throw new Error(describeExecFailure(command, result));
+	}
+}
+
+export async function openOrcaUrl(
+	pi: Pick<ExtensionAPI, "exec">,
+	url: string,
+	cwd: string,
+): Promise<void> {
+	// Orca may reload a tab's initial URL during creation, which cancels an interview.
+	const createResult = await pi.exec(
+		"orca",
+		["tab", "create", "--url", "about:blank", "--json"],
+		{ timeout: 60_000, cwd },
+	);
+	assertExecSucceeded("orca tab create", createResult);
+
+	let output: unknown;
+	try {
+		output = JSON.parse(createResult.stdout);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		throw new Error(`orca tab create returned invalid JSON: ${reason}`);
+	}
+	const result = typeof output === "object" && output !== null
+		? (output as Record<string, unknown>).result
+		: undefined;
+	const browserPageId = typeof result === "object" && result !== null
+		? (result as Record<string, unknown>).browserPageId
+		: undefined;
+	if (typeof browserPageId !== "string") {
+		throw new Error(`orca tab create returned no browserPageId: ${createResult.stdout}`);
+	}
+
+	const switchResult = await pi.exec(
+		"orca",
+		["tab", "switch", "--page", browserPageId, "--focus"],
+		{ cwd },
+	);
+	assertExecSucceeded("orca tab switch", switchResult);
+
+	const navigateResult = await pi.exec(
+		"orca",
+		["goto", "--page", browserPageId, "--url", url],
+		{ cwd },
+	);
+	assertExecSucceeded("orca goto", navigateResult);
+}
+
+const OrcaTabs = Type.Object({
+	result: Type.Object({
+		tabs: Type.Array(Type.Object({
+			url: Type.String(),
+			browserPageId: Type.String(),
+			worktreeId: Type.String(),
+		})),
+	}),
+});
+
+export async function closeOrcaInterview(
+	pi: Pick<ExtensionAPI, "exec">,
+	url: string,
+	cwd: string,
+): Promise<void> {
+	// A queued interview can finish in a tab opened from another worktree.
+	const listResult = await pi.exec("orca", ["tab", "list", "--worktree", "all", "--json"], { timeout: 60_000, cwd });
+	assertExecSucceeded("orca tab list", listResult);
+	const output: unknown = JSON.parse(listResult.stdout);
+	Value.Assert(OrcaTabs, output);
+	for (const tab of output.result.tabs) {
+		if (tab.url === url) {
+			const closeResult = await pi.exec(
+				"orca",
+				["tab", "close", "--page", tab.browserPageId, "--worktree", `id:${tab.worktreeId}`],
+				{ timeout: 60_000, cwd },
+			);
+			assertExecSucceeded("orca tab close", closeResult);
+		}
+	}
+}
+
+export async function openLinuxUrl(
+	pi: Pick<ExtensionAPI, "exec">,
+	url: string,
+	browser?: string,
+	launch: DetachedLauncher = spawnDetached,
+): Promise<void> {
+	const commands: [string, string[]][] = browser
+		? [[browser, [url]]]
+		: [
+			["xdg-open", [url]],
+			["sensible-browser", [url]],
+			["gio", ["open", url]],
+		];
+	const failures: string[] = [];
+
+	for (const [command, args] of commands) {
+		try {
+			await launch(command, args);
+			return;
+		} catch (error) {
+			failures.push(describeLaunchFailure(command, error));
+		}
+	}
+
+	const [fallbackCommand, fallbackArgs] = commands[0];
+	try {
+		const result = await pi.exec(fallbackCommand, fallbackArgs, { timeout: LINUX_BROWSER_EXEC_TIMEOUT_MS });
+		if (result.code === 0 && !result.killed) return;
+		failures.push(describeExecFailure(fallbackCommand, result));
+	} catch (error) {
+		failures.push(describeLaunchFailure(`${fallbackCommand} (pi.exec)`, error));
+	}
+
+	throw new Error(`Failed to open browser on Linux:\n${failures.map((failure) => `- ${failure}`).join("\n")}`);
+}
+
+async function openUrl(pi: ExtensionAPI, url: string, browser?: string): Promise<void> {
+	const platform = os.platform();
+	let result;
+	if (platform === "darwin") {
+		if (browser) {
+			result = await pi.exec("open", ["-a", browser, url]);
+		} else {
+			result = await pi.exec("open", [url]);
+		}
+	} else if (platform === "win32") {
+		if (browser) {
+			result = await pi.exec("cmd", ["/c", "start", "", browser, url]);
+		} else {
+			result = await pi.exec("cmd", ["/c", "start", "", url]);
+		}
+	} else {
+		await openLinuxUrl(pi, url, browser);
+		return;
+	}
+	if (result.code !== 0) {
+		throw new Error(result.stderr || `Failed to open browser (exit code ${result.code})`);
+	}
+}
+
+// Under mosh SSH_CONNECTION is inherited (stale) and SSH_TTY is absent, so this
+// catches plain ssh and mosh sessions alike. Gates the remote hint and skips Glimpse;
+// a false positive (e.g. stale env in tmux) degrades to a browser tab plus the hint.
+function isRemoteSession(): boolean {
+	return Boolean(process.env.SSH_CONNECTION || process.env.SSH_TTY);
+}
+
+// The env heuristic can't see a user who started pi locally (e.g. Ghostty at the desk)
+// and later drives it over ssh/Moshi: the process env stays local. An active remote
+// login in utmp (`who` shows the client address in parens) marks that ambiguous case.
+function hasActiveRemoteLogin(): Promise<boolean> {
+	return new Promise((resolve) => {
+		execFile("who", { encoding: "utf8", timeout: 2000 }, (error, out) => {
+			if (error) {
+				resolve(false);
+				return;
+			}
+			resolve(/\(.+\)\s*$/m.test(out));
+		});
+	});
+}
+
+// Moshi's moshi-hook daemon owns a gateway on 127.0.0.1:24543; a live connection
+// is the same authoritative check the Moshi app itself uses.
+function probeMoshiGateway(): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = net.connect({ host: "127.0.0.1", port: 24543 });
+		const done = (ok: boolean) => {
+			socket.destroy();
+			resolve(ok);
+		};
+		socket.setTimeout(300);
+		socket.once("connect", () => done(true));
+		socket.once("timeout", () => done(false));
+		socket.once("error", () => done(false));
+	});
+}
+
+type BrowserOpenOutcome =
+	| { status: "opened-on-host" }
+	| { status: "failed"; error: string };
+
+function remoteAccessHint(opts: { url: string; port: number; moshi: boolean; outcome: BrowserOpenOutcome }): string {
+	const lines = [
+		opts.outcome.status === "opened-on-host"
+			? "Interview opened on this host. If you're controlling this session remotely, open it from your own device:"
+			: "Couldn't open a browser here. Open the interview from your own device:",
+		`  ${opts.url}`,
+	];
+	if (opts.outcome.status === "failed") {
+		lines.push(`Browser launch failed: ${opts.outcome.error}`);
+	}
+	if (opts.moshi) {
+		lines.push("Moshi: tap the preview button in the terminal title bar and pick this server.");
+	}
+	lines.push(
+		`SSH: run \`ssh -L ${opts.port}:127.0.0.1:${opts.port} <this-host>\` on your local machine, then open the URL above.`,
+		"mosh can't forward ports - run that ssh command in a separate terminal."
+	);
+	return lines.join("\n");
+}
+
+interface InterviewDetails {
+	status: "completed" | "cancelled" | "timeout" | "aborted" | "queued" | "started";
+	responses: ResponseItem[];
+	url: string;
+	queuedMessage?: string;
+}
+
+// Types for saved interviews
+interface SavedFromMeta {
+	cwd: string;
+	branch: string | null;
+	sessionId: string;
+}
+
+interface SavedQuestionsFile extends QuestionsFile {
+	savedAnswers?: ResponseItem[];
+	savedOptionInsights?: SavedOptionInsight[];
+	optionKeysByQuestion?: Record<string, string[]>;
+	savedAt?: string;
+	wasSubmitted?: boolean;
+	savedFrom?: SavedFromMeta;
+}
+
+const InterviewParams = Type.Object({
+	questions: Type.String({ description: "Inline JSON string with questions, or path to a questions JSON / saved interview HTML file" }),
+	timeout: Type.Optional(
+		Type.Number({ description: "Seconds before auto-timeout", default: 600 })
+	),
+	verbose: Type.Optional(Type.Boolean({ description: "Enable debug logging", default: false })),
+	async: Type.Optional(
+		Type.Boolean({
+			description:
+				"Return immediately instead of waiting for the user. The answer arrives later as a message tagged with the returned interview ID; keep working and do not poll.",
+			default: false,
+		})
+	),
+	theme: Type.Optional(
+		Type.Object(
+			{
+				mode: Type.Optional(StringEnum(["auto", "light", "dark"])),
+				name: Type.Optional(Type.String()),
+				lightPath: Type.Optional(Type.String()),
+				darkPath: Type.Optional(Type.String()),
+				toggleHotkey: Type.Optional(Type.String()),
+			},
+			{ additionalProperties: false }
+		)
+	),
+});
+
+function expandHome(value: string): string {
+	if (value === "~") {
+		return os.homedir();
+	}
+	// Handle both Unix (/) and Windows (\) separators for user convenience
+	if (value.startsWith("~/") || value.startsWith("~\\")) {
+		return path.join(os.homedir(), value.slice(2));
+	}
+	return value;
+}
+
+function resolveOptionalPath(value: string | undefined, cwd: string): string | undefined {
+	if (!value) return undefined;
+	const expanded = expandHome(value);
+	return path.isAbsolute(expanded) ? expanded : path.join(cwd, expanded);
+}
+
+const DEFAULT_THEME_HOTKEY = "mod+shift+l";
+
+function mergeThemeConfig(
+	base: InterviewThemeSettings | undefined,
+	override: InterviewThemeSettings | undefined,
+	cwd: string
+): InterviewThemeSettings {
+	const merged: InterviewThemeSettings = { ...(base ?? {}), ...(override ?? {}) };
+	const lightPath = resolveOptionalPath(merged.lightPath, cwd);
+	const darkPath = resolveOptionalPath(merged.darkPath, cwd);
+	return {
+		...merged,
+		toggleHotkey: merged.toggleHotkey ?? DEFAULT_THEME_HOTKEY,
+		...(lightPath !== undefined ? { lightPath } : {}),
+		...(darkPath !== undefined ? { darkPath } : {}),
+	};
+}
+
+function loadQuestions(questionsInput: string, cwd: string): SavedQuestionsFile {
+	const trimmed = questionsInput.trimStart();
+	const looksLikeInlineJSON =
+		trimmed.startsWith("{") ||
+		/^`{3,}(?:json|jsonc)?\s*\n?\s*\{/i.test(trimmed);
+
+	if (looksLikeInlineJSON) {
+		let data: unknown;
+		try {
+			data = JSON.parse(trimmed);
+		} catch {
+			try {
+				data = JSON.parse(sanitizeLLMJSON(trimmed));
+			} catch (repairErr) {
+				const message = repairErr instanceof Error ? repairErr.message : String(repairErr);
+				throw new Error(`Invalid inline JSON: ${message}`);
+			}
+		}
+		return validateQuestions(data);
+	}
+
+	const expanded = expandHome(questionsInput);
+	const absolutePath = path.isAbsolute(expanded)
+		? expanded
+		: path.join(cwd, questionsInput);
+
+	if (!fs.existsSync(absolutePath)) {
+		throw new Error(`Questions file not found: ${absolutePath}`);
+	}
+
+	const content = fs.readFileSync(absolutePath, "utf-8");
+
+	// Handle HTML files (saved interviews)
+	if (absolutePath.endsWith(".html") || absolutePath.endsWith(".htm")) {
+		return loadSavedInterview(content, absolutePath);
+	}
+
+	// Original JSON handling
+	let data: unknown;
+	try {
+		data = JSON.parse(content);
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		throw new Error(`Invalid JSON in questions file: ${message}`);
+	}
+
+	return validateQuestions(data);
+}
+
+interface GenerateModelCandidate {
+	provider: string;
+	id: string;
+}
+
+const PREFERRED_GENERATE_MODELS = [
+	"anthropic/claude-haiku-4-5",
+	"google/gemini-2.5-flash",
+	"openai/gpt-4.1-mini",
+];
+
+const GENERATE_OPTIONS_SYSTEM_PROMPT =
+	"You generate interview answer options. Return only a JSON array of strings. Do not include explanations or markdown.";
+
+const REVIEW_QUESTION_SYSTEM_PROMPT =
+	"You review interview questions and answer options. Preserve intent. Return only JSON with a rewritten question string and an options array.";
+
+const OPTION_INSIGHT_SYSTEM_PROMPT =
+	"You analyze a single interview answer option. Return only JSON with this shape: {\"summary\":\"...\",\"bullets\":[\"...\"],\"suggestedText\":\"...\"}. Keep summary concise, bullets short, and omit suggestedText when no rewrite is needed.";
+
+function formatModelRef(model: GenerateModelCandidate): string {
+	return `${model.provider}/${model.id}`;
+}
+
+function findModelByRef<T extends GenerateModelCandidate>(models: T[], modelRef: string): T | null {
+	for (const model of models) {
+		if (formatModelRef(model) === modelRef) {
+			return model;
+		}
+	}
+	return null;
+}
+
+export function selectGenerateModels<T extends GenerateModelCandidate>(
+	configuredModel: T | null,
+	currentModel: T | null,
+	availableModels: T[],
+): { primary: T | null; fallback: T | null } {
+	if (configuredModel) {
+		if (!currentModel || formatModelRef(currentModel) === formatModelRef(configuredModel)) {
+			return { primary: configuredModel, fallback: null };
+		}
+		return { primary: configuredModel, fallback: currentModel };
+	}
+
+	if (currentModel) {
+		return { primary: currentModel, fallback: null };
+	}
+
+	for (const modelRef of PREFERRED_GENERATE_MODELS) {
+		const preferredModel = findModelByRef(availableModels, modelRef);
+		if (preferredModel) {
+			return { primary: preferredModel, fallback: null };
+		}
+	}
+
+	return { primary: availableModels[0] ?? null, fallback: null };
+}
+
+export function buildAskModelsData<T extends GenerateModelCandidate>(
+	availableModels: T[],
+	currentModel: T | null,
+	primaryModel: T | null,
+	fallbackModel: T | null,
+): AskModelOption[] {
+	const models: AskModelOption[] = [];
+	const seen = new Set<string>();
+	const addModel = (model: T | null) => {
+		if (!model) return;
+		const value = `${model.provider}/${model.id}`;
+		if (seen.has(value)) return;
+		seen.add(value);
+		models.push({
+			value,
+			provider: model.provider,
+			label: model.id,
+		});
+	};
+
+	addModel(currentModel);
+	addModel(primaryModel);
+	addModel(fallbackModel);
+	for (const modelRef of PREFERRED_GENERATE_MODELS) {
+		const preferredModel = findModelByRef(availableModels, modelRef);
+		addModel(preferredModel);
+	}
+
+	return models;
+}
+
+export function extractGenerateResponseText(
+	modelRef: string,
+	response: Pick<AssistantMessage, "content" | "stopReason" | "errorMessage">,
+): string {
+	if (response.stopReason === "aborted") {
+		throw new Error("Aborted");
+	}
+	if (response.stopReason === "error") {
+		throw new Error(response.errorMessage ? `${modelRef}: ${response.errorMessage}` : `${modelRef} failed`);
+	}
+
+	const text = response.content
+		.filter((part): part is { type: "text"; text: string } => part.type === "text")
+		.map((part) => part.text)
+		.join("")
+		.trim();
+	if (!text) {
+		throw new Error(`${modelRef} returned no text response`);
+	}
+	return text;
+}
+
+function extractJSONBlock(text: string, openChar: "[" | "{", closeChar: "]" | "}"): string {
+	const start = text.indexOf(openChar);
+	if (start === -1) return text;
+
+	let depth = 0;
+	let inString = false;
+	let escaping = false;
+
+	for (let i = start; i < text.length; i++) {
+		const char = text[i];
+
+		if (inString) {
+			if (escaping) {
+				escaping = false;
+				continue;
+			}
+			if (char === "\\") {
+				escaping = true;
+				continue;
+			}
+			if (char === '"') {
+				inString = false;
+			}
+			continue;
+		}
+
+		if (char === '"') {
+			inString = true;
+			continue;
+		}
+		if (char === openChar) {
+			depth++;
+			continue;
+		}
+		if (char !== closeChar) {
+			continue;
+		}
+
+		depth--;
+		if (depth === 0) {
+			return text.slice(start, i + 1);
+		}
+	}
+
+	return text;
+}
+
+export function extractJSONArray(text: string): string {
+	return extractJSONBlock(text, "[", "]");
+}
+
+function extractJSONObject(text: string): string {
+	return extractJSONBlock(text, "{", "}");
+}
+
+export function createGenerateContext(prompt: string, systemPrompt = GENERATE_OPTIONS_SYSTEM_PROMPT) {
+	return {
+		systemPrompt,
+		messages: [{
+			role: "user" as const,
+			content: [{ type: "text" as const, text: prompt }],
+			timestamp: Date.now(),
+		}],
+	};
+}
+
+function normalizeGeneratedOptions(parsed: unknown): string[] {
+	if (!Array.isArray(parsed)) {
+		throw new Error("Expected array of options");
+	}
+
+	const options = parsed
+		.filter(
+			(item: unknown): item is string =>
+				typeof item === "string" && item.trim().length > 0,
+		)
+		.map((option: string) => option.trim());
+	if (options.length === 0) {
+		throw new Error("No valid options generated");
+	}
+	return options;
+}
+
+function normalizeGeneratedOptionValues(parsed: unknown): OptionValue[] {
+	if (!Array.isArray(parsed)) {
+		throw new Error("Expected array of options");
+	}
+
+	const normalizedInput = parsed
+		.map((option) => {
+			if (typeof option === "string") {
+				return option.trim();
+			}
+			if (!option || typeof option !== "object") {
+				return option;
+			}
+			const raw = option as Record<string, unknown>;
+			return {
+				...raw,
+				label: typeof raw.label === "string" ? raw.label.trim() : raw.label,
+			};
+		})
+		.filter((option) => {
+			if (typeof option === "string") {
+				return option.length > 0;
+			}
+			if (!option || typeof option !== "object") {
+				return true;
+			}
+			const label = (option as Record<string, unknown>).label;
+			return typeof label !== "string" || label.length > 0;
+		});
+
+	const validated = validateQuestions({
+		questions: [{
+			id: "generated-options",
+			type: "single",
+			question: "Generated options",
+			options: normalizedInput,
+		}],
+	});
+	const options = validated.questions[0]?.options;
+	if (!options || options.length === 0) {
+		throw new Error("No valid options generated");
+	}
+	return options;
+}
+
+export function parseGeneratedOptions(text: string): string[] {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(extractJSONArray(text));
+	} catch (err) {
+		const detail = err instanceof Error ? err.message : String(err);
+		throw new Error(`Failed to parse generated options: ${detail}`);
+	}
+	return normalizeGeneratedOptions(parsed);
+}
+
+export function parseGeneratedOptionValues(text: string): OptionValue[] {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(extractJSONArray(text));
+	} catch (err) {
+		const detail = err instanceof Error ? err.message : String(err);
+		throw new Error(`Failed to parse generated options: ${detail}`);
+	}
+	return normalizeGeneratedOptionValues(parsed);
+}
+
+export function parseReviewedQuestion(text: string): { question: string; options: string[] } {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(extractJSONObject(text));
+	} catch (err) {
+		const detail = err instanceof Error ? err.message : String(err);
+		throw new Error(`Failed to parse reviewed question: ${detail}`);
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		throw new Error("Expected reviewed question object");
+	}
+
+	const review = parsed as Record<string, unknown>;
+	if (typeof review.question !== "string" || !review.question.trim()) {
+		throw new Error("Reviewed question must include a non-empty question string");
+	}
+
+	return {
+		question: review.question.trim(),
+		options: normalizeGeneratedOptions(review.options),
+	};
+}
+
+export function parseReviewedQuestionUpdate(text: string): { question: string; options: OptionValue[] } {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(extractJSONObject(text));
+	} catch (err) {
+		const detail = err instanceof Error ? err.message : String(err);
+		throw new Error(`Failed to parse reviewed question: ${detail}`);
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		throw new Error("Expected reviewed question object");
+	}
+
+	const review = parsed as Record<string, unknown>;
+	if (typeof review.question !== "string" || !review.question.trim()) {
+		throw new Error("Reviewed question must include a non-empty question string");
+	}
+
+	const options = normalizeGeneratedOptionValues(review.options);
+	if (options.some((option) => !isRichOption(option))) {
+		throw new Error("Reviewed rich options must all be objects with label");
+	}
+
+	return {
+		question: review.question.trim(),
+		options,
+	};
+}
+
+export function parseOptionInsight(text: string): OptionInsightResult {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(extractJSONObject(text));
+	} catch (err) {
+		const detail = err instanceof Error ? err.message : String(err);
+		throw new Error(`Failed to parse option insight: ${detail}`);
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		throw new Error("Expected option insight object");
+	}
+
+	const insight = parsed as Record<string, unknown>;
+	if (typeof insight.summary !== "string" || !insight.summary.trim()) {
+		throw new Error("Option insight must include a non-empty summary string");
+	}
+	const bullets = Array.isArray(insight.bullets)
+		? insight.bullets.filter((bullet): bullet is string => typeof bullet === "string" && bullet.trim().length > 0).map((bullet) => bullet.trim())
+		: [];
+
+	const suggestedText = typeof insight.suggestedText === "string" ? insight.suggestedText.trim() : "";
+	return {
+		summary: insight.summary.trim(),
+		...(bullets.length > 0 ? { bullets } : {}),
+		...(suggestedText ? { suggestedText } : {}),
+	};
+}
+
+export function loadSavedInterview(html: string, filePath: string): SavedQuestionsFile {
+	// Extract JSON from <script id="pi-interview-data">
+	const match = html.match(/<script[^>]+id=["']pi-interview-data["'][^>]*>([\s\S]*?)<\/script>/i);
+	if (!match) {
+		throw new Error("Invalid saved interview: missing embedded data");
+	}
+
+	let data: unknown;
+	try {
+		data = JSON.parse(match[1]);
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		throw new Error(`Invalid saved interview: malformed JSON (${message})`);
+	}
+
+	const raw = data as Record<string, unknown>;
+	const validated = validateQuestions(data);
+	const questionTypeById = new Map(validated.questions.map((question) => [question.id, question.type]));
+
+	// Resolve relative image paths to absolute based on HTML file location.
+	// Only image-question values are treated as paths; text/single/multi values must stay literal.
+	const snapshotDir = path.dirname(filePath);
+	const savedAnswers = Array.isArray(raw.savedAnswers)
+		? resolveAnswerPaths(raw.savedAnswers as ResponseItem[], snapshotDir, questionTypeById)
+		: undefined;
+	const savedOptionInsights = Array.isArray(raw.savedOptionInsights)
+		? (raw.savedOptionInsights as SavedOptionInsight[]).filter((item) =>
+			item &&
+			typeof item.id === "string" &&
+			typeof item.questionId === "string" &&
+			typeof item.optionKey === "string" &&
+			typeof item.optionText === "string" &&
+			typeof item.prompt === "string" &&
+			typeof item.summary === "string"
+		)
+		: undefined;
+	const optionKeysByQuestion = raw.optionKeysByQuestion && typeof raw.optionKeysByQuestion === "object"
+		? Object.fromEntries(
+			Object.entries(raw.optionKeysByQuestion as Record<string, unknown>)
+				.filter(([, value]) => Array.isArray(value) && value.every((key) => typeof key === "string"))
+				.map(([questionId, value]) => [questionId, [...(value as string[])]])
+		)
+		: undefined;
+
+	// Validate savedFrom if present
+	let savedFrom: SavedFromMeta | undefined;
+	if (raw.savedFrom && typeof raw.savedFrom === "object") {
+		const sf = raw.savedFrom as Record<string, unknown>;
+		if (typeof sf.cwd === "string" && typeof sf.sessionId === "string") {
+			savedFrom = {
+				cwd: sf.cwd,
+				branch: typeof sf.branch === "string" ? sf.branch : null,
+				sessionId: sf.sessionId,
+			};
+		}
+	}
+
+	// Return validated questions plus saved interview metadata
+	return {
+		...validated,
+		...(savedAnswers !== undefined ? { savedAnswers } : {}),
+		...(savedOptionInsights !== undefined ? { savedOptionInsights } : {}),
+		...(optionKeysByQuestion !== undefined ? { optionKeysByQuestion } : {}),
+		...(typeof raw.savedAt === "string" ? { savedAt: raw.savedAt } : {}),
+		...(typeof raw.wasSubmitted === "boolean" ? { wasSubmitted: raw.wasSubmitted } : {}),
+		...(savedFrom !== undefined ? { savedFrom } : {}),
+	};
+}
+
+function resolveAnswerPaths(
+	answers: ResponseItem[],
+	baseDir: string,
+	questionTypeById: Map<string, "single" | "multi" | "text" | "image" | "info">,
+): ResponseItem[] {
+	return answers.map((ans) => {
+		const questionType = questionTypeById.get(ans.id);
+		const attachments = ans.attachments?.map((attachmentPath) => resolveImagePath(attachmentPath, baseDir));
+		return {
+			...ans,
+			value: questionType === "image" ? resolvePathValue(ans.value, baseDir) : ans.value,
+			...(attachments !== undefined ? { attachments } : {}),
+		};
+	});
+}
+
+function resolveImagePath(p: string, baseDir: string): string {
+	if (!p) return p;
+	// Skip URLs and data/file URIs
+	if (p.includes("://") || p.startsWith("data:") || p.startsWith("file:")) return p;
+	const expanded = expandHome(p);
+	if (path.isAbsolute(expanded)) return expanded;
+	return path.join(baseDir, expanded);
+}
+
+function resolvePathValue(value: ResponseItem["value"], baseDir: string): ResponseItem["value"] {
+	if (Array.isArray(value) && value.every((item): item is string => typeof item === "string")) {
+		return value.map((item) => resolveImagePath(item, baseDir));
+	}
+	return typeof value === "string" && value ? resolveImagePath(value, baseDir) : value;
+}
+
+function isChoiceResponseValue(value: unknown): value is ChoiceResponseValue {
+	return !!value && typeof value === "object" && !Array.isArray(value) && typeof (value as ChoiceResponseValue).option === "string";
+}
+
+function formatResponseValue(value: ResponseItem["value"]): string {
+	if (Array.isArray(value)) {
+		if (value.every(isChoiceResponseValue)) {
+			return value.map((item) => item.note ? `${item.option} (${item.note})` : item.option).join(", ");
+		}
+		return value.join(", ");
+	}
+	if (isChoiceResponseValue(value)) {
+		return value.note ? `${value.option} (${value.note})` : value.option;
+	}
+	return value;
+}
+
+function hasAnswerValue(value: ResponseItem["value"]): boolean {
+	if (Array.isArray(value)) {
+		if (value.every(isChoiceResponseValue)) {
+			return value.some((item) => item.option.trim() !== "");
+		}
+		return value.some((item) => typeof item === "string" && item.trim() !== "");
+	}
+	if (isChoiceResponseValue(value)) {
+		return value.option.trim() !== "";
+	}
+	return typeof value === "string" && value.trim() !== "";
+}
+
+function hasResponseContent(response: ResponseItem): boolean {
+	return hasAnswerValue(response.value) || !!response.attachments?.length;
+}
+
+function summarizeResponseValue(question: Question, response: ResponseItem): string {
+	if (question.type === "image") {
+		if (Array.isArray(response.value)) {
+			return response.value.length === 1 ? "1 image attached" : `${response.value.length} images attached`;
+		}
+		if (typeof response.value === "string" && response.value.trim() !== "") {
+			return "1 image attached";
+		}
+	}
+
+	if (hasAnswerValue(response.value)) {
+		return String(formatResponseValue(response.value));
+	}
+
+	if (response.attachments?.length) {
+		return response.attachments.length === 1 ? "1 attachment included" : `${response.attachments.length} attachments included`;
+	}
+
+	return "";
+}
+
+interface AgentResponseItem {
+	id: string;
+	question: string;
+	type: Question["type"];
+	value: ResponseItem["value"];
+	attachments?: string[];
+}
+
+export function buildAnsweredAgentResponseItems(
+	responses: ResponseItem[],
+	questions: Question[],
+): AgentResponseItem[] {
+	const responseById = new Map<string, ResponseItem>();
+	for (const response of responses) {
+		if (!response || typeof response.id !== "string") continue;
+		responseById.set(response.id, response);
+	}
+
+	return questions.flatMap((question): AgentResponseItem[] => {
+		const response = responseById.get(question.id);
+		if (!response || !hasResponseContent(response)) return [];
+		return [{
+			id: question.id,
+			question: question.question,
+			type: question.type,
+			value: response.value,
+			...(response.attachments?.length ? { attachments: [...response.attachments] } : {}),
+		}];
+	});
+}
+
+export function formatAnsweredResponsesForAgent(
+	responses: ResponseItem[],
+	questions: Question[],
+): string {
+	const answeredItems = buildAnsweredAgentResponseItems(responses, questions);
+	if (answeredItems.length === 0) return "(none)";
+	const questionById = new Map(questions.map((question) => [question.id, question]));
+	const responseById = new Map(responses.map((response) => [response.id, response]));
+
+	const summary = answeredItems
+		.map((item) => {
+			const question = questionById.get(item.id);
+			const response = responseById.get(item.id);
+			if (!question || !response) {
+				return `- ${item.question}`;
+			}
+			let line = `- ${item.question}: ${summarizeResponseValue(question, response)}`;
+			if (item.attachments?.length) {
+				line += ` [attachments: ${item.attachments.join(", ")}]`;
+			}
+			return line;
+		})
+		.join("\n");
+
+	const json = JSON.stringify(answeredItems, null, 2);
+	return `${summary}\n\nStructured response data:\n\n\`\`\`json\n${json}\n\`\`\``;
+}
+
+function hasAnyAnswers(responses: ResponseItem[]): boolean {
+	if (!responses || responses.length === 0) return false;
+	return responses.some((resp) => !!resp && hasResponseContent(resp));
+}
+
+function filterAnsweredResponses(responses: ResponseItem[]): ResponseItem[] {
+	if (!responses) return [];
+	return responses.filter((resp) => !!resp && hasResponseContent(resp));
+}
+
+export default function (pi: ExtensionAPI) {
+	// Closers for interviews whose tool call already returned; session shutdown closes them.
+	const detachedInterviews = new Set<() => void>();
+	pi.on("session_shutdown", () => {
+		for (const close of detachedInterviews) close();
+		detachedInterviews.clear();
+	});
+
+	pi.registerTool({
+		name: "interview",
+		label: "Interview",
+		description:
+			"Present an interactive form to gather user responses. " +
+			"Opens in a configured Orca browser tab, a native macOS window (Glimpse), or a standard browser. " +
+			"Use proactively when: choosing between multiple approaches, gathering requirements before implementation, " +
+			"exploring design tradeoffs, or when decisions have multiple dimensions worth discussing. " +
+			"Provides better UX than back-and-forth chat for structured input. " +
+			"Image responses and attachments are returned as file paths - use read tool directly to display them. " +
+			"Pass questions as inline JSON string directly (preferred) or as a path to a JSON file. " +
+			'Questions JSON format: { "title": "...", "description": "...", "questions": [{ "id": "q1", "type": "single|multi|text|image|info", "question": "...", "options": ["A", "B"], "content": { "source": "...", "lang": "ts" }, "media": { "type": "image|chart|mermaid|table|html", ... } }] }. ' +
+			"Options can be strings or objects: { label: string, content?: { source, lang?, file?, lines?, highlights?, title?, showSource? } }. " +
+			"Always set recommended with context explaining your reasoning. Recommended options show a 'Recommended' badge and are pre-selected for the user. " +
+			'Use conviction: "slight" when unsure (does NOT pre-select), conviction: "strong" when very confident (shows Recommended badge). ' +
+			"Omit conviction for normal recommendations (pre-selects). " +
+			'Use weight: "critical" for key decisions (visually prominent), weight: "minor" for low-stakes questions (compact card). ' +
+			"When questions have recommendations, set description to guide review (e.g., 'Review my suggestions and adjust as needed'). " +
+			"Questions can have a content field to display code or markdown above options. lang: \"md\" or \"markdown\" defaults to markdown preview unless showSource is true. Types: single (radio), multi (checkbox), text (textarea), image (file upload), info (non-interactive). " +
+			'Media blocks: { type: "image", src, alt, caption }, { type: "table", table: { headers, rows, highlights }, caption }, { type: "chart", chart: { type, data, options }, caption }, { type: "mermaid", mermaid: "graph LR\\n..." }, { type: "html", html }. ' +
+			"Info type is a non-interactive content panel for displaying context with media. Media position: above (default), below, side (two-column).",
+		promptSnippet:
+			"Gather structured user input through an interactive form for requirements, tradeoffs, or multi-dimensional decisions.",
+		parameters: InterviewParams,
+
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
+			const { questions, timeout, verbose, theme, async: runAsync } = params as {
+				questions: string;
+				timeout?: number;
+				verbose?: boolean;
+				theme?: InterviewThemeSettings;
+				async?: boolean;
+			};
+
+			if (!ctx.hasUI) {
+				throw new Error(
+					"Interview tool requires interactive mode. " +
+						"Cannot run in headless/RPC/print mode."
+				);
+			}
+
+			if (ctx.hasPendingMessages()) {
+				return {
+					content: [{ type: "text", text: "Interview skipped - user has queued input." }],
+					details: { status: "cancelled", url: "", responses: [] },
+				};
+			}
+
+			const settings = loadSettings();
+			const timeoutSeconds = timeout ?? settings.timeout ?? 600;
+			const themeConfig = mergeThemeConfig(settings.theme, theme, ctx.cwd);
+			const questionsData = loadQuestions(questions, ctx.cwd);
+
+			let configuredGenerateModel: Model<Api> | null = null;
+			if (settings.generateModel) {
+				const slashIdx = settings.generateModel.indexOf("/");
+				if (slashIdx > 0) {
+					configuredGenerateModel = ctx.modelRegistry.find(
+						settings.generateModel.slice(0, slashIdx),
+						settings.generateModel.slice(slashIdx + 1),
+					) ?? null;
+				}
+			}
+
+			let availableGenerateModels: Model<Api>[] = [];
+			try {
+				availableGenerateModels = ctx.modelRegistry.getAvailable();
+			} catch {
+				// Leave generation disabled when model discovery is unavailable.
+			}
+
+			const { primary: generateModel, fallback: fallbackGenerateModel } = selectGenerateModels(
+				configuredGenerateModel,
+				ctx.model ?? null,
+				availableGenerateModels,
+			);
+			const askModels = buildAskModelsData(availableGenerateModels, ctx.model ?? null, generateModel, fallbackGenerateModel);
+			const defaultAskModel = generateModel ? formatModelRef(generateModel) : null;
+
+			// Expand ~ in snapshotDir if present
+			const snapshotDir = settings.snapshotDir
+				? expandHome(settings.snapshotDir)
+				: undefined; // Server will use default
+
+			if (signal?.aborted) {
+				return {
+					content: [{ type: "text", text: "Interview was aborted." }],
+					details: { status: "aborted", url: "", responses: [] },
+				};
+			}
+
+			const sessionId = randomUUID();
+			const sessionToken = randomUUID();
+			let server: { close: () => void } | null = null;
+			let glimpseWin: GlimpseWindow | null = null;
+			let resolved = false;
+			let url = "";
+			let detached = false;
+			let launchMessage: string | undefined;
+			const cleanup = () => {
+				detachedInterviews.delete(closeDetached);
+				if (glimpseWin) {
+					try { glimpseWin.close(); } catch {}
+					glimpseWin = null;
+				}
+				if (server) {
+					server.close();
+					server = null;
+				}
+			};
+
+			const closeDetached = () => {
+				resolved = true;
+				cleanup();
+			};
+
+			return new Promise((resolve, reject) => {
+				const finish = (
+					status: InterviewDetails["status"],
+					responses: ResponseItem[] = [],
+					cancelReason?: "timeout" | "user" | "stale"
+				) => {
+					if (resolved) return;
+					resolved = true;
+					signal?.removeEventListener("abort", handleAbort);
+					if (status === "completed") detachedInterviews.add(closeDetached);
+					else cleanup();
+
+					let text = "";
+					if (status === "completed") {
+						text = `User completed the interview form.\n\nAnswered responses:\n${formatAnsweredResponsesForAgent(responses, questionsData.questions)}`;
+					} else if (status === "cancelled") {
+						if (cancelReason === "stale") {
+							text =
+								"Interview session ended due to lost heartbeat.\n\nQuestions saved to: ~/.pi/interview-recovery/";
+						} else if (hasAnyAnswers(responses)) {
+							const answered = filterAnsweredResponses(responses);
+							text = `User cancelled the interview with partial responses.\n\nAnswered responses:\n${formatAnsweredResponsesForAgent(answered, questionsData.questions)}\n\nProceed with these inputs and use your best judgment for unanswered questions.`;
+						} else {
+							text = "User skipped the interview without providing answers. Proceed with your best judgment - use recommended options where specified, make reasonable choices elsewhere. Don't ask for clarification unless absolutely necessary.";
+						}
+					} else if (status === "timeout") {
+						if (hasAnyAnswers(responses)) {
+							const answered = filterAnsweredResponses(responses);
+							text = `Interview form timed out after ${timeoutSeconds} seconds.\n\nAnswered responses before timeout:\n${formatAnsweredResponsesForAgent(answered, questionsData.questions)}\n\nQuestions saved to: ~/.pi/interview-recovery/\n\nProceed with these inputs and use your best judgment for unanswered questions.`;
+						} else {
+							text = `Interview form timed out after ${timeoutSeconds} seconds.\n\nQuestions saved to: ~/.pi/interview-recovery/`;
+						}
+					} else {
+						text = "Interview was aborted.";
+					}
+
+					if (detached) {
+						pi.sendMessage(
+							{
+								customType: "interview_result",
+								content: `Interview ${sessionId} finished.\n\n${text}`,
+								display: true,
+								details: { interviewId: sessionId, status, url, responses },
+							},
+							{ triggerTurn: true, deliverAs: "steer" },
+						);
+						return;
+					}
+					resolve({
+						content: [{ type: "text", text }],
+						details: { status, url, responses },
+					});
+				};
+
+				const handleAbort = () => {
+					finish("aborted");
+				};
+				signal?.addEventListener("abort", handleAbort, { once: true });
+				// Called once the form is launched. A form finished before this point already resolved inline.
+				const detach = () => {
+					if (resolved) return;
+					detached = true;
+					signal?.removeEventListener("abort", handleAbort);
+					detachedInterviews.add(closeDetached);
+					resolve({
+						content: [{
+							type: "text",
+							text: `Interview ${sessionId} started: ${url}\n\nThe user's answer will arrive later as a message starting with "Interview ${sessionId} finished." Continue other work; do not wait or poll for it.`,
+						}],
+						details: { status: "started", url, responses: [], ...(launchMessage !== undefined ? { queuedMessage: launchMessage } : {}) },
+					});
+				};
+
+				let onGenerate: InterviewServerCallbacks["onGenerate"];
+				let onOptionInsight: InterviewServerCallbacks["onOptionInsight"];
+				if (generateModel) {
+					const completePrompt = async (
+						model: Model<Api>,
+						prompt: string,
+						generateSignal: AbortSignal,
+						systemPrompt = GENERATE_OPTIONS_SYSTEM_PROMPT,
+					) => {
+						const modelRef = formatModelRef(model);
+						const provider = ctx.modelRegistry.getProvider(model.provider);
+						if (!provider) throw new Error(`Provider not found for ${modelRef}`);
+
+						const [resolution, requestAuth] = await Promise.all([
+							ctx.modelRegistry.getProviderAuth(model.provider),
+							ctx.modelRegistry.getApiKeyAndHeaders(model),
+						]);
+						if (!resolution) throw new Error(`Provider is not configured for ${modelRef}`);
+						if (!requestAuth.ok) throw new Error(`${modelRef}: ${requestAuth.error}`);
+
+						const requestModel = resolution.auth.baseUrl
+							? { ...model, baseUrl: resolution.auth.baseUrl }
+							: model;
+						const response = await provider.stream(
+							requestModel,
+							createGenerateContext(prompt, systemPrompt),
+							{
+								...(requestAuth.apiKey !== undefined ? { apiKey: requestAuth.apiKey } : {}),
+								...(requestAuth.headers !== undefined ? { headers: requestAuth.headers } : {}),
+								...(resolution.env !== undefined ? { env: resolution.env } : {}),
+								sessionId: ctx.sessionManager.getSessionId(),
+								signal: generateSignal,
+							},
+						).result();
+
+						return extractGenerateResponseText(modelRef, response);
+					};
+
+					const generateOptions = async <T>(
+						model: Model<Api>,
+						prompt: string,
+						generateSignal: AbortSignal,
+						parse: (text: string) => T,
+					) => parse(await completePrompt(model, prompt, generateSignal));
+
+					const reviewQuestion = async <T>(
+						model: Model<Api>,
+						prompt: string,
+						generateSignal: AbortSignal,
+						parse: (text: string) => T,
+					) => parse(await completePrompt(model, prompt, generateSignal, REVIEW_QUESTION_SYSTEM_PROMPT));
+
+					const optionInsight = async (model: Model<Api>, prompt: string, generateSignal: AbortSignal) => {
+						const modelRef = formatModelRef(model);
+						const parsed = parseOptionInsight(
+							await completePrompt(model, prompt, generateSignal, OPTION_INSIGHT_SYSTEM_PROMPT),
+						);
+						return { ...parsed, modelUsed: modelRef };
+					};
+
+						onGenerate = async (questionId, existingOptions, generateSignal, mode) => {
+						const question = questionsData.questions.find((q) => q.id === questionId);
+						if (!question) throw new Error(`Unknown question: ${questionId}`);
+						const optionValues = question.options ?? [];
+						const usesRichOptions = optionValues.some(isRichOption);
+
+						const existingList = existingOptions.length > 0
+							? existingOptions.map((option) => `- ${option}`).join("\n")
+							: "(none)";
+
+						let prompt: string;
+						if (mode === "review") {
+							let recommended = "";
+							if (question.recommended) {
+								const value = Array.isArray(question.recommended)
+									? question.recommended.join(", ")
+									: question.recommended;
+								recommended = `\nRecommended: ${value}`;
+							}
+							if (usesRichOptions) {
+								prompt = [
+									"Review this interview question and its options.",
+									"Rewrite the question so it is easier to understand while preserving the original intent.",
+									"Review the rich options as full structured objects: keep good ones as-is, fix bad ones, add missing ones, and remove bad ones.",
+									"Return ONLY JSON in this format:",
+									'{"question":"Clearer question text","options":[{"label":"Option A","content":{"source":"Explanation","lang":"md"}}]}',
+									"Each option must be an object with `label` and optional `content`.",
+									"",
+									questionsData.title ? `Interview: ${questionsData.title}` : null,
+									questionsData.description ? `Interview context: ${questionsData.description}` : null,
+									`Question: ${question.question}`,
+									question.context ? `Question context: ${question.context}` : null,
+									recommended || null,
+									"",
+									"Current options JSON:",
+									JSON.stringify(optionValues, null, 2),
+								].filter((line) => line !== null).join("\n");
+							} else {
+								prompt = [
+									"Review this interview question and its options.",
+									"Rewrite the question so it is easier to understand while preserving the original intent.",
+									"Review the options the same way you already would: keep good ones as-is, fix bad ones, add missing ones, and remove bad ones.",
+									"Return ONLY JSON in this format:",
+									'{"question":"Clearer question text","options":["Option A","Option B","Option C"]}',
+									"",
+									questionsData.title ? `Interview: ${questionsData.title}` : null,
+									questionsData.description ? `Interview context: ${questionsData.description}` : null,
+									`Question: ${question.question}`,
+									question.context ? `Question context: ${question.context}` : null,
+									recommended || null,
+									"",
+									"Current options:",
+									existingList,
+								].filter((line) => line !== null).join("\n");
+							}
+						} else {
+							if (usesRichOptions) {
+								prompt = [
+									"Generate 3 new, distinct options for this question.",
+									"Return ONLY a JSON array.",
+									"Each item may be either a short option string or an object with `label` and optional `content`.",
+									"Use an object when a new option needs supporting detail or example content.",
+									"",
+									`Question: ${question.question}`,
+									question.context ? `Context: ${question.context}` : null,
+									"",
+									"Existing options JSON (do NOT repeat labels):",
+									JSON.stringify(optionValues, null, 2),
+									"",
+									'Format: ["Option A", {"label":"Option B","content":{"source":"Explanation","lang":"md"}}]',
+								].filter((line) => line !== null).join("\n");
+							} else {
+								prompt = [
+									"Generate 3 new, distinct options for this question.",
+									"Return ONLY a JSON array of short option strings. No explanation, no markdown.",
+									"",
+									`Question: ${question.question}`,
+									question.context ? `Context: ${question.context}` : null,
+									"",
+									"Existing options (do NOT repeat):",
+									existingList,
+									"",
+									'Format: ["Option A", "Option B", "Option C"]',
+								].filter((line) => line !== null).join("\n");
+							}
+						}
+
+						if (mode === "review") {
+							let result: { question: string; options: OptionValue[] };
+							try {
+								result = await reviewQuestion(
+									generateModel,
+									prompt,
+									generateSignal,
+									usesRichOptions ? parseReviewedQuestionUpdate : parseReviewedQuestion,
+								);
+							} catch (err) {
+								if (!fallbackGenerateModel || generateSignal.aborted) {
+									throw err;
+								}
+								try {
+									result = await reviewQuestion(
+										fallbackGenerateModel,
+										prompt,
+										generateSignal,
+										usesRichOptions ? parseReviewedQuestionUpdate : parseReviewedQuestion,
+									);
+								} catch (fallbackErr) {
+									const primaryMessage = err instanceof Error ? err.message : String(err);
+									const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+									throw new Error(`${primaryMessage}. Fallback failed: ${fallbackMessage}`);
+								}
+							}
+
+							return result;
+						}
+
+						let options: OptionValue[];
+						try {
+							options = await generateOptions(
+								generateModel,
+								prompt,
+								generateSignal,
+								usesRichOptions ? parseGeneratedOptionValues : parseGeneratedOptions,
+							);
+						} catch (err) {
+							if (!fallbackGenerateModel || generateSignal.aborted) {
+								throw err;
+							}
+							try {
+								options = await generateOptions(
+									fallbackGenerateModel,
+									prompt,
+									generateSignal,
+									usesRichOptions ? parseGeneratedOptionValues : parseGeneratedOptions,
+								);
+							} catch (fallbackErr) {
+								const primaryMessage = err instanceof Error ? err.message : String(err);
+								const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+								throw new Error(`${primaryMessage}. Fallback failed: ${fallbackMessage}`);
+							}
+						}
+
+						return { options };
+					};
+
+					const getExplicitModel = (modelOverride: string): Model<Api> => {
+						const slashIndex = modelOverride.indexOf("/");
+						if (slashIndex <= 0 || slashIndex === modelOverride.length - 1) {
+							throw new Error(`Invalid model override: ${modelOverride}. Use provider/model-id.`);
+						}
+						const selectedModel = ctx.modelRegistry.find(
+							modelOverride.slice(0, slashIndex),
+							modelOverride.slice(slashIndex + 1),
+						);
+						if (!selectedModel) {
+							throw new Error(`Model not found: ${modelOverride}`);
+						}
+						return selectedModel;
+					};
+
+					onOptionInsight = async (questionId, option, prompt, modelOverride, depth, generateSignal) => {
+						const question = questionsData.questions.find((q) => q.id === questionId);
+						if (!question) throw new Error(`Unknown question: ${questionId}`);
+						const optionText = getOptionLabel(option);
+						const optionContent = typeof option === "string" ? null : option.content;
+
+						const depthInstructions = {
+							quick: "Keep the analysis very brief: a one-sentence summary and at most one bullet point.",
+							standard: "Be concrete and concise. A short summary and a few bullet points.",
+							deep: "Provide a thorough analysis: detailed summary, multiple bullet points covering tradeoffs, risks, and edge cases.",
+						};
+
+						const questionPrompt = [
+							"Analyze this single interview answer option.",
+							depthInstructions[depth as keyof typeof depthInstructions] || depthInstructions.standard,
+							"Explain what is good or risky about the option, and suggest a rewrite only if it would materially improve clarity.",
+							"Return ONLY JSON with summary, bullets, and optional suggestedText.",
+							"",
+							questionsData.title ? `Interview: ${questionsData.title}` : null,
+							questionsData.description ? `Interview context: ${questionsData.description}` : null,
+							`Question: ${question.question}`,
+							question.context ? `Question context: ${question.context}` : null,
+							`Option: ${optionText}`,
+							optionContent?.title ? `Option content title: ${optionContent.title}` : null,
+							optionContent?.file ? `Option content file: ${optionContent.file}` : null,
+							optionContent?.lines ? `Option content lines: ${optionContent.lines}` : null,
+							optionContent?.lang ? `Option content language: ${optionContent.lang}` : null,
+							optionContent?.source ? `Option content:\n${optionContent.source}` : null,
+							`User request: ${prompt}`,
+						].filter((line) => line !== null).join("\n");
+
+						if (modelOverride) {
+							return await optionInsight(getExplicitModel(modelOverride), questionPrompt, generateSignal);
+						}
+
+						try {
+							return await optionInsight(generateModel, questionPrompt, generateSignal);
+						} catch (err) {
+							if (!fallbackGenerateModel || generateSignal.aborted) {
+								throw err;
+							}
+							try {
+								return await optionInsight(fallbackGenerateModel, questionPrompt, generateSignal);
+							} catch (fallbackErr) {
+								const primaryMessage = err instanceof Error ? err.message : String(err);
+								const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+								throw new Error(`${primaryMessage}. Fallback failed: ${fallbackMessage}`);
+							}
+						}
+					};
+				}
+
+				startInterviewServer(
+					{
+						questions: questionsData,
+						sessionToken,
+						sessionId,
+						cwd: ctx.cwd,
+						timeout: timeoutSeconds,
+						...(settings.port !== undefined ? { port: settings.port } : {}),
+						...(verbose !== undefined ? { verbose } : {}),
+						theme: themeConfig,
+						...(snapshotDir !== undefined ? { snapshotDir } : {}),
+						autoSaveOnSubmit: settings.autoSaveOnSubmit ?? true,
+						...(questionsData.savedAnswers !== undefined ? { savedAnswers: questionsData.savedAnswers } : {}),
+						...(questionsData.savedOptionInsights !== undefined ? { savedOptionInsights: questionsData.savedOptionInsights } : {}),
+						...(questionsData.optionKeysByQuestion !== undefined ? { optionKeysByQuestion: questionsData.optionKeysByQuestion } : {}),
+						canGenerate: generateModel !== null,
+						askModels,
+						defaultAskModel,
+					},
+					{
+						onSubmit: (responses) => finish("completed", responses),
+						onFinish: async (nextUrl) => {
+							if (!nextUrl && settings.launcher === "orca") {
+								await closeOrcaInterview(pi, url, ctx.cwd);
+							}
+							cleanup();
+						},
+						onDismiss: cleanup,
+						onCancel: (reason, partialResponses) =>
+							reason === "timeout"
+								? finish("timeout", partialResponses ?? [])
+								: finish("cancelled", partialResponses ?? [], reason),
+						...(onGenerate !== undefined ? { onGenerate } : {}),
+						...(onOptionInsight !== undefined ? { onOptionInsight } : {}),
+					}
+				)
+					.then(async (handle) => {
+						if (resolved) {
+							handle.close();
+							return;
+						}
+						server = handle;
+						url = handle.url;
+
+						const activeSessions = getActiveSessions();
+						const otherActive = activeSessions.filter((s) => s.id !== sessionId);
+
+						if (otherActive.length > 0) {
+							const active = otherActive[0];
+							const queuedLines = [
+								"Interview already active:",
+								`  Title: ${active.title}`,
+								`  Project: ${active.cwd}${active.gitBranch ? ` (${active.gitBranch})` : ""}`,
+								`  Session: ${active.id.slice(0, 8)}`,
+								`  Started: ${formatTimeAgo(active.startedAt)}`,
+								"",
+								"New interview ready:",
+								`  Title: ${questionsData.title || "Interview"}`,
+							];
+							const normalizedCwd = ctx.cwd.startsWith(os.homedir())
+								? "~" + ctx.cwd.slice(os.homedir().length)
+								: ctx.cwd;
+							const gitBranch = (() => {
+								try {
+									return execSync("git rev-parse --abbrev-ref HEAD", {
+										cwd: ctx.cwd,
+										encoding: "utf8",
+										timeout: 2000,
+										stdio: ["pipe", "pipe", "pipe"],
+									}).trim() || null;
+								} catch {
+									return null;
+								}
+							})();
+							queuedLines.push(`  Project: ${normalizedCwd}${gitBranch ? ` (${gitBranch})` : ""}`);
+							queuedLines.push(`  Session: ${sessionId.slice(0, 8)}`);
+							queuedLines.push("");
+							queuedLines.push(`Open when ready: ${url}`);
+							queuedLines.push("");
+							queuedLines.push("Server waiting until you open the link.");
+							const queuedMessage = queuedLines.join("\n");
+							launchMessage = queuedMessage;
+							const queuedSummary = "Interview queued; see tool panel for link.";
+							if (onUpdate) {
+								onUpdate({
+									content: [{ type: "text", text: queuedSummary }],
+									details: { status: "queued", url, responses: [], queuedMessage },
+								});
+							} else {
+								ctx.ui.notify(queuedSummary, "info");
+							}
+						} else {
+							// remoteLikely covers both the clear case (this process runs under ssh/mosh)
+							// and the ambiguous one (process started locally, but someone is ssh'd into
+							// this host right now - possibly the same human, via Moshi).
+							const remoteLikely = isRemoteSession() || await hasActiveRemoteLogin();
+							const emitHint = async (outcome: BrowserOpenOutcome): Promise<void> => {
+								const hint = remoteAccessHint({
+									url,
+									port: handle.port,
+									moshi: await probeMoshiGateway(),
+									outcome,
+								});
+								launchMessage = hint;
+								if (onUpdate) {
+									onUpdate({
+										content: [{ type: "text", text: hint }],
+										details: { status: "queued", url, responses: [], queuedMessage: hint },
+									});
+								} else {
+									ctx.ui.notify(hint, outcome.status === "failed" ? "warning" : "info");
+								}
+							};
+							// When only an active remote login suggests a remote user, they may still be at
+							// the desk, so keep the Glimpse window but print the access hint too.
+							const glimpseOpenFn = shouldAttemptGlimpse(settings.launcher, os.platform(), isRemoteSession())
+								? await getGlimpseOpen()
+								: null;
+							let glimpseFailure: string | null = null;
+							if (glimpseOpenFn) {
+								try {
+									glimpseWin = openInGlimpse(
+										glimpseOpenFn,
+										url,
+										questionsData.title || "Interview",
+										settings.glimpseFloating ?? false,
+									);
+									glimpseWin.on("closed", () => {
+										glimpseWin = null;
+										if (!resolved) {
+											finish("cancelled", [], "user");
+										} else {
+											// After submit, the server waits for save and /finish; closing the window ends that wait.
+											cleanup();
+										}
+									});
+									if (remoteLikely) {
+										await emitHint({ status: "opened-on-host" });
+									}
+									return;
+								} catch (err) {
+									glimpseWin = null;
+									glimpseFailure = describeLaunchFailure("glimpse window", err);
+								}
+							}
+							let openOutcome: BrowserOpenOutcome = { status: "opened-on-host" };
+							try {
+								if (settings.launcher === "orca") {
+									await openOrcaUrl(pi, url, ctx.cwd);
+								} else if (settings.launcher === "glimpse") {
+									throw new Error(
+										describeGlimpseUnavailable(
+											glimpseFailure ?? glimpseLoadError,
+											os.platform(),
+											isRemoteSession(),
+										),
+									);
+								} else {
+									await openUrl(pi, url, settings.browser);
+								}
+							} catch (err) {
+								if (resolved) return;
+								openOutcome = {
+									status: "failed",
+									error: err instanceof Error ? err.message : String(err),
+								};
+							}
+							// On macOS/Windows hosts open/start succeeds over ssh but opens on the host display,
+							// so remote-looking sessions also receive the hint after a successful launch.
+							if (openOutcome.status === "failed" || remoteLikely) {
+								await emitHint(openOutcome);
+							}
+						}
+					})
+					.then(() => {
+						if (runAsync) detach();
+					})
+					.catch((err) => {
+						cleanup();
+						reject(err);
+					});
+			});
+		},
+
+		renderCall(args, theme) {
+			const { questions } = args as { questions?: string };
+			const label = questions ? `Interview: ${questions}` : "Interview";
+			return new Text(theme.fg("toolTitle", theme.bold(label)), 0, 0);
+		},
+
+		renderResult(result, _options, theme) {
+			const details = result.details as InterviewDetails | undefined;
+			if (!details) return new Text("Interview", 0, 0);
+
+			if (details.status === "queued" && details.queuedMessage) {
+				const header = theme.fg("warning", "QUEUED");
+				const body = theme.fg("dim", details.queuedMessage);
+				return new Text(`${header}\n${body}`, 0, 0);
+			}
+
+			if (details.status === "started") {
+				const header = theme.fg("accent", "STARTED (answer arrives later)");
+				return new Text(details.queuedMessage ? `${header}\n${theme.fg("dim", details.queuedMessage)}` : header, 0, 0);
+			}
+
+			const statusColor =
+				details.status === "completed"
+					? "success"
+					: details.status === "cancelled"
+						? "warning"
+						: details.status === "timeout"
+							? "warning"
+							: details.status === "queued"
+								? "warning"
+								: "error";
+
+			const line = `${details.status.toUpperCase()} (${details.responses.length} responses)`;
+			return new Text(theme.fg(statusColor, line), 0, 0);
+		},
+	});
+}
