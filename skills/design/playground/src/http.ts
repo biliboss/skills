@@ -149,6 +149,12 @@ export function criarRotas(opcoes: OpcoesHttp) {
         return estatico(pathname.slice("/web/".length));
       }
 
+      if (pathname === "/api/componentes/log") {
+        if (metodo !== "GET") return erro(405, "método não permitido");
+        const produto = url.searchParams.get("produto") ?? undefined;
+        return json(opcoes.componentes?.conferirCarga(produto) ?? { patchesCarregados: [], patchesInvalidos: [], componentes: [] });
+      }
+
       if (pathname === "/api/componentes") {
         if (metodo !== "GET") return erro(405, "método não permitido");
         return json({ componentes: opcoes.componentes?.todos() ?? [] });

@@ -7,6 +7,9 @@
  */
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, sep } from "node:path";
+import { problemasDosModificadores, type Modificador } from "./modificadores.ts";
+import { aplicarPatches } from "./patches.ts";
+import { PatchesDoDisco, type PatchesCarregados } from "./patches-disco.ts";
 import { log } from "./tipos.ts";
 
 export type Slot = { chave: string; seletor: string; como: string };
@@ -35,6 +38,8 @@ export type Componente = {
   abstrato?: boolean;
   /** Ids de componentes que precisam estar definidos (o About.xml). */
   requer?: string[];
+  /** Estados ligáveis por instância (carregando, vazio, erro...), por nome. */
+  modificadores?: Record<string, Modificador>;
 };
 /** O que o wrapper (ou o agente) manda: tudo menos a `versao`, que o MCP dá. */
 export type DefinicaoComponente = Omit<Componente, "versao">;
@@ -91,6 +96,7 @@ function mesclar(pai: Record<string, unknown>, filho: Record<string, unknown>): 
     const trocados = pai.slots.map((s) => novos.find((n) => n.chave === s.chave) ?? s);
     saida.slots = [...trocados, ...novos.filter((n) => !(pai.slots as Record<string, unknown>[]).some((s) => s.chave === n.chave))];
   }
+  if (ehObjeto(pai.modificadores) && ehObjeto(filho.modificadores)) saida.modificadores = { ...pai.modificadores, ...filho.modificadores };
   if (Array.isArray(pai.requer) || Array.isArray(filho.requer)) {
     const lista = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
     saida.requer = [...new Set([...lista(pai.requer), ...lista(filho.requer)])];
@@ -188,6 +194,13 @@ function problemasDoResolvido(v: Record<string, unknown>): string[] {
   if (v.fontes !== undefined && !ehListaDeTextos(v.fontes)) p.push("fontes precisa ser uma lista de URLs de folhas de estilo");
   if (v.sprite !== undefined && typeof v.sprite !== "string") p.push("sprite precisa ser o SVG (texto) com os <symbol>");
   if (v.abstrato !== undefined && typeof v.abstrato !== "boolean") p.push("abstrato precisa ser true ou false");
+  if (v.modificadores !== undefined) {
+    const chaves = [
+      ...(Array.isArray(v.slots) ? v.slots.filter(ehObjeto).map((s) => String(s.chave)) : []),
+      ...(ehObjeto(v.dados) ? Object.keys(v.dados) : []),
+    ];
+    p.push(...problemasDosModificadores(v.modificadores, chaves));
+  }
   if (v.requer !== undefined && !ehListaDeTextos(v.requer)) p.push("requer precisa ser uma lista de ids de componente");
   const desktop = ehObjeto(v.variantes) && ehObjeto(v.variantes.desktop) ? v.variantes.desktop.html : undefined;
   for (const id of simbolosFaltando([typeof v.html === "string" ? v.html : undefined, typeof desktop === "string" ? desktop : undefined], v.sprite)) {
@@ -209,8 +222,8 @@ export function problemasDoComponente(v: unknown, buscar?: Buscar): string[] {
     return [`id inválido ${JSON.stringify(v.id)}: use "<produto>/<peça>" em kebab-case, ex.: "loja/cartao-produto"`];
   }
   const { resolvido, problemas } = resolverHeranca(v, buscar);
-  if (problemas.length > 0) return problemas;
-  const todos = problemasDoResolvido(resolvido);
+  // Sem o pai não dá para validar o resultado, mas o que o próprio filho trouxe dá: todos os erros de uma vez.
+  const todos = problemas.length > 0 ? [...problemas, ...problemasProprios(v)] : problemasDoResolvido(resolvido);
   if (ehListaDeTextos(v.requer) && buscar) {
     for (const r of v.requer) {
       if (r === v.id) continue;
@@ -219,6 +232,18 @@ export function problemasDoComponente(v: unknown, buscar?: Buscar): string[] {
     }
   }
   return todos;
+}
+
+/** Os problemas dos campos que a definição trouxe, quando a herança não resolve (o pai falta ou há ciclo). */
+function problemasProprios(v: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  if (v.nome !== undefined && !ehTexto(v.nome)) out.push("nome, quando vem, precisa ser texto");
+  if (v.estado !== undefined && v.estado !== "rascunho" && v.estado !== "real") out.push('estado precisa ser "rascunho" ou "real"');
+  if (v.html !== undefined && !ehTexto(v.html)) out.push("html, quando vem, precisa ser texto");
+  if (v.css !== undefined && typeof v.css !== "string") out.push("css, quando vem, precisa ser texto");
+  if (v.w !== undefined && !ehMedida(v.w)) out.push("w precisa ser um número positivo");
+  if (v.h !== undefined && !ehMedida(v.h)) out.push("h precisa ser um número positivo");
+  return out;
 }
 
 /** O primeiro problema da definição, ou null (compatibilidade). */
@@ -233,6 +258,7 @@ function limpar(v: Record<string, unknown>, versao: number): Componente {
   if (c.herda !== undefined) saida.herda = c.herda;
   if (c.abstrato === true) saida.abstrato = true;
   if (c.requer !== undefined) saida.requer = c.requer;
+  if (c.modificadores !== undefined) saida.modificadores = c.modificadores;
   if (c.html !== undefined) saida.html = c.html;
   if (c.css !== undefined) saida.css = c.css;
   if (c.w !== undefined) saida.w = c.w;
@@ -337,15 +363,20 @@ function gravar(arquivo: string, conteudo: string): void {
   renameSync(temporario, arquivo);
 }
 
-export type Resumo = Pick<Componente, "id" | "nome" | "descricao" | "estado" | "versao" | "w" | "h" | "dados" | "herda" | "abstrato"> & { chaves: string[] };
+export type Resumo = Pick<Componente, "id" | "nome" | "descricao" | "estado" | "versao" | "w" | "h" | "dados" | "herda" | "abstrato"> & { chaves: string[]; modificadores?: { nome: string; descricao?: string }[] };
 
 export class Componentes {
   readonly dir: string;
   /** Chamado a cada definição gravada (o servidor manda o SSE `componente`). */
   aoDefinir?: (c: Componente) => void;
 
-  constructor(dadosDir: string) {
+  /** Os patches do disco (<produto>/patches/*.json), reaplicados a cada leitura. */
+  readonly patches: PatchesDoDisco;
+  private assinaturaAvisada = "";
+
+  constructor(dadosDir: string, patches?: PatchesDoDisco) {
     this.dir = join(dadosDir, "componentes");
+    this.patches = patches ?? new PatchesDoDisco();
   }
 
   private arquivo(id: string): string {
@@ -438,8 +469,103 @@ export class Componentes {
       return null;
     }
     const versao = typeof c.versao === "number" && Number.isInteger(c.versao) && c.versao > 0 ? c.versao : 1;
-    // A herança se resolve na leitura: o que está no disco é a definição como veio.
-    return limpar(resolverHeranca(c, (id) => this.cru(id)).resolvido, versao);
+    return limpar(this.carregarUm(c, this.patches.carregar()).resolvido, versao);
+  }
+
+  /**
+   * A herança se resolve na leitura e os patches se aplicam depois dela, um a um:
+   * o que está no disco é a definição como veio. Patch que deixa o resultado
+   * inválido é descartado, com o erro registrado.
+   */
+  private carregarUm(c: Record<string, unknown>, lote: PatchesCarregados) {
+    const buscar = (id: string) => this.cru(id);
+    let resolvido = resolverHeranca(c, buscar).resolvido;
+    const aplicados: string[] = [];
+    const pulados: { nome: string; porque: string }[] = [];
+    const erros: { nome: string; erro: string }[] = [];
+    const id = String(c.id);
+    for (const p of lote.patches) {
+      const r = aplicarPatches(resolvido as { id: string }, [{ nome: p.nome, patch: p.patch }], (x) => buscar(x) !== null);
+      pulados.push(...r.pulados);
+      erros.push(...r.erros);
+      if (r.aplicados.length === 0) continue;
+      const { herda: _herda, ...semHerda } = r.componente as Record<string, unknown>;
+      const problemas = problemasDoComponente({ ...semHerda, id }, buscar);
+      if (problemas.length > 0) {
+        erros.push({ nome: p.nome, erro: `deixaria o componente inválido (descartado): ${problemas.join("; ")}` });
+        continue;
+      }
+      resolvido = r.componente as Record<string, unknown>;
+      aplicados.push(p.nome);
+    }
+    return { resolvido, aplicados, pulados, erros };
+  }
+
+  /** Os ids de todas as definições guardadas, em ordem. */
+  private idsCrus(produto?: string): string[] {
+    let produtos: string[];
+    try {
+      produtos = readdirSync(this.dir).sort();
+    } catch {
+      return [];
+    }
+    if (produto !== undefined) produtos = produtos.filter((p) => p === produto);
+    const ids: string[] = [];
+    for (const p of produtos) {
+      try {
+        for (const a of readdirSync(join(this.dir, p)).filter((x) => x.endsWith(".json")).sort()) ids.push(`${p}/${a.slice(0, -5)}`);
+      } catch {
+        /* não é pasta */
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * O log de carga (como o do RimWorld): por componente, os patches aplicados,
+   * pulados e com erro, os `requer` faltando e o motivo de um filho inválido;
+   * mais os arquivos de patch inválidos. Se os arquivos de patch mudaram desde
+   * a última vez, avisa a Web dos componentes afetados.
+   */
+  conferirCarga(produto?: string) {
+    const lote = this.patches.carregar();
+    const componentes: {
+      id: string;
+      valido: boolean;
+      problemas: string[];
+      aplicados: string[];
+      pulados: { nome: string; porque: string }[];
+      erros: { nome: string; erro: string }[];
+      requerFaltando: string[];
+    }[] = [];
+    const afetados: string[] = [];
+    for (const id of this.idsCrus(produto)) {
+      const c = this.cru(id);
+      if (!c) continue;
+      const problemas = problemasDoComponente(c, (x) => this.cru(x));
+      const requerFaltando = Array.isArray(c.requer) ? (c.requer as unknown[]).filter((r): r is string => typeof r === "string" && r !== id && !this.cru(r)) : [];
+      if (problemas.length > 0) {
+        componentes.push({ id, valido: false, problemas, aplicados: [], pulados: [], erros: [], requerFaltando });
+        continue;
+      }
+      const r = this.carregarUm(c, lote);
+      componentes.push({ id, valido: true, problemas: [], aplicados: r.aplicados, pulados: r.pulados, erros: r.erros, requerFaltando });
+      if (r.aplicados.length > 0 || r.erros.length > 0) afetados.push(id);
+    }
+    if (lote.assinatura !== this.assinaturaAvisada) {
+      this.assinaturaAvisada = lote.assinatura;
+      for (const id of afetados) {
+        const comp = this.ler(id);
+        if (comp) {
+          try {
+            this.aoDefinir?.(comp);
+          } catch (e) {
+            log("aviso de componente falhou", e);
+          }
+        }
+      }
+    }
+    return { patchesCarregados: lote.patches.map((p) => p.nome), patchesInvalidos: lote.invalidos, componentes };
   }
 
   /** Todas as definições válidas, em ordem de id; só de um produto, se pedido. */
@@ -483,6 +609,7 @@ export class Componentes {
       h: c.h,
       chaves: chavesDe(c),
       dados: c.dados,
+      ...(c.modificadores ? { modificadores: Object.entries(c.modificadores).map(([nome, m]) => ({ nome, ...(m.descricao ? { descricao: m.descricao } : {}) })) } : {}),
     }));
   }
 

@@ -126,3 +126,14 @@ describe("componentes: todos os problemas, herança, requer, sprite", () => {
     expect(f.sprite).toContain("seta");
   });
 });
+
+describe("componentes: pai ausente não esconde os outros erros", () => {
+  test("lista o pai que falta, o estado ruim e o requer que falta juntos", () => {
+    const buscar = () => null;
+    const p = problemasDoComponente({ id: "loja/ruim", nome: "", estado: "x", herda: "loja/nao-existe", requer: ["loja/falta"] }, buscar);
+    expect(p.some((m) => m.includes("herda loja/nao-existe"))).toBe(true);
+    expect(p.some((m) => m.includes("estado precisa ser"))).toBe(true);
+    expect(p.some((m) => m.includes("nome, quando vem"))).toBe(true);
+    expect(p.some((m) => m.includes("requer loja/falta"))).toBe(true);
+  });
+});

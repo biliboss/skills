@@ -24,7 +24,8 @@ export type ResultadoPatches<T> = {
 };
 
 const ACOES: AcaoHtml[] = ["remover", "texto", "attr", "classe", "antes", "depois"];
-const ID_ALVO = /^[a-z0-9]+(?:-[a-z0-9]+)*\/(?:[a-z0-9]+(?:-[a-z0-9]+)*)?\*?$|^[a-z0-9]+(?:-[a-z0-9]+)*\/\*$/;
+/** "loja/botao", "loja/*" ou "loja/botao-*" (o "*" só no fim da peça, com ou sem hífen antes). */
+const ID_ALVO = /^[a-z0-9]+(?:-[a-z0-9]+)*\/(?:[a-z0-9]+(?:-[a-z0-9]+)*(?:-?\*)?|\*)$/;
 const ID_COMP = /^[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const ehObjeto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);

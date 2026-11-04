@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [Não lançado]
+
+### Changed
+
+- `design` 0.2.0: o design-playground passa a morar na skill (`skills/design/playground/`); `motor.sh` usa essa pasta por padrão e passa `DESIGN_PRODUTOS`/`DADOS_DIR` ao MCP. Herança (`herda`/`abstrato`), `requer`, patches em `<produto>/patches/*.json`, modificadores e `componentes_conferir`, no estilo do mod system do RimWorld. `DP_DIR` e `DADOS_DIR` viram opcionais no `casa.env.example`.
+
 ## [0.3.0] - 2026-11-04
 
 ### Added

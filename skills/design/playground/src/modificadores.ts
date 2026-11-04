@@ -82,7 +82,7 @@ const escAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").
 function naRaiz(html: string, classes: string[], attrs: Record<string, string>): string {
   const m = /<([a-zA-Z][^\s/>]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/.exec(html);
   if (!m) return html;
-  let resto = m[2];
+  let resto = m[2] ?? "";
   const auto = resto.trimEnd().endsWith("/");
   if (auto) resto = resto.replace(/\s*\/\s*$/, "");
   if (classes.length) {
@@ -99,7 +99,7 @@ function naRaiz(html: string, classes: string[], attrs: Record<string, string>):
     resto = resto.replace(re, "");
     resto += val === "" ? ` ${a}` : ` ${a}="${escAttr(val)}"`;
   }
-  return html.slice(0, m.index) + `<${m[1]}${resto}${auto ? " /" : ""}>` + html.slice(m.index + m[0].length);
+  return html.slice(0, m.index) + `<${m[1] ?? ""}${resto}${auto ? " /" : ""}>` + html.slice(m.index + m[0].length);
 }
 
 /** Liga os modificadores (em ordem) a um componente: html com classe/attr na raiz, css somado e dados por baixo. */

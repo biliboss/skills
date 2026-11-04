@@ -157,3 +157,11 @@ describe("patches: validação", () => {
     expect(problemasDoPatch({ alvo: "a/b", ops: [] })[0]).toContain("ops");
   });
 });
+
+describe("patches: alvo com prefixo", () => {
+  test('"loja/botao-*" é um alvo válido', () => {
+    expect(problemasDoPatch({ alvo: "loja/botao-*", ops: [{ op: "css", anexar: "a{}" }] })).toEqual([]);
+    expect(problemasDoPatch({ alvo: "loja/botao*", ops: [{ op: "css", anexar: "a{}" }] })).toEqual([]);
+    expect(problemasDoPatch({ alvo: "loja/-*", ops: [{ op: "css", anexar: "a{}" }] }).length).toBeGreaterThan(0);
+  });
+});

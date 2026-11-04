@@ -10,6 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Canvas } from "./canvas.ts";
 import { Chat } from "./chat.ts";
 import { Componentes } from "./componentes.ts";
+import { PatchesDoDisco } from "./patches-disco.ts";
 import { criarMcp as criarServidorMcp } from "./ferramentas.ts";
 import { criarRotas } from "./http.ts";
 import { criarGuarda, criarMcpHttp, OCIOSO_MS, ROTA_MCP, type McpHttp } from "./mcp-http.ts";
@@ -24,6 +25,8 @@ export type OpcoesApp = {
   porta?: number;
   /** Onde ficam conversa.jsonl, canvas.json e componentes/. Padrão <projeto>/dados. */
   dadosDir?: string;
+  /** Pastas de patches (padrão: PATCHES_DIRS, ou $DESIGN_PRODUTOS/<produto>/patches). */
+  patchesDirs?: string[];
   /** Padrão <projeto>/web. */
   webDir?: string;
   /** Abrir o navegador na primeira ferramenta / em web_abrir. Padrão true. */
@@ -96,7 +99,7 @@ export function criarApp(opcoes: OpcoesApp = {}): App {
   const chat = new Chat(dadosDir);
   const canvas = new Canvas(dadosDir);
   const operacoes = new Operacoes(chat, opcoes.operacaoMs);
-  const componentes = new Componentes(dadosDir);
+  const componentes = new Componentes(dadosDir, opcoes.patchesDirs ? new PatchesDoDisco(() => opcoes.patchesDirs!) : undefined);
   // Cada definição avisa todas as abas: elas buscam a definição nova e redesenham as instâncias.
   componentes.aoDefinir = (c) => chat.transmitir({ tipo: "componente", dados: { id: c.id, versao: c.versao } });
   const { rota, fecharEventos } = criarRotas({ chat, canvas, operacoes, componentes, webDir, pingMs: opcoes.pingMs });

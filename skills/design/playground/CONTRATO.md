@@ -1,13 +1,13 @@
 # Contrato interno
 
-O plano, o estado e o que vem a seguir estão em `../../.wiki/design-playground.md`. Este arquivo fixa as interfaces entre as partes: quem muda uma delas atualiza este arquivo no mesmo commit.
+O plano mora no wiki de quem usa o playground. Este arquivo fixa as interfaces entre as partes: quem muda uma delas atualiza este arquivo no mesmo commit.
 
 ## Decisões
 
 - Um motor por vez (ver "Os motores e os transportes").
 - A tela é HTML livre com CSS. Tamanhos: `celular` = iPhone 393×852, `tablet` = 768×1024, `desktop` = web 1280×800.
-- O canvas sobrevive a reiniciar (`dados/canvas.json`), e a conversa também (`dados/conversa.jsonl`).
-- A porta é 5317 (`PORT`). `DADOS_DIR` troca a pasta `dados/`. `ABRIR_WEB=0` não abre o navegador (testes).
+- O canvas sobrevive a reiniciar (`$DADOS_DIR/canvas.json`), e a conversa também (`$DADOS_DIR/conversa.jsonl`).
+- A porta é 5317 (`PORT`). `DADOS_DIR` troca a pasta dos dados (padrão `~/.local/state/design-playground`, fora do git). `ABRIR_WEB=0` não abre o navegador (testes).
 
 ## Arquivos
 
@@ -27,7 +27,6 @@ O plano, o estado e o que vem a seguir estão em `../../.wiki/design-playground.
 | `web/widgets.js` | as definições de `/api/componentes` e o desenho de uma instância num shadow DOM |
 | `web/paleta.js` | a paleta de componentes |
 | `web/chat.js`, `web/chat.css` | o chat; repassa os eventos `canvas` (`playground:canvas`) e `componente` (`playground:componente`) ao `canvas.js` |
-| `legado/kit-via-v12.ts` | o raspador do site do Via, fora de uso |
 | `test/**` | `bun test` |
 
 O processo: `bun run src/main.ts`, o MCP por stdio e o HTTP (`Bun.serve`, `127.0.0.1:$PORT`). Nada vai para o stdout além do MCP; log no stderr.
@@ -91,7 +90,7 @@ A forma `tela` (tldraw, `type: "tela"`): `props { w, h, nome, html }`, uma cabe�
 
 ## Componentes e instâncias (o MCP genérico)
 
-O porquê está no wiki, "Plano: MCP genérico…". O MCP não conhece nenhum produto: não há kit dentro dele. Os componentes chegam de fora, de um **wrapper** escrito pela skill `design` (no plugin `biliboss-casa`) a partir do código do produto.
+O MCP não conhece nenhum produto: não há kit dentro dele. Os componentes chegam de fora, de um **wrapper** escrito pela skill `design` a partir do código do produto.
 
 ```ts
 type Variante = { html?: string; css: string; w: number; h: number };
@@ -143,6 +142,35 @@ type Componente = {
 
 **SSE:** `componente`: `{ id, versao }`, para todas as abas: a página busca a definição nova e redesenha as instâncias daquele id.
 
+**Modificadores** (os Comps do RimWorld, o *modifier* do BEM): estados que o componente declara e a instância liga.
+
+```ts
+modificadores?: Record<string, { descricao?: string; classe?: string; attr?: Record<string, string>; css?: string; dados?: Record<string, string | string[]> }>;
+```
+
+- Na instância: `modificadores: string[]` (em `tela_montar`, `instancia_inserir` e `instancia_mudar`). Nome que o componente não declara é erro.
+- Efeito: `classe` e `attr` vão na raiz da peça (`attr: {disabled: ""}`); o `css` entra depois do da peça; os `dados` ficam por baixo dos da instância (a instância ganha).
+- Resolve o estado que não é slot: `disabled`, vazio, erro.
+
+**Patches** (os PatchOperations do RimWorld): remendos nos componentes, aplicados na leitura e nunca gravados; por isso sobrevivem ao `wrapper.sh build`. Cada arquivo é `$DESIGN_PRODUTOS/<produto>/patches/*.json` (ou uma pasta de `PATCHES_DIRS`):
+
+```json
+{ "alvo": "loja/botao" | ["loja/botao", "loja/cartao"] | "loja/*",
+  "seExiste": "loja/selo" | ["loja/selo", "loja/icone"],
+  "porque": "texto livre",
+  "ops": [
+    { "op": "replace", "path": "/dados/texto", "value": "Comprar" },
+    { "op": "html", "seletor": ".selo", "acao": "remover" },
+    { "op": "css", "anexar": ".botao { border-radius: 8px }" }
+  ] }
+```
+
+- **`ops`:** JSON Patch (RFC 6902) `add`, `replace`, `remove` e `test` sobre a definição. `test` que falha pula o patch inteiro (o PatchOperationConditional). `html`: `seletor` + `acao` (`remover`, `texto`, `attr`, `classe`, `antes`, `depois`) + `valor` e, no `attr`, `nome`. `css`: `anexar`.
+- **`seExiste`** (o `MayRequire`): o patch só vale se todos os ids estão definidos; senão é pulado, sem erro.
+- **Atômico:** uma op que erra descarta o patch. Seletor que não acha nada é erro. Patch que deixa o componente inválido é descartado.
+- **Ordem:** produto em ordem alfabética, e dentro dele o arquivo por nome.
+- **O log:** `componentes_conferir({produto?})` e `GET /api/componentes/log` listam os patches aplicados, pulados e com erro, os `requer` faltando e os filhos inválidos.
+
 **A forma `widget`:** `props { w, h, componente, dados }` (dados em JSON). A instância guarda só os próprios dados; os padrões vêm da definição atual, como no Figma. A variante vem do frame mais próximo, mesmo passando por um `group`. Desenha a definição atual num shadow DOM; uma instância de `rascunho` leva uma faixa âmbar "rascunho" no canto de cima. A pilha e o `group` continuam como antes.
 
 **A coluna lateral:** um frame com pilha e `meta.lateral = L` empilha duas colunas: a lateral (x = 0, w = L) e a principal (x = L, w = largura − L), cada filho com `meta.coluna` (`"lateral"` ou `"principal"`). Um filho fora do x da coluna dele (arrastado, ou que acabou de entrar no frame) vai para a lateral se o meio dele cair em x < L, e para a principal no resto. A paleta solta na coluna do ponto; o clique na paleta com um filho da lateral selecionado entra no fim da lateral. Frame sem `meta.lateral` empilha como antes.
@@ -152,6 +180,10 @@ type Componente = {
 **Migração do canvas:** ao abrir, a página troca `props.kit` + `props.peca` por `props.componente`: `via-v12/<p>` → `via/<p>` e `tmp/<p>` → `via/<p>`. Uma instância cujo componente ainda não foi definido mostra "componente loja/x não definido" no lugar, sem quebrar a tela.
 
 **A paleta** lista os componentes de `/api/componentes`, por produto, com o estado.
+
+## De onde vêm os nomes
+
+Do mod system do RimWorld: Def (a definição), `ParentName`/`Abstract` (`herda`/`abstrato`), PatchOperations (patches), `MayRequire` (`seExiste`), Comps (modificadores) e `About.xml` (`requer`). Do JSON Patch (RFC 6902): as ops `add`, `replace`, `remove` e `test`. Do BEM: o *modifier*.
 
 ## Os motores e os transportes
 

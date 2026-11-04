@@ -10,6 +10,7 @@ import { z } from "zod";
 import type { Canvas } from "./canvas.ts";
 import type { Chat } from "./chat.ts";
 import { ID_COMPONENTE, type Componentes } from "./componentes.ts";
+import { problemasDaEscolha } from "./modificadores.ts";
 import type { Operacoes } from "./operacoes.ts";
 import { log } from "./tipos.ts";
 
@@ -33,6 +34,8 @@ Como trabalhar:
 8. Volte a chamar chat_aguardar sempre, também quando ele vier vazio. Fora de chat_aguardar, a Web mostra "agente ocupado".
 
 Cada mensagem traz em "selecao" os ids das formas que a pessoa tinha selecionado no canvas ao enviar: "muda isso" se refere a elas (use canvas_ler com esses ids, e tela_ler para o HTML de uma tela). Use chat_historico para reler a conversa e chat_apagar para tirar uma mensagem sua.
+
+Componentes: um pode herdar de outro (herda: "<produto>/<peça>", o filho diz só o que muda) e ser abstrato (abstrato: true: base que não se instancia; componente_listar({incluirAbstratos: true}) mostra). Um componente declara modificadores (estados como carregando, vazio, erro, desabilitado); tela_montar, instancia_inserir e instancia_mudar ligam os que quiser em modificadores: [nomes]. Patches vivem em <produto>/patches/*.json (alvo + ops), são reaplicados a cada leitura e nunca gravados na definição. Depois de mexer neles, ou se um componente sumir, chame componentes_conferir para ver o que foi aplicado, pulado, com erro, o que falta em requer e o que ficou inválido.
 
 Um motor por vez: se uma ferramenta responder "outra sessão já é o motor", outro agente está conduzindo a Web agora; diga isso a quem pediu e não insista.`;
 
@@ -455,11 +458,12 @@ O formato: { id: "<produto>/<peça>" em kebab-case, nome, descricao, estado: "ra
         'Lista os componentes definidos (de um produto, ou todos): id, nome, descricao, estado ("real" ou "rascunho"), versao, w×h no celular, chaves (o que uma instância aceita em dados) e os dados padrão. Chame antes de tela_montar. Não precisa da Web aberta.',
       inputSchema: {
         produto: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "kebab-case, ex.: via").optional().describe('Só os de um produto (ex.: "loja").'),
+        incluirAbstratos: z.boolean().optional().describe("Inclui os componentes abstratos (bases para herdar). Padrão false."),
       },
     },
-    async ({ produto }) => {
+    async ({ produto, incluirAbstratos }) => {
       if (!ctx.componentes) return semComponentes();
-      const componentes = ctx.componentes.listar(produto);
+      const componentes = ctx.componentes.listar(produto, incluirAbstratos ?? false);
       if (componentes.length === 0) {
         return texto(
           JSON.stringify({
@@ -486,24 +490,50 @@ O formato: { id: "<produto>/<peça>" em kebab-case, nome, descricao, estado: "ra
     },
   );
 
+  registrar(
+    "componentes_conferir",
+    {
+      title: "Conferir a carga dos componentes",
+      description:
+        "O log de carga (como o do RimWorld): por componente, os patches aplicados, pulados (seExiste ou teste que não passou) e com erro, os `requer` faltando e os filhos inválidos por causa do pai; mais os arquivos de patch inválidos. Os patches vêm de <produto>/patches/*.json (PATCHES_DIRS ou $DESIGN_PRODUTOS). Não precisa da Web aberta.",
+      inputSchema: {
+        produto: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "kebab-case, ex.: via").optional().describe("Só os de um produto."),
+      },
+    },
+    async ({ produto }) => {
+      if (!ctx.componentes) return semComponentes();
+      return texto(JSON.stringify(ctx.componentes.conferirCarga(produto)));
+    },
+  );
+
   // ---------- telas montadas e instâncias ----------
 
   const dados = z
     .record(z.string(), z.union([z.string(), z.array(z.string())]))
     .describe("Os valores dos slots, por chave (veja as chaves em componente_listar): texto, ou lista de textos nas chaves do tipo lista. Mande só o que muda em relação ao padrão.");
+  const modificadores = z.array(z.string()).optional().describe("Os modificadores (estados) do componente a ligar, em ordem; os nomes estão em componente_listar.");
   const peca = z.object({
     componente: idComponente,
     dados: dados.optional(),
+    modificadores,
   });
 
   /** Confere no servidor, sem ir à página, cada componente e as chaves dos dados. */
-  function conferirPecas(pecas: { componente: string; dados?: Record<string, unknown> }[], onde = ""): string | null {
+  function conferirPecas(pecas: { componente: string; dados?: Record<string, unknown>; modificadores?: string[] }[], onde = ""): string | null {
     if (!ctx.componentes) return "os componentes não estão ligados neste servidor";
     for (const [i, p] of pecas.entries()) {
-      const problema = ctx.componentes.conferir(p.componente, p.dados);
+      const problema = ctx.componentes.conferir(p.componente, p.dados) ?? conferirModificadores(p.componente, p.modificadores);
       if (problema) return onde + (pecas.length > 1 ? `peça ${i + 1}: ` : "") + problema;
     }
     return null;
+  }
+
+  /** Os modificadores da instância têm de existir no componente. */
+  function conferirModificadores(id: string, nomes: string[] | undefined): string | null {
+    if (nomes === undefined || !ctx.componentes) return null;
+    const disponiveis = Object.keys(ctx.componentes.ler(id)?.modificadores ?? {});
+    const p = problemasDaEscolha(nomes, disponiveis);
+    return p.length > 0 ? `componente "${id}": ${p.join("; ")}` : null;
   }
 
   const LATERAL_MIN = 80;
@@ -560,6 +590,7 @@ O formato: { id: "<produto>/<peça>" em kebab-case, nome, descricao, estado: "ra
         tela: z.string().min(1).describe('O id da tela ("shape:...").'),
         componente: idComponente,
         dados: dados.optional(),
+        modificadores,
         indice: z.number().int().min(0).optional().describe("A posição na pilha, contando do topo a partir de 0."),
         coluna: z
           .enum(["lateral", "principal"])
@@ -567,10 +598,10 @@ O formato: { id: "<produto>/<peça>" em kebab-case, nome, descricao, estado: "ra
           .describe('Numa tela com lateral: "lateral" ou "principal" (padrão). Uma tela sem lateral recusa "lateral".'),
       },
     },
-    async ({ tela, componente, dados: d, indice, coluna }) => {
-      const problema = conferirPecas([{ componente, dados: d }]);
+    async ({ tela, componente, dados: d, modificadores: mods, indice, coluna }) => {
+      const problema = conferirPecas([{ componente, dados: d, modificadores: mods }]);
       if (problema) return falha(problema);
-      return operar({ tipo: "instancia_inserir", tela, componente, dados: d, indice, coluna });
+      return operar({ tipo: "instancia_inserir", tela, componente, dados: d, modificadores: mods, indice, coluna });
     },
   );
 
@@ -582,18 +613,20 @@ O formato: { id: "<produto>/<peça>" em kebab-case, nome, descricao, estado: "ra
         "Muda os dados de uma instância que já está no canvas: o que você manda se junta aos dados atuais (mande só o que muda), e ela se redesenha. Para mudar todas as instâncias de um componente, mude a definição com componente_definir.",
       inputSchema: {
         id: z.string().min(1).describe('O id da instância ("shape:...").'),
-        dados,
+        dados: dados.optional(),
+        modificadores: z.array(z.string()).optional().describe("A lista COMPLETA de modificadores ligados (troca a anterior; [] desliga todos)."),
       },
     },
-    async ({ id, dados: d }) => {
+    async ({ id, dados: d, modificadores: mods }) => {
+      if (d === undefined && mods === undefined) return falha("mande dados, modificadores ou os dois");
       // Se o espelho do canvas conhece a instância e o componente está definido, as chaves são conferidas aqui.
       const registro = ctx.canvas?.ler()[id] as { props?: { componente?: unknown } } | undefined;
       const componente = registro?.props?.componente;
       if (typeof componente === "string" && ctx.componentes?.ler(componente)) {
-        const problema = ctx.componentes.conferir(componente, d);
+        const problema = ctx.componentes.conferir(componente, d) ?? conferirModificadores(componente, mods);
         if (problema) return falha(problema);
       }
-      return operar({ tipo: "instancia_mudar", id, dados: d });
+      return operar({ tipo: "instancia_mudar", id, dados: d, modificadores: mods });
     },
   );
 

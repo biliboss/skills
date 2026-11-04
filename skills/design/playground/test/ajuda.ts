@@ -268,4 +268,4 @@ export function rascunho(id = "loja/aviso-cliente"): Record<string, unknown> {
 }
 
 /** As ferramentas do MCP, em ordem alfabética. */
-export const FERRAMENTAS = ["canvas_agrupar","canvas_apagar","canvas_criar","canvas_focar","canvas_ler","canvas_mudar","chat_aguardar","chat_apagar","chat_atividade","chat_digitando","chat_historico","chat_responder","componente_definir","componente_ler","componente_listar","instancia_inserir","instancia_mudar","tela_criar","tela_ler","tela_montar","tela_mudar","web_abrir"];
+export const FERRAMENTAS = ["canvas_agrupar","canvas_apagar","canvas_criar","canvas_focar","canvas_ler","canvas_mudar","chat_aguardar","chat_apagar","chat_atividade","chat_digitando","chat_historico","chat_responder","componente_definir","componente_ler","componente_listar","componentes_conferir","instancia_inserir","instancia_mudar","tela_criar","tela_ler","tela_montar","tela_mudar","web_abrir"];

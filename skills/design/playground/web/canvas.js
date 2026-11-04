@@ -79,7 +79,13 @@ function migrarProps(props) {
     h: typeof resto.h === 'number' ? resto.h : 80,
     componente: typeof componente === 'string' && componente ? componente : (produto && peca ? `${produto}/${peca}` : String(peca ?? '')),
     dados: typeof resto.dados === 'string' ? resto.dados : JSON.stringify(resto.dados ?? {}),
+    modificadores: typeof resto.modificadores === 'string' ? resto.modificadores : JSON.stringify(resto.modificadores ?? []),
   }
+}
+
+/** Widget gravado antes dos modificadores: falta a prop `modificadores`. */
+function semModificadores(r) {
+  return r?.typeName === 'shape' && r.type === 'widget' && r.props && !('modificadores' in r.props)
 }
 
 async function carregar(editor) {
@@ -90,7 +96,7 @@ async function carregar(editor) {
     const { registros } = await r.json()
     // o tldraw valida as props no put: as formas antigas são convertidas antes
     const lista = Object.values(registros ?? {}).map((reg) => {
-      if (!ehWidgetDeKit(reg)) return reg
+      if (!ehWidgetDeKit(reg) && !semModificadores(reg)) return reg
       const novo = { ...reg, props: migrarProps(reg.props) }
       migrados.push(novo)
       return novo
@@ -179,7 +185,7 @@ function larguraDoFrame(editor, shape) {
 function criarWidgetUtil(React, t) {
   const h = React.createElement
 
-  function Instancia({ editor, id, componente, dados, larguraFrame, w, alt }) {
+  function Instancia({ editor, id, componente, dados, modificadores, larguraFrame, w, alt }) {
     const host = React.useRef(null)
     const corpoAtual = React.useRef(null)
     const [geracao, setGeracao] = React.useState(0)
@@ -193,7 +199,7 @@ function criarWidgetUtil(React, t) {
       const raiz = el.shadowRoot ?? el.attachShadow({ mode: 'open' })
       let vivo = true
       let obs = null
-      W.desenhar(raiz, { componente, dados, larguraFrame }).then((r) => {
+      W.desenhar(raiz, { componente, dados, modificadores, larguraFrame }).then((r) => {
         if (!vivo || !r) return
         setEstado(r.def?.estado ?? null)
         corpoAtual.current = r.definido ? r.corpo : null
@@ -203,7 +209,7 @@ function criarWidgetUtil(React, t) {
         ajustarAltura(editor, id, r.corpo)
       })
       return () => { vivo = false; obs?.disconnect() }
-    }, [componente, dados, desktop, geracao])
+    }, [componente, dados, modificadores, desktop, geracao])
     // alguém mudou o h (redimensionar, `mudar`): volta para a altura do conteúdo
     React.useEffect(() => { if (corpoAtual.current) ajustarAltura(editor, id, corpoAtual.current) }, [w, alt])
     return h(React.Fragment, null,
@@ -211,11 +217,11 @@ function criarWidgetUtil(React, t) {
       estado === 'rascunho' ? h('span', { className: 'widget-rascunho', 'aria-label': `${componente} é um rascunho` }, 'rascunho') : null)
   }
 
-  const props = { w: t.T.number, h: t.T.number, componente: t.T.string, dados: t.T.string }
+  const props = { w: t.T.number, h: t.T.number, componente: t.T.string, dados: t.T.string, modificadores: t.T.string }
   // um registro antigo que chegue por snapshot ou colagem (com o schema) também migra
   let migrations
   if (t.createShapePropsMigrationIds && t.createShapePropsMigrationSequence) {
-    const versoes = t.createShapePropsMigrationIds('widget', { Componente: 1 })
+    const versoes = t.createShapePropsMigrationIds('widget', { Componente: 1, Modificadores: 2 })
     migrations = t.createShapePropsMigrationSequence({
       sequence: [{
         id: versoes.Componente,
@@ -225,6 +231,9 @@ function criarWidgetUtil(React, t) {
           for (const k of Object.keys(p)) delete p[k]
           Object.assign(p, novo)
         },
+      }, {
+        id: versoes.Modificadores,
+        up(p) { if (!('modificadores' in p)) p.modificadores = '[]' },
       }],
     })
   }
@@ -233,15 +242,15 @@ function criarWidgetUtil(React, t) {
     static type = 'widget'
     static props = props
     static migrations = migrations
-    getDefaultProps() { return { w: 393, h: 80, componente: '', dados: '{}' } }
+    getDefaultProps() { return { w: 393, h: 80, componente: '', dados: '{}', modificadores: '[]' } }
     canEdit() { return true }
     canResize() { return true }
     component(shape) {
       const editando = this.editor.getEditingShapeId() === shape.id
-      const { w, h: alt, componente, dados } = shape.props
+      const { w, h: alt, componente, dados, modificadores } = shape.props
       const larguraFrame = larguraDoFrame(this.editor, shape)
       return h(t.HTMLContainer, { className: 'widget', style: { width: w, height: alt, pointerEvents: editando ? 'all' : 'none' } },
-        h(Instancia, { editor: this.editor, id: shape.id, componente, dados, larguraFrame, w, alt }))
+        h(Instancia, { editor: this.editor, id: shape.id, componente, dados, modificadores, larguraFrame, w, alt }))
     }
     indicator(shape) { return h('rect', { width: shape.props.w, height: shape.props.h }) }
   }
@@ -396,14 +405,18 @@ function dadosDe(s) {
   try { return JSON.parse(s.props.dados || '{}') } catch { return {} }
 }
 
-function propsDaInstancia(def, larguraFrame, dados) {
+function modificadoresDe(s) {
+  try { const l = JSON.parse(s.props.modificadores || '[]'); return Array.isArray(l) ? l : [] } catch { return [] }
+}
+
+function propsDaInstancia(def, larguraFrame, dados, modificadores) {
   const { w, h } = W.tamanho(def, larguraFrame)
   // a instância guarda só os próprios dados; os padrões vêm da definição atual
-  return { w, h, componente: def.id, dados: JSON.stringify(dados && typeof dados === 'object' ? dados : {}) }
+  return { w, h, componente: def.id, dados: JSON.stringify(dados && typeof dados === 'object' ? dados : {}), modificadores: JSON.stringify(Array.isArray(modificadores) ? modificadores : []) }
 }
 
 /** Cria a instância dentro de um frame (na `coluna`, se ele tem lateral); sem `indice` vai para o fim. */
-function inserirNoFrame(editor, frameId, def, dados, indice, coluna) {
+function inserirNoFrame(editor, frameId, def, dados, indice, coluna, modificadores) {
   const f = editor.getShape(frameId)
   const L = larguraLateral(f)
   if (coluna === 'lateral' && !L) throw new Error(`a tela ${frameId} não tem coluna lateral`)
@@ -415,7 +428,7 @@ function inserirNoFrame(editor, frameId, def, dados, indice, coluna) {
     const it = itens[Math.min(i, itens.length - 1)]
     borda = i < itens.length ? it.s.y + it.b.minY : it.s.y + it.b.maxY
   }
-  const props = propsDaInstancia(def, f.props.w, dados)
+  const props = propsDaInstancia(def, f.props.w, dados, modificadores)
   const id = T.createShapeId()
   editor.run(() => {
     editor.createShape({
@@ -496,7 +509,7 @@ function simples(editor, s) {
   const o = { id: s.id, tipo: s.type, x: Math.round(s.x), y: Math.round(s.y), w: Math.round(b?.w ?? 0), h: Math.round(b?.h ?? 0) }
   if (s.type === 'tela') o.nome = s.props.nome
   else if (s.type === 'frame') { o.nome = s.props.name; o.pilha = ehPilha(s); if (larguraLateral(s)) o.lateral = larguraLateral(s) }
-  else if (s.type === 'widget') { o.componente = s.props.componente; o.dados = dadosDe(s) }
+  else if (s.type === 'widget') { o.componente = s.props.componente; o.dados = dadosDe(s); const m = modificadoresDe(s); if (m.length) o.modificadores = m }
   else { const t = texto(editor, s); if (t) o.texto = t }
   if (s.props?.color) o.cor = s.props.color
   if (s.props?.geo) o.geo = s.props.geo
@@ -597,7 +610,7 @@ async function aplicar(editor, op) {
       focar(editor, op.ids)
       return { ok: true }
     case 'tela_montar': {
-      const resolver = (lista) => Promise.all((lista ?? []).map(async (p) => ({ def: await W.exigirComponente(p.componente), dados: p.dados })))
+      const resolver = (lista) => Promise.all((lista ?? []).map(async (p) => ({ def: await W.exigirComponente(p.componente), dados: p.dados, modificadores: p.modificadores })))
       const pecas = await resolver(op.pecas)
       const lateral = op.lateral ? await resolver(op.lateral.pecas) : null
       const id = T.createShapeId()
@@ -613,9 +626,9 @@ async function aplicar(editor, op) {
         // a variante vem da largura do frame (w), inclusive na coluna lateral
         const coluna = (lista, guardar, nome) => {
           let y = 0
-          return lista.map(({ def, dados }) => {
+          return lista.map(({ def, dados, modificadores }) => {
             const pid = T.createShapeId(); guardar.push(pid)
-            const props = propsDaInstancia(def, w, dados)
+            const props = propsDaInstancia(def, w, dados, modificadores)
             const forma = { id: pid, type: 'widget', parentId: id, x: nome === 'lateral' ? 0 : L, y, props }
             if (lateral) forma.meta = { coluna: nome }
             y += props.h
@@ -633,12 +646,14 @@ async function aplicar(editor, op) {
     case 'instancia_inserir': {
       const f = precisa(editor, op.tela, 'frame')
       const def = await W.exigirComponente(op.componente)
-      return { id: inserirNoFrame(editor, f.id, def, op.dados, op.indice, op.coluna) }
+      return { id: inserirNoFrame(editor, f.id, def, op.dados, op.indice, op.coluna, op.modificadores) }
     }
     case 'instancia_mudar': {
       const s = precisa(editor, op.id, 'widget')
       const dados = { ...dadosDe(s), ...(op.dados ?? {}) }
-      editor.updateShape({ id: s.id, type: 'widget', props: { dados: JSON.stringify(dados) } })
+      const props = { dados: JSON.stringify(dados) }
+      if (Array.isArray(op.modificadores)) props.modificadores = JSON.stringify(op.modificadores)
+      editor.updateShape({ id: s.id, type: 'widget', props })
       return { id: s.id }
     }
     case 'agrupar': {
