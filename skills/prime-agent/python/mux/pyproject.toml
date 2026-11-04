@@ -5,7 +5,7 @@ name = "mux"
 version = "0.1.0"
 description = "Prime Agent skill: drive tmux and herdr panes (TNN/HNN ids) through mux.sh"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["nats-py>=2.16,<3"]
 
 [build-system]
 requires = ["hatchling"]

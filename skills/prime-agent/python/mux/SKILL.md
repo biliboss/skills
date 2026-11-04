@@ -20,3 +20,13 @@ mux.abrir("/pasta", "nome", "comando")    # pane à direita deste; devolve o id
 - `TNN` é do tmux (nas opções `@tnn`/`@nome` do pane), `HNN` é do herdr (no rótulo, `HNN - nome`).
 - `pane` aceita o id (`T01`, `H05`) ou o id nativo (`%4`, `w5R:p39`).
 - Um erro do `mux.sh` vira `RuntimeError` com a mensagem dele.
+
+## O estado ao vivo (NATS JetStream local)
+
+O vigia (`dev/prime-bili/vigia.py` no repo biliboss, rodado com `uv run --script`) guarda o estado de cada pane
+no KV `mesa_panes` e cada mudança no stream `MESA` (`mesa.pane.<id>`), no NATS de `nats://127.0.0.1:4222`.
+
+```python
+await mux.estado()        # todos os panes como o vigia viu por último (com fase, aba e desde)
+await mux.eventos(20)     # as últimas mudanças (subject, antes, depois)
+```

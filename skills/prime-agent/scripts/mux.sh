@@ -61,6 +61,22 @@ nomeia() {
   fi
   echo "$id"
 }
+# registra_envio <para> <arquivo>: deixa no NATS local quem mandou o quê (o sha do texto sem espaços), para o
+# prompts.py marcar o prompt como de agente e ligar o trace. Sem o nats ou sem servidor, segue em silêncio.
+eu() {
+  if [ -n "${TMUX_PANE:-}" ]; then id=$(tm display -p -t "$TMUX_PANE" '#{@tnn}' 2>/dev/null); echo "${id:-$TMUX_PANE}"
+  elif [ -n "${HERDR_PANE_ID:-}" ]; then
+    l=$(herdr_panes | awk -F'\t' -v p="$HERDR_PANE_ID" '$1==p {print $2; exit}'); printf '%s' "$l" | grep -oE '^H[0-9]{2}' || echo "$HERDR_PANE_ID"
+  else echo "${MESA_DE:-?}"; fi
+}
+registra_envio() {
+  command -v nats >/dev/null 2>&1 || return 0
+  sha=$(tr -d '[:space:]' < "$2" | shasum -a 256 | cut -c1-32)
+  trace=${MESA_TRACE_ID:-$(openssl rand -hex 16)}; span=$(openssl rand -hex 8)
+  ev=$(printf '{"de":"%s","para":"%s","em":%s,"sha":"%s","trace_id":"%s","span_id":"%s"}' "$(eu)" "$1" "$(date +%s)" "$sha" "$trace" "$span")
+  nats --server "${NATS_URL:-nats://127.0.0.1:4222}" kv put mesa_envios "$sha" "$ev" >/dev/null 2>&1 || return 0
+  nats --server "${NATS_URL:-nats://127.0.0.1:4222}" pub "mesa.envio.$(printf '%s' "$1" | tr -c 'A-Za-z0-9_-' '_')" "$ev" >/dev/null 2>&1 || true
+}
 cmd=$1; shift
 
 case "$cmd" in
@@ -108,6 +124,7 @@ case "$cmd" in
   manda)
     [ $# -eq 2 ] || uso
     f=$2; [ -f "$f" ] || { echo "mux: não achei o arquivo $f" >&2; exit 1; }
+    registra_envio "$1" "$f"
     d=$(dono "$1") || exit 1; set -- $d
     if [ "$1" = herdr ]; then herdr pane send-text "$2" "$(cat "$f")" >/dev/null
     else tm load-buffer -b mux "$f" && tm paste-buffer -d -b mux -t "$2"; fi

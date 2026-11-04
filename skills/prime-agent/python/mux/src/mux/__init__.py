@@ -81,3 +81,47 @@ def nomear(pane: str, nome: str, id: str | None = None) -> str:
 def abrir(pasta: str, nome: str, comando: str) -> str:
     """Open a pane to the right without taking focus, run the command, name it; returns the id."""
     return _run("abrir", pasta, nome, comando).strip()
+
+
+# --- the live state, from the local NATS JetStream (kept by dev/prime-bili/vigia.py) ---
+
+NATS_URL = os.environ.get("NATS_URL", "nats://127.0.0.1:4222")
+
+
+async def estado() -> list[dict]:
+    """Every pane as the vigia last saw it (KV mesa_panes): id, mux, pane, nome, estado, fase, aba, desde."""
+    import json
+    import nats
+
+    nc = await nats.connect(NATS_URL)
+    try:
+        kv = await nc.jetstream().key_value("mesa_panes")
+        try:
+            keys = await kv.keys()
+        except Exception:
+            return []
+        return [json.loads((await kv.get(k)).value) for k in keys]
+    finally:
+        await nc.close()
+
+
+async def eventos(n: int = 20) -> list[dict]:
+    """The last n changes from the MESA stream (subject, em, antes, depois), oldest first."""
+    import json
+    import nats
+
+    nc = await nats.connect(NATS_URL)
+    try:
+        js = nc.jetstream()
+        last = (await js.stream_info("MESA")).state.last_seq
+        out = []
+        for seq in range(max(1, last - n + 1), last + 1):
+            try:
+                m = await js.get_msg("MESA", seq)
+            except Exception:
+                continue
+            if m.subject.startswith("mesa.pane."):
+                out.append({"subject": m.subject, **json.loads(m.data)})
+        return out
+    finally:
+        await nc.close()
