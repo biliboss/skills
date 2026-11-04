@@ -6,13 +6,14 @@
 #   ler <pane> [linhas]           as últimas linhas da tela do pane (padrão 80)
 #   tecla <pane> <tecla>          manda uma tecla (Down, Enter, Escape, C-o)
 #   manda <pane> <arquivo>        manda o texto do arquivo como uma mensagem e aperta Enter
+#   fila <pane> <arquivo>         como o manda, mas põe na fila do agente (Tab no Hermes) em vez de desviar o turno em curso
 #   nomear <pane> <nome> [ID]     dá o nome "ID - nome" ao pane (sem ID, o próximo livre do multiplexador dele)
 # Cada pane tem um id de dois dígitos que diz o multiplexador: TNN no tmux (nas opções @tnn/@nome do pane,
 # porque o Claude Code sobrescreve o título) e HNN no herdr (no rótulo do pane, "HNN - nome"). <pane> aceita
 # o id (T01, H05) ou o id nativo (%4, w5R:p39). Para abrir vale $MUX, senão $HERDR_PANE_ID (herdr) ou $TMUX
 # (tmux); sem nenhum, abrir imprime o comando para rodar num terminal à parte e sai com 3. Não lê stdin.
 set -eu
-uso() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+uso() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 
 tm() { command tmux "$@"; }
@@ -121,8 +122,9 @@ case "$cmd" in
     if [ "$1" = herdr ]; then herdr pane send-keys "$2" "$k" >/dev/null
     else tm send-keys -t "$2" "$k"; fi ;;
 
-  manda)
+  manda|fila)
     [ $# -eq 2 ] || uso
+    tecla_fim=Enter; [ "$cmd" = fila ] && tecla_fim=Tab
     f=$2; [ -f "$f" ] || { echo "mux: não achei o arquivo $f" >&2; exit 1; }
     registra_envio "$1" "$f"
     d=$(dono "$1") || exit 1; set -- $d
@@ -130,8 +132,8 @@ case "$cmd" in
     else tm load-buffer -b mux "$f" && tm paste-buffer -d -b mux -t "$2"; fi
     # Um texto colado às vezes fica na caixa: o Enter vai depois de uma pausa.
     sleep 1
-    if [ "$1" = herdr ]; then herdr pane send-keys "$2" Enter >/dev/null
-    else tm send-keys -t "$2" Enter; fi ;;
+    if [ "$1" = herdr ]; then herdr pane send-keys "$2" "$tecla_fim" >/dev/null
+    else tm send-keys -t "$2" "$tecla_fim"; fi ;;
 
   nomear)
     [ $# -ge 2 ] || uso
