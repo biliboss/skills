@@ -2,7 +2,7 @@
 name: delegate-and-review
 description: Passa uma tarefa de código a um subagente desta sessão (Sonnet, pela ferramenta Agent, em segundo plano), que trabalha numa worktree nova do repo certo e abre um PR sem fazer merge; quando ele termina, você revisa o PR e corrige o que a revisão achar, no mesmo ramo. Use quando o dono disser "delega para um subagente", "subagente numa worktree e abre PR", "manda um Sonnet fazer e depois revisa", "delega e revisa", "deixa um agente construir e você corrige", "subagent in a worktree, PR, then review". Não é a `herdr-agentes`, que abre outra sessão numa aba do herdr; este roda dentro desta sessão, e quem revisa e corrige é você.
 metadata:
-  version: 0.2.3
+  version: 0.2.4
 ---
 
 # delegate-and-review — delegar a um subagente, revisar o PR e corrigir
@@ -41,7 +41,7 @@ Ele é o único contexto do subagente. Seções, nesta ordem:
 3. **O que já existe**, em poucas linhas.
 4. **Os fatos conferidos** (o contrato, os erros, os limites) e as **correções ao desenho**, numeradas, cada uma testável.
 5. **Testes** que ele tem de escrever, com os casos difíceis nomeados.
-6. **Como fechar:** commits no estilo do repo, com a atribuição do modelo dele; `git push` e `gh pr create` com o corpo e o rodapé; não fazer merge; deixar a worktree; e o relatório: URL do PR, worktree, ramo, resultado dos testes, decisões tomadas, o que não deu para fazer ou conferir.
+6. **Como fechar:** commits no estilo do repo, com a atribuição do modelo dele, como o bot do app (skill `git-agente`: `bili-git-agente conferir` antes); `git push` e `gh-bot pr create` com o corpo e o rodapé; não fazer merge; deixar a worktree; e o relatório: URL do PR, worktree, ramo, resultado dos testes, decisões tomadas, o que não deu para fazer ou conferir.
 
 - **A atribuição é a do modelo que commita.** No briefing do Sonnet, o `Co-Authored-By` é `Claude Sonnet 5.5 <noreply@anthropic.com>`, com o mesmo `Claude-Session` desta sessão; nos seus commits de correção, o seu modelo.
 - **A worktree é dele, criada pelo `command wt`:** o Claude Code nega o `git worktree add` com caminho fora da pasta da sessão, fora do modo bypass, e o `isolation: "worktree"` da ferramenta Agent só isola o repo da sessão. Escreva `command wt`, não `wt`: no shell do Mac, `wt` é uma função que tenta dar `cd` e falha numa sessão de agente.

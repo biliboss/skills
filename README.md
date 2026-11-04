@@ -15,6 +15,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `delegate-and-review` | passar uma tarefa de código a um subagente que abre um PR, e revisar e corrigir depois |
 | `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
+| `git-agente` | as sessões de agente do Mac commitam, dão push e abrem PR como o bot do GitHub App, com o token buscado na hora na VPS |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP |
 
 ## Instalar
@@ -28,7 +29,7 @@ Rode `/setup-biliboss` uma vez em cada repo.
 
 ## A configuração da casa
 
-As skills da casa (`bili`, `linear`, `herdr-agentes`, `pi`, `estudo-html`, `design`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal, o design-playground e os checkouts dos produtos. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
+As skills da casa (`bili`, `linear`, `herdr-agentes`, `pi`, `estudo-html`, `design`, `git-agente`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal, o design-playground, os checkouts dos produtos e o bot do GitHub. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
 
 ```sh
 mkdir -p ~/.config/biliboss

@@ -2,6 +2,14 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.4.0] - 2026-11-04
+
+### Added
+
+- `git-agente` 0.1.0: as sessões de agente do Mac (Claude Code, pi, subagentes) commitam, dão push e abrem PR como o bot do GitHub App, com o token de 1 h buscado na hora na VPS por uma chave ssh dedicada (o usuário `token-mac` da VPS só entrega o token), nunca em disco. `git-credential-bili-mac`, `gh-bot` e `bili-git-agente repo|sessao|conferir`. Chaves novas no `casa.env.example`: `CASA_TOKEN_HOST`, `CASA_TOKEN_USUARIO`, `CASA_TOKEN_CHAVE`, `CASA_BOT_NOME`, `CASA_BOT_EMAIL` (e as opcionais `CASA_BOT_REVIEWER`, `CASA_BIN`).
+- `delegate-and-review` 0.2.4: o PR do subagente sai pelo `gh-bot`.
+- `pi` 0.2.3: o `pi-claude.sh` usa o `git-agente.gitconfig` da pasta da conta, se existir.
+
 ## [0.3.0] - 2026-11-04
 
 ### Added

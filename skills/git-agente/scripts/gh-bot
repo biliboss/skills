@@ -1,0 +1,73 @@
+#!/bin/sh
+# gh-bot [args do gh]: o gh das sessões de agente do Mac como o app Bili Clone (bili-clone[bot]), nunca como o
+#   Gabriel. O token (1 h) é o da conta do -R/--repo [host/]dono/repo, do caminho repos/<dono>/ de um gh api, ou do
+#   origin do repo atual; buscado na hora na VPS (usuário token-mac) e posto só no GH_TOKEN do gh, com um
+#   GH_CONFIG_DIR vazio para nunca cair num login guardado.
+#   gh-bot pr create ...   abre o PR pedindo review a CASA_BOT_REVIEWER (padrão biliboss), se não houver --reviewer
+#   gh-bot pr merge ...    recusa (sai 3): o merge é de uma pessoa
+#   Exemplos: gh-bot pr create --title "..." --body "..." · gh-bot -R viacorretor/x issue list · gh-bot pr view 12
+set -u
+EU=gh-bot
+CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
+[ -f "$CASA" ] || { echo "$EU: falta o arquivo $CASA; copie o casa.env.example (raiz do repo biliboss/skills) para lá e preencha" >&2; exit 1; }
+. "$CASA"
+: "${CASA_TOKEN_HOST:?gh-bot: falta CASA_TOKEN_HOST em $CASA (veja o casa.env.example)}"
+: "${CASA_TOKEN_USUARIO:?gh-bot: falta CASA_TOKEN_USUARIO em $CASA (veja o casa.env.example)}"
+: "${CASA_TOKEN_CHAVE:?gh-bot: falta CASA_TOKEN_CHAVE em $CASA (veja o casa.env.example)}"
+[ $# -ge 1 ] || { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+command -v gh >/dev/null 2>&1 || { echo "$EU: gh não está no PATH (brew install gh)" >&2; exit 1; }
+
+# dono em minúsculas de um [https://][github.com/]dono/repo[.git] ou git@github.com:dono/repo
+dono_de() {
+  printf '%s' "$1" | sed -E 's#^https?://##; s#^git@github\.com:##; s#^ssh://git@github\.com/##; s#^github\.com/##' \
+    | cut -d/ -f1 | tr 'A-Z' 'a-z'
+}
+dono=""; ant=""; sub1="${1:-}"; sub2="${2:-}"
+for a in "$@"; do
+  case "$ant" in -R|--repo) dono=$(dono_de "$a") ;; esac
+  case "$a" in
+    --repo=*) dono=$(dono_de "${a#--repo=}") ;;
+    */pulls/*/merge|*/pulls/*/merge/|*mergePullRequest*|*PullRequestAutoMerge*)
+      echo "$EU: o merge não é do agente: o PR espera o review e o merge de uma pessoa" >&2; exit 3 ;;
+    repos/*/*|/repos/*/*) [ -n "$dono" ] || dono=$(printf '%s' "${a#/}" | cut -d/ -f2 | tr 'A-Z' 'a-z') ;;
+  esac
+  ant=$a
+done
+[ -n "$dono" ] || dono=$(dono_de "$(git remote get-url origin 2>/dev/null || true)")
+if [ "$sub1" = pr ] && [ "$sub2" = merge ]; then
+  echo "$EU: o merge não é do agente: o PR espera o review e o merge de uma pessoa" >&2; exit 3
+fi
+case "$dono" in
+  biliboss|viacorretor|mktvirtual) ;;
+  "") echo "$EU: não sei a conta: passe -R dono/repo ou rode dentro de um repo com origin no GitHub" >&2; exit 4 ;;
+  *) echo "$EU: sem token do bot para '$dono' (só biliboss, viacorretor e mktvirtual); nada de cair na conta do Gabriel" >&2; exit 4 ;;
+esac
+[ -r "$CASA_TOKEN_CHAVE" ] || { echo "$EU: não acho a chave $CASA_TOKEN_CHAVE (CASA_TOKEN_CHAVE)" >&2; exit 1; }
+
+busca() {
+  ssh -n -T -i "$CASA_TOKEN_CHAVE" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=10 \
+    "$CASA_TOKEN_USUARIO@$CASA_TOKEN_HOST" "$dono"
+}
+token=$(busca) || token=""
+case "$token" in gh?_*) ;; *) sleep 2; token=$(busca) || token="" ;; esac
+case "$token" in
+  *[!A-Za-z0-9_]*|"") echo "$EU: a VPS não entregou um token para '$dono' ($CASA_TOKEN_USUARIO@$CASA_TOKEN_HOST)" >&2; exit 4 ;;
+  gh?_*) ;;
+  *) echo "$EU: a VPS entregou algo que não parece um token do GitHub para '$dono'" >&2; exit 4 ;;
+esac
+
+# o pr create pede review ao Gabriel, como o gh-app da VPS
+if [ "$sub1" = pr ] && [ "$sub2" = create ]; then
+  tem_rev=0
+  for a in "$@"; do case "$a" in -r|--reviewer|--reviewer=*) tem_rev=1 ;; esac; done
+  if [ "$tem_rev" = 0 ]; then
+    shift 2
+    set -- pr create --reviewer "${CASA_BOT_REVIEWER:-biliboss}" "$@"
+  fi
+fi
+
+cfg=$(mktemp -d)
+GH_TOKEN=$token GH_CONFIG_DIR=$cfg gh "$@"
+rc=$?
+rm -rf "$cfg"
+exit $rc

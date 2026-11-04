@@ -3,7 +3,7 @@ name: pi
 description: >-
   Run the pi coding agent (pi.dev) with the owner's Claude accounts through the subscription, not an API key — on the Mac via the pi-claude-bridge extension, choosing the account (the main or the secondary one) by CLAUDE_CONFIG_DIR; check which account each folder has; install or repair the bridge; and see how pi reaches its providers on the VPS. Every action is a script in scripts/. Use when the user says "roda o pi", "pi com a conta do Claude", "pi com a conta principal", "usa o pi.dev aqui", "pi via cli", "as contas do pi", "o pi da VPS", "instala o bridge do pi". Not `delegate` (another Claude Code session) nor `bili` (the Hermes agent that launches pi robots on the VPS): this one runs pi itself, here.
 metadata:
-  version: 0.2.2
+  version: 0.2.3
 ---
 
 # pi — o pi.dev com as contas do Claude

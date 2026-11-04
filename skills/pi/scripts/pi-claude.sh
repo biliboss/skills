@@ -36,6 +36,9 @@ for a in "$@"; do
 done
 
 export CLAUDE_CONFIG_DIR="$dir"
+# o git como o bot do app, como nas sessões do Claude Code desta conta (skill git-agente: bili-git-agente sessao)
+[ -f "$dir/git-agente.gitconfig" ] && export GIT_CONFIG_GLOBAL="$dir/git-agente.gitconfig"
+[ -d "$dir/gh-agente" ] && export GH_CONFIG_DIR="$dir/gh-agente"
 if [ "$tem_model" = 1 ]; then
   exec pi "$@"
 else

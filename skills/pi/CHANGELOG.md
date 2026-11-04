@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `pi`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-11-04
+
+### Changed
+- O `pi-claude.sh` usa o `git-agente.gitconfig` (e o `gh-agente`) da pasta da conta, se existirem: o pi commita e dá push como o bot do app, como as sessões do Claude Code (skill `git-agente`).
+
 ## [0.2.2] - 2026-11-04
 
 ### Changed

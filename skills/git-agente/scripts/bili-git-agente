@@ -1,0 +1,124 @@
+#!/bin/sh
+# bili-git-agente: põe o git das sessões de agente do Mac para commitar e dar push como o app Bili Clone.
+#   bili-git-agente repo [pasta]                  só o repo (--local; vale para as worktrees dele)
+#   bili-git-agente sessao <CLAUDE_CONFIG_DIR> [--trava-gh]
+#                                                 toda sessão daquela pasta do Claude Code (e o pi dela): um gitconfig
+#                                                 próprio (<pasta>/git-agente.gitconfig, que inclui o ~/.gitconfig) e o
+#                                                 env.GIT_CONFIG_GLOBAL no <pasta>/settings.json; o git do Gabriel fora
+#                                                 das sessões não muda. --trava-gh: o gh puro da sessão fica sem login
+#                                                 (GH_CONFIG_DIR vazio), para nada sair como o Gabriel; use o gh-bot
+#   bili-git-agente conferir [pasta]              com quem o git assina e se o token chega (sem imprimi-lo)
+# Antes, copia o git-credential-bili-mac e o gh-bot para CASA_BIN (padrão ~/.local/bin): o caminho do plugin muda a
+# cada versão. Rode de novo depois de um claude plugin update.
+set -eu
+EU=bili-git-agente
+CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
+[ -f "$CASA" ] || { echo "$EU: falta o arquivo $CASA; copie o casa.env.example (raiz do repo biliboss/skills) para lá e preencha" >&2; exit 1; }
+. "$CASA"
+: "${CASA_BOT_NOME:?bili-git-agente: falta CASA_BOT_NOME em $CASA (veja o casa.env.example)}"
+: "${CASA_BOT_EMAIL:?bili-git-agente: falta CASA_BOT_EMAIL em $CASA (veja o casa.env.example)}"
+: "${CASA_TOKEN_HOST:?bili-git-agente: falta CASA_TOKEN_HOST em $CASA (veja o casa.env.example)}"
+: "${CASA_TOKEN_USUARIO:?bili-git-agente: falta CASA_TOKEN_USUARIO em $CASA (veja o casa.env.example)}"
+: "${CASA_TOKEN_CHAVE:?bili-git-agente: falta CASA_TOKEN_CHAVE em $CASA (veja o casa.env.example)}"
+BIN="${CASA_BIN:-$HOME/.local/bin}"
+AQUI=$(cd "$(dirname "$0")" && pwd)
+HELPER="$BIN/git-credential-bili-mac"
+# as contas em que o app está instalado e a VPS entrega o token (a lista fechada do bili-token-entrega)
+CONTAS="biliboss viacorretor mktvirtual"
+uso() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+
+instalar() {
+  mkdir -p "$BIN"
+  for s in git-credential-bili-mac gh-bot; do
+    [ "$AQUI/$s" = "$BIN/$s" ] || cp "$AQUI/$s" "$BIN/$s"
+    chmod 755 "$BIN/$s"
+  done
+  case ":$PATH:" in *":$BIN:"*) ;; *) echo "aviso: $BIN não está no PATH; o gh-bot precisa dele (o helper do git não)" >&2 ;; esac
+}
+
+# grava a identidade e o helper num config do git: <args do git config para o arquivo/escopo>
+configura() {
+  git config "$@" user.name "$CASA_BOT_NOME"
+  git config "$@" user.email "$CASA_BOT_EMAIL"
+  # a assinatura do Gabriel (se o ~/.gitconfig tiver) não vai num commit do bot
+  git config "$@" commit.gpgsign false
+  git config "$@" tag.gpgsign false
+  git config "$@" credential.https://github.com.useHttpPath true
+  git config "$@" --unset-all credential.https://github.com.helper 2>/dev/null || true
+  # o vazio zera os helpers de antes (o osxkeychain, o do gh): nenhum entrega a conta do Gabriel nem guarda o token
+  git config "$@" --add credential.https://github.com.helper ''
+  git config "$@" --add credential.https://github.com.helper "$HELPER"
+  # remoto por ssh usaria a chave do Gabriel. Todo push no GitHub vai por https (pushInsteadOf): nas contas do bot,
+  # com o token dele; nas outras, sem credencial, o push falha em vez de sair como o Gabriel. O fetch por ssh das
+  # outras contas segue (ler não é escrever); nas do bot, o fetch também vai por https (insteadOf).
+  git config "$@" --unset-all url.https://github.com/.pushInsteadOf 2>/dev/null || true
+  git config "$@" --add url.https://github.com/.pushInsteadOf git@github.com:
+  git config "$@" --add url.https://github.com/.pushInsteadOf ssh://git@github.com/
+  for c in $CONTAS; do
+    git config "$@" --unset-all "url.https://github.com/$c/.insteadOf" 2>/dev/null || true
+    git config "$@" --add "url.https://github.com/$c/.insteadOf" "git@github.com:$c/"
+    git config "$@" --add "url.https://github.com/$c/.insteadOf" "ssh://git@github.com/$c/"
+  done
+}
+
+cmd=${1:-}
+[ $# -gt 0 ] && shift
+case "$cmd" in
+  repo)
+    pasta=${1:-.}
+    git -C "$pasta" rev-parse --git-dir >/dev/null 2>&1 || { echo "$EU: $pasta não é um repo git" >&2; exit 2; }
+    instalar
+    (cd "$pasta" && configura --local)
+    echo "git de $(cd "$pasta" && git rev-parse --show-toplevel): $CASA_BOT_NOME <$CASA_BOT_EMAIL>, token do bot por $HELPER"
+    ;;
+  sessao)
+    [ $# -ge 1 ] || uso
+    dir=$1; trava=0
+    [ "${2:-}" = --trava-gh ] && trava=1
+    [ -d "$dir" ] || { echo "$EU: $dir não existe (é a pasta do CLAUDE_CONFIG_DIR, como ~/.claude)" >&2; exit 2; }
+    command -v jq >/dev/null 2>&1 || { echo "$EU: falta o jq (brew install jq)" >&2; exit 1; }
+    dir=$(cd "$dir" && pwd)
+    instalar
+    f="$dir/git-agente.gitconfig"
+    rm -f "$f"
+    {
+      echo "# Gerado pelo bili-git-agente (skill git-agente do biliboss/skills): o git das sessões desta pasta do"
+      echo "# Claude Code commita e dá push como o bot. Inclui o config do Gabriel e, por cima, a identidade do bot."
+    } > "$f"
+    git config --file "$f" --add include.path "$HOME/.gitconfig"
+    git config --file "$f" --add include.path "$HOME/.config/git/config"
+    configura --file "$f"
+    s="$dir/settings.json"
+    [ -f "$s" ] || echo '{}' > "$s"
+    [ -f "$s.antes-git-agente" ] || cp "$s" "$s.antes-git-agente"
+    if [ "$trava" = 1 ]; then
+      mkdir -p "$dir/gh-agente" && chmod 700 "$dir/gh-agente"
+      jq --arg g "$f" --arg h "$dir/gh-agente" '.env = ((.env // {}) + {GIT_CONFIG_GLOBAL: $g, GH_CONFIG_DIR: $h})' "$s" > "$s.novo"
+    else
+      jq --arg g "$f" '.env = ((.env // {}) + {GIT_CONFIG_GLOBAL: $g})' "$s" > "$s.novo"
+    fi
+    mv "$s.novo" "$s"
+    echo "sessões de $dir: git como $CASA_BOT_NOME ($f)$( [ "$trava" = 1 ] && echo '; gh puro sem login (use gh-bot)')"
+    echo "abra uma sessão nova para valer (o env do settings.json é lido na partida)"
+    ;;
+  conferir)
+    pasta=${1:-.}
+    cd "$pasta"
+    echo "commits como: $(git config user.name) <$(git config user.email)>"
+    [ "$(git config user.name)" = "$CASA_BOT_NOME" ] || echo "aviso: o git aqui não assina como $CASA_BOT_NOME (rode $EU repo ou $EU sessao)"
+    echo "helpers do github.com: $(git config --get-all credential.https://github.com.helper | tr '\n' ' ')"
+    url=$(git remote get-url --push origin 2>/dev/null || true)
+    echo "origin (push): ${url:-?}"
+    caminho=$(printf '%s' "$url" | sed -E 's#^https://github\.com/##')
+    [ -n "$url" ] && [ "$caminho" != "$url" ] || { echo "$EU: o origin não é https://github.com/... (o insteadOf não pegou?)" >&2; exit 1; }
+    senha=$(printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$caminho" \
+      | GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/false SSH_ASKPASS=/usr/bin/false git credential fill 2>/dev/null \
+      | sed -n 's/^password=//p')
+    case "$senha" in
+      gh?_*) echo "token: ok ($(printf '%s' "$senha" | cut -c1-4)…, da conta $(printf '%s' "$caminho" | cut -d/ -f1), buscado agora na VPS)" ;;
+      *) echo "$EU: o git não recebeu o token do bot para $caminho" >&2; exit 1 ;;
+    esac
+    ;;
+  -h|--help|help|"") uso ;;
+  *) echo "$EU: comando desconhecido '$cmd'" >&2; uso ;;
+esac
