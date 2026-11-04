@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `prime-agent`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-04
+
+### Changed
+- A skill não depende mais do herdr: `scripts/mux.sh` (qual, abrir, ler, tecla, manda) fala com o herdr ou com o tmux, detectados por `$HERDR_PANE_ID` e `$TMUX` (ou `$MUX`); sem multiplexador, `abrir.sh` imprime o comando. Os passos usam só o `mux.sh`, e o envio da mensagem deixou de passar pela skill `herdr-agentes`.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added
