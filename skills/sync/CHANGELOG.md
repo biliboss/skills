@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `sync`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-11-03
+
+### Fixed
+- A descrição não tem mais ": " solto, que quebrava o YAML do frontmatter no pi.
+
 ## [0.1.2] - 2026-11-03
 
 ### Fixed
