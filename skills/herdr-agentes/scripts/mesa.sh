@@ -4,17 +4,21 @@
 #               quem parou (idle, done, blocked) vai para a aba "review (N)", para o dono revisar.
 #   vigiar [s]  repete a passada a cada s segundos (padrão 15); rode em segundo plano.
 # A sessão do dono (o pane de onde a mesa é ligada, $HERDR_PANE_ID, ou MESA_DONO=<pane>) nunca se move,
-# e as abas que não têm agente ficam como estão. Não lê stdin.
+# as abas que não têm agente ficam como estão, e nada fora do workspace do dono é tocado. Não lê stdin.
 set -eu
 
 TRAB="${MESA_ABA_TRABALHO:-doing}"
 REV="${MESA_ABA_REVISAO:-review}"
 DONO="${MESA_DONO:-${HERDR_PANE_ID:-}}"
+[ -n "$DONO" ] || { echo "mesa: rode de dentro do herdr (HERDR_PANE_ID) ou passe MESA_DONO=<pane>" >&2; exit 1; }
+# Só o workspace do dono: as sessões de outros workspaces nunca são tocadas.
+WS="${MESA_WORKSPACE:-$(herdr pane list | jq -r --arg p "$DONO" '.result.panes[] | select(.pane_id == $p) | .workspace_id')}"
+[ -n "$WS" ] || { echo "mesa: não achei o workspace do pane $DONO" >&2; exit 1; }
 
 uso() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 # A aba pelo nome base: "doing" acha "doing" e "doing (3)".
-aba() { herdr tab list | jq -r --arg l "$1" '[.result.tabs[] | select(.label == $l or (.label | startswith($l + " ("))) | .tab_id][0] // empty'; }
+aba() { herdr tab list | jq -r --arg l "$1" --arg w "$WS" '[.result.tabs[] | select(.workspace_id == $w) | select(.label == $l or (.label | startswith($l + " ("))) | .tab_id][0] // empty'; }
 
 # O nome da aba leva o WIP: "doing (N)", com N = os panes de agente nela.
 contar() {
@@ -32,7 +36,7 @@ mover() {
   pane=$1; destino=$2
   t=$(aba "$destino")
   if [ -z "$t" ]; then
-    herdr pane move "$pane" --new-tab --label "$destino" --no-focus >/dev/null
+    herdr pane move "$pane" --new-tab --workspace "$WS" --label "$destino" --no-focus >/dev/null
   else
     herdr pane move "$pane" --tab "$t" --split right --target-pane "$(ultimo "$t")" --no-focus >/dev/null
   fi
@@ -40,7 +44,7 @@ mover() {
 }
 
 organizar() {
-  herdr pane list | jq -r '.result.panes[] | select(.agent) | [.pane_id, .tab_id, .agent_status] | @tsv' |
+  herdr pane list | jq -r --arg w "$WS" '.result.panes[] | select(.workspace_id == $w and .agent) | [.pane_id, .tab_id, .agent_status] | @tsv' |
   while IFS="$(printf '\t')" read -r pane tab estado; do
     [ "$pane" != "$DONO" ] || continue
     case "$estado" in

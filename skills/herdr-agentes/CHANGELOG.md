@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1] - 2026-11-04
+
+### Fixed
+- `mesa.sh` e `backlog.sh` só agem no workspace do herdr de quem os liga: uma sessão de outro workspace era puxada para a aba review.
+
 ## [0.3.0] - 2026-11-04
 
 ### Added

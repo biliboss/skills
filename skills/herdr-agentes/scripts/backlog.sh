@@ -23,11 +23,13 @@ DIR="${BACKLOG_DIR:-$HOME/.local/state/herdr-backlog}"
 ABA="${MESA_ABA_BACKLOG:-backlog}"
 TRAB="${MESA_ABA_TRABALHO:-doing}"
 REV="${MESA_ABA_REVISAO:-review}"
+# Só o workspace de quem chama (ou MESA_WORKSPACE): nada fora dele é tocado.
+WS="${MESA_WORKSPACE:-$(herdr pane list | jq -r --arg p "${HERDR_PANE_ID:-}" '.result.panes[] | select(.pane_id == $p) | .workspace_id')}"
 uso() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 cmd=$1; shift
 
-aba_de() { herdr tab list | jq -r --arg l "$1" '[.result.tabs[] | select(.label == $l or (.label | startswith($l + " ("))) | .tab_id][0] // empty'; }
+aba_de() { herdr tab list | jq -r --arg l "$1" --arg w "$WS" '[.result.tabs[] | select(.workspace_id == $w) | select(.label == $l or (.label | startswith($l + " ("))) | .tab_id][0] // empty'; }
 panes_de() { herdr pane list | jq -r --arg t "$1" '.result.panes[] | select(.tab_id == $t) | .pane_id'; }
 novo_pane() { herdr pane split "$1" --direction "$2" --ratio "$3" --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '[.. | .pane_id? // empty][0]'; }
 campo() { sed -n "s/^$1=//p" "$2"; }
@@ -39,7 +41,7 @@ para_o_fim() {
   nova=; ult=
   for p in $(panes_de "$t"); do
     if [ -z "$nova" ]; then
-      herdr pane move "$p" --new-tab --label "$rotulo" --no-focus >/dev/null
+      herdr pane move "$p" --new-tab --workspace "$WS" --label "$rotulo" --no-focus >/dev/null
       nova=$(herdr pane list | jq -r --arg p "$p" '.result.panes[] | select(.pane_id == $p) | .tab_id')
     else
       herdr pane move "$p" --tab "$nova" --split right --target-pane "$ult" --no-focus >/dev/null
@@ -58,7 +60,7 @@ arrumar() {
   cols=3; [ "$n" -ge 3 ] || cols=$n
   linhas=$(( (n + cols - 1) / cols ))
   # As colunas: a primeira pane e mais cols-1 à direita, cada uma com a mesma largura.
-  primeira=$(herdr tab create --label "$ABA ($n)" --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '.result.root_pane.pane_id')
+  primeira=$(herdr tab create --workspace "$WS" --label "$ABA ($n)" --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '.result.root_pane.pane_id')
   colunas="$primeira"; resto=$primeira; c=1
   while [ $c -lt $cols ]; do
     r=$(awk -v k=$((cols - c + 1)) 'BEGIN { printf "%.4f", 1 / k }')
@@ -88,6 +90,8 @@ arrumar() {
   para_o_fim "$TRAB"
   para_o_fim "$REV"
 }
+
+case "$cmd" in mostrar|lista) ;; *) [ -n "$WS" ] || { echo "backlog: rode de dentro do herdr (HERDR_PANE_ID) ou passe MESA_WORKSPACE" >&2; exit 1; } ;; esac
 
 case "$cmd" in
   guardar)
