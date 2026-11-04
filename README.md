@@ -9,6 +9,12 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `skill-smith` | cria, atualiza e porta skills |
 | `sync` | deixa cada repo que a sessão tocou igual ao remoto e sem sujeira, à mão |
 | `lp-draft` | o rascunho de uma landing page num HTML só, no `.wiki/resources/` |
+| `bili` | falar com o Bili (o agente de vida longa) por um cartão do Linear: pedir, esperar, ler |
+| `linear` | o Linear do dono: ler um projeto, criar cartões, marcos e updates, subir imagens |
+| `herdr-agentes` | abrir, conduzir, fechar e retomar sessões de agente (Claude Code ou pi) nas abas do herdr |
+| `delegate-and-review` | passar uma tarefa de código a um subagente que abre um PR, e revisar e corrigir depois |
+| `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
+| `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
 
 ## Instalar
 
@@ -19,8 +25,19 @@ claude plugin install biliboss-skills@biliboss
 
 Rode `/setup-biliboss` uma vez em cada repo.
 
+## A configuração da casa
+
+As skills da casa (`bili`, `linear`, `herdr-agentes`, `pi`, `estudo-html`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
+
+```sh
+mkdir -p ~/.config/biliboss
+cp casa.env.example ~/.config/biliboss/casa.env
+$EDITOR ~/.config/biliboss/casa.env   # troque cada placeholder pelo valor real
+```
+
+Os scripts carregam o arquivo com `. "${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"`; para usar outro arquivo, aponte `BILIBOSS_CASA`. Se o arquivo ou uma chave faltar, o script para dizendo qual chave falta. O `casa.env.example` lista todas as chaves, com um comentário em cada. Nunca commite o `casa.env`.
+
 ## Mudar um skill
 
 Edite aqui (`skills/<nome>/`), suba a versão no `.claude-plugin/plugin.json` e no `CHANGELOG.md`, commite e faça o push, depois `claude plugin update biliboss-skills@biliboss`. O `wiki-smith` e o `skill-smith` moravam em repos próprios, hoje arquivados.
 
-Os skills da casa (o Bili, o delegate) ficam no plugin privado `biliboss/skills-casa`.

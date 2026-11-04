@@ -1,7 +1,7 @@
 {
   "name": "biliboss-skills",
-  "version": "0.1.4",
-  "description": "Os skills do biliboss para qualquer repo: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync) e o setup por repo.",
+  "version": "0.2.0",
+  "description": "Os skills do biliboss: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync), o setup por repo, e os da casa: falar com o Bili pelo Linear (bili), o Linear (linear), sessões de agente no herdr (herdr-agentes), subagente com PR e revisão (delegate-and-review), o pi com as contas do Claude (pi) e estudos em HTML (estudo-html). Os valores da casa vêm de um casa.env por máquina.",
   "author": {
     "name": "Gabriel Fonseca",
     "url": "https://github.com/biliboss"
@@ -14,13 +14,25 @@
     "git",
     "sync",
     "landing-page",
-    "agents"
+    "agents",
+    "linear",
+    "herdr",
+    "pi",
+    "bili",
+    "delegate",
+    "estudo"
   ],
   "skills": [
     "./skills/setup-biliboss",
     "./skills/wiki-smith",
     "./skills/skill-smith",
     "./skills/sync",
-    "./skills/lp-draft"
+    "./skills/lp-draft",
+    "./skills/bili",
+    "./skills/herdr-agentes",
+    "./skills/delegate-and-review",
+    "./skills/linear",
+    "./skills/pi",
+    "./skills/estudo-html"
   ]
 }
