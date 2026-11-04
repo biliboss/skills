@@ -3,7 +3,7 @@ name: linear
 description: >-
   Work the owner's Linear (workspace `$CASA_LINEAR_WORKSPACE`, team `$CASA_LINEAR_TIME_CHAVE`) the way he wants it: read a project before touching it, write the project's description and content, create result cards with an owner and a way to check, keep milestones honest, and post project updates that read well (O Alquimista style) with images and links. The main path is the official Linear MCP through mcpc (@linear, the Bili app's voice), wrapped by scripts/linear.sh; the scripts cover what the MCP does not (a project snapshot, image upload, the owner's own inbox). Use when the user says "atualiza o projeto no Linear", "cria os cartões", "posta um update", "o update não apareceu", "revisa o marco", "põe no Linear", "update the Linear project". Not `to-tickets` (turns a plan into tickets anywhere) nor `bili` (asks the Hermes agent to do work): this one edits Linear itself.
 metadata:
-  version: 0.2.2
+  version: 0.3.0
 ---
 
 # linear — o Linear do dono, do jeito dele
@@ -52,6 +52,10 @@ O Linear é o lugar de toda a conversa. Escolha o nível antes de escrever:
    - Trabalho de agente é do app Bili (`$CASA_LINEAR_APP_BILI_ID`), numa sessão só por cartão: delegar já abre a sessão dele, e uma menção depois abre outra. Para pedir com contexto, crie sem delegado e marque-o uma vez (skill `bili`); cartão já delegado não leva menção nova.
    - O passo que só uma pessoa faz (merge, conta, segredo, conversa com o cliente) fica sem delegado.
    - Não apague, não feche nem cancele cartões sem o pedido do dono.
+   - **Dois níveis: o pai e a sub-issue.** O pai é o que importa ao dono, em linguagem de liderança, e é o único que o quadro e o plano de controle mostram, com "N de M". A sub-issue é uma unidade que um agente faz **sozinho, em paralelo, sem esperar outra**; sub-issues que dependem uma da outra viram um cartão só.
+   - **Cada sub-issue tem valor por si e o seu Como conferir**, que um de fora entende (uma tela, um evento chegando, um teste passando em produção). Um passo técnico solto é item de checklist da sub-issue que entrega. **Checklist é só para o que não é trabalho de agente** (um passo, uma conferência). Passando de uns 5 por pai, junte; nunca uma sub-issue por item de uma revisão.
+   - **Delegar a sub-issue ao Bili abre uma sessão por cartão:** crie só as que valem a sessão.
+   - **Toda decisão de criar, dividir ou juntar cartões publica `mesa.agent.decision.made`** (`issue`, `choice`, `why` até 120 caracteres, `turn_id`, `trace_id`) e vira o comentário "Decidi X porque Y" no pai. Cartão com sessão de agente ativa não muda de estado: só título, pai, junção e comentário.
 4. **Os marcos contam a verdade.**
    - Use um marco por frente clara; uma versão é uma frente.
    - O que já foi feito ganha um cartão em Done no marco, com o link do PR e das provas. Sem ele, o marco mede 0% de algo quase pronto.

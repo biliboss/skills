@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `linear`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-04
+
+### Added
+- Dois níveis de cartão: o pai (valor para o dono, "N de M"), a sub-issue que um agente faz sozinho com valor e Como conferir próprios, checklist só para o que não é trabalho de agente, e `mesa.agent.decision.made` ao criar, dividir ou juntar.
+
 ## [0.2.2] - 2026-11-04
 
 ### Fixed
