@@ -3,8 +3,9 @@
 #   montar              cria os workspaces que faltam, na ordem das fases (focus, backlog, working, ready to review, done today)
 #   estado              mostra as fases, os itens e o estado de cada pane
 #   mover <tab> <fase>  leva a aba inteira (o grupo) para a fase, numa aba nova com o mesmo nome
-#   focar <tab>         leva o item para o focus: o cartão em cima à esquerda (70%), o agente embaixo (30%, o worker
-#                       à direita dele) e o Bili (o pane MESA_BILI, H01) à direita, de cima a baixo
+#   focar <tab>         leva o item para o focus: o resumo em cima à esquerda (70%), a barra do agente da frente
+#                       (barra.py, o vigia do focus) e o agente embaixo (o worker à direita dele) e o Bili (o pane
+#                       MESA_BILI, H01) à direita, de cima a baixo
 #   concluir <tab>      fecha os agentes do item (imprime o id para retomar) e deixa só o cartão no done today
 # <tab> é o tab_id (w5R:t2D) ou o nome da aba. As fases mudam com MESA_FASES (separadas por "|").
 # O Bili (MESA_BILI, padrão H01) mora no focus: vai de um item ao próximo e nunca é fechado pelo concluir.
@@ -25,13 +26,15 @@ tab_de()  { case "$1" in *:t*) echo "$1" ;; *) herdr tab list | jq -r --arg l "$
 rotulo_tab() { herdr tab list | jq -r --arg t "$1" '.result.tabs[] | select(.tab_id==$t) | .label'; }
 # os panes da aba, da esquerda para a direita: terminal_id, rótulo
 panes_tab() { herdr pane list | jq -r --arg t "$1" '[.result.panes[] | select(.tab_id==$t)] | .[] | [.terminal_id, (.label // .terminal_title_stripped // "")] | @tsv'; }
-bili_term() { herdr pane list | jq -r --arg b "$BILI - " '[.result.panes[] | select((.label // "") | startswith($b))][0] | select(.) | [.terminal_id, .label] | @tsv'; }
+bili_term() { herdr pane list | jq -r --arg b "$BILI - " '[.result.panes[] | select(((.label // "") | startswith($b)) or ((.terminal_title_stripped // "") | test("\\b(Bili|Hermes)\\b")))][0] | select(.) | [.terminal_id, .label] | @tsv'; }
 pane_de_term() { herdr pane list | jq -r --arg t "$1" '.result.panes[] | select(.terminal_id==$t) | .pane_id'; }
 tab_de_pane()  { herdr pane list | jq -r --arg p "$1" '.result.panes[] | select(.pane_id==$p) | .tab_id'; }
 novo_tab() {  # <workspace> <rótulo> -> pane_id do pane novo
   herdr tab create --workspace "$1" --label "$2" --cwd "$CWD" | jq -r '[.. | .pane_id? // empty][0]'
 }
 cartao_em() { herdr pane rename "$1" card >/dev/null; herdr pane run "$1" "clear; uv run -q '$CARTAO' 15" >/dev/null; }
+# o id do Bili segue o rótulo do pane dele (o Hermes no título), mesmo quando o id muda
+b0=$(bili_term | cut -f2 | grep -oE '^[HT][0-9]{2}' || true); [ -z "$b0" ] || BILI=$b0
 fase_ws() { w=$(ws_de "$1"); [ -n "$w" ] || { echo "fase.sh: não há o workspace \"$1\"; rode: fase.sh montar" >&2; exit 1; }; echo "$w"; }
 
 # Leva os panes (lista de terminal_id<TAB>rótulo) para uma aba nova no workspace, lado a lado; imprime o tab novo.
@@ -86,17 +89,22 @@ case "$cmd" in
       herdr pane move "$(pane_de_term "$bt")" --tab "$nt" --split right --target-pane "$c" --ratio 0.45 --no-focus >/dev/null
       herdr pane rename "$(pane_de_term "$bt")" "$bl" >/dev/null
     fi
-    # os panes do item embaixo do cartão (o cartão fica com 70% da altura); o worker à direita do agente
+    # a barra (2 linhas, o vigia do focus) embaixo do resumo, que fica com 70% da altura; o agente embaixo da barra
+    br=$(herdr pane split "$c" --direction down --ratio 0.7 --no-focus | jq -r '[.. | .pane_id? // empty][0]')
+    herdr pane rename "$br" barra >/dev/null; herdr pane run "$br" "clear; uv run -q '$AQUI/barra.py'" >/dev/null
     alvo=""
-    panes_tab "$t" | grep -v '	card$' | grep -v "	$BILI - " | while IFS='	' read -r term nome; do
+    panes_tab "$t" | grep -v '	card$' | grep -v '	barra$' | grep -v "	$BILI - " | while IFS='	' read -r term nome; do
       [ -n "$term" ] || continue
       if [ -z "$alvo" ]; then
-        herdr pane move "$(pane_de_term "$term")" --tab "$nt" --split down --target-pane "$c" --ratio 0.7 --no-focus >/dev/null
+        herdr pane move "$(pane_de_term "$term")" --tab "$nt" --split down --target-pane "$br" --ratio 0.02 --no-focus >/dev/null
       else
         herdr pane move "$(pane_de_term "$term")" --tab "$nt" --split right --target-pane "$alvo" --ratio 0.5 --no-focus >/dev/null
       fi
       alvo=$(pane_de_term "$term"); [ -z "$nome" ] || herdr pane rename "$alvo" "$nome" >/dev/null
     done
+    # o que sobrou na aba de origem (o cartão e a barra antigos) fecha com ela
+    herdr pane list | jq -r --arg t "$t" '.result.panes[] | select(.tab_id==$t) | select(.label=="card" or .label=="barra") | .pane_id' |
+      while read -r p; do herdr pane close "$p" >/dev/null; done
     herdr tab focus "$nt" >/dev/null; echo "$nt" ;;
 
   concluir)
@@ -104,7 +112,7 @@ case "$cmd" in
     t=$(tab_de "$1"); [ -n "$t" ] || { echo "fase.sh: aba não achada: $1" >&2; exit 1; }
     w=$(fase_ws "done today"); lab=$(rotulo_tab "$t")
     [ -f "$HOME/.local/state/$lab.cartao.md" ] || echo "fase.sh: aviso: falta ~/.local/state/$lab.cartao.md; o cartão no done today só terá o objetivo" >&2
-    herdr pane list | jq -r --arg t "$t" --arg b "$BILI - " '.result.panes[] | select(.tab_id==$t) | select((.label // "") != "card") | select((.label // "") | startswith($b) | not) | select(.agent != null) | .pane_id' |
+    herdr pane list | jq -r --arg t "$t" --arg b "$BILI - " '.result.panes[] | select(.tab_id==$t) | select((.label // "") != "card" and (.label // "") != "barra") | select((.label // "") | startswith($b) | not) | select(.agent != null) | .pane_id' |
       while read -r p; do sh "$AGENTE" fecha "$p"; done
     c=$(novo_tab "$w" "$lab"); cartao_em "$c"
     herdr pane list | jq -r --arg t "$t" --arg b "$BILI - " '.result.panes[] | select(.tab_id==$t) | select((.label // "") | startswith($b) | not) | .pane_id' | while read -r p; do herdr pane close "$p" >/dev/null; done

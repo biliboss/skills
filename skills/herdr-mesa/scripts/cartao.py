@@ -17,8 +17,8 @@ O texto vem de ~/.local/state/<tema>.cartao.md, escrito pela sessão do item no 
 
 Sem ele, mostra o objetivo do briefing (~/.local/state/<tema>.md) e a última fala do agente. Só lê.
 
-O pane do cartão mostra só o resumo. O nome e o estado de cada agente da aba vão no rótulo do pane dele, na barra
-do herdr ("H14 - duplo-eval-tasks · parado · pi"), que o cartão mantém a cada volta. O Hermes (o Bili) o herdr não
+O pane do cartão mostra só o resumo. O nome, o estado e o harness do agente da frente vão na barra (barra.py), um
+pane de 2 linhas logo acima dele. O Hermes (o Bili) o herdr não
 reconhece como agente: o cartão o trata como "hermes" pelo título do terminal ou pelo id em MESA_BILI (H01).
 
     uv run cartao.py [segundos]        o cartão da aba onde o pane mora (HERDR_PANE_ID); redesenha a cada N s,
@@ -101,9 +101,14 @@ def secoes(md: str) -> list:
     return partes
 
 
-def base(rotulo: str) -> str:
-    """O rótulo sem o estado que o cartão acrescenta (\"H14 - tema · parado · pi\" -> \"H14 - tema\")."""
-    return rotulo.split(" · ")[0]
+def base(rotulo: str | None) -> str:
+    """O rótulo sem um sufixo " · ..." (\"H14 - tema · parado\" -> \"H14 - tema\")."""
+    return (rotulo or "").split(" · ")[0]
+
+
+def eh_bili(p: dict) -> bool:
+    """O pane do Bili: o id em MESA_BILI ou o Hermes no título do terminal."""
+    return base(p.get("label")).startswith(f"{BILI} - ") or bool(HERMES.search(p.get("terminal_title_stripped") or ""))
 
 
 def agente_de(p: dict) -> tuple[str, str]:
@@ -111,7 +116,7 @@ def agente_de(p: dict) -> tuple[str, str]:
     if p.get("agent"):
         return p["agent"], ESTADO_NOME.get(p.get("agent_status"), "?")
     titulo = p.get("terminal_title_stripped") or ""
-    if HERMES.search(titulo) or base(p.get("label") or "").startswith(f"{BILI} - "):
+    if eh_bili(p):
         return "hermes", "trabalhando" if "⏳" in titulo else "parado"
     return "", ""
 
@@ -121,19 +126,7 @@ def da_aba(eu: str) -> tuple[str, list]:
     tab = next((p["tab_id"] for p in panes if p["pane_id"] == eu), None)
     tabs = herdr("tab", "list").get("tabs", [])
     tema = next((t["label"] for t in tabs if t["tab_id"] == tab), "?")
-    return tema, [p for p in panes if p["tab_id"] == tab and p["pane_id"] != eu and p.get("label") != "card"]
-
-
-def rotula(outros: list) -> None:
-    """Põe o estado de cada agente no rótulo do pane dele (a barra do herdr), só quando muda."""
-    for p in outros:
-        agente, estado = agente_de(p)
-        atual = p.get("label") or ""
-        if not agente or not atual:
-            continue
-        novo = f"{base(atual)} · {estado} · {agente}"
-        if novo != atual:
-            subprocess.run(["herdr", "pane", "rename", p["pane_id"], novo], capture_output=True)
+    return tema, [p for p in panes if p["tab_id"] == tab and p["pane_id"] != eu and p.get("label") not in ("card", "barra")]
 
 
 def cartao(tema: str, outros: list) -> Group:
@@ -151,7 +144,7 @@ def cartao(tema: str, outros: list) -> Group:
         obj = (m.group(1) if m else b.splitlines()[0].lstrip("# ")).strip()
         partes += [Text(tema, style="bold bright_white"), Text(""), Text("OBJETIVO", style="grey50"), Markdown(obj)]
     for p in outros:
-        if agente_de(p)[0] and not base(p.get("label") or "").startswith(f"{BILI} - "):
+        if agente_de(p)[0] and not eh_bili(p):
             fala = ultima_fala(p["pane_id"])
             if fala:
                 partes += [Text(""), Text(f"ÚLTIMA FALA · {base(p.get('label') or 'agente')}", style="grey50"), Text(fala)]
@@ -169,7 +162,6 @@ def largura(eu: str) -> int:
 def desenha(eu: str, w: int | None = None) -> None:
     w = w or largura(eu)
     tema, outros = da_aba(eu)
-    rotula(outros)
     con = Console(width=w, force_terminal=True, color_system="256")
     with con.capture() as cap:
         con.print(Padding(cartao(tema, outros), (0, 2, 0, 2)))
