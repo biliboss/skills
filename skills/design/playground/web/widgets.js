@@ -222,6 +222,32 @@ export function juntarDados(def, dados) {
   return { ...(def?.dados ?? {}), ...(proprios && typeof proprios === 'object' ? proprios : {}) }
 }
 
+/** Os modificadores ligados (lista ou JSON em string) → só os que o componente declara, em ordem. */
+export function modificadoresLigados(def, modificadores) {
+  let nomes = modificadores
+  if (typeof nomes === 'string') { try { nomes = JSON.parse(nomes || '[]') } catch { nomes = [] } }
+  if (!Array.isArray(nomes)) return []
+  return nomes.filter((n) => typeof n === 'string' && def?.modificadores?.[n])
+}
+
+/** Liga os modificadores na raiz da peça (1º elemento de `corpo`): classe, attr; devolve o css extra e os dados por baixo. */
+export function aplicarModificadores(corpo, def, ligados) {
+  const raiz = corpo.firstElementChild
+  let css = ''
+  let dados = {}
+  for (const nome of ligados) {
+    const m = def.modificadores[nome]
+    if (raiz && m.classe) raiz.classList.add(...String(m.classe).split(/\s+/).filter(Boolean))
+    if (raiz) for (const [a, v] of Object.entries(m.attr ?? {})) {
+      if (/^on/i.test(a)) continue
+      try { raiz.setAttribute(a, String(v)) } catch {}
+    }
+    if (m.css) css += `\n${m.css}`
+    dados = { ...dados, ...(m.dados ?? {}) }
+  }
+  return { css, dados }
+}
+
 const pedidos = new WeakMap() // shadowRoot → número do último pedido (o mais novo vence)
 
 /**
@@ -230,7 +256,7 @@ const pedidos = new WeakMap() // shadowRoot → número do último pedido (o mai
  * tem a altura natural; `definido` é falso quando o componente não existe (o aviso no lugar).
  * Devolve `null` se um pedido mais novo passou na frente.
  */
-export async function desenhar(raiz, { componente, dados, larguraFrame = 0 }) {
+export async function desenhar(raiz, { componente, dados, modificadores, larguraFrame = 0 }) {
   const meu = (pedidos.get(raiz) ?? 0) + 1
   pedidos.set(raiz, meu)
   const erro = (texto) => {
@@ -261,7 +287,14 @@ export async function desenhar(raiz, { componente, dados, larguraFrame = 0 }) {
     corpo.className = 'w-corpo'
     corpo.dataset.variante = qual
     corpo.innerHTML = (qual === 'desktop' ? def.variantes.desktop.html : null) ?? def.html ?? ''
-    aplicarDados(corpo, def.slots, juntarDados(def, dados))
+    const mods = aplicarModificadores(corpo, def, modificadoresLigados(def, modificadores))
+    if (mods.css) {
+      const extra = new CSSStyleSheet()
+      extra.replaceSync(adaptarCss(mods.css))
+      raiz.adoptedStyleSheets = [BASE, folhaDe(def, qual), extra]
+    }
+    // padrões do componente < dados dos modificadores < dados da instância
+    aplicarDados(corpo, def.slots, juntarDados({ dados: { ...(def.dados ?? {}), ...mods.dados } }, dados))
     raiz.replaceChildren(caixaSprite, corpo)
     return { corpo, def, definido: true }
   } catch (e) {

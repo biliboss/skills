@@ -109,8 +109,17 @@ type Componente = {
   fonte?: { repo: string; arquivo: string; simbolo?: string; commit: string; receita: "executar" | "copiar" };
   fontes?: string[];       // URLs de <link rel=stylesheet> para o <head> da página
   sprite?: string;         // SVG com <symbol>, injetado em cada instância
+  herda?: string;          // "<produto>/<peça>" do pai (Abstract + ParentName do RimWorld)
+  abstrato?: boolean;      // base para herdar: fora do componente_listar padrão, não se instancia
+  requer?: string[];       // ids de componentes que precisam estar definidos (o About.xml)
 };
 ```
+
+- **Todos os erros de uma vez:** `problemasDoComponente(v)` devolve todas as mensagens (`problemaDoComponente` devolve a primeira ou `null`). `componente_definir` erra com a mensagem, se for uma, ou com `N problemas:` e uma linha `- …` por problema.
+- **Herança:** a cópia guarda a definição como veio (com `herda`); a leitura (`ler`, `todos`, `/api/componentes`) a resolve. O filho ganha nos campos escalares; `dados` e `variantes` mesclam por chave; `slots` mesclam por `chave` (o do filho troca o de mesma chave, os novos entram no fim); `css` = o do pai + `\n` + o do filho; `html`, `sprite` e `fonte` do filho ganham se vierem, senão valem os do pai. O filho pode omitir o que o pai tem: a validação olha o resultado resolvido. Pai inexistente e ciclo são problemas ao definir. Redefinir um pai manda o SSE `componente` também para cada descendente.
+- **Abstrato:** `abstrato: true` some do `listar` (use `listar(produto, true)` para incluir; o resumo traz `abstrato` e `herda`) e a instância recusa ("é abstrato, use um filho"). O abstrato precisa estar completo depois de resolvido.
+- **`requer`:** id que não está definido ao definir = problema ("requer X, que não está definido").
+- **Sprite:** se o `html` (ou o `html` da variante desktop) usa `<use href="#id">` (ou `xlink:href`) e o `sprite` resolvido não tem `<symbol id="id">`, é problema.
 
 - `estado: "real"` exige `fonte`; um rascunho com `fonte` é recusado. Campos fora do tipo são descartados, e uma `versao` mandada é ignorada.
 - Um `desktop.css` na pasta sem `variantes.desktop` no JSON vira a variante `{css, w: 1280, h: <o h do celular>}`. A pasta recusa `..` e link que aponta para fora dela; cada arquivo vai até 4 MB.
