@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TITULO</title>
+<style>
+:root{--bg:#f7f6f2;--fg:#1d1d1b;--muted:#6b6a64;--card:#fff;--line:#e3e1d9;--accent:#2f6f5e;--warn:#9a5b13;--code:#f0eee7}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--fg:#ecebe6;--muted:#a3a19a;--card:#1d1d1b;--line:#2e2d2a;--accent:#7cc4ad;--warn:#e0a458;--code:#262522}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:34px;line-height:1.15;margin:0 0 6px}
+h2{font-size:21px;margin:40px 0 10px}
+.sub{color:var(--muted);margin:0 0 28px}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:99px;color:var(--muted);margin-right:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:12px 0}
+.lead{font-size:19px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.grid .card{margin:0}
+.grid h3{margin:0 0 4px;font-size:16px}
+.grid p{margin:0;color:var(--muted);font-size:15px}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px}
+code{background:var(--code);padding:1px 5px;border-radius:5px}
+pre{background:var(--code);padding:14px 16px;border-radius:10px;overflow-x:auto;line-height:1.5}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.flow span{background:var(--code);border:1px solid var(--line);padding:6px 10px;border-radius:8px;font-size:14px}
+.flow b{color:var(--muted);font-weight:400}
+.warn{border-left:4px solid var(--warn)}
+.ok{border-left:4px solid var(--accent)}
+a{color:var(--accent)}
+footer{margin-top:48px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<span class="tag">estudo</span><span class="tag">AAAA-MM-DD</span>
+<h1>TITULO</h1>
+<p class="sub">Uma frase: o que é e por que estudamos.</p>
+
+<div class="card lead"><strong>Veredito:</strong> a recomendação em uma ou duas frases, com o porquê.</div>
+
+<h2>O que é</h2>
+<div class="grid">
+  <div class="card"><h3>Peça</h3><p>O que faz, em uma linha.</p></div>
+</div>
+
+<h2>Comparação</h2>
+<table>
+  <thead><tr><th>Critério</th><th>A</th><th>B</th></tr></thead>
+  <tbody><tr><td>…</td><td>…</td><td>…</td></tr></tbody>
+</table>
+
+<h2>Onde entra no nosso sistema</h2>
+<div class="card">Com links para as páginas do <code>.wiki</code> que mudam (ou não) por causa disso.</div>
+
+<h2>Fontes</h2>
+<ul><li><a href="#">fonte, com versão ou commit</a></li></ul>
+</main>
+</body>
+</html>

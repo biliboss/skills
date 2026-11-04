@@ -1,0 +1,77 @@
+---
+name: linear
+description: >-
+  Work the owner's Linear (workspace `$CASA_LINEAR_WORKSPACE`, team `$CASA_LINEAR_TIME_CHAVE`) the way he wants it: read a project before touching it, write the project's description and content, create result cards with an owner and a way to check, keep milestones honest, and post project updates that read well (O Alquimista style) with images and links. The main path is the official Linear MCP through mcpc (@linear, the Bili app's voice), wrapped by scripts/linear.sh; the scripts cover what the MCP does not (a project snapshot, image upload, the owner's own inbox). Use when the user says "atualiza o projeto no Linear", "cria os cartões", "posta um update", "o update não apareceu", "revisa o marco", "põe no Linear", "update the Linear project". Not `to-tickets` (turns a plan into tickets anywhere) nor `bili` (asks the Hermes agent to do work): this one edits Linear itself.
+metadata:
+  version: 0.2.1
+---
+
+# linear — o Linear do dono, do jeito dele
+
+O Linear é o quadro do foco do dono: ele bate o olho e sabe o que está andando, o que espera alguém e o que acabou. Tudo o que um agente escreve lá sai com uma voz só, a do **app Bili**. As regras de fundo (os níveis, o tamanho dos cartões, o que é produção) estão no doc do time **"AGENTS.md · como os agentes usam este Linear"**, e o técnico do biliboss está no `.wiki/linear.md` do repo da casa (`$CASA_REPO_PRINCIPAL`).
+
+`S` abaixo é `scripts/` desta skill. Os ids fixos (time, dono, app, estados, status de projeto) vêm do `casa.env`, lidos pelo `S/ids.sh` (`$CASA_LINEAR_*`). Nenhum script imprime token.
+
+## As vozes
+
+| Para | Use |
+|---|---|
+| Ler e escrever como agente (o padrão) | `S/linear.sh <ferramenta> arg:=json …`, que chama o `mcpc @linear` (o MCP oficial do Linear, com o OAuth do app Bili). Na primeira vez, veja os parâmetros da ferramenta com `S/linear.sh --ver <ferramenta>` |
+| O que o MCP não faz (marco com progresso, upload, introspecção) ou quando o login do `@linear` venceu | `S/lin.sh '<query GraphQL>' [vars.json]`: a mesma voz do app, pelo `linear-gql` da VPS |
+| Ler o que é do dono (a inbox, as preferências de notificação) | `S/dono.sh '<query>'`, com a chave pessoal do Keychain. Escrever em nome dele, só com o OK dele |
+
+Se o `@linear` não responder, o `S/linear.sh` tenta `mcpc @linear restart`. Se não voltar, siga pelo `S/lin.sh` e avise o dono. **Nunca use `mcpc login` no `@linear`:** o navegador aprova na hora a conta do dono, e o token sai em nome dele. O app entra por header Bearer, pelo passo 8 do roteiro do app no `.wiki/linear.md` do repo da casa.
+
+**Marcar o Bili** (para ele agir num cartão): no comentário, a menção vai como o link do perfil do app, `[@bili]($CASA_BILI_PERFIL_URL)`, e o comentário sai de uma pessoa, por `S/dono.sh` (`commentCreate`) ou pelo clique do dono. O que o próprio app escreve não abre sessão, e o duplo-server ignora, para o Bili não responder a si mesmo. Num cartão, a menção abre uma sessão de agente, e o pedido segue pelo webhook e pelo duplo-server até o NATS (`entrada.linear.agente` e `tarefa.criada`) e ao Bili. A confirmação aparece no painel de agente do cartão: uma atividade "thought" em cerca de 10 s e, depois, a resposta.
+
+## Onde a conversa mora
+
+O Linear é o lugar de toda a conversa. Escolha o nível antes de escrever:
+
+| Nível | Onde se conversa |
+|---|---|
+| Cartão | os comentários; a menção ao Bili abre a sessão de agente (é o caminho que ele ouve) |
+| Milestone | **não tem comentário**: crie um **cartão de conversa** no marco (os pedidos ao Bili e as respostas) e um **Doc do marco** com o resultado (a decisão no topo, uma seção por protótipo com o print e o link do clicável, os prós e contras) |
+| Projeto | os **project updates** (o estado da semana, com fio) e os comentários do projeto |
+| Doc | os comentários no texto, entre pessoas |
+
+- Pedido ao Bili fora de um cartão (comentário de projeto ou de Doc) só chega quando o app tiver "Inbox notifications" e o duplo-server tratar o tipo (`projectCommentMention`, `documentCommentMention`); o estado está no `.wiki/linear.md` do repo da casa ("Onde a conversa mora"). Na dúvida, peça no cartão de conversa.
+
+## Passos
+
+1. **Ler as regras e o projeto antes de escrever.** Leia o doc do time pelo MCP (`get_document`, id em `$CASA_LINEAR_DOC_AGENTS_ID`), uma vez por sessão. Depois, `S/projeto.sh <id ou url>` mostra o status, os membros, cada marco com o progresso e os cartões, os cartões sem marco e o último update. Procure um cartão que já exista antes de criar outro: um espelho de issue do GitHub pode estar fora do projeto. Se estiver, ponha-o no projeto em vez de duplicar.
+2. **O projeto.**
+   - A descrição é uma frase do que o produto faz e para quem.
+   - O conteúdo tem cinco partes: o que é, onde está (repo, wiki, cartão do GitHub), as pessoas, as versões, o estado com a data e o que fica fora do escopo.
+   - **Um projeto é um projeto:** nunca cite tensão nem `tension.md`.
+   - O status diz quem tem a bola: 🤖 Clone construindo, ✋ Espera uma pessoa, 📈 No ar, medindo ou ✅ Resultado visto.
+3. **Os cartões.**
+   - Um cartão é um **resultado**, não uma tarefa. O título diz o que passa a ser verdade ("O servidor de demonstração fica no ar").
+   - O corpo tem quem faz (👤 pessoa ou 🤖 agente), **Objetivo:** numa frase, **Como conferir:** com um teste, uma URL ou um número, e os links (PR, spec).
+   - O responsável é sempre o dono.
+   - Trabalho de agente é delegado ao app Bili (`$CASA_LINEAR_APP_BILI_ID`).
+   - O passo que só uma pessoa faz (merge, conta, segredo, conversa com o cliente) fica sem delegado.
+   - Não apague, não feche nem cancele cartões sem o pedido do dono.
+4. **Os marcos contam a verdade.**
+   - Use um marco por frente clara; uma versão é uma frente.
+   - O que já foi feito ganha um cartão em Done no marco, com o link do PR e das provas. Sem ele, o marco mede 0% de algo quase pronto.
+   - Um update nunca diz "pronto" enquanto o marco tem cartão aberto: diga "construído e aprovado; falta pôr no ar".
+5. **O update do projeto.**
+   - **O que importa vem primeiro:** o estado numa frase de título, depois o que falta, com o dono e o cartão de cada passo, depois o porquê.
+   - **Escreva gostoso de ler, na régua do Alquimista** (`moc-copywriting` e `escrever-bem` no wiki do repo da casa): frase curta, palavra de todo dia, tom de conversa, uma imagem simples que volta como refrão e um fecho que resume.
+   - **Tire o jargão:** nada de hash de commit nem caminho de pasta, e "juntar o PR" em vez de "mergear".
+   - **Imagem:** `S/upload.sh <arquivo>` sobe o arquivo e devolve a URL do Linear; no texto, use `![descrição](URL)`. A imagem de um repo privado do GitHub não abre no Linear.
+   - **Um link para um Claude Artifact é privado até o dono compartilhar:** avise.
+   - A saúde é `onTrack`, `atRisk` ou `offTrack`, com honestidade: prazo perto e nada andando é `atRisk`.
+   - Para conferir a escrita, peça a outro modelo uma revisão contra a régua (a skill `pi` faz isso pela conta do Claude) e aplique o que fizer sentido, sem trocar o significado.
+6. **Notificar.**
+   - Editar um update não avisa ninguém. Para avisar, poste um update novo.
+   - Se o dono diz que um update não chegou à inbox dele, leia as notificações e as preferências com `S/dono.sh` antes de supor a causa.
+
+## O que pega
+
+- **O limite de complexidade da API é 10000:** ponha `first:N` em toda lista aninhada (`members`, `projectMilestones`, `issues`), ou a query volta "Query too complex".
+- **Várias mudanças vão numa chamada só,** com aliases (`a: issueUpdate(...) b: issueUpdate(...)`) e os textos em variáveis. Dentro da query, um enum vai sem aspas (`health:onTrack`), senão a API recusa.
+- **`Project` não tem `links`:** os links de um projeto estão em `externalLinks`.
+- **O `progress` de um marco já vem em porcentagem:** não multiplique por 100.
+- **Uma chamada pelo `lin.sh` leva de 5 a 60 s** (ela passa pela VPS). Num lote de cartões, rode em segundo plano e confira no fim com `S/projeto.sh` se nada saiu repetido.
