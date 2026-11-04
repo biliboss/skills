@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] - 2026-11-04
+
+### Added
+- `bili-trabalho.sh acompanhar|mostrar`: o trabalho passado ao Bili vira um pane na doing com as atividades dele no cartão e o tempo; a resposta leva o pane à review, e Enter retoma a sessão local.
+
+### Changed
+- O N das abas conta todos os panes da aba, não só os de agente.
+
 ## [0.4.0] - 2026-11-04
 
 ### Added

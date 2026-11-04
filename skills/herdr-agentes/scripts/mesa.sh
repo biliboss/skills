@@ -26,7 +26,7 @@ aba() { herdr tab list | jq -r --arg l "$1" --arg w "$WS" '[.result.tabs[] | sel
 contar() {
   for base in "$TRAB" "$REV"; do
     t=$(aba "$base"); [ -n "$t" ] || continue
-    n=$(herdr pane list | jq -r --arg t "$t" '[.result.panes[] | select(.tab_id == $t and .agent)] | length')
+    n=$(herdr pane list | jq -r --arg t "$t" '[.result.panes[] | select(.tab_id == $t)] | length')
     herdr tab rename "$t" "$base ($n)" >/dev/null
   done
 }
