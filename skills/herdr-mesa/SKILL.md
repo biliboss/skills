@@ -9,7 +9,7 @@ metadata:
 
 A sessão gestora organiza; as sessões dos itens trabalham. A gestora foca, lê os panes, move abas e fecha o que terminou. Ela não executa nem commita o trabalho de um item: quando algo precisa ser feito, manda a mensagem à sessão dona (`herdr-agentes`), com o sim e onde parar.
 
-Scripts nesta pasta, sempre pelo caminho completo: `scripts/fase.sh` (mover entre fases) e `scripts/cartao.py` (o cartão, roda com `uv run`).
+Scripts nesta pasta, sempre pelo caminho completo: `scripts/fase.sh` (mover entre fases) e o cartão, que roda pelo projeto (`just card`, em `dev/prime-bili`; a regra e o formato estão em `.wiki/herdr-focus.md` do repo da casa).
 
 ## O modelo
 
@@ -34,7 +34,7 @@ Scripts nesta pasta, sempre pelo caminho completo: `scripts/fase.sh` (mover entr
    - **O focus é do Bili, de forma contínua.** Ele sustenta o layout e gere os agentes: quando o agente da frente para, troca ou some, ele puxa o próximo, atualiza o resumo e devolve as proporções, sem ninguém pedir. Pergunta, aprovação ou `blocked` de qualquer agente: ele avisa o Gabriel na hora.
    - **A barra é o vigia do focus** (`scripts/barra.py`, no pane `barra`). Ela escreve o nome, o estado e o harness do agente da frente e devolve as proporções quando o agente troca. Quando ele para ou some, põe um aviso na fila do Bili (`mux.sh fila`). Com um `blocked` em qualquer pane da mesa, notifica o Gabriel (macOS) e o Bili. Cada aviso vai também a `mesa.focus.<evento>` no NATS.
 5. **Fechar o item revisado:** primeiro traga o próximo ao focus (passo 4), depois `fase.sh concluir <aba>`: fecha os agentes (imprime o id para retomar), põe só o cartão no done today e fecha a aba. Na ordem inversa o focus esvazia, o herdr fecha o workspace e a ordem das fases se perde.
-6. **O cartão:** a sessão do item escreve `~/.local/state/<tema>.cartao.md` ao parar, no estilo do `.wiki/escrever-bem.md` do repo da casa (frase curta, verbo forte, sem jargão de agente, o que importa primeiro). Ponha isto no briefing de toda sessão; o pedido pronto está em [references/cartao.md](references/cartao.md). Sem o arquivo, o cartão mostra o objetivo do briefing e a última fala crua do agente.
+6. **O cartão:** a sessão do item escreve `~/.local/state/<tema>.cartao.md` ao parar, no estilo do `.wiki/escrever-bem.md` do repo da casa (frase curta, verbo forte, sem jargão de agente, o que importa primeiro). Ponha isto no briefing de toda sessão; o formato e o pedido pronto estão em `.wiki/herdr-focus.md` do repo da casa. Sem o arquivo, o cartão mostra o objetivo do briefing e a última fala crua do agente.
 
 ## Armadilhas
 
