@@ -1,8 +1,8 @@
 ---
 name: bili
-description: Hand a request to Bili, the owner's Hermes agent, by one of three routes chosen by configuration (CASA_BILI_ROTA, default local) through a single script, bili.sh pedir|esperar|ler|rota. local = an event on the Mac's NATS for the local Bili; remoto = an event on the VPS NATS for the VPS Bili; linear = a mention on the Linear card where the subject lives (project or card work). The Mac request is grilled first with AskUserQuestion, one binary question at a time. Never the Hermes API, SSH or duplo MCP. Also waits for and reads the reply, and shows or switches the route. Use when the user says "troca a rota do bili", "pede pro bili", "manda pro bili", "roteia pro bili", "pergunta pro bili", "marca o bili", "o que o bili respondeu", "em que pé o bili está". Not `linear` (that edits Linear itself) nor `herdr-agentes` (other agent sessions in herdr) nor `delegate-and-review` (a subagent that opens a PR); this one asks the agent that keeps the memory.
+description: Hand a request to Bili, the owner's Hermes agent, by one of three routes chosen by configuration (CASA_BILI_ROTA, default local) through a single script, bili.sh pedir|esperar|ler|rota. local = an event on the Mac's NATS for the local Bili; remoto = an event on the VPS NATS for the VPS Bili; linear = a mention on the Linear card where the subject lives (project or card work). The Mac request is grilled first (method from the skill `grilling`; mode CASA_BILI_GRILL=ask|interview|plain), one binary question at a time. Never the Hermes API, SSH or duplo MCP. Also waits for and reads the reply, and shows or switches the route. Use when the user says "troca a rota do bili", "pede pro bili", "manda pro bili", "roteia pro bili", "pergunta pro bili", "marca o bili", "o que o bili respondeu", "em que pé o bili está". Not `linear` (that edits Linear itself) nor `herdr-agentes` (other agent sessions in herdr) nor `delegate-and-review` (a subagent that opens a PR); this one asks the agent that keeps the memory.
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # bili — mandar um pedido ao Bili
@@ -38,8 +38,21 @@ sh $B ler 5                   # as últimas 5 respostas
 
 Todo pedido do dono feito no Mac vai ao **Bili local** (o Hermes local, no pane `$CASA_BILI_LOCAL_PANE`). É ele quem faz, delega aos subagentes dele ou pede ao Bili da VPS pelo Linear (as seções 1 a 5, que ele mesmo usa). Uma sessão do Mac chama o Bili da VPS direto só quando a rota configurada for `remoto`, ou `linear` para trabalho de projeto.
 
-1. **Grill antes de mandar, sempre, com a ferramenta AskUserQuestion: uma pergunta por vez, binária.** Cada chamada leva uma pergunta só, com duas opções concretas (a recomendada primeiro, marcada "(Recommended)", com o porquê em uma linha), escrita para quem não viu a conversa: o que se decide e o que muda em cada resposta. Pergunte em sequência só o que é do dono (o resultado, o escopo, quem faz, o limite) e pare quando o pedido estiver claro; uma resposta confusa pede a mesma pergunta reescrita, nunca uma rodada maior.
-2. **Escreva o pedido num arquivo** (o scratchpad, ou `~/.local/state/<tema>.md` quando for longo): o objetivo verificável, as decisões do grill com as respostas do dono, o contexto (repo, caminho, commit, cartão), o que não fazer e como responder (em até 5 linhas).
+1. **Grill antes de mandar, sempre.** O método é o da skill `grilling` (grill-me): **carregue-a e siga-a; este texto não a copia**. Sem ela instalada, faça no modo `plain` com as mesmas regras abaixo. O modo vem do `casa.env`, `CASA_BILI_GRILL` (padrão `ask`):
+
+   | Modo | Como pergunta |
+   |---|---|
+   | `ask` | a ferramenta AskUserQuestion |
+   | `interview` | a skill `interview` (o formulário) |
+   | `plain` | texto no chat, esperando a resposta |
+
+   Regras, iguais nos três modos:
+   - **Antes de perguntar, escreva para si** (nota curta, sem mostrar) quais decisões faltam e em que ordem; só é pergunta o que é do dono (resultado, escopo, quem faz, limite) e que não dá para achar no repo ou no contexto.
+   - **Uma pergunta por vez, binária:** duas opções concretas, a recomendada primeiro ("(Recommended)") com o porquê em uma linha, escrita para quem não viu a conversa: o que se decide e o que muda em cada resposta.
+   - **Cada resposta escolhe o próximo ramo**; uma resposta confusa pede a mesma pergunta reescrita, nunca uma rodada maior.
+   - **Pare quando o Bili puder fazer sem perguntar de novo.**
+   - **Pedido já claro: zero perguntas**, e diga isso ("pedido claro, sem grill") antes de mandar.
+2. **Escreva o pedido num arquivo** (o scratchpad, ou `~/.local/state/<tema>.md` quando for longo): o objetivo verificável, as decisões do grill com as respostas do dono (ou "sem grill: pedido claro"), o contexto (repo, caminho, commit, cartão), o que não fazer e como responder (em até 5 linhas).
 3. **Mande pela rota:** `sh $B pedir <arquivo>` (guarde o `trace_id`), e `sh $B esperar <trace_id>` em segundo plano. Na rota `local`, o evento vira um turno do Bili local, e ele responde com um evento. Para corrigir o rumo de um turno em curso, e só para isso, use o `manda $CASA_BILI_LOCAL_PANE` do `mux.sh` (skill `prime-agent`); a correção urgente, que não pode esperar o turno, vai como steer pelo `manda`.
 4. **Junte o que chega junto:** vários pedidos numa mensagem numerada, nunca uma rajada de mensagens soltas.
 5. **Arme o monitor do NATS** (se ainda não estiver de pé), pela ferramenta Monitor do Claude Code, com o tempo máximo:

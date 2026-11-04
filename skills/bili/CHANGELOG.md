@@ -2,6 +2,15 @@
 
 Todas as mudanças do skill `bili`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-04
+
+### Added
+- `CASA_BILI_GRILL=ask|interview|plain` (padrão `ask`): o modo do grill do passo 0 (AskUserQuestion, a skill `interview` ou texto no chat). Documentado no `casa.env.example`.
+- Regras iguais nos três modos: escrever para si as decisões que faltam e a ordem antes de perguntar; uma pergunta binária por vez; cada resposta escolhe o próximo ramo; parar quando o pedido bastar; pedido já claro faz zero perguntas e diz isso.
+
+### Changed
+- O método do grill vem da skill `grilling` (grill-me): a skill manda carregá-la, sem copiar o texto; sem ela instalada, cai no modo `plain` com as mesmas regras.
+
 ## [0.6.0] - 2026-11-04
 
 ### Added
