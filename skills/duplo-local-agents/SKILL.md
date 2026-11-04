@@ -105,6 +105,8 @@ A sessão gestora só lê e move; quando algo precisa ser feito, manda a mensage
 
 Armadilhas do herdr:
 
+- **No herdr 0.9.3, o `send-keys` usa `ctrl+u` (limpa a caixa) e `esc`; `C-u` dá erro.** Pelo `mux.sh tecla`, passe esses nomes.
+- **O `osascript` (System Events) perde as janelas do Chrome quando a tela do Mac bloqueia** (o processo da frente vira o loginwindow), e o cua-driver pode falhar em capturar (`could not create image from display`). Espere a tela voltar ou peça o clique ao dono.
 - **O `pane_id` muda quando o pane troca de workspace e o rótulo se perde:** ande pelo `terminal_id` (o `fase.sh` já faz) e renomeie de novo.
 - **Workspace vazio fecha sozinho:** leve o próximo antes de tirar o último.
 - **No zsh, `set -- $x` não separa palavras:** use `${x%%:*}`/`${x##*:}` ou `IFS` com `read`.
