@@ -12,7 +12,8 @@ que é a fonte da lógica (o mesmo comportamento do shell).
 mux.panes()                       # lista de dicts: id, mux, pane, nome, estado
 mux.ler("T01", 40)                # a tela do pane, como texto
 mux.tecla("H05", "Enter")
-mux.manda("H05", "texto da mensagem")   # cola e aperta Enter
+mux.fila("H05", "texto da mensagem")    # cola e põe na fila do próximo turno (Tab no Hermes): o padrão
+mux.manda("H05", "texto da mensagem")   # cola e aperta Enter, desvia o turno em curso: só para corrigir o rumo
 mux.nomear("w5Y:p9", "duplo-eval-tasks")  # dá o próximo HNN livre; devolve o id
 mux.abrir("/pasta", "nome", "comando")    # pane à direita deste; devolve o id
 ```

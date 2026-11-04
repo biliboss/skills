@@ -62,15 +62,24 @@ def tecla(pane: str, tecla: str) -> None:
     _run("tecla", pane, tecla)
 
 
-def manda(pane: str, texto: str) -> None:
-    """Paste the text as one message and press Enter."""
+def _envia(verbo: str, pane: str, texto: str) -> None:
     with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
         f.write(texto)
         path = f.name
     try:
-        _run("manda", pane, path)
+        _run(verbo, pane, path)
     finally:
         os.unlink(path)
+
+
+def manda(pane: str, texto: str) -> None:
+    """Paste the text as one message and press Enter (steers the turn in progress: only to correct course)."""
+    _envia("manda", pane, texto)
+
+
+def fila(pane: str, texto: str) -> None:
+    """Paste the text and queue it for the agent's next turn (Tab in Hermes): the default for anything not urgent."""
+    _envia("fila", pane, texto)
 
 
 def nomear(pane: str, nome: str, id: str | None = None) -> str:

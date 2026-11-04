@@ -9,6 +9,7 @@ Todas as mudanças do skill `prime-agent`. Formato: [Keep a Changelog 1.1.0](htt
 
 ### Added
 - A skill Python `mux` do Prime Agent (`python/mux/`), que embrulha o `mux.sh` para o REPL.
+- `mux.sh fila <pane> <arquivo>` (e `mux.fila` no REPL): põe a mensagem na fila do agente (Tab no Hermes) para o próximo turno. É o padrão para mandar; `manda` (Enter) só para corrigir o rumo de um turno em curso.
 
 ## [0.2.0] - 2026-11-04
 

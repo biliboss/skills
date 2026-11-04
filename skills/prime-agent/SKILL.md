@@ -31,7 +31,9 @@ O Prime Agent é um agente de terminal cuja única ferramenta é um REPL Python 
    - **só leitura** (no HyperDX, nada de `save_`, `delete_` ou `patch_`) e nada fora da pasta do tema; pacote Python só num `.venv` dentro dela (um DuckDB local ajuda a guardar e cruzar o que ele junta);
    - a entrega **em arquivo na pasta do tema**, com os números e a consulta exata de cada um.
    - **Para o HyperDX, use a receita** `references/receita-hyperdx.md`: o briefing, o padrão de funções que funciona, a conferência e o fecho.
-4. **Mandar:** uma linha mandando ler o arquivo: `S/mux.sh manda <pane> <arquivo-da-mensagem>`.
+4. **Mandar:** uma linha mandando ler o arquivo, pela fila: `S/mux.sh fila <pane> <arquivo-da-mensagem>`.
+   - **`fila` é o padrão:** põe a mensagem na fila do agente (Tab no Hermes) para o próximo turno, sem desviar o que ele está fazendo.
+   - **`manda` só para corrigir o rumo de um turno** em curso: ele aperta Enter, e o agente larga o que fazia para ler a mensagem.
 5. **Acompanhar:** nenhum multiplexador sabe quando o Prime Agent para (o herdr o mostra como `unknown`), então siga pela sessão e pela tela.
    - `S/sessao.sh <tema>` mostra a sessão da pasta: o id, as células do REPL com o tamanho do resultado, os erros e os tokens por turno.
    - `S/mux.sh ler <pane> 80` mostra a tela; com Ctrl+O no pane (`S/mux.sh tecla <pane> C-o`), ela mostra também o raciocínio.
@@ -58,6 +60,6 @@ O Prime Agent é um agente de terminal cuja única ferramenta é um REPL Python 
 - **`prime-agent model list` só mostra o `zai` com a chave no ambiente:** rode-o pelo `S/rodar.sh model list`.
 - **Ele imprime arquivos inteiros quando lê contexto:** peça no briefing que leia só as seções que importam, para não gastar contexto à toa.
 - **Só `S/mux.sh` fala com o multiplexador:** os passos não chamam `herdr` nem `tmux` direto, para a skill rodar em qualquer um. Outro multiplexador entra como um ramo novo no `mux.sh`, com os mesmos quatro verbos. Cada pane tem um id de dois dígitos que diz o dono: `TNN` no tmux (nas opções `@tnn`/`@nome` do pane, porque o Claude Code sobrescreve o título) e `HNN` no herdr (no rótulo, `HNN - nome`); a mesma sessão conduz os dois. `S/mux.sh panes` lista todos, e `nomear <pane> <nome> [ID]` dá o próximo id livre.
-- **No REPL do Prime Agent, use a skill Python `mux`** (`python/mux/`, ligada em `~/.agents/skills/mux`): `mux.panes()`, `mux.ler`, `mux.tecla`, `mux.manda`, `mux.nomear`, `mux.abrir`, que só chamam o `mux.sh`.
+- **No REPL do Prime Agent, use a skill Python `mux`** (`python/mux/`, ligada em `~/.agents/skills/mux`): `mux.panes()`, `mux.ler`, `mux.tecla`, `mux.fila`, `mux.manda`, `mux.nomear`, `mux.abrir`, que só chamam o `mux.sh`.
 - **No tmux, ligue `set -g extended-keys on`** no `~/.tmux.conf`: sem isso o Prime Agent avisa que o Enter com modificador (nova linha na caixa) pode falhar.
 - **No herdr, registre o pane** na foto do `.wiki/herdr-sessoes.md`, como qualquer sessão de agente.
