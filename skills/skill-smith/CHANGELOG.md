@@ -3,6 +3,14 @@
 All notable changes to skill-smith are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-03
+
+### Added
+- Step 6: install the skill where it runs (plugin update, pi links, reload in open sessions).
+
+### Changed
+- Frontmatter: description under 1024 characters and without a bare `: `, which pi rejects.
+
 ## [0.1.1] - 2026-11-03
 
 ### Added

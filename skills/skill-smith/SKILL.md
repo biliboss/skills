@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.1.1
+  version: 0.2.0
   license: MIT
 ---
 
@@ -93,7 +93,7 @@ metadata:
 ---
 ```
 
-The description is what routes the skill. Lead with the task, list the phrases a user actually says, and name the neighbour it should *not* be confused with.
+The description is what routes the skill. Lead with the task, list the phrases a user actually says, and name the neighbour it should *not* be confused with. Keep it under 1024 characters and free of a bare `: ` (write `;` or quote the whole value) — pi rejects both as invalid frontmatter, while Claude Code silently accepts them.
 
 Every skill skill-smith creates gets a `CHANGELOG.md` ([Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)) starting at `## [0.1.0] - <today>`. Ship a minimal v0.1.0: SKILL.md and at most one or two references. Iterate after real use.
 
@@ -123,7 +123,8 @@ Don't bump for a typo. Every bump gets a dated entry under `Added / Changed / Fi
 1. **Lint by eye**: frontmatter parses; `name` matches the folder; links resolve; no incident narration; SKILL.md has no rule written twice.
 2. **Test when it matters** (a new skill, or a MINOR+ change): run 2–3 realistic prompts as a fresh subagent with only the skill, and see if it does the task right. For deeper evals and description tuning, use Anthropic's [skill-creator](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md) (`anthropic-skills:skill-creator`).
 3. **Commit only your own files, by path**, never `git add -A`. Don't push or open a PR unless the user asks.
-4. **Report**: the learnings, the skills touched with their versions, and anything flagged but skipped. Point out what is still too fuzzy to encode.
+4. **Install it where it runs** (after the push, for a plugin skill): `claude plugin marketplace update <marketplace>` and `claude plugin update <plugin>@<marketplace>`; for pi, the `pi` skill's `ligar-skills.sh` links every plugin skill into `~/.pi/agent/skills`. Sessions already open keep the old copy: tell the user to run `/reload-plugins` (Claude Code) or `/reload` (pi).
+5. **Report**: the learnings, the skills touched with their versions, and anything flagged but skipped. Point out what is still too fuzzy to encode.
 
 ## Step 7 — Keep your own wiki
 
