@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.5.0] - 2026-11-04
+
+### Added
+
+- `duplo-local-agents` 1.0.0: junta `herdr-agentes`, `herdr-mesa` e o `mux.sh` da `prime-agent` numa skill só, independente do multiplexador (herdr, tmux ou nenhum). Detalhe em `skills/duplo-local-agents/CHANGELOG.md`.
+- `prime-agent` 0.3.0/0.3.1: o `mux.sh` (panes, ler, tecla, manda, fila, nomear, abrir, ids TNN/HNN) e a skill Python `mux`; o `mux.sh` passa a viver na `duplo-local-agents`.
+- `pi` 0.3.0: `contas-tokens.sh`.
+
+### Removed
+
+- `herdr-agentes` e `herdr-mesa` (e o `mesa.sh`, o `cartao.py`).
+
 ## [0.4.0] - 2026-11-04
 
 ### Added

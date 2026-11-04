@@ -1,7 +1,7 @@
 {
   "name": "biliboss-skills",
-  "version": "0.4.0",
-  "description": "Os skills do biliboss: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync), o setup por repo, e os da casa: falar com o Bili pelo Linear (bili), o Linear (linear), sessões de agente no herdr (herdr-agentes), subagente com PR e revisão (delegate-and-review), o pi com as contas do Claude (pi), estudos em HTML (estudo-html), telas com os widgets reais do produto no design-playground (design), o Prime Agent como caderno de análise no GLM (prime-agent) formulários de perguntas numa janela única com fila (interview), os segredos pelo envless sem passar pela conversa (envless) o diagnóstico de disco com o disky, apagando só com a tabela aprovada (disky), e a mesa do herdr em fases, com o cartão de cada item (herdr-mesa). Os valores da casa vêm de um casa.env por máquina.",
+  "version": "0.5.0",
+  "description": "Os skills do biliboss: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync), o setup por repo, e os da casa: falar com o Bili pelo Linear (bili), o Linear (linear), sessões de agente locais no herdr, no tmux ou sem nenhum, e a mesa em fases (duplo-local-agents), subagente com PR e revisão (delegate-and-review), o pi com as contas do Claude (pi), estudos em HTML (estudo-html), telas com os widgets reais do produto no design-playground (design), o Prime Agent como caderno de análise no GLM (prime-agent) formulários de perguntas numa janela única com fila (interview), os segredos pelo envless sem passar pela conversa (envless) o diagnóstico de disco com o disky, apagando só com a tabela aprovada (disky). Os valores da casa vêm de um casa.env por máquina.",
   "author": {
     "name": "Gabriel Fonseca",
     "url": "https://github.com/biliboss"
@@ -36,7 +36,7 @@
     "./skills/sync",
     "./skills/lp-draft",
     "./skills/bili",
-    "./skills/herdr-agentes",
+    "./skills/duplo-local-agents",
     "./skills/delegate-and-review",
     "./skills/linear",
     "./skills/pi",
@@ -45,7 +45,6 @@
     "./skills/prime-agent",
     "./skills/interview",
     "./skills/envless",
-    "./skills/disky",
-    "./skills/herdr-mesa"
+    "./skills/disky"
   ]
 }
