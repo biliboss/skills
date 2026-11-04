@@ -1,4 +1,4 @@
-"""mux: tmux and herdr panes from the Prime Agent REPL, as thin wrappers over the prime-agent skill's mux.sh.
+"""mux: tmux and herdr panes from the Prime Agent REPL, as thin wrappers over the duplo-local-agents skill's mux.sh.
 
 mux.sh holds the logic (ids TNN/HNN, which multiplexer owns a pane); these functions only call it, so the
 shell and the REPL behave the same.
@@ -12,19 +12,19 @@ import tempfile
 from pathlib import Path
 
 def _find_mux_sh() -> Path:
-    """$MUX_SH, else the skill folder this file sits in (python/mux/src/mux/), else the installed plugin, else
+    """$MUX_SH, else the sibling duplo-local-agents skill (this file sits in prime-agent/python/mux/src/mux/), else the installed plugin, else
     the source clone. The kernel may run an installed copy of this package, far from the skill folder."""
     if os.environ.get("MUX_SH"):
         return Path(os.environ["MUX_SH"])
     here = Path(__file__).resolve()
-    cands = [here.parents[4] / "scripts" / "mux.sh"] if len(here.parents) > 4 else []
+    cands = [here.parents[4].parent / "duplo-local-agents" / "scripts" / "mux.sh"] if len(here.parents) > 4 else []
     home = Path.home()
-    cands += sorted(home.glob(".claude*/plugins/cache/biliboss/biliboss-skills/*/skills/prime-agent/scripts/mux.sh"), reverse=True)
-    cands.append(home / "src/skills/skills/prime-agent/scripts/mux.sh")
+    cands += sorted(home.glob(".claude*/plugins/cache/biliboss/biliboss-skills/*/skills/duplo-local-agents/scripts/mux.sh"), reverse=True)
+    cands.append(home / "src/skills/skills/duplo-local-agents/scripts/mux.sh")
     for c in cands:
         if c.is_file():
             return c
-    raise RuntimeError("mux: não achei o mux.sh da skill prime-agent; defina MUX_SH")
+    raise RuntimeError("mux: não achei o mux.sh da skill duplo-local-agents; defina MUX_SH")
 
 
 MUX_SH = _find_mux_sh()

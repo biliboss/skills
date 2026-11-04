@@ -5,7 +5,7 @@ description: Drive terminal panes in tmux and herdr from the Python REPL with st
 
 # mux
 
-Funções síncronas, já importadas no REPL como `mux`. Cada uma chama o `mux.sh` da skill prime-agent,
+Funções síncronas, já importadas no REPL como `mux`. Cada uma chama o `mux.sh` da skill duplo-local-agents,
 que é a fonte da lógica (o mesmo comportamento do shell).
 
 ```python

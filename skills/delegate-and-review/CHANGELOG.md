@@ -2,6 +2,11 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). Versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-11-04
+
+### Changed
+- O vizinho nomeado na descrição é a `duplo-local-agents` (ex-`herdr-agentes`).
+
 ## [0.2.3] - 2026-11-04
 
 ### Changed

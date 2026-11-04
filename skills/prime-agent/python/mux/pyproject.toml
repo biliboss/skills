@@ -1,5 +1,5 @@
 # Pacote do kernel do Prime Agent: os panes do tmux e do herdr como funções Python.
-# Só embrulha o scripts/mux.sh da skill prime-agent, que é a fonte da lógica.
+# Só embrulha o scripts/mux.sh da skill duplo-local-agents, que é a fonte da lógica.
 [project]
 name = "mux"
 version = "0.1.0"

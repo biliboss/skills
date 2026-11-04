@@ -1,8 +1,8 @@
 ---
 name: delegate-and-review
-description: Passa uma tarefa de código a um subagente desta sessão (Sonnet, pela ferramenta Agent, em segundo plano), que trabalha numa worktree nova do repo certo e abre um PR sem fazer merge; quando ele termina, você revisa o PR e corrige o que a revisão achar, no mesmo ramo. Use quando o dono disser "delega para um subagente", "subagente numa worktree e abre PR", "manda um Sonnet fazer e depois revisa", "delega e revisa", "deixa um agente construir e você corrige", "subagent in a worktree, PR, then review". Não é a `herdr-agentes`, que abre outra sessão numa aba do herdr; este roda dentro desta sessão, e quem revisa e corrige é você.
+description: Passa uma tarefa de código a um subagente desta sessão (Sonnet, pela ferramenta Agent, em segundo plano), que trabalha numa worktree nova do repo certo e abre um PR sem fazer merge; quando ele termina, você revisa o PR e corrige o que a revisão achar, no mesmo ramo. Use quando o dono disser "delega para um subagente", "subagente numa worktree e abre PR", "manda um Sonnet fazer e depois revisa", "delega e revisa", "deixa um agente construir e você corrige", "subagent in a worktree, PR, then review". Não é a `duplo-local-agents`, que abre outra sessão numa aba do herdr; este roda dentro desta sessão, e quem revisa e corrige é você.
 metadata:
-  version: 0.2.3
+  version: 0.2.4
 ---
 
 # delegate-and-review — delegar a um subagente, revisar o PR e corrigir

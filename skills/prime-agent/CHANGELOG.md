@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `prime-agent`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-04
+
+### Changed
+- O `mux.sh` mudou para a skill `duplo-local-agents` (`scripts/mux.sh`); o `abrir.sh`, a SKILL.md e a skill Python `mux` o chamam de lá (`$MUX_SH` troca o caminho).
+
 ## [0.3.0] - 2026-11-04
 
 ### Changed
