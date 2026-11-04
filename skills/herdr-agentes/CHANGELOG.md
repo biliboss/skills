@@ -3,7 +3,7 @@
 ## [0.3.0] - 2026-11-04
 
 ### Added
-- `backlog.sh guardar|mostrar|lista`: a aba backlog (N), antes da doing, com um pane e um banner por sessão desligada; Enter retoma.
+- `backlog.sh guardar|tirar|arrumar|mostrar|lista`: a aba backlog (N), antes da doing, numa grade igual de até 3 colunas, com um banner por sessão desligada (o que é, onde parou, próximo passo); Enter retoma.
 - `mesa.sh organizar|vigiar`: as sessões vão para a aba "doing (N)" enquanto trabalham e para "review (N)" quando param; N é o WIP de cada aba.
 
 ## [0.2.1] - 2026-11-04

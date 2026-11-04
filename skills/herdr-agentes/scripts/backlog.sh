@@ -1,10 +1,13 @@
 #!/bin/sh
-# backlog.sh: a aba "backlog (N)" do herdr, antes da "doing": uma sessão desligada por pane, com um banner
-# que explica o que ela fazia e como retomá-la. Enter no pane retoma a sessão ali mesmo; aí ela vira agente
-# trabalhando, e o mesa.sh a leva para a doing.
-#   guardar <tema> claude|pi <id|arquivo.jsonl> <resumo...>   guarda a ficha e põe o pane na aba backlog
-#   mostrar <tema>                                            (roda no pane) o banner; Enter retoma
-#   lista                                                     as fichas guardadas
+# backlog.sh: a aba "backlog (N)" do herdr, antes da "doing": uma sessão desligada por pane, numa grade igual
+# (até 3 colunas), cada uma com um banner do que ela é, onde parou, o próximo passo e como retomar.
+# Enter no pane retoma a sessão ali mesmo; ela vira agente trabalhando e o mesa.sh a leva para a doing.
+#   guardar <tema> claude|pi <id|arquivo.jsonl> "<o que é>" "<onde parou>" "<próximo passo>"
+#                     guarda a ficha e remonta a aba
+#   tirar <tema>      tira a ficha (a sessão foi retomada de vez ou não volta) e remonta a aba
+#   arrumar           remonta a aba backlog em grade, a partir das fichas
+#   mostrar <tema>    (roda no pane) o banner; Enter retoma
+#   lista             as fichas guardadas
 # As fichas ficam em ${BACKLOG_DIR:-~/.local/state/herdr-backlog}/<tema>.ficha. Não lê stdin, fora o Enter do mostrar.
 set -eu
 CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
@@ -19,71 +22,103 @@ PI_CLAUDE="$AQUI/../../pi/scripts/pi-claude.sh"
 DIR="${BACKLOG_DIR:-$HOME/.local/state/herdr-backlog}"
 ABA="${MESA_ABA_BACKLOG:-backlog}"
 TRAB="${MESA_ABA_TRABALHO:-doing}"
-uso() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+REV="${MESA_ABA_REVISAO:-review}"
+uso() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 cmd=$1; shift
 
-tabs() { herdr tab list | jq -r '.result.tabs[] | [.tab_id, .label] | @tsv'; }
 aba_de() { herdr tab list | jq -r --arg l "$1" '[.result.tabs[] | select(.label == $l or (.label | startswith($l + " ("))) | .tab_id][0] // empty'; }
+panes_de() { herdr pane list | jq -r --arg t "$1" '.result.panes[] | select(.tab_id == $t) | .pane_id'; }
+novo_pane() { herdr pane split "$1" --direction "$2" --ratio "$3" --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '[.. | .pane_id? // empty][0]'; }
+campo() { sed -n "s/^$1=//p" "$2"; }
 
-# A aba backlog vem antes da doing. O herdr não reordena abas: se a doing já existe, a backlog nasce
-# e a doing é refeita depois dela (os panes da doing mudam de aba sem parar).
-aba_backlog() {
-  b=$(aba_de "$ABA")
-  if [ -z "$b" ]; then
-    b=$(herdr tab create --label "$ABA" --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '.result.tab.tab_id')
-    vazio=$(herdr pane list | jq -r --arg t "$b" '[.result.panes[] | select(.tab_id == $t) | .pane_id][0]')
-    echo "$vazio" > "$DIR/.vazio"
-    d=$(aba_de "$TRAB")
-    if [ -n "$d" ]; then
-      primeiro=1; nova=
-      for p in $(herdr pane list | jq -r --arg t "$d" '.result.panes[] | select(.tab_id == $t) | .pane_id'); do
-        if [ "$primeiro" = 1 ]; then
-          herdr pane move "$p" --new-tab --label "$TRAB" --no-focus >/dev/null
-          nova=$(herdr pane list | jq -r --arg p "$p" '.result.panes[] | select(.pane_id == $p) | .tab_id'); primeiro=0; ult=$p
-        else
-          herdr pane move "$p" --tab "$nova" --split right --target-pane "$ult" --no-focus >/dev/null; ult=$p
-        fi
-      done
+# Leva uma aba para o fim da barra, sem parar os panes (o herdr não reordena abas).
+para_o_fim() {
+  t=$(aba_de "$1"); [ -n "$t" ] || return 0
+  rotulo=$(herdr tab list | jq -r --arg t "$t" '.result.tabs[] | select(.tab_id == $t) | .label')
+  nova=; ult=
+  for p in $(panes_de "$t"); do
+    if [ -z "$nova" ]; then
+      herdr pane move "$p" --new-tab --label "$rotulo" --no-focus >/dev/null
+      nova=$(herdr pane list | jq -r --arg p "$p" '.result.panes[] | select(.pane_id == $p) | .tab_id')
+    else
+      herdr pane move "$p" --tab "$nova" --split right --target-pane "$ult" --no-focus >/dev/null
     fi
-  fi
-  echo "$b"
+    ult=$p
+  done
+}
+
+arrumar() {
+  mkdir -p "$DIR"
+  temas=$(for f in "$DIR"/*.ficha; do [ -f "$f" ] && campo tema "$f"; done)
+  velha=$(aba_de "$ABA")
+  [ -z "$velha" ] || herdr tab close "$velha" >/dev/null
+  n=$(printf '%s\n' "$temas" | grep -c . || true)
+  [ "$n" -gt 0 ] || return 0
+  cols=3; [ "$n" -ge 3 ] || cols=$n
+  linhas=$(( (n + cols - 1) / cols ))
+  # As colunas: a primeira pane e mais cols-1 à direita, cada uma com a mesma largura.
+  primeira=$(herdr tab create --label "$ABA ($n)" --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '.result.root_pane.pane_id')
+  colunas="$primeira"; resto=$primeira; c=1
+  while [ $c -lt $cols ]; do
+    r=$(awk -v k=$((cols - c + 1)) 'BEGIN { printf "%.4f", 1 / k }')
+    resto=$(novo_pane "$resto" right "$r"); colunas="$colunas $resto"; c=$((c + 1))
+  done
+  # Cada coluna em linhas iguais; a ordem dos panes é coluna a coluna, de cima para baixo.
+  ordem=
+  for col in $colunas; do
+    ordem="$ordem $col"; resto=$col; l=1
+    while [ $l -lt $linhas ]; do
+      r=$(awk -v k=$((linhas - l + 1)) 'BEGIN { printf "%.4f", 1 / k }')
+      resto=$(novo_pane "$resto" down "$r"); ordem="$ordem $resto"; l=$((l + 1))
+    done
+  done
+  i=0
+  for p in $ordem; do
+    i=$((i + 1))
+    tema=$(printf '%s\n' "$temas" | sed -n "${i}p")
+    if [ -n "$tema" ]; then
+      herdr pane run "$p" "sh $AQUI/backlog.sh mostrar $tema" >/dev/null
+      herdr pane rename "$p" "$tema" >/dev/null
+    else
+      herdr pane close "$p" >/dev/null
+    fi
+  done
+  # A backlog vem antes da doing e da review.
+  para_o_fim "$TRAB"
+  para_o_fim "$REV"
 }
 
 case "$cmd" in
   guardar)
-    [ $# -ge 4 ] || uso
-    tema=$1; harness=$2; id=$3; shift 3
-    case "$harness" in claude|pi) ;; *) uso ;; esac
+    [ $# -eq 6 ] || uso
+    case "$2" in claude|pi) ;; *) uso ;; esac
     mkdir -p "$DIR"
-    { printf 'tema=%s\nharness=%s\nid=%s\nquando=%s\n' "$tema" "$harness" "$id" "$(date '+%d/%m %H:%M')"; printf 'resumo=%s\n' "$*"; } > "$DIR/$tema.ficha"
-    b=$(aba_backlog)
-    vazio=$(cat "$DIR/.vazio" 2>/dev/null || true)
-    if [ -n "$vazio" ] && herdr pane list | jq -e --arg p "$vazio" '.result.panes[] | select(.pane_id == $p)' >/dev/null; then
-      pane=$vazio; rm -f "$DIR/.vazio"
-    else
-      ult=$(herdr pane list | jq -r --arg t "$b" '[.result.panes[] | select(.tab_id == $t) | .pane_id] | last')
-      pane=$(herdr pane split "$ult" --direction down --cwd "$CASA_REPO_PRINCIPAL" --no-focus | jq -r '[.. | .pane_id? // empty][0]')
-    fi
-    herdr pane run "$pane" "sh $AQUI/backlog.sh mostrar $tema" >/dev/null
-    herdr pane rename "$pane" "$tema" >/dev/null
-    n=$(herdr pane list | jq -r --arg t "$b" '[.result.panes[] | select(.tab_id == $t)] | length')
-    herdr tab rename "$b" "$ABA ($n)" >/dev/null
-    echo "$pane"
+    printf 'tema=%s\nharness=%s\nid=%s\nquando=%s\noque=%s\nparou=%s\nproximo=%s\n' \
+      "$1" "$2" "$3" "$(date '+%d/%m %H:%M')" "$4" "$5" "$6" > "$DIR/$1.ficha"
+    arrumar
     ;;
+  tirar)
+    [ $# -eq 1 ] || uso
+    rm -f "$DIR/$1.ficha"
+    arrumar
+    ;;
+  arrumar) arrumar ;;
   mostrar)
     [ $# -eq 1 ] || uso
     f="$DIR/$1.ficha"; [ -f "$f" ] || { echo "backlog: sem ficha $f" >&2; exit 1; }
-    tema=$(sed -n 's/^tema=//p' "$f"); harness=$(sed -n 's/^harness=//p' "$f"); id=$(sed -n 's/^id=//p' "$f")
-    quando=$(sed -n 's/^quando=//p' "$f"); resumo=$(sed -n 's/^resumo=//p' "$f")
-    titulo=$(printf '%s' "$tema" | tr '[:lower:]' '[:upper:]' | sed 's/./& /g')
+    harness=$(campo harness "$f"); id=$(campo id "$f")
+    titulo=$(campo tema "$f" | tr '[:lower:]' '[:upper:]' | sed 's/./& /g')
+    w=$(( $(tput cols 2>/dev/null || echo 74) - 6 )); [ "$w" -le 66 ] || w=66; [ "$w" -ge 30 ] || w=30
+    linha=$(printf '%*s' "$w" '' | sed 's/ /═/g')
+    secao() { printf '\n  \033[1m%s\033[0m\n' "$1"; printf '%s\n' "$2" | fold -s -w "$((w - 2))" | sed 's/^/    /'; }
     clear
-    printf '\n  ╔══════════════════════════════════════════════════════════╗\n'
-    printf '  ║  %-56s║\n' "$titulo"
-    printf '  ╚══════════════════════════════════════════════════════════╝\n\n'
-    printf '%s\n' "$resumo" | fold -s -w 60 | sed 's/^/    /'
-    printf '\n    harness: %s · desligada em %s\n    sessão:  %s\n\n' "$harness" "$quando" "$(basename "$id")"
-    printf '    ⏎ Enter retoma aqui  ·  Ctrl-C deixa no backlog\n'
+    printf '\n  ╔%s╗\n  ║ %-*s║\n  ╚%s╝\n' "$linha" "$((w - 1))" "$titulo" "$linha"
+    secao "O QUE É" "$(campo oque "$f")"
+    secao "ONDE PAROU" "$(campo parou "$f")"
+    secao "PRÓXIMO" "$(campo proximo "$f")"
+    printf '\n  \033[2m%s · desligada em %s · %s\033[0m\n' "$harness" "$(campo quando "$f")" "$(basename "$id" .jsonl | cut -c1-36)"
+    printf '\n  ⏎ Enter retoma aqui\n'
     read -r _
     case "$harness" in
       claude) exec env CLAUDE_CONFIG_DIR="$CASA_CONTA_PRINCIPAL_DIR" claude --dangerously-skip-permissions --resume "$id" ;;
@@ -91,7 +126,7 @@ case "$cmd" in
     esac
     ;;
   lista)
-    for f in "$DIR"/*.ficha; do [ -f "$f" ] && printf '%s\t%s\t%s\n' "$(sed -n 's/^tema=//p' "$f")" "$(sed -n 's/^harness=//p' "$f")" "$(sed -n 's/^resumo=//p' "$f" | cut -c1-70)"; done
+    for f in "$DIR"/*.ficha; do [ -f "$f" ] && printf '%s\t%s\t%s\n' "$(campo tema "$f")" "$(campo harness "$f")" "$(campo proximo "$f" | cut -c1-70)"; done
     ;;
   *) uso ;;
 esac
