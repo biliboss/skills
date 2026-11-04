@@ -51,7 +51,7 @@ herdr-events esperar <pane> --until idle,done,blocked --timeout 1800   # só com
 - **Pergunta da sessão (`blocked`)** é do dono. Você só responde por ele quando ele mandar.
 - **Mover:** `herdr pane move <pane> --new-tab --no-focus` e `herdr tab rename <tab> <tema>`; para o foco, `herdr pane move <pane> --tab <tab> --split right --target-pane $HERDR_PANE_ID --no-focus`.
 
-## 2b. A mesa por estado: doing e review
+## 2b. A mesa por estado: backlog, doing e review
 
 ```sh
 M=<pasta desta skill>/scripts/mesa.sh
@@ -61,6 +61,7 @@ $M vigiar 15        # em segundo plano (run_in_background), a cada 15 s
 
 `mesa.sh` (ao lado do `agente.sh`) arruma as sessões pelo estado: quem está `working` vai para a aba **doing (N)**, lado a lado, com N = o WIP; quem parou (`idle`, `done`, `blocked`) vai para a aba **review (N)**, que é a fila de revisão do dono. A sessão do dono (o `$HERDR_PANE_ID` de onde a mesa é ligada, ou `MESA_DONO=<pane>`) nunca se move. Os nomes das abas mudam com `MESA_ABA_TRABALHO` e `MESA_ABA_REVISAO`.
 
+- **Desligar sem perder:** `backlog.sh guardar <tema> claude|pi <id|arquivo> <resumo>` guarda a ficha da sessão e põe um pane na aba **backlog (N)**, antes da doing, com um banner que diz o que ela fazia e como retomá-la. Enter no pane retoma a sessão ali mesmo; ela volta a trabalhar e a mesa a leva para a doing. `backlog.sh lista` mostra as fichas. Feche o pane do agente só depois de guardar a ficha.
 - **Revisou?** Feche com `agente.sh fecha <pane>` (o id vai para a foto) ou mande a próxima tarefa; a sessão volta a trabalhar e a mesa a leva de novo para a aba doing.
 
 ## 3. Fechar e retomar
