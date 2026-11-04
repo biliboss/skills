@@ -5,7 +5,7 @@ Todas as mudanças do skill `bili`. Formato: [Keep a Changelog 1.1.0](https://ke
 ## [0.5.0] - 2026-11-04
 
 ### Added
-- Passo 0, "No Mac: grill primeiro, depois o Bili local": todo pedido do dono no Mac vai ao Bili local (H00), depois de uma rodada de perguntas com a ferramenta AskUserQuestion (resultado, escopo, quem faz, limite; a opção recomendada primeiro), num arquivo e pela fila do `mux.sh`.
+- Passo 0, "No Mac: grill primeiro, depois o Bili local": todo pedido do dono no Mac vai ao Bili local, depois do grill com a ferramenta AskUserQuestion, uma pergunta binária por vez (a recomendada primeiro), num arquivo e pela fila do `mux.sh`.
 - O monitor do NATS: `scripts/watch.py` (uv), uma linha por evento que pede atenção humana (asks, errors, panes, cycle, llm, routes), armado pela ferramenta Monitor e rearmado quando expira.
 
 ### Changed
