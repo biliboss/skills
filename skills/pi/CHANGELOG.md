@@ -2,6 +2,15 @@
 
 Todas as mudanças do skill `pi`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-04
+
+### Added
+- `scripts/contas-tokens.sh`: leva os tokens do `claude setup-token` do envless (`~/.cofre-claude`, env `claude`) ao `claude-accounts.json` da extensão `pi-claude-accounts`, com a ordem de uso (`CASA_CLAUDE_PRIORIDADE`) no arquivo ao lado, sem o valor passar por tela ou log.
+- A troca de conta com a principal primeiro (o fork do biliboss da extensão), e as lições do `setup-token`: o navegador padrão decide a conta, o prazo de 1 ano, como revogar.
+
+### Changed
+- O token do `setup-token` (fixo) vai para o envless; o login OAuth da pasta continua fora dele.
+
 ## [0.2.2] - 2026-11-04
 
 ### Changed
