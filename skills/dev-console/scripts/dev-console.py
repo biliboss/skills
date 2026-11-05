@@ -303,8 +303,21 @@ def render_expected(spec: dict | None):
     )
 
 
+def render_widget_list(slug: str, event: str, eid: str | None = None):
+    """The real WidgetList of <event> in domain <slug>: the same component the right menu shows. Widgets compose it."""
+    mod = DOMAINS.get(slug)
+    if mod is None:
+        return _empty(f"domínio {slug} não existe")
+    token = CURRENT.set(mod)
+    try:
+        return render_list(_ctx(slug, event, eid))
+    finally:
+        CURRENT.reset(token)
+
+
 for _mod in DOMAINS.values():
     _mod.render_expected = render_expected  # actions may render an expected spec too
+    _mod.render_widget_list = render_widget_list  # WidgetList, composable: the right menu's own list
 
 
 def widget_name(fn) -> str:
@@ -357,7 +370,8 @@ def render_list(ctx: EventContext):
         Li(Div(P(name, cls="font-semibold text-neutral-800 dark:text-neutral-200"),
                P(desc or "todo evento", cls="text-neutral-400"), cls="min-w-0"),
            NotStr(f'<button class="w-open shrink-0 px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 '
-                  f'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900" data-w="{name}">abrir</button>'),
+                  f'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900" data-w="{name}" '
+                  f'data-ev="{ctx.event}" data-base="{PROJECT.BASE}">abrir</button>'),
            cls="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800")
         for name, desc in available(ctx.event)
     ]))
@@ -629,13 +643,17 @@ document.querySelectorAll('#pop-mode .mode').forEach(m => m.onclick = () => {
   const id = Q.get('ev'), name = Q.get('w');
   if (id && name) openWidget(id, name);
 });
-function openWidget(id, name) {
+function openWidget(id, name, base = D.base) {
   setQ('w', name); paintMode();
   $('pop-name').textContent = name;
   $('pop-sub').textContent = Q.get('e') ? `${id} · evento ${Q.get('e').slice(0, 8)}` : `${id} · primeiro evento real do diário`;
   $('pop-body').innerHTML = '<p class="text-neutral-400">carregando…</p>';
   $('pop').classList.remove('hidden'); $('pop').classList.add('flex');
-  frag(`${D.base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${Q.get('e') || ''}&mode=${MODE()}`).then(h => inject($('pop-body'), h));
+  frag(`${base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${base === D.base ? Q.get('e') || '' : ''}&mode=${MODE()}`).then(h => {
+    inject($('pop-body'), h);
+    // a composed WidgetList inside the popup: its abrir opens that widget here (in its own domain)
+    $('pop-body').querySelectorAll('.w-open').forEach(b => b.onclick = () => openWidget(b.dataset.ev, b.dataset.w, b.dataset.base));
+  });
 }
 function closeWidget() { setQ('mode', ''); setQ('w', ''); $('pop').classList.add('hidden'); $('pop').classList.remove('flex'); }
 const popOpen = () => !$('pop').classList.contains('hidden');
