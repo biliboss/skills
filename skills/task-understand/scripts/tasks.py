@@ -218,6 +218,8 @@ def _project(events: list[dict]) -> dict | None:
                 "title": value["title"],
                 # the task as it was explained
                 "text": value["text"],
+                # the domain the task is about (its dev-console slug), when it names one
+                "domain": value.get("domain"),
                 # each teach-back, in the receiver's words
                 "teach_backs": [],
                 # each adjustment of whoever explained, verbatim

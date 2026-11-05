@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-05
+
+### Added
+
+- A task names its domain (`task.explained` value `domain`); the Tasks widget, renamed Task Results, filters by it
+  and is the dev-console's second fixed tab.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added

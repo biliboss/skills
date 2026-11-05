@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # task-understand
@@ -52,7 +52,8 @@ assembled by the harness). Change the Input there, never here; check a recorded 
 ## Explain
 
 1. Listen to the whole explanation; do not interrupt and do not start the work.
-2. Record the task as it came: what it is, the explanation, who explained it and to whom (`task.explained`).
+2. Record the task as it came: what it is, the explanation, who explained it, to whom and the domain it is about
+   (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab.
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`).
 4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
    ("segue", "develop it") counts as the confirmation.

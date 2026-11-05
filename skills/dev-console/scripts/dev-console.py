@@ -347,6 +347,7 @@ class EventContext:
     entities: list[dict]        # every projected entity, with "title"
     history: tuple = ()         # every event of the entity, oldest first
     mode: str = "real"          # "real" or "sim": in sim, actions only play what would happen
+    domain: str = ""            # the domain the screen is about (the Task Results tab filters by it)
 
     def expected(self, spec: dict | None):
         """Render what a proposal expects at the end (see render_expected)."""
@@ -901,6 +902,8 @@ function closeSide() { side.id = null; setQ('ev', ''); setQ('side', ''); setQ('w
 const TABS = {
   // Domain (DDD, Evans 2003) is the first tab and reuses the Model graph and sidebar: one graph, one style.
   'Domain': () => TABS['Model'](),
+  // Task Results (fixed, second): the tasks executed for this domain, from the tasks domain's own Tasks widget (composed)
+  'Task Results': () => '<div id="task-results" class="h-full overflow-auto px-6 py-5"><p class="text-neutral-400">carregando…</p></div>',
   'Model': () => `<div class="h-full flex">
       <div id="graph-col" class="flex-1 min-w-0 flex flex-col">
         <div class="flex items-center justify-between gap-4 px-4 pt-3">${label('Máquina de estados · a partir do Human')}
@@ -982,10 +985,10 @@ const COUNT = {'Proposed Actions': () => proposals().length, 'Observations': () 
   'Management': () => of('management').length, 'Eventos': () => E.length};
 
 const GRAPH = t => t === 'Domain' || t === 'Model';  // tabs drawn by drawGraph
-const KEYS = {'Domain': 'd', 'Model': 'm', 'Visão': 'v', 'Proposed Actions': 'p', 'Observations': 'o', 'Relationships': 'r',
+const KEYS = {'Domain': 'd', 'Task Results': 'k', 'Model': 'm', 'Visão': 'v', 'Proposed Actions': 'p', 'Observations': 'o', 'Relationships': 'r',
               'Management': 't', 'Eventos': 'e', 'Tipos': 'y'};
 // Nerd Font icon per tab (Font Awesome codepoints: sitemap, cubes, eye, lightbulb, search, link, cog, list, tags)
-const ICON = {'Domain': '\uf0e8', 'Model': '\uf1b3', 'Visão': '\uf06e', 'Proposed Actions': '\uf0eb', 'Observations': '\uf002',
+const ICON = {'Domain': '\uf0e8', 'Task Results': '\uf00c', 'Model': '\uf1b3', 'Visão': '\uf06e', 'Proposed Actions': '\uf0eb', 'Observations': '\uf002',
               'Relationships': '\uf0c1', 'Management': '\uf013', 'Eventos': '\uf03a', 'Tipos': '\uf02c'};
 const nf = t => ICON[t] ? `<i class="nf">${ICON[t]}</i>` : '';
 const keyed = t => { const k = KEYS[t]; if (!k) return t; const i = t.toLowerCase().indexOf(k);
@@ -1002,6 +1005,10 @@ function show(name) {
   $('rail').style.display = $('side').style.display = wide ? 'none' : '';
   $('main').innerHTML = TABS[tab]();
   $('main').querySelectorAll('.rec').forEach(r => r.onclick = () => select(r.dataset.id));
+  if (tab === 'Task Results') {
+    const slug = D.base.split('/').pop();
+    frag(`/domain/tasks/w/_/task.executed/Tasks?domain=${slug}&task=${Q.get('task') || ''}`).then(h => inject($('task-results'), h));
+  }
   if (tab === 'Visão' && D.home.length)
     frag(`${D.base}/w/${D.state.id}/${D.home[0]}/${encodeURIComponent(D.home[1])}`).then(h => inject($('home'), h));
   else if (tab === 'Visão') mermaid.run({querySelector: '#main .mermaid'});
@@ -1062,7 +1069,7 @@ async def source_stream(slug: str):
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-def _ctx(tid: str, event: str, eid: str | None = None, mode: str = "real"):
+def _ctx(tid: str, event: str, eid: str | None = None, mode: str = "real", domain: str = ""):
     """Context for a real event: ?e=<event id>, else the first event of this type in the journal.
     Its entity (not the one on screen) is what the widget renders."""
     of_type = journal.read({"event": event})
@@ -1073,7 +1080,7 @@ def _ctx(tid: str, event: str, eid: str | None = None, mode: str = "real"):
         event=event, focus=focus, entity_id=tid,
         events=[e for e in journal.read({"id": tid, "history": True}) if e["event"] == event],
         state=journal.read({"id": tid}) or {}, journal_events=of_type, entities=entities,
-        history=tuple(journal.read({"id": tid, "history": True})), mode=mode,
+        history=tuple(journal.read({"id": tid, "history": True})), mode=mode, domain=domain,
     )
 
 
@@ -1091,11 +1098,15 @@ def do_action(slug: str, eid: str, name: str, mode: str = "real", step: int = 0)
 
 
 @rt("/domain/{slug}/w/{tid}/{event}/{name}")
-def one_widget(slug: str, tid: str, event: str, name: str, e: str = "", mode: str = "real"):
-    """One widget, rendered for the popup (mode=sim: simulated, nothing is written)."""
+def one_widget(slug: str, tid: str, event: str, name: str, e: str = "", mode: str = "real", domain: str = "", task: str = ""):
+    """One widget, rendered for the popup (mode=sim: simulated, nothing is written). ?task=<entity> picks that
+    entity's last event of this type; ?domain=<slug> says which domain the screen is about."""
     if not use(slug):
         return _empty(f"domínio {slug} não existe")
-    return W.render_one(_ctx(tid, event, e or None, "sim" if mode == "sim" else "real"), name)
+    if task and not e:
+        own = [x for x in journal.read({"id": task, "history": True}) if x["event"] == event]
+        e = own[-1]["id"] if own else ""
+    return W.render_one(_ctx(tid, event, e or None, "sim" if mode == "sim" else "real", domain), name)
 
 
 @rt("/domain/{slug}/w/{tid}/{event}")
@@ -1153,7 +1164,9 @@ def tension(slug: str, tid: str):
     journal_types: dict[str, int] = {}
     for e in journal.read({"history": True}):
         journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
-    tabs = ["Domain", *[t for t in getattr(PROJECT, "TABS", []) if t != "Domain"]]  # Domain is fixed; TABS is the context's
+    # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
+    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
+    tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
     payload = json.dumps({"base": base, "name": PROJECT.NAME, "tabs": tabs, "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
