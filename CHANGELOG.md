@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.16.0] - 2026-11-05
+
+### Added
+
+- `timer` 0.1.0: a countdown in the Mac menu bar driven by the agent through `scripts/timer.sh`; the StatusTimer app only displays the state file.
+
 ## [0.15.0] - 2026-11-05
 
 ### Changed

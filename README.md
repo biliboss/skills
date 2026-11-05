@@ -20,6 +20,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP |
 | `interview` | formulários de perguntas ricos (pi-interview) numa janela única com fila; rascunho salvo a cada mudança, e o tempo limite não perde respostas |
+| `timer` | um cronômetro na barra de menus do Mac, controlado pelo agente por um script; o app só mostra |
 
 ## Instalar
 
