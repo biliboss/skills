@@ -100,12 +100,23 @@ def state_graph(ctx):
 state_graph.fake = True  # drawn from code, so it exists before any event is recorded
 
 
+def right_menu(ctx):
+    """The right menu: a clicked event's sidebar, with its own tabs (Widgets, Código, JSON)."""
+    slug = ctx.entity_id if ctx.focus else SLUG
+    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=side&ev={ctx.event}",
+                  cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+
+
+right_menu.fake = True  # a console screen: it exists before any event is recorded
+
+
 HOME = ("domain.imported", "DomainCard")
 INITIAL = ["domain.designed", "domain.imported"]  # Human -> Domain.Designed (new) or Domain.Imported (existing)
 
 WIDGETS = {
-    "domain.designed": [domain_view, state_graph],
-    "domain.imported": [domain_list, domain_card],
+    "domain.designed": [domain_view, state_graph, right_menu],
+    # the console's own screens, for a domain designed here or imported: the same widgets on both starts
+    "domain.imported": [domain_view, state_graph, right_menu, domain_list, domain_card],
     "widget.connected": [widget_list],
     "action.proposed": [action_list],
 }

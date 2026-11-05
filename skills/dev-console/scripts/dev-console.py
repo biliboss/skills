@@ -757,6 +757,10 @@ document.addEventListener('keydown', e => {
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
 if (Q.get('embed')) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
 show(tab);
+if (Q.get('embed') === 'side') {  // ?embed=side: the right menu alone (the event's sidebar), full width
+  $('ev-side').previousElementSibling.style.display = 'none';  // the graph column
+  $('ev-side').classList.replace('w-[420px]', 'w-full'); $('ev-close').style.display = 'none';
+}
 if (GRAPH(tab) && Q.get('ev')) {
   const ev = Q.get('ev'), w = Q.get('w');
   openSide(ev);

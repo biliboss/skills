@@ -37,6 +37,7 @@ why and the numbers, read when changing a part of the screen.
 - `?embed=1` hides the tab bar: a widget that shows a console screen embeds it in an iframe
   (`DomainView` = the Domain tab), never a copy of its markup.
   `?embed=graph` = the graph alone (`StateGraph`): no bar, a click opens no sidebar.
+  `?embed=side&ev=<event>` = the right menu alone (`RightMenu`): the event's sidebar, full width.
 
 ## Domains and URLs
 
