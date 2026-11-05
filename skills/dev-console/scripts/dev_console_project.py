@@ -65,11 +65,17 @@ def event_list(ctx):
                    Span(e["value"]["command"], cls=BODY), cls="flex gap-3 py-1") for e in ctx.events])
 
 
-def tab_view(ctx):
-    """The tab itself, as the console draws it for its domain (no tab bar)."""
-    v = (ctx.focus or {}).get("value", {})
-    slug, tab = (ctx.focus or {}).get("domain_id", SLUG), v.get("tab", "Domain")
-    return Iframe(src=f"/domain/{slug}?tab={tab}&embed=1", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+def toolbar(ctx):
+    """The domain's toolbar: the console name, then its tabs (Tab.Updated) in order, Domain first and selected."""
+    tabs = [e["value"]["tab"] for e in ctx.history if e["event"] == "tab.updated"]
+    tab = "tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 border-b-2 "
+    return Div(
+        Div(ctx.state.get("name", ""), cls="shrink-0 pl-4 pr-3 font-semibold text-neutral-900 dark:text-neutral-100"),
+        Div(*[Span(t, cls=tab + ("border-neutral-900 dark:border-neutral-100 text-neutral-900 dark:text-neutral-100" if i == 0
+                                 else "border-transparent text-neutral-500")) for i, t in enumerate(tabs)],
+            cls="flex-1 min-w-0 flex overflow-x-auto [scrollbar-width:none]"),
+        cls="h-10 flex items-center font-mono text-xs rounded border border-neutral-200 dark:border-neutral-800",
+    )
 
 
 def domain_card(ctx):
@@ -126,5 +132,5 @@ WIDGETS = {
     "domain.imported": [domain_view, state_graph, right_menu, domain_list, domain_card],
     "event.updated": [event_list],
     "widget.updated": [widget_list],
-    "tab.updated": [tab_view],
+    "tab.updated": [toolbar],
 }
