@@ -59,9 +59,32 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
         #expect(display(for: s, now: t0) != .running("01:30"))
     }
 
-    @Test func expiredShowsZero() {
+    @Test func minuteAndAQuarter() {
+        let s = TimerState(status: .running, endsAt: 1_000_075)
+        #expect(display(for: s, now: t0) == .running("01:15"))
+    }
+
+    @Test func exactlyOneMinuteKeepsMinutes() {
+        let s = TimerState(status: .running, endsAt: 1_000_060)
+        #expect(display(for: s, now: t0) == .running("01:00"))
+    }
+
+    @Test func underAMinuteIsSecondsOnly() {
+        let s = TimerState(status: .running, endsAt: 1_000_060)
+        #expect(display(for: s, now: t0.addingTimeInterval(1)) == .running("59s"))
+        #expect(display(for: s, now: t0.addingTimeInterval(59)) == .running("1s"))
+    }
+
+    @Test func pausedUnderAMinuteIsSecondsOnly() {
+        let s = TimerState(status: .paused, remaining: 30)
+        #expect(display(for: s, now: t0) == .paused("30s"))
+    }
+
+    @Test func expiredIsFinished() {
         let s = TimerState(status: .running, endsAt: 1_000_000)
-        #expect(display(for: s, now: t0.addingTimeInterval(3)) == .running("00:00"))
+        #expect(display(for: s, now: t0) == .finished)
+        #expect(display(for: s, now: t0.addingTimeInterval(3)) == .finished)
+        #expect(display(for: s, now: t0.addingTimeInterval(-1)) == .running("1s"))
     }
 
     @Test func tooltipIsTheLabel() {
@@ -73,12 +96,15 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
 
 @Suite struct FormatTests {
     @Test func formats() {
-        #expect(format(seconds: 0) == "00:00")
-        #expect(format(seconds: 0.2) == "00:01")
+        #expect(format(seconds: 0) == "0s")
+        #expect(format(seconds: 0.2) == "1s")
+        #expect(format(seconds: 59) == "59s")
+        #expect(format(seconds: 59.5) == "01:00")
+        #expect(format(seconds: 60) == "01:00")
         #expect(format(seconds: 65) == "01:05")
         #expect(format(seconds: 3600) == "1:00:00")
         #expect(format(seconds: 3725) == "1:02:05")
-        #expect(format(seconds: -5) == "00:00")
+        #expect(format(seconds: -5) == "0s")
     }
 }
 

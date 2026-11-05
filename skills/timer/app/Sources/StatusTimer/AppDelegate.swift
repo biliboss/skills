@@ -85,20 +85,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return NSFont(descriptor: descriptor, size: base.pointSize) ?? base
     }()
 
-    /// The Nerd Font timer glyph, or nil when the font (or both glyphs) are missing.
-    private static let nerdIcon: (font: NSFont, glyph: String)? = {
+    /// PostScript names as installed (fc-list): IosevkaTermNF (proportional-width NF) and IosevkaTermNFM (Mono).
+    private static let nerdFontNames = ["IosevkaTermNF", "IosevkaTermNFM", "IosevkaTermNerdFont-Regular",
+                                        "IosevkaTerm Nerd Font", "IosevkaTerm NF"]
+
+    /// The first Nerd Font that has one of the candidate glyphs, or nil when the font (or all glyphs) are missing.
+    private static func nerdGlyph(_ candidates: [String]) -> (font: NSFont, glyph: String)? {
         let size = NSFont.menuBarFont(ofSize: 0).pointSize
-        // PostScript names as installed (fc-list): IosevkaTermNF (proportional-width NF) and IosevkaTermNFM (Mono).
-        let names = ["IosevkaTermNF", "IosevkaTermNFM", "IosevkaTermNerdFont-Regular",
-                     "IosevkaTerm Nerd Font", "IosevkaTerm NF"]
-        for name in names {
+        for name in nerdFontNames {
             guard let font = NSFont(name: name, size: size) else { continue }
-            for glyph in ["\u{F051B}", "\u{F252}"] where hasGlyph(font, glyph) {
+            for glyph in candidates where hasGlyph(font, glyph) {
                 return (font, glyph)
             }
         }
         return nil
-    }()
+    }
+
+    /// The Nerd Font timer glyph (nf-md-timer U+F051B, then nf-fa-hourglass U+F252).
+    private static let nerdIcon = nerdGlyph(["\u{F051B}", "\u{F252}"])
+    /// The Nerd Font check glyph for the finished state (nf-fa-check U+F00C).
+    private static let nerdCheck = nerdGlyph(["\u{F00C}"])
 
     private static func hasGlyph(_ font: NSFont, _ glyph: String) -> Bool {
         var chars = [UniChar](glyph.utf16)
@@ -115,9 +121,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ])
         }
         // Fallback: the SF Symbol `timer` as a template attachment.
+        return symbolString("timer", description: "Timer")
+    }
+
+    /// The finished glyph: Nerd Font check, falling back to the SF Symbol `checkmark.circle`. Always red.
+    private func checkString() -> NSAttributedString {
+        if let check = Self.nerdCheck {
+            return NSAttributedString(string: check.glyph, attributes: [
+                .font: check.font, .foregroundColor: NSColor.systemRed, .kern: 4,
+            ])
+        }
+        return symbolString("checkmark.circle", description: "Pronto", color: .systemRed)
+    }
+
+    private func symbolString(_ name: String, description: String, color: NSColor? = nil) -> NSAttributedString {
         let attachment = NSTextAttachment()
-        let image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Timer")
-        image?.isTemplate = true
+        var image = NSImage(systemSymbolName: name, accessibilityDescription: description)
+        if let color, let base = image {
+            // Template images take the bar's colour; tint a copy so the red survives.
+            image = base.withSymbolConfiguration(.init(paletteColors: [color]))
+            image?.isTemplate = false
+        } else {
+            image?.isTemplate = true
+        }
         attachment.image = image
         let font = Self.timeFont
         let side = font.capHeight * 1.2
@@ -136,6 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             result.append(iconString(color: .labelColor))
             result.append(NSAttributedString(string: " " + text, attributes: [
                 .font: Self.timeFont, .foregroundColor: NSColor.labelColor,
+            ]))
+        case .finished:
+            result.append(checkString())
+            result.append(NSAttributedString(string: " pronto", attributes: [
+                .font: Self.timeFont, .foregroundColor: NSColor.systemRed,
             ]))
         case .paused(let text):
             result.append(iconString(color: .secondaryLabelColor))

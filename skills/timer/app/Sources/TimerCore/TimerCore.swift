@@ -63,10 +63,12 @@ public struct TimerState: Codable, Equatable, Sendable {
 public enum Display: Equatable, Sendable {
     /// Icon only.
     case idle
-    /// Icon + time, label colour. Also the finished state (`00:00`).
+    /// Icon + time, label colour.
     case running(String)
     /// Icon + time, secondary label colour.
     case paused(String)
+    /// A running timer reached zero: check glyph + `pronto`, until the state file changes.
+    case finished
 }
 
 /// Pure mapping from state and time to the status item content.
@@ -74,7 +76,9 @@ public func display(for state: TimerState, now: Date) -> Display {
     switch state.status {
     case .idle: return .idle
     case .paused: return .paused(format(seconds: state.remaining(now: now)))
-    case .running: return .running(format(seconds: state.remaining(now: now)))
+    case .running:
+        if state.isExpired(now: now) { return .finished }
+        return .running(format(seconds: state.remaining(now: now)))
     }
 }
 
@@ -84,9 +88,11 @@ public func tooltip(for state: TimerState) -> String? {
     return t.isEmpty ? nil : t
 }
 
-/// Formats seconds as `MM:SS`, or `H:MM:SS` from one hour up. Rounds up so 00:00 only shows at the end.
+/// Formats seconds as `Ns` under one minute (`59s` … `1s`), `MM:SS` from one minute, `H:MM:SS` from one hour.
+/// Rounds up so the count never shows zero before the end (zero itself reads `0s`; the finished state replaces it).
 public func format(seconds: TimeInterval) -> String {
     let total = max(0, Int(seconds.rounded(.up)))
+    if total < 60 { return "\(total)s" }
     let h = total / 3600
     let m = (total % 3600) / 60
     let s = total % 60

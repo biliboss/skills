@@ -9,6 +9,12 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 - `timer` 0.1.0: a countdown in the Mac menu bar driven by the agent through `scripts/timer.sh`; the StatusTimer app only displays the state file.
 - `timer` 0.2.0: the menu bar looks like the macOS clock (Nerd Font timer icon, monospaced menu bar font, label only in the tooltip).
 
+## [0.18.0] - 2026-11-05
+
+### Changed
+
+- `timer` 0.3.0: under one minute the bar shows seconds only (`59s`), and a finished timer shows a red check and `pronto` until the next command.
+
 ## [0.17.0] - 2026-11-05
 
 ### Changed

@@ -1,9 +1,9 @@
 ---
 name: timer
 description: >-
-  Run a countdown timer in the Mac menu bar, driven by the agent. The agent sets, pauses, resumes, extends and stops the timer through scripts/timer.sh; the StatusTimer app only displays it (a timer icon plus MM:SS in the macOS menu bar clock look, a sound and a notification at zero). Use when the user says "start a timer", "timer de 25 minutos", "cronômetro na barra", "pause the timer", "retoma o timer", "mais 5 minutos no timer", "para o timer", "quanto falta", "how much time is left", "instala o timer". Not a reminder or calendar event (no Google Calendar, no cron): this one is a visible countdown on this Mac.
+  Run a countdown timer in the Mac menu bar, driven by the agent. The agent sets, pauses, resumes, extends and stops the timer through scripts/timer.sh; the StatusTimer app only displays it (a timer icon plus the time in the macOS menu bar clock look, a red check and `pronto` at zero, a sound and a notification). Use when the user says "start a timer", "timer de 25 minutos", "cronômetro na barra", "pause the timer", "retoma o timer", "mais 5 minutos no timer", "para o timer", "quanto falta", "how much time is left", "instala o timer". Not a reminder or calendar event (no Google Calendar, no cron): this one is a visible countdown on this Mac.
 metadata:
-  version: 0.2.0
+  version: 0.3.0
 ---
 
 # timer: a countdown in the menu bar, set by the agent
@@ -27,13 +27,13 @@ State lives in `~/.local/state/status-timer/state.json` (`status` idle|running|p
 The icon is a Nerd Font timer glyph (`IosevkaTerm Nerd Font`, falling back to the SF Symbol `timer`); the time uses the menu bar clock font with monospaced digits and the label colour.
 
 - idle: icon only.
-- running: icon + `MM:SS` (`H:MM:SS` above one hour).
-- paused: icon + `MM:SS` in the secondary label colour.
-- finished: icon + `00:00`, until the next state change.
+- running: icon + `MM:SS` (`H:MM:SS` above one hour). Under one minute, seconds only: `59s` … `1s` (no leading zero, no `00:`).
+- paused: the same text in the secondary label colour (`30s` under a minute).
+- finished: when a running timer reaches zero, a check glyph (Nerd Font `nf-fa-check` U+F00C, falling back to the SF Symbol `checkmark.circle`) and `pronto`, both in red (`systemRed`), until the next state change.
 
 The label is not in the bar; it shows as the tooltip when the pointer rests on the item.
 
-At zero the app plays Glass, posts "Tempo esgotado" with the label and keeps showing `00:00` until the next state change. Nothing is written back.
+At zero the app plays Glass, posts "Tempo esgotado" with the label and keeps showing the red check and `pronto` until the next state change. Nothing is written back.
 
 ## Rules and why
 
