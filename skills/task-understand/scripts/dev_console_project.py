@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fasthtml.common import Div, Li, Ol, P, Script, Span, Ul  # noqa: E402
 from tasks import TasksJournal  # noqa: E402
 
-NAME = "Tasks"
+NAME = "Biliboss Skills - Tasks"
 SLUG = "tasks"
 SOURCE = Path(__file__).parent / "tasks.py"  # the file with EVENTS
 ENTITY = "Task"
@@ -36,7 +36,7 @@ def _skill_meta() -> tuple[str, str, list[str]]:
 
     text = SKILL_MD.read_text()
     front = text.split("---")[1]
-    name = next((l.split(":", 1)[1].strip() for l in front.splitlines() if l.startswith("name:")), "tasks")
+    name = next((l.split(":", 1)[1].strip() for l in front.splitlines() if l.startswith("name:")), "task-understand")
     desc = " ".join(l.strip() for l in front.split("description:", 1)[1].split("metadata:")[0].splitlines()[1:])
     body = text.split("## Explain", 1)[1].split("\n## ", 1)[0] if "## Explain" in text else ""
     steps = [re.sub(r"`([^`]+)`", r"\1", m) for m in re.findall(r"^\d+\.\s+(.+)$", body, re.M)]

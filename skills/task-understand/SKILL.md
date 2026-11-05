@@ -1,16 +1,20 @@
 ---
-name: tasks
+name: task-understand
 description: >-
-  Design stage. A Task is explained to someone, and at the end that person repeats it back the way they
+  One command, /task-understand, runs the whole workflow of the Tasks domain (design stage). A Task is explained to someone, and at the end that person repeats it back the way they
   understood it (teach-back), so the gap between what was meant and what was understood shows before the
-  work starts. Use when the user says "tasks", "teach-back", "repete do jeito que entendeu", "explica a
-  tarefa", "abre o tasks no dev-console". Not tensions (gaps between actual and desired reality) and not
+  work starts. Use when the user says "task-understand", "teach-back", "repete do jeito que entendeu", "explica a
+  tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.2.0
+  version: 0.3.0
 ---
 
-# Tasks
+# task-understand
+
+One command runs the whole workflow, from `task.explained` to `understanding.taught_back`. The domain is
+**Tasks** (plural: the set of tasks), shown in the dev-console as Biliboss Skills - Tasks at `/domain/tasks`;
+other workflows of the domain come as `task-<action>` skills.
 
 **One Entity:** Task, a piece of work explained to someone (the most universal name: a to-do at home, an
 assignment at school, a ticket in a software team).
@@ -36,7 +40,13 @@ assembled by the harness). Change the Input there, never here; check a recorded 
 1. Listen to the whole explanation; do not interrupt and do not start the work.
 2. Record the task as it came: what it is, the explanation, who explained it and to whom (`task.explained`).
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`).
-4. Start only when whoever explained confirms the repetition matches.
+4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
+   ("segue", "develop it") counts as the confirmation.
+
+An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
+with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`
+with its repetition (`--task <id>`, `--actor <the agent>`), and answers with that repetition and nothing else
+before it starts.
 
 ## Design stage
 

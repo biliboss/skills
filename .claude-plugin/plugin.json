@@ -1,7 +1,7 @@
 {
   "name": "biliboss-skills",
   "version": "0.7.0",
-  "description": "Os skills do biliboss: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync), o setup por repo, e os da casa: falar com o Bili pelo Linear (bili), o Linear (linear), sessões de agente no herdr (herdr-agentes), subagente com PR e revisão (delegate-and-review), o pi com as contas do Claude (pi), estudos em HTML (estudo-html), telas com os widgets reais do produto no design-playground (design), o Prime Agent como caderno de análise no GLM (prime-agent) e formulários de perguntas numa janela única com fila (interview). Os valores da casa vêm de um casa.env por máquina. Inclui tensions, a skill de eventos de domínio em JSONL global sem dependências Python, e tasks (em desenho), a tarefa explicada e repetida de volta (teach-back). E dev-console, o console de um arquivo só para ver qualquer projeto event-sourced em desenvolvimento.",
+  "description": "Os skills do biliboss: o wiki que os agentes mantêm (wiki-smith), a fábrica de skills (skill-smith), o rascunho de landing page (lp-draft), o repo sempre igual ao remoto (sync), o setup por repo, e os da casa: falar com o Bili pelo Linear (bili), o Linear (linear), sessões de agente no herdr (herdr-agentes), subagente com PR e revisão (delegate-and-review), o pi com as contas do Claude (pi), estudos em HTML (estudo-html), telas com os widgets reais do produto no design-playground (design), o Prime Agent como caderno de análise no GLM (prime-agent) e formulários de perguntas numa janela única com fila (interview). Os valores da casa vêm de um casa.env por máquina. Inclui tensions, a skill de eventos de domínio em JSONL global sem dependências Python, e task-understand (em desenho), um comando que roda o workflow do domínio Tasks: a tarefa explicada e repetida de volta (teach-back). E dev-console, o console de um arquivo só para ver qualquer projeto event-sourced em desenvolvimento.",
   "author": {
     "name": "Gabriel Fonseca",
     "url": "https://github.com/biliboss"
@@ -25,7 +25,7 @@
     "sync",
     "wiki",
     "tensions",
-    "tasks",
+    "task-understand",
     "dev-console"
   ],
   "skills": [
@@ -44,7 +44,7 @@
     "./skills/prime-agent",
     "./skills/interview",
     "./skills/tensions",
-    "./skills/tasks",
+    "./skills/task-understand",
     "./skills/dev-console"
   ]
 }

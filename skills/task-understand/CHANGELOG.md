@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-05
+
+### Changed
+
+- Renamed to `task-understand`: one command runs the whole workflow; `/tasks` collided with Claude Code's
+  built-in command. The domain stays Tasks (`/domain/tasks`, `~/.local/share/tasks`).
+
 ## [0.2.0] - 2026-11-05
 
 ### Added
