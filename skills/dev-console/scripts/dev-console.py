@@ -1121,12 +1121,14 @@ def one_widget(slug: str, tid: str, event: str, name: str, e: str = "", mode: st
     return W.render_one(_ctx(tid, event, e or None, "sim" if mode == "sim" else "real", domain), name)
 
 
-@rt("/domain/{slug}/media/{path:path}")
-def media(slug: str, path: str):
-    """A file the domain keeps with its records (MEDIA in the project file: pictures of a run), never outside it."""
+@rt("/domain/{slug}/media")
+def media(slug: str, f: str = ""):
+    """A file the domain keeps with its records (MEDIA in the project file: pictures of a run), never outside it.
+    The path goes in ?f=, because FastHTML's own static route takes any URL ending in .png first."""
+    path = f
     from starlette.responses import FileResponse, Response
 
-    mod = DOMAINS.get(slug)
+    mod = use(slug)  # the registry's domains too, not only the --project ones
     root = Path(getattr(mod, "MEDIA", "") or "/nonexistent").expanduser().resolve()
     file = (root / path).resolve()
     if mod is None or root not in file.parents or not file.is_file():

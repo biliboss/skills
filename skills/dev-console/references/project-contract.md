@@ -17,7 +17,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 | `journal` | object with `read(query)`: `{}` all entities, `{"id": x}` one, `{"id": x, "history": True}` its events, `{"event": e}` events of a type, `{"history": True}` every event |
 | `title_of(history, state)` | the entity's title |
 | `INITIAL` | optional `["cat.event", ...]`: the events the Human may start with (Domain.Designed or Domain.Imported) |
-| `MEDIA` | optional: a folder of files the domain keeps (pictures of a run), served at `/domain/<slug>/media/<path>` |
+| `MEDIA` | optional: a folder of files the domain keeps (pictures of a run), served at `/domain/<slug>/media?f=<path>` |
 | `TABS` | optional: the tabs after the fixed ones, in order. Fixed: Domain, then Task Results (when the tasks domain is in the console: the tasks executed for this domain, from the tasks domain's Tasks widget; a task names its domain in `task.explained`'s `domain`) |
 | `TRANSITIONS` | optional `{"cat.event": ["cat.event", ...]}`: the edges, when the process branches or loops (UML statechart transitions); replaces the derived chain; a target may be a dict `{"cat.event": "command"}` to name the command of each edge when one event has several commands |
 | `HUB` | optional `"cat.event"`: every start leads to it and it opens every other category (Domain.Updated) |
