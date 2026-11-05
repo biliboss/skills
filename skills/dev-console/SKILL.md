@@ -31,8 +31,8 @@ for Gabriel in **Safari** on the domain he asked about: `open -a Safari http://1
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
-adding a domain means restarting it with one more `--project` (the env of the running process
-keeps the old list). It restarts by itself when this file or anything
+adding a domain needs no restart: append its `dev_console_project.py` path to
+`~/.local/state/dev-console/domains.txt` and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`), so a reload or a shared link reopens the same view.
 

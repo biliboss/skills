@@ -18,6 +18,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 | `title_of(history, state)` | the entity's title |
 | `INITIAL` | optional `["cat.event", ...]`: the events the Human may start with (Domain.Designed or Domain.Imported) |
 | `TABS` | optional: the tabs after the fixed Domain tab, in order; absent = Domain only |
+| `TRANSITIONS` | optional `{"cat.event": ["cat.event", ...]}`: the edges, when the process branches or loops (UML statechart transitions); replaces the derived chain |
 | `HUB` | optional `"cat.event"`: every start leads to it and it opens every other category (Domain.Updated) |
 | `DOMAIN_DRAFT` | optional path of the domain draft (default `<SOURCE stem>_draft.py`) |
 | `HOME` | optional `("category.event", "WidgetName")`: the widget the Visão tab opens with |
