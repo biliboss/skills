@@ -84,8 +84,9 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **Code on screen = signatures only**, from the real file, live, with real line numbers;
   the entity's properties are the keys of the projector's dict literal; commands are
   imperative and point to the past-tense event they record.
-- **Every event has at least Observability** (count here and in the journal, a time strip,
-  who). A project adds more per event in `WIDGETS`; several per event is normal.
+- **Every event has Observability, as the right menu's last tab** (count here and in the journal, a time
+  strip, who), never as a row of the widget list. The Widgets tab shows only when the event has a widget
+  of its own (Domain.Designed and Domain.Imported have none: Código, JSON, Observability).
 - **A widget shows only what the model has.** Design it from the event's real value (an
   Observation is a sentence, where, when, who; it has no state, no group, no "resolved"):
   never add fields, groupings or summaries the model does not record. Write the text for a
