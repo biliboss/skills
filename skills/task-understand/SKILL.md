@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.11.0
+  version: 0.12.0
 ---
 
 # task-understand
@@ -73,15 +73,19 @@ shows which kinds of task each model does well and with what quality.
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`), and ask for the
    confirmation with the harness's ask tool whenever it has one (Hermes `clarify`, Claude Code `AskUserQuestion`,
    pi's question tool): the repetition is the question and the choices are, in this order:
-   1. **Implementar com pi · <modelo recomendado>**: confirm and execute at once (step 9) with the model you believe
-      is the best for this task, named in the label (e.g. `Implementar com pi · Claude Sonnet (mukutu)`); the
-      registry's default (`sonnet`) when nothing speaks for another one.
-   2. **Pi · <recomendado> + <teste>, em paralelo**: the recommended model plus one test model you pick (e.g.
-      `Pi · Claude Sonnet + GLM 5.3, em paralelo`), each in its own worktree (step 9), to learn what this kind of
-      task looks like on that model.
+   1. **Implementar <método recomendado>**: confirm and execute at once with the method the context calls for,
+      named in the label. A small change whose context is already in this session (a draft in the graph, a design
+      edit, a few lines) is done **by hand, here** (`Implementar aqui, à mão`): delegating it costs more than doing it.
+      Long or separable work goes to pi with the best model for it (step 9, e.g. `Implementar com pi · Claude
+      Sonnet (mukutu)`); the registry's default (`sonnet`) when nothing speaks for another one.
+   2. **Pi · <recomendado> + <teste>, em paralelo**: only when the work is delegated: the recommended model plus one
+      test model you pick (e.g. `Pi · Claude Sonnet + GLM 5.3, em paralelo`), each in its own worktree (step 9), to
+      learn what this kind of task looks like on that model. Leave it out when option 1 is by hand.
    3. **Só confirmar**: record `understanding.confirmed` and wait for a word to execute.
    4. **Não ficou bom**: feedback (step 7).
-   The teach-back text in the ask is never a run-on paragraph: short blocks or a numbered list, then a blank line,
+   The repetition does not only mirror: it ends with a **Sugestão** block, what you would do better than what was
+   asked (a simpler path, a missing case, a name from the literature), grounded in the context; none when nothing
+   better stands out. The teach-back text in the ask is never a run-on paragraph: short blocks or a numbered list, then a blank line,
    and the question alone on the last line ("Bate?"). The tool's own free-text row is an adjustment (step 5). The
    three options of step 7 are asked the same way, one choice per style. Plain text only where the harness has no
    ask tool.

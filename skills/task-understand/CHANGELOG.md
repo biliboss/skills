@@ -2,6 +2,20 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-11-05
+
+### Added
+
+- Draft in the graph (no commands yet): `task.verified`, a new outside context (IV&V) that checks the delivery against
+  the confirmed request, back to `task.executed` when it does not pass; `task.delivered`, with the kind of delivery
+  (PR, direct change, none); and the Human's decision on a PR, `pull_request.merged` or `pull_request.review_requested`.
+- The repetition ends with a **Sugestão** block: what the agent would do better, grounded in the context.
+
+### Changed
+
+- Option 1 of the confirmation names the method the context calls for: a small change already in this session's
+  context is done by hand here, and only long or separable work goes to pi; the parallel option only when delegating.
+
 ## [0.11.0] - 2026-11-05
 
 ### Changed
