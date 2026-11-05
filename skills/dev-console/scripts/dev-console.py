@@ -392,6 +392,10 @@ CSS = """
 #pop-body.sim::before { content: "SIMULADO · os botões funcionam, nada é gravado nem enviado"; display: block; margin-bottom: 14px; font-size: 11px; letter-spacing: .12em; color: #8a8a8a; }
 
 html,body{height:100%;overflow:hidden}
+/* Nerd Font symbols (Font Awesome range): one small icon before each tab label */
+@font-face { font-family: "Symbols Nerd Font Mono"; font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/ryanoasis/nerd-fonts@v3.2.1/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf") format("truetype"); }
+.nf { font-family: "Symbols Nerd Font Mono"; font-style: normal; display: inline-block; width: 1.25em; margin-right: .3em; text-align: center; opacity: .75; }
 /* ?embed=side: the right menu alone, full width (RightMenu widget) */
 html[data-embed=side] #graph-col, html[data-embed=side] #ev-close { display: none !important; }
 html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
@@ -722,6 +726,10 @@ const COUNT = {'Proposed Actions': () => proposals().length, 'Observations': () 
 const GRAPH = t => t === 'Domain' || t === 'Model';  // tabs drawn by drawGraph
 const KEYS = {'Domain': 'd', 'Model': 'm', 'Visão': 'v', 'Proposed Actions': 'p', 'Observations': 'o', 'Relationships': 'r',
               'Management': 't', 'Eventos': 'e', 'Tipos': 'y'};
+// Nerd Font icon per tab (Font Awesome codepoints: sitemap, cubes, eye, lightbulb, search, link, cog, list, tags)
+const ICON = {'Domain': '\uf0e8', 'Model': '\uf1b3', 'Visão': '\uf06e', 'Proposed Actions': '\uf0eb', 'Observations': '\uf002',
+              'Relationships': '\uf0c1', 'Management': '\uf013', 'Eventos': '\uf03a', 'Tipos': '\uf02c'};
+const nf = t => ICON[t] ? `<i class="nf">${ICON[t]}</i>` : '';
 const keyed = t => { const k = KEYS[t]; if (!k) return t; const i = t.toLowerCase().indexOf(k);
   return i < 0 ? t : `${t.slice(0, i)}<span class="underline underline-offset-4">${t[i]}</span>${t.slice(i + 1)}`; };
 let tab = Q.get('tab') || (location.hash ? decodeURIComponent(location.hash.slice(1)) : 'Domain');
@@ -730,7 +738,7 @@ function show(name) {
   if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); side.id = null; }
   tab = name; setQ('tab', name === 'Domain' ? '' : name);
   $('tabs').innerHTML = Object.keys(TABS).map((t, i) =>
-    `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${keyed(t)}${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
+    `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${nf(t)}${keyed(t)}${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
   $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.t));
   const wide = GRAPH(tab);
   $('rail').style.display = $('side').style.display = wide ? 'none' : '';
