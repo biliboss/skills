@@ -166,7 +166,9 @@ def _when(iso: str) -> str:
 def task_list(ctx):
     """Task List: the executed tasks, the newest first; a row opens its Task Detail."""
     rows = []
-    done = [t for t in ctx.entities if t.get("status") == "executed"]
+    # in the Task Results tab of a domain: only that domain's tasks (the tasks domain itself shows them all)
+    done = [t for t in ctx.entities if t.get("status") == "executed"
+            and (not ctx.domain or ctx.domain == "tasks" or t.get("domain") == ctx.domain)]
     for t in sorted(done, key=lambda t: t.get("updated_at", ""), reverse=True):
         on = t["id"] == ctx.entity_id
         rows.append(A(
@@ -174,7 +176,8 @@ def task_list(ctx):
                 "font-semibold text-neutral-900 dark:text-neutral-100" if on else "text-neutral-700 dark:text-neutral-300")),
                 P(_when(t["updated_at"]), cls="mt-0.5 text-xs text-neutral-400"),
                 cls="min-w-0"),
-            href=f"{BASE}/t/{t['id']}?ev=task.executed&w=Tasks", target="_top",
+            href=(f"/domain/{ctx.domain}?tab=Task+Results&task={t['id']}" if ctx.domain
+                  else f"{BASE}/t/{t['id']}?ev=task.executed&w=Tasks"), target="_top",
             cls="block px-3 py-2.5 rounded no-underline hover:bg-neutral-100 dark:hover:bg-neutral-900 "
                 + ("bg-neutral-100 dark:bg-neutral-900" if on else "")))
     return Div(_title("Tarefas executadas"),
@@ -421,14 +424,16 @@ task_execution_log.fake = True  # a design on the value object
 
 
 def tasks(ctx):
-    """Tasks: the view of the future Tasks tab, the Task List beside the result of the selected task."""
+    """Task Results: the executed tasks of a domain, the Task List beside the result of the selected one."""
+    some = any(t.get("status") == "executed" and (not ctx.domain or ctx.domain == "tasks" or t.get("domain") == ctx.domain)
+               for t in ctx.entities)
     return Div(
-        _title("Tasks"),
+        _title("Task Results"),
         Div(
-        Div(task_list(ctx), cls="w-[320px] shrink-0 pr-4 border-r border-neutral-200 dark:border-neutral-800 overflow-y-auto"),
-        Div(task_execution_result(ctx), cls="min-w-0 flex-1 pl-6 overflow-y-auto"),
-        cls="flex h-[66vh]"),
-        cls="w-[min(1100px,90vw)]",
+            Div(task_list(ctx), cls="w-[320px] shrink-0 pr-4 border-r border-neutral-200 dark:border-neutral-800 overflow-y-auto"),
+            Div(task_execution_result(ctx), cls="min-w-0 flex-1 pl-6 overflow-y-auto") if some else "",
+            cls="flex " + ("h-[calc(100vh-9rem)]" if ctx.domain else "h-[66vh]")),
+        cls="w-full" if ctx.domain else "w-[min(1100px,90vw)]",
     )
 
 
