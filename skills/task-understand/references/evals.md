@@ -14,17 +14,24 @@ run them after any change to it.
 
 ## Running on pi (cheap)
 
-Haiku is enough for a routing check; Sonnet when Haiku's answer is unclear. Link the skills first (`pi` skill,
-`ligar-skills.sh`), then per prompt:
+Ladder: at least 10 description variants on Haiku, 2 work prompts each; only if none passes, the same on Sonnet;
+only if Sonnet fails too, give up on the description and put the rule in the harness/profile. Rerun the winners
+2 more rounds before adopting one (models are not deterministic; 2/2 once is luck-prone).
 
-```sh
-bash <pi skill>/scripts/pi-claude.sh mukutu -p --no-session --mode json \
-  --model claude-bridge/claude-haiku-5-5 "<prompt>" > run.jsonl
-grep -c 'task-understand/SKILL.md' run.jsonl   # > 0: the skill was read
-```
+`scripts/route_eval.py <haiku|sonnet> [variants...]` does it: each variant is a copy of the skill with only the
+description changed, loaded with `pi --no-skills --skill <each real skill> --skill <variant>` so it competes as in
+real use, each run in its own temp dir. Edit its `V` dict to try new wordings.
+
+- **Score by the requested file, not by "wrote any file"**: PASS = the file the prompt asked for does not exist and
+  the answer asks for the confirmation. The skill's own flow writes a helper `.sh` for the emits, so counting any
+  write fails every correct teach-back; and grepping the log for the SKILL.md path is not proof of a read.
+- Wrap a generated description on word boundaries (`textwrap.fill`): a YAML folded scalar turns a mid-word line
+  break into a space and splits the word.
 
 In Hermes: `hermes -p <profile> chat -Q --oneshot --max-turns 6 -q "<prompt>"`, then look for a `skill_view` of
-`task-understand` in that session.
+`task-understand` in that session (`state.db`, `messages.tool_calls`). Hermes shows only the first ~60 characters of
+each description in its index (the real line is in `system_prompts.prompt`), and a profile that says "act on your
+recommendation" outweighs any description, so test Hermes separately from pi.
 
 ## Results
 
