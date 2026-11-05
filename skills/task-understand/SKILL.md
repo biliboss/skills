@@ -1,15 +1,11 @@
 ---
 name: task-understand
 description: >-
-  Use when a work request arrives; repeat it back, get it confirmed, then do it. Any piece of work someone asks
-  for (more than about 2 minutes, code, delegating, a team's board) is repeated back the way it was understood
-  (teach-back) and confirmed before it starts, so the gap between what was meant and what was understood shows
-  first. Not for a quick question, a one-line command or a timer; do those directly. Runs the whole workflow of
-  the Tasks domain (design stage); also when the user says "task-understand", "teach-back", "repete do jeito que
-  entendeu", "explica a tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired
-  reality) and not the Linear (the team's board).
+  Gate before any build or write request. When the user asks you to create, write, build, implement or change
+  something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
+  Questions and one-line commands skip the gate.
 metadata:
-  version: 0.12.1
+  version: 0.12.2
 ---
 
 # task-understand
