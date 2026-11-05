@@ -14,6 +14,9 @@ O dono lê estudo numa página, não no terminal. A página fica no `.wiki/resou
 1. **Comece pelo `.wiki`:** `rg -n -i '<nome>' $CASA_REPO_PRINCIPAL/.wiki` mostra o que já sabemos e com o que comparar (Hermes, NATS, pi, Claude Code...). A pergunta de verdade quase sempre é "isso serve para nós e onde?".
 2. **Leia a fonte primária:** o README, o código e o changelog, com a versão ou o commit. Para um repo do GitHub, o DeepWiki ajuda a ler a arquitetura. Para um pacote npm, `npm view <pkg> version description repository.url`.
 3. **Separe fato de leitura:** o que a fonte diz, com link, e o que você conclui.
+4. **Post de blog ou página traduzida é pista, não fonte:** ache o repo (`gh search repos "<nome>"`, busca por `github <termo do post>`) e leia o código com `gh api repos/<o>/<r>/contents/<dir> --jq '.[].name'` e `-H 'Accept: application/vnd.github.raw'` para o arquivo. O post parafraseia e erra nomes; o código dá a API real.
+5. **"Study code" / "me traz o código" = responder com trechos reais da fonte**, cada um com o caminho do arquivo (`src/types.ts`, `test/examples/…`) e uma linha do que mostra; o exemplo executável do repo (pasta `examples/`, `test/examples/`) vale mais que o README. Diga se rodou ou só leu.
+6. **Comparar vários frameworks:** escreva primeiro um arquivo de lente comum (as mesmas perguntas para todos) no scratch, e dispare um subagente por framework (até 8 em paralelo) com a lente, as fontes e um arquivo de saída por framework no mesmo formato (tabela + trecho real com URL + "ideia a roubar"). Sem lente comum, as respostas não se comparam. Para agentes/LLM, use a lente de [references/agent-app-layer-lens.md](references/agent-app-layer-lens.md). Se o dono pedir LP da comparação, a página sai pela `lp-draft`, não por esta.
 
 ## 2. Escrever a página
 

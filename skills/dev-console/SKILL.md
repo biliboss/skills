@@ -15,8 +15,9 @@ metadata:
 # dev-console
 
 One file, `scripts/dev-console.py` (FastHTML + MonsterUI, PEP 723, `uv run --script`), shows
-**domains**: each project file is one domain in its own context, `/domain/<slug>`; the bar lists
-them and switches. It only reads. The dev-console is a domain of itself (`scripts/dev_console_project.py`,
+**domains**: each project file is one domain in its own context, `/domain/<slug>`; the bar shows
+the current one and ⌘K (or a click on it) opens the Domain Switcher, a fuzzy finder over an overlay
+(fzf / command-palette style; never a list or cards of domains). It only reads. The dev-console is a domain of itself (`scripts/dev_console_project.py`,
 root entity Domain, journal derived from every `dev_console_project.py` with `ast`).
 
 ## Run it
@@ -26,8 +27,9 @@ uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_con
   --project <path>/dev_console_project.py [--port 5057]   # one --project per domain
 ```
 
-When the implementation is complete and verified (headless browser: load, screenshot), open it
-for Gabriel in **Safari** on the domain he asked about: `open -a Safari http://127.0.0.1:5057/domain/<slug>`.
+Verify in the headless browser (`browser_exec local=true`: load, read `window.__cy` and the DOM, screenshot)
+or `curl`, then hand Gabriel the URL with `pbcopy`. Touch his Safari only when he asks (`open -a Safari <url>`):
+driving or capturing it on every change was rejected ("pare de usar o Safari").
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
@@ -89,12 +91,16 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   It is drawn from the project's `EVENTS` registry read live with `ast` (no language server):
   never hand-write a node or an edge in the console.
 - **Filled node** = the journal has at least one event of that type; **outline** = none yet.
-- **Click a node** = a contextual sidebar of expandable parts (open at first, closed ones remembered per node): Widgets (the list, each with
-  `abrir`, which opens the widget in a centred popup), Code (pseudo-code of the event's context: the
-  command, from/then, the entity it changes; also a widget, `Code`, on Domain.Updated) and JSON. No global code toggle: detail belongs to the thing clicked.
-- **Code on screen = signatures only**, from the real file, live, with real line numbers;
-  the entity's properties are the keys of the projector's dict literal; commands are
-  imperative and point to the past-tense event they record.
+- **Click a node** = a contextual sidebar of expandable parts (all open at first, closed ones remembered per
+  node in localStorage), in this order: Description (for humans), Widgets (only when the event has widgets; each
+  row opens the widget in a centred popup), Code, JSON, Observability. No global code toggle: detail belongs to
+  the thing clicked.
+- **Description comes only from the code comment** of the command in `EVENTS` (the comment lines above it, or
+  the one at the end of its line), written in Portuguese for a human. Never a separate dict in the project file:
+  the code is the single source, so write the sentence there.
+- **Code = short pseudo-code of the event's context**, read live from EVENTS and the projector: the command
+  with its real EVENTS line, `from`/`then`, the entity's properties (keys of the projector's dict literal) and
+  its commands, this one highlighted. Commands are imperative and point to the past-tense event they record.
 - **Every event has Observability, as the right menu's last part** (count here and in the journal, a time
   strip, who), never as a row of the widget list. The Widgets part shows only when the event has a widget
   of its own (Domain.Designed and Domain.Imported have none: Code, JSON, Observability).
@@ -123,11 +129,50 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   will deliver, as a stock `report` (markdown), `list`, `table`, or a cheap dummy widget the
   proposal brings (`EXPECTED_WIDGETS`), always marked "exemplo". Proposing with a dummy
   widget is the preferred way to show intent before anything is built.
-- **The popup has REAL | SIMULADO** (`?mode=sim`). Widgets get `ctx.mode`; actions get
+- **The popup has REAL | SIMULADO** (`?mode=sim`), except for a widget whose root has `data-real-only`
+  (generated from a SKILL.md or code): the toggle hides and `mode` is cleared. Widgets get `ctx.mode`; actions get
   `mode` and `step`. In SIMULADO every button works and plays the experience step by step
   (htmx `load delay` to the next `step`), ending with the expected output as the result and
   the events that would be written; nothing is sent or written. Prototype an action here
   first, and verify buttons in SIMULADO: a REAL click sends work to an agent.
+
+## Design a new domain from a story
+
+When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wants to see it as a domain:
+
+1. Write it in `/tmp/<name>/` (`<name>.py` with EVENTS, the projector and a JSONL journal class; `dev_console_project.py`;
+   `<name>.jsonl` with one example walk), then append the project path to the domain registry: no restart.
+2. **Name events after the story's own actors and verbs** (Task.Explained → Understanding.TaughtBack), not
+   generic document nouns (Brief.Created → Narrative.Generated read as unrelated to the story and were rejected).
+   Look up the literature's term for the practice (teach-back, closed-loop communication) and cite it in the
+   module docstring. **The entity noun must be universal** (home, school, any company): Task, not Demand
+   ("demand" reads as an imposition in English and is Brazilian work slang).
+3. **Start with the fewest events the story needs** (often two); he cuts extra steps (request, clarify, confirm)
+   himself. Branches and loops go in `TRANSITIONS` only when he asks for them.
+4. Each command gets its Portuguese comment (the Description). The example journal mirrors the story with real-
+   sounding content, then give him the URL.
+5. When he asks about a word (etymology, origin), discuss without editing anything.
+6. **When he says it will be a skill**, move it out of `/tmp` into `skills/<name>/` of biliboss/skills:
+   `scripts/<name>.py` + `dev_console_project.py`, a short SKILL.md marked "Design stage"
+   (entity, the events table, the literature's term), CHANGELOG 0.1.0, `.gitignore` (`.sesskey`, `__pycache__/`),
+   the path in `.claude-plugin/plugin.json` and a README line; swap the `/tmp` line in the domain registry for
+   the new path. Leave the `/tmp` folder (deleting is his call). Ship as one PR.
+   **Its events go to a global append-only JSONL**, like tensions: `~/.local/share/<name>/events.jsonl` (override
+   `<NAME>_DIR`), written only by `scripts/<name>.py emit <event> '<json>' [--<entity> <id>] --actor <who>`;
+   no example journal inside the repo. **Name the skill `<entity>-<action>`** (task-understand): one command
+   runs the whole workflow, never one skill per command, and it does not collide with harness built-ins
+   (`/tasks` is Claude Code's). The domain keeps its plural set name (Tasks: `SLUG` tasks, the journal folder)
+   and its console `NAME` says where it lives ("Biliboss Skills - Tasks").
+7. **Then use the skill right away** on his next request (dogfood): record his words verbatim through `emit`,
+   reply with the skill's output (for tasks: the teach-back), and continue only after he confirms.
+8. **"Deixa visível", "tipo o draft", "não é para implementar" = draw only.** Add the new events to `EVENTS`
+   (each with its Portuguese comment, marked "rascunho: só no grafo") and the edges to `TRANSITIONS`; touch no
+   projector, emit or widget. The outlined nodes show what is not built yet. Implementing it unasked was the
+   misread.
+9. **Edges are commands.** When one event is recorded by two commands (score / downscore → Style.Scored), list both
+   in `EVENTS` and name each edge's command in `TRANSITIONS` with a dict target (`{"style.scored": "downscore"}`);
+   one label `score | downscore` on both edges was rejected. An act of the person (confirm) is an edge from the
+   Human: put that event in `INITIAL`, not after the agent's event.
 
 ## Design a widget with the user
 
@@ -147,6 +192,25 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 4. **Connect after he approves**: keep the approved markup, swap the constant for `ctx`
    fields, delete the constant and the footer. Keep the old real-data version as
    `<name>_real` only until the swap.
+- **A domain that is a skill gets a Skill widget** ("<Entity> Skill", e.g. Task Skill) on the event the skill
+  acts on, generated only from the real skill, never from fake data: name and description from the SKILL.md
+  frontmatter, the numbered steps from its own section (`## Explain`), and the **Input as a Cytoscape graph read
+  with `ast` from `scripts/input.py`** (the contract: frozen dataclass value objects plus `check`). A value object
+  that holds others is a compound node; one marked `assembled_by_harness` (Session Context) is dashed and dim.
+  Lay it out with `preset` columns (inputs left, Input, then the event), since it is a flow, not a state machine.
+  The SKILL.md points to `input.py` instead of listing the Input again. Its root carries `data-real-only`, so the
+  popup hides REAL | SIMULADO (nothing to simulate in a widget generated from a real source).
+- **Widgets before the view that holds them.** When he asks for a new tab or view with widgets, build the widgets
+  first on their event (each opens in the popup), let him validate them, and only then add the tab: building the
+  tab first skips the validation he wants. "It's prototype time" = fake data (step 1), even when real data exists.
+- **Every widget starts with a title** for humans (`H2`, what it shows: "Tarefas executadas", "Resultado da
+  execução"), so it reads alone in the popup and composed inside a bigger one.
+- **A list filtered to one state does not repeat that state** on each row (a list of executed tasks shows title
+  and date only).
+- **A detail widget that does not land gets replaced, not patched**: when he names the thing it should represent
+  ("o Task Execution Result, na verdade"), build that widget and swap it into the composing view.
+- **Code has a sibling, the Diff**: when work changes a domain, show the change as a diff of the same pseudo-code
+  the Code part draws (lines kept in grey, removed struck through, added marked; the only colours in it).
 - Taste: greys, one colour per category path, weight and space for hierarchy; enough room to
   read labels (screenshot at the user's width before saying done).
 
@@ -157,14 +221,13 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - What the user corrects about the console becomes a line in this SKILL.md (a rule) or in a
   reference (depth), via `skill-smith`; screenshots go to the conversation, not the repo.
 - Verify a change with the real page: load it, act (click, keys), screenshot, and read the
-  DOM state when a screenshot cannot show it (`window.__cy` is the graph). Then show it on
-  Gabriel's Safari at the exact view (`osascript -e 'tell application "Safari" to set URL of current
-  tab of front window to "…?ev=…&w=…"'`; `do JavaScript` to click or read; `computer_use capture
-  app=Safari` to see it): he reviews there, not in the headless browser.
+  DOM state when a screenshot cannot show it (`window.__cy` is the graph), in the headless browser.
+  Then copy the exact view's URL (`?ev=…&w=…`) with `pbcopy`; he opens it himself.
 - Gabriel steers in short messages while you work: apply each one at once, verify, and ship each
   settled change as its own small PR. Start every PR branch from `origin/main` (`git stash push --
   skills/dev-console; git checkout -B <branch> origin/main; git stash pop`): after a squash merge an
-  old branch conflicts, and `gh-app` refuses force push. Stage only `skills/dev-console` (and the
+  old branch conflicts, and `gh-app` refuses force push (a PR already CONFLICTING: commit, then `git checkout -B
+  <branch>-2 origin/main && git cherry-pick <sha>`, push, close the old PR, open the new one). Stage only `skills/dev-console` (and the
   project files you touched); other sessions leave changes in the same repo.
 
 ## Pitfalls
@@ -175,7 +238,8 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 Depth (numbers, layout, graph, server): [references/console-ui.md](references/console-ui.md).
 
 - Keep Cytoscape node `width` numeric and edges `straight`: `width: 'label'` with bezier edges
-  hid nodes and edges.
+  hid nodes and edges. The one exception is a two-way pair from `TRANSITIONS` (A→B and B→A): class `loop`,
+  `bezier` with a control-point step, or the two straight edges lie on top of each other.
 - Guard `cy.resize()` by the real box size: resizing on every ResizeObserver tick flickers.
 - Keep the SSE stream and the live-reload socket from blocking a restart: the server shuts
   down with a 1 s grace.
@@ -185,6 +249,11 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   `hx-*` buttons (`inject` re-creates scripts and calls `htmx.process`).
 - A project-file constant the console reads (`HOME`, `ACTIONS`, `EXPECTED_WIDGETS`) must have
   exactly that name; check `D.home` / the route after adding one, a typo fails silently.
+- Per-event model data the sidebar reads (`coverage`, `descriptions`) lives on `M()` (the model payload),
+  not on `D`: reading `D.x` silently shows the empty fallback.
+- Read an entity's optional fields with `.get` in console code (`status`, `updated_at`, `event_count`):
+  a new domain's projector does not have them and the page 500s. Read the server log in the services pane
+  (`~/.local/state/dev-console.log`) on any 500 before guessing.
 - Keep `.sesskey` out of git: FastHTML writes its session secret next to the script it runs.
 - Lay out an embed with CSS keyed on `html[data-embed=…]`, set before `show()`: `show()` re-renders
   `#main`, so JS that hides or resizes elements first is lost or hits the wrong node.

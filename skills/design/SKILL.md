@@ -72,6 +72,14 @@ No motor: abra a Web (`web_abrir`), fique em `chat_aguardar`, conte cada passo c
 - **Imagem com `loading="lazy"` não decodifica fora da tela:** tire o `loading` antes do `decode()`, ou a espera não volta.
 - **Dado do exemplo não é slot:** o que vem do dado (um mapa desenhado, a quantidade de pontinhos de uma galeria, um `disabled`) fica como no exemplo; se a tela precisa mudar isso, é um slot novo na receita.
 
+## Mexer no próprio design-playground (o código do MCP e da Web)
+
+1. **Trabalhe num worktree a partir do `origin/main`** (`git worktree add -b <ramo> <pasta> origin/main`): o checkout principal costuma ter edições de outras sessões, e um commit nele leva junto o que não é seu.
+2. **Teste sem abrir janela:** `cd $DP_DIR && ABRIR_WEB=0 bun test`. Sem o `ABRIR_WEB=0`, cada teste abre o navegador na tela do Gabriel.
+3. **O repo de skills é público.** O que entra no código do MCP é genérico: os ids nos testes e nos exemplos são de produto inventado (`loja/…`, `acme/…`), sem nome de cliente, sem nome de repo privado em `fonte.repo`, sem `dados/` (a conversa e o canvas) nem raspador de produto. Antes do commit, procure os nomes de produto e os caminhos `/Users/…`. Atenção: o `componente_listar` ordena por id, então trocar o prefixo de um id de teste muda a ordem esperada no teste.
+4. **Com subagentes em paralelo, divida por arquivo:** cada um cria um módulo puro novo (com o próprio arquivo de teste) e não toca no de outro; um último subagente faz a integração (`componentes.ts`, `ferramentas.ts`, CONTRATO.md, esta SKILL.md). Nenhum deles faz commit: quem conduz roda o `bun test` inteiro e commita uma vez só. Assim ninguém pisa no `componentes.ts` de outro.
+5. **Ao absorver um código de outro repo, use o `git archive` do `origin/main`** (`git archive <remoto>/main <pasta> | tar -x -C <destino> --strip-components=N`), não o checkout: a cópia sai igual à do remoto, sem arquivos locais soltos.
+
 ## Os produtos
 
 Cada produto é uma pasta em `$DESIGN_PRODUTOS` (fora deste repo, porque copia o código do produto): `ls "$DESIGN_PRODUTOS"`. Produto novo: [references/produto.md](references/produto.md).

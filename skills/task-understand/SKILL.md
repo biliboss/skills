@@ -88,7 +88,9 @@ shows which kinds of task each model does well and with what quality.
 4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
    ("segue", "develop it") counts as the confirmation.
 5. A reply that is not a confirmation is an adjustment: record it as a learning (`learning.recorded`, a value
-   event, their words verbatim), repeat back again, and wait for the confirmation.
+   event, their words verbatim), repeat back again, and wait for the confirmation. A reply with no words in it (a
+   stray `\`, an empty row) is neither: record nothing, re-ask in one line with the repetition in two bullets and the
+   words that move it ("segue", "paralelo"), because a noise learning would be reused on later tasks.
 6. Before repeating back, look for the learnings that apply and use them: `uv run --script scripts/tasks.py
    use-learnings --task <id>` records `learning.used` (a value event) with the learnings recorded on this task, or on
    another that shares two or more words with it, and prints them; apply what it prints. Nothing applies, nothing is
@@ -114,10 +116,21 @@ with its repetition (`--task <id>`, `--actor <the agent>`), and answers with tha
 before it starts.
 
 - Put the emits in a small `.sh` in the scratch folder and run it: the person's verbatim words carry quotes and
-  accents that break an inline JSON argument. Capture the `task_id` from the first emit's output for the rest.
-- Keep the teach-back, in the person's language, to short blocks or a numbered list (never a run-on paragraph), a
-  blank line, and the question alone on the last line ("Bate?"); a follow-up that only adjusts (a new detail,
-  "mais ou menos…") is a `learning.recorded` on the same task, applied at once, not a new task.
+  accents that break an inline JSON argument. Build each value with `jq -n --arg` and capture the `task_id` from the
+  first emit's output for the rest. Every value needs a `text` key (the verbatim words or the repetition):
+  `task.explained` is `{"title", "text", "to", "domain"}`, `understanding.taught_back` is `{"text", "style"}`,
+  `learning.recorded` and `understanding.confirmed` are `{"text"}`; any other key name (`explanation`) is refused.
+- When the task moves cards on a team's board (the Mukutu Project #11, a client's board), read the cards first
+  and say in the teach-back who moves each one: the team may move its own cards, and the agent then only does
+  what is left (often creating the new card).
+- Write the teach-back in the person's language as short blocks or a numbered list, never one run-on
+  paragraph, then a blank line and the question alone on the last line ("Bate?"); he reads it inside the ask tool,
+  where a dense paragraph is unreadable. A follow-up that only adjusts (a new detail, "mais ou menos…") is a `learning.recorded` on the same task,
+  applied at once, not a new task.
+- **A draft is the drawing in the dev-console, not a PR.** "Rascunho" means the graph that shows: edit `EVENTS` and
+  `TRANSITIONS` in the source the running console reads (the main clone, `scripts/tasks.py`), and the Domain tab
+  redraws. Run `git status` there first: a dirty clone (another session's uncommitted edits) gets cleaned up before
+  the draft goes in. The design stage is only design: no worktree, no PR, no merge, no tests and no delegating.
 - Record `task.executed` honestly: `--actor` is whoever did the work (the agent itself when it worked by hand,
   the executor when `execute` ran it).
 - When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
