@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - 2026-11-05
+
+### Changed
+
+- The description leads with the trigger, "Use when a work request arrives", and says what stays out (a quick
+  question, a one-line command, a timer), so it can route without a line in the profile.
+
+### Added
+
+- `references/evals.md`: five routing evals to run in fresh sessions (Hermes, or pi on Haiku/Sonnet), with the
+  first results.
+
 ## [0.12.0] - 2026-11-05
 
 ### Added

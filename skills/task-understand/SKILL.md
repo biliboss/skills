@@ -1,13 +1,15 @@
 ---
 name: task-understand
 description: >-
-  One command, /task-understand, runs the whole workflow of the Tasks domain (design stage). A Task is explained to someone, and at the end that person repeats it back the way they
-  understood it (teach-back), so the gap between what was meant and what was understood shows before the
-  work starts. Use when the user says "task-understand", "teach-back", "repete do jeito que entendeu", "explica a
-  tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
-  the Linear (the team's board).
+  Use when a work request arrives; repeat it back, get it confirmed, then do it. Any piece of work someone asks
+  for (more than about 2 minutes, code, delegating, a team's board) is repeated back the way it was understood
+  (teach-back) and confirmed before it starts, so the gap between what was meant and what was understood shows
+  first. Not for a quick question, a one-line command or a timer; do those directly. Runs the whole workflow of
+  the Tasks domain (design stage); also when the user says "task-understand", "teach-back", "repete do jeito que
+  entendeu", "explica a tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired
+  reality) and not the Linear (the team's board).
 metadata:
-  version: 0.12.0
+  version: 0.12.1
 ---
 
 # task-understand
@@ -29,6 +31,8 @@ assignment at school, a ticket in a software team).
 
 The practice is **teach-back** (health literacy: "explain it back in your own words"); the loop it closes is
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
+
+Routing evals for the description (run after any change to it): [references/evals.md](references/evals.md).
 
 ## Styles
 
