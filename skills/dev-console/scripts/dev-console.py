@@ -399,6 +399,9 @@ html,body{height:100%;overflow:hidden}
 /* ?embed=side: the right menu alone, full width (RightMenu widget) */
 html[data-embed=side] #graph-col, html[data-embed=side] #ev-close { display: none !important; }
 html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
+/* ?embed=toolbar: the real tab bar alone (Toolbar widget) */
+html[data-embed=toolbar] #bar ~ * { display: none !important; }
+html[data-embed=toolbar] #bar { border-bottom: 0; }
 .tab.on{color:rgb(23 23 23);border-color:rgb(23 23 23)} .dark .tab.on{color:rgb(245 245 245);border-color:rgb(245 245 245)}
 .rec.sel{background:rgb(229 229 229)} .dark .rec.sel{background:rgb(38 38 38)}
 .mermaid svg{max-width:100%}
@@ -733,11 +736,11 @@ const nf = t => ICON[t] ? `<i class="nf">${ICON[t]}</i>` : '';
 const keyed = t => { const k = KEYS[t]; if (!k) return t; const i = t.toLowerCase().indexOf(k);
   return i < 0 ? t : `${t.slice(0, i)}<span class="underline underline-offset-4">${t[i]}</span>${t.slice(i + 1)}`; };
 let tab = Q.get('tab') || (location.hash ? decodeURIComponent(location.hash.slice(1)) : 'Domain');
-if (!(tab in TABS)) tab = 'Domain';
+if (!(tab in TABS) || !D.tabs.includes(tab)) tab = 'Domain';
 function show(name) {
   if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); side.id = null; }
   tab = name; setQ('tab', name === 'Domain' ? '' : name);
-  $('tabs').innerHTML = Object.keys(TABS).map((t, i) =>
+  $('tabs').innerHTML = Object.keys(TABS).filter(t => D.tabs.includes(t)).map((t, i) =>
     `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${nf(t)}${keyed(t)}${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
   $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.t));
   const wide = GRAPH(tab);
@@ -760,7 +763,7 @@ document.addEventListener('keydown', e => {
   if (pending) {
     clearTimeout(pending); pending = null; $('keyhint').textContent = '';
     const t = Object.keys(KEYS).find(name => KEYS[name] === e.key);
-    if (t && t in TABS) { show(t); e.preventDefault(); }
+    if (t && t in TABS && D.tabs.includes(t)) { show(t); e.preventDefault(); }
     return;
   }
   if (e.key === 'g') { $('keyhint').textContent = 'g…'; pending = setTimeout(() => { pending = null; $('keyhint').textContent = ''; }, 1200); return; }
@@ -768,7 +771,8 @@ document.addEventListener('keydown', e => {
   if (popOpen()) return;
 });
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
-if (Q.get('embed')) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
+if (Q.get('embed') && Q.get('embed') !== 'toolbar') $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
+if (Q.get('embed') === 'toolbar' && Q.get('sim_tab')) D.tabs.push(Q.get('sim_tab'));  // SIMULADO: an example tab, nothing recorded
 show(tab);
 if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');  // CSS hides what an embed leaves out
 if (GRAPH(tab) && Q.get('ev')) {
@@ -892,7 +896,8 @@ def tension(slug: str, tid: str):
     journal_types: dict[str, int] = {}
     for e in journal.read({"history": True}):
         journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
-    payload = json.dumps({"base": base, "name": PROJECT.NAME, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
+    tabs = ["Domain", *[t for t in getattr(PROJECT, "TABS", []) if t != "Domain"]]  # Domain is fixed; TABS is the context's
+    payload = json.dumps({"base": base, "name": PROJECT.NAME, "tabs": tabs, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
