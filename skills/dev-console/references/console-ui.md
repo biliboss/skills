@@ -58,7 +58,7 @@ why and the numbers, read when changing a part of the screen.
 ## State in the URL
 
 `?tab=&ev=&side=&w=&e=` via `history.replaceState`; restore on load in order: tab,
-sidebar (`ev`), its tab (`side`), the widget popup (`w`). Switching tab or closing the
+sidebar (`ev`), the widget popup (`w`). Switching tab or closing the
 sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
 
 ## Sidebar and widgets

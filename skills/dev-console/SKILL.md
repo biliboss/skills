@@ -89,7 +89,7 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   It is drawn from the project's `EVENTS` registry read live with `ast` (no language server):
   never hand-write a node or an edge in the console.
 - **Filled node** = the journal has at least one event of that type; **outline** = none yet.
-- **Click a node** = a contextual sidebar with its own tabs: Widgets (the list, each with
+- **Click a node** = a contextual sidebar of expandable parts (open at first, closed ones remembered per node): Widgets (the list, each with
   `abrir`, which opens the widget in a centred popup), Code (pseudo-code of the event's context: the
   command, from/then, the entity it changes; also a widget, `Code`, on Domain.Updated) and JSON. No global code toggle: detail belongs to the thing clicked.
 - **Code on screen = signatures only**, from the real file, live, with real line numbers;
