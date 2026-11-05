@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.8.0
+  version: 0.9.0
 ---
 
 # task-understand
@@ -56,9 +56,14 @@ assembled by the harness). Change the Input there, never here; check a recorded 
    (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab.
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`), and ask for the
    confirmation with the harness's ask tool whenever it has one (Hermes `clarify`, Claude Code `AskUserQuestion`,
-   pi's question tool): the repetition is the question and the choices are **Bate, pode seguir** (confirm),
-   **Não ficou bom** (feedback, step 7) and the tool's own free-text row for an adjustment (step 5). The three options
-   of step 7 are asked the same way, one choice per style. Plain text only where the harness has no ask tool.
+   pi's question tool): the repetition is the question and the choices are, in this order:
+   1. **Confirmar e implementar (<method>)**: confirm and execute at once (step 9), naming the method in the label,
+      the configured default (Claude Code on mukutu with Sonnet) or the better choice for this task (by hand, a
+      Hermes subagent) when there is one; the recommended choice, first.
+   2. **Só confirmar**: record `understanding.confirmed` and wait for a word to execute.
+   3. **Não ficou bom**: feedback (step 7).
+   The tool's own free-text row is an adjustment (step 5). The three options of step 7 are asked the same way, one
+   choice per style. Plain text only where the harness has no ask tool.
 4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
    ("segue", "develop it") counts as the confirmation.
 5. A reply that is not a confirmation is an adjustment: record it as a learning (`learning.recorded`, a value

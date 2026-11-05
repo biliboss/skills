@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.14.0] - 2026-11-05
+
+### Changed
+
+- `task-understand` 0.9.0: the confirmation asks Confirm and implement (with the method), Just confirm, or Not good.
+
 ## [0.13.0] - 2026-11-05
 
 ### Fixed
