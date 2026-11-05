@@ -50,8 +50,8 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 ## The screen, and the rules it follows
 
 - **Follow the template; never invent a screen.** Any new tab, graph or panel reuses what the
-  console has: `TABS` + `KEYS`, `drawGraph` (Human, rays per category, filled/outlined nodes),
-  the contextual sidebar (Widgets | Code | JSON | Observability), the popup with REAL | SIMULADO, state in the
+  console has: `TABS` + `KEYS`, `drawGraph` (fCoSE, Human pinned in the centre, filled/outlined nodes),
+  the contextual sidebar (expandable parts: Widgets, Code, JSON, Observability), the popup with REAL | SIMULADO, state in the
   query. A Mermaid diagram or a second Cytoscape function with its own layout was rejected twice.
 - **Tabs are the first element**; each has a vim-style goto (`g` then the underlined letter:
   `g d` Domain, `g m` Model). Colours for unknown categories come from a fixed palette by
@@ -70,11 +70,20 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   "view"/"screen"/"menu" of this domain he means **the console's own screen**, embedded as a
   widget, not a new design: DomainView (the Domain tab, `?embed=1`), StateGraph (graph alone,
   `?embed=graph`), RightMenu (the event sidebar alone, `?embed=side&ev=…`), each an `Iframe` with
-  `fn.fake = True`, registered on **both** starts (Domain.Designed and Domain.Imported). An embed
-  never shows the tab bar.
-- **Name events simply.** Prefer plain lifecycle verbs (Widget Created, Widget Updated) over
-  invented process steps (designed/approved/connected). A configuration value (the home widget)
-  is not an event: it rides in the value of the event that records the thing (Domain.Imported).
+  `fn.fake = True`, plus Code (`?embed=code`), Toolbar (`?embed=toolbar`, the real tab bar) and
+  WidgetList. A domain's widgets hang on **Domain.Updated only**: the starts (Designed,
+  Imported) have none. An embed never shows the tab bar (except Toolbar, which is the bar).
+- **Design events small** (rules in skill `design-taste`, Domain design): one `Updated` per element
+  for create, change and delete; every start leads to one hub (`HUB`); a configuration value (the
+  home widget) rides in an event's value, never as its own event; keep out of the domain what
+  belongs to a widget (Action was cut). Fix a prototype fact by editing the JSONL, not with code.
+- **Composable, always.** A widget that shows something the console already draws composes that
+  component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
+  every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
+- **Tabs per domain.** Domain is the one fixed tab; a project lists the rest in `TABS` (absent =
+  Domain only). Tension-shaped tabs live only in the tensions project's `TABS`.
+- **A list row opens on click, Enter or Space** (tabindex 0, aria-label, the button stays), with the
+  same gray look: never `role="button"` on a row, Pico paints it as a blue centred button.
 - **Model** is the state machine (UML statechart vocabulary): **Human** is the initial
   pseudostate (ISO 9241-210, human-centred design), each edge is a command, each node an event.
   It is drawn from the project's `EVENTS` registry read live with `ast` (no language server):
@@ -86,8 +95,8 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **Code on screen = signatures only**, from the real file, live, with real line numbers;
   the entity's properties are the keys of the projector's dict literal; commands are
   imperative and point to the past-tense event they record.
-- **Every event has Observability, as the right menu's last tab** (count here and in the journal, a time
-  strip, who), never as a row of the widget list. The Widgets tab shows only when the event has a widget
+- **Every event has Observability, as the right menu's last part** (count here and in the journal, a time
+  strip, who), never as a row of the widget list. The Widgets part shows only when the event has a widget
   of its own (Domain.Designed and Domain.Imported have none: Code, JSON, Observability).
 - **A widget shows only what the model has.** Design it from the event's real value (an
   Observation is a sentence, where, when, who; it has no state, no group, no "resolved"):
@@ -148,7 +157,15 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - What the user corrects about the console becomes a line in this SKILL.md (a rule) or in a
   reference (depth), via `skill-smith`; screenshots go to the conversation, not the repo.
 - Verify a change with the real page: load it, act (click, keys), screenshot, and read the
-  DOM state when a screenshot cannot show it (`window.__cy` is the graph).
+  DOM state when a screenshot cannot show it (`window.__cy` is the graph). Then show it on
+  Gabriel's Safari at the exact view (`osascript -e 'tell application "Safari" to set URL of current
+  tab of front window to "…?ev=…&w=…"'`; `do JavaScript` to click or read; `computer_use capture
+  app=Safari` to see it): he reviews there, not in the headless browser.
+- Gabriel steers in short messages while you work: apply each one at once, verify, and ship each
+  settled change as its own small PR. Start every PR branch from `origin/main` (`git stash push --
+  skills/dev-console; git checkout -B <branch> origin/main; git stash pop`): after a squash merge an
+  old branch conflicts, and `gh-app` refuses force push. Stage only `skills/dev-console` (and the
+  project files you touched); other sessions leave changes in the same repo.
 
 ## Pitfalls
 
@@ -179,5 +196,5 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
 - The user iterates fast on the look: one change, screenshot at his width (~1000 px, dark
   mode), short report; spacing moves by small steps (too tight and too loose both get
   rejected).
-- The tabs other than Model and Eventos still read Tension-shaped events (proposals, linked
-  items); a project without them sees them empty. Moving them into the project file is next.
+- The Tension-shaped tabs (Proposed Actions, Observations, …) are still console code; only the
+  tensions project lists them in `TABS`. Moving their markup into the project file is next.
