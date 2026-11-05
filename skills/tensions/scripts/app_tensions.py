@@ -23,6 +23,7 @@ EVENTS = {
     "relationship": {"link": "linked", "unlink": "unlinked"},
     "action": {"propose": "proposed", "start": "started", "complete": "completed"},
 }
+AUDIENCES = {"human", "agent"}
 # Lines written by v0.1 stay readable: their old names project like the current ones.
 LEGACY = {"management.redefined": "management.updated"}
 
@@ -46,6 +47,10 @@ class Tensions:
             raise ValueError(f"Unknown event: {event}")
         if not isinstance(value, dict) or not value:
             raise ValueError("Value must be a non-empty JSON object")
+        # Who an Observation is written for: "human" (a plain sentence a person reads in the console)
+        # or "agent" (a fact for machines: ids, states, raw numbers). Absent means "agent".
+        if category == "observation" and value.get("audience", "agent") not in AUDIENCES:
+            raise ValueError(f"Observation audience must be one of {sorted(AUDIENCES)}")
         if category == "management" and verb == "created":
             tension_id = tension_id or str(uuid4())
             if not {"actual", "desired"} <= value.keys():

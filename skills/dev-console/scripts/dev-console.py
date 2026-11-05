@@ -4,12 +4,14 @@
 # ///
 """dev-console: a read-only, full-screen console for an event-sourced project in development (FastHTML + MonsterUI).
 
-Run:  uv run --script dev-console.py --project <path/to/dev_console_project.py> [--port 5057]
+Run:  uv run --script dev-console.py --project <a/dev_console_project.py> [--project <b/...>] [--port 5057]
+Each project file is one domain, served in its own context at /domain/<slug> (SLUG, else the skill folder name).
 A project file says what to show (see the skill's references/project-contract.md):
   NAME, SOURCE (file with the EVENTS registry {category: {command: event}}), ENTITY, ENTITY_PLURAL,
   ENTITIES ({category: entity name}), PROJECTOR (the fold function), journal (.read(query)), title_of(), WIDGETS.
-Layout: tabs first; the entity rail on the left; the selected record on the right. Model = the state machine.
-Keys (vim-style goto): g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
+Layout: tabs first; the entity rail on the left; the selected record on the right. Domain (first tab) = the
+domain model (DDD: aggregate root, entities, commands, events); Model = the state machine.
+Keys (vim-style goto): g d Domain, g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
 g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. All UI state lives in the query.
 """
 from __future__ import annotations
@@ -36,37 +38,76 @@ def load_project(path: str):
     return mod
 
 
-if "--project" in sys.argv:  # the module body needs the project, so read the flag before argparse runs
-    os.environ["DEV_CONSOLE_PROJECT"] = str(Path(sys.argv[sys.argv.index("--project") + 1]).expanduser().resolve())
+if "--project" in sys.argv:  # the module body needs the projects, so read the flags before argparse runs
+    os.environ["DEV_CONSOLE_PROJECT"] = os.pathsep.join(
+        str(Path(sys.argv[i + 1]).expanduser().resolve()) for i, a in enumerate(sys.argv) if a == "--project")
 if not os.environ.get("DEV_CONSOLE_PROJECT"):
     sys.exit("dev-console: pass --project <path/to/dev_console_project.py> (or set DEV_CONSOLE_PROJECT)")
-PROJECT = load_project(os.environ["DEV_CONSOLE_PROJECT"])
-from fasthtml.common import Div, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+
+# One domain per project file, each in its own context: /domain/<slug>. A request sets the current domain
+# (use(slug)); PROJECT, journal and SOURCE below always read the current one.
+from contextvars import ContextVar  # noqa: E402
+
+DOMAINS: dict = {}
+for _path in os.environ["DEV_CONSOLE_PROJECT"].split(os.pathsep):
+    _mod = load_project(_path)
+    _slug = getattr(_mod, "SLUG", None) or Path(_path).resolve().parent.parent.name
+    _mod.SLUG, _mod.BASE = _slug, f"/domain/{_slug}"  # BASE: the domain's URL prefix (actions build links with it)
+    DOMAINS[_slug] = _mod
+CURRENT: ContextVar = ContextVar("domain", default=next(iter(DOMAINS.values())))
+
+
+def use(slug: str):
+    """Make <slug> the current domain for this request; None if there is no such domain."""
+    mod = DOMAINS.get(slug)
+    if mod is not None:
+        CURRENT.set(mod)
+    return mod
+
+
+class _Live:
+    """A name that always reads from the current domain (PROJECT, journal, SOURCE)."""
+
+    def __init__(self, get):
+        object.__setattr__(self, "_get", get)
+
+    def __getattr__(self, name):
+        return getattr(self._get(), name)
+
+
+PROJECT = _Live(CURRENT.get)
+from fasthtml.common import A, Div, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
 app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=True)  # live: the browser reloads on save
-journal = PROJECT.journal
+journal = _Live(lambda: CURRENT.get().journal)
 
 # The real code, read from disk on every request and pushed again when the file changes.
-SOURCE = Path(PROJECT.SOURCE)
+SOURCE = _Live(lambda: Path(CURRENT.get().SOURCE))
 
 
-def derive(events: dict) -> dict:
+def derive(events: dict, initial: list[str] | None = None) -> dict:
     """Everything the screen shows comes from EVENTS ({category: {command: event}}, ordered):
     the categories and their events, the commands, and the graph edges (created opens every other
     category; inside a category each event follows the previous one)."""
     lifecycle = {c: list(cmds.values()) for c, cmds in events.items()}
     commands = {f"{c}.{ev}": cmd for c, cmds in events.items() for cmd, ev in cmds.items()}
     root = next(f"{c}.{evs[0]}" for c, evs in lifecycle.items())
+    # INITIAL (optional, in the project file): the events the Human may start with; the first is the root, the others
+    # are alternative starts that lead to the same next step (e.g. Domain.Designed or Domain.Imported).
+    initial = [e for e in (initial or [root]) if e in commands] or [root]
+    root = initial[0]
     nxt: dict[str, list[str]] = {}
     for c, evs in lifecycle.items():
-        chain = [f"{c}.{ev}" for ev in evs]
+        chain = [f"{c}.{ev}" for ev in evs if f"{c}.{ev}" not in initial[1:]]
         if chain[0] != root:
             nxt.setdefault(root, []).append(chain[0])
         for x, y in zip(chain, chain[1:]):
             nxt.setdefault(x, []).append(y)
-    return {"lifecycle": lifecycle, "commands": commands, "next": nxt, "root": root}
+    for alt in initial[1:]:  # an alternative start joins the root's own next step
+        nxt[alt] = [n for n in nxt.get(root, []) if n.split(".")[0] == root.split(".")[0]][:1]
+    return {"lifecycle": lifecycle, "commands": commands, "next": nxt, "root": root, "initial": initial}
 
 
 def live_events() -> dict:
@@ -89,6 +130,7 @@ def real_model() -> dict:
 
     tree = ast.parse(SOURCE.read_text())
     lines: list[dict] = []
+    props: list[str] = []
 
     def sig(f: ast.FunctionDef | ast.AsyncFunctionDef, indent: str) -> None:
         for d in f.decorator_list:
@@ -108,17 +150,18 @@ def real_model() -> dict:
                     lines.append({"line": a.lineno, "code": f"class {PROJECT.ENTITY}:  # projected by {PROJECT.PROJECTOR}"})
                     src = SOURCE.read_text().splitlines()
                     for k, v in zip(a.value.keys, a.value.values):
+                        props.append(ast.literal_eval(k))
                         # ast drops comments: take the comment line right above the key, if any
                         above = src[k.lineno - 2].strip() if k.lineno >= 2 else ""
                         note = f"  {above}" if above.startswith("#") else ""
                         lines.append({"line": k.lineno, "code": f"    {ast.literal_eval(k)} = {ast.unparse(v)}{note}"})
                     # Commands by category, straight from EVENTS: each command records one event.
-                    model = derive(live_events())
+                    model = derive(live_events(), getattr(PROJECT, "INITIAL", None))
                     for cat, cmds in live_events().items():
                         lines.append({"line": None, "code": ""})
                         lines.append({"line": None, "code": f"    # {cat}"})
                         for cmd, ev in cmds.items():
-                            if f"{cat}.{ev}" == model["root"]:
+                            if f"{cat}.{ev}" in model["initial"]:
                                 lines.append({"line": None, "code": "    @staticmethod"})
                             lines.append({"line": None, "code": f"    def {cmd}(value): ...  # -> {cat}.{ev}"})
                     lines.append({"line": None, "code": ""})
@@ -138,8 +181,58 @@ def real_model() -> dict:
             lines.append({"line": None, "code": ""})
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig(node, "")
-    return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines,
-            "coverage": W.coverage(live_events()), **derive(live_events())}
+    return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
+            "coverage": W.coverage(live_events()), **derive(live_events(), getattr(PROJECT, "INITIAL", None))}
+
+
+# --- the domain draft: dummy code the user edits ------------------------------------------------------------------
+# <SOURCE stem>_draft.py next to SOURCE (or PROJECT.DOMAIN_DRAFT). Generated once from EVENTS and the projector when it
+# does not exist, never overwritten: classes with fields and command stubs, no implementation. The base class is the
+# DDD stereotype (AggregateRoot, Entity, ValueObject, DomainEvent).
+DDD_BASES = ("AggregateRoot", "Entity", "ValueObject", "DomainEvent")
+
+
+def draft_path(mod=None) -> Path:
+    mod = mod or CURRENT.get()
+    src = Path(mod.SOURCE)
+    return Path(getattr(mod, "DOMAIN_DRAFT", None) or src.with_name(f"{src.stem}_draft.py"))
+
+
+def _pascal(w: str) -> str:
+    return "".join(x.capitalize() for x in w.split("_"))
+
+
+def write_draft(mod) -> None:
+    """Write the dummy draft for a domain if it does not exist (the user's edits always win)."""
+    path = draft_path(mod)
+    if path.exists():
+        return
+    token = CURRENT.set(mod)
+    try:
+        events, props = live_events(), real_model()["props"]
+    finally:
+        CURRENT.reset(token)
+    if not events:
+        return
+    ents = getattr(mod, "ENTITIES", {})
+    cats = list(events)
+    name = lambda c: ents.get(c) or _pascal(c)  # noqa: E731
+    out = [f'"""{mod.NAME}: domain draft. Dummy code, no implementation: edit it, the dev-console Domain tab redraws.',
+           "",
+           "Base class = DDD stereotype (Evans, 2003). A field typed with another class is a relation.",
+           '"""', "from __future__ import annotations", "", "",
+           *[f"class {b}: ...\n\n" for b in DDD_BASES]]
+    root = cats[0]
+    out += [f"class {name(root)}(AggregateRoot):", f'    """{name(root)}: the aggregate root of {mod.NAME}."""', ""]
+    rel = {f"{c}s": name(c) for c in cats[1:]}  # the root holds a list of each other category's entity
+    out += [f"    {p}: list[{rel[p]}]" if p in rel else f"    {p}: Any" for p in props]
+    out += [f"    {p}: list[{e}]" for p, e in rel.items() if p not in props]
+    out += [""] + [f"    def {cmd}(self) -> {_pascal(root)}{_pascal(ev)}: ..." for cmd, ev in events[root].items()]
+    for c in cats[1:]:
+        out += ["", "", f"class {name(c)}(Entity):", f'    """{name(c)}: held by {name(root)}."""', ""]
+        out += [f"    def {cmd}(self) -> {_pascal(c)}{_pascal(ev)}: ..." for cmd, ev in events[c].items()]
+    path.write_text("\n".join(out).replace("from __future__ import annotations",
+                    "from __future__ import annotations\n\nfrom typing import Any") + "\n")
 
 
 # --- widgets: the contract ------------------------------------------------------------------------------
@@ -156,6 +249,61 @@ class EventContext:
     state: dict                 # the projected entity
     journal_events: list[dict]  # this type across the whole journal
     entities: list[dict]        # every projected entity, with "title"
+    history: tuple = ()         # every event of the entity, oldest first
+    mode: str = "real"          # "real" or "sim": in sim, actions only play what would happen
+
+    def expected(self, spec: dict | None):
+        """Render what a proposal expects at the end (see render_expected)."""
+        return render_expected(spec)
+
+    def of(self, event: str) -> "EventContext":
+        """The same entity seen through another event: lets one widget embed another (composition)."""
+        from dataclasses import replace
+
+        evs = [e for e in self.history if e["event"] == event]
+        return replace(self, event=event, events=evs, focus=evs[0] if evs else None,
+                       journal_events=journal.read({"event": event}))
+
+
+# --- expected output: stock components a proposal can use to show what it will deliver -----------------
+# spec = {"kind": "report", "data": "<markdown>"} | {"kind": "list", "data": ["…"]}
+#      | {"kind": "table", "data": {"columns": [...], "rows": [[...]]}} | {"kind": "widget", "name": "...", "data": {...}}
+# A "widget" kind is a dummy view the proposal brings (PROJECT.EXPECTED_WIDGETS[name](data)): cheap to propose,
+# real only when the work is done. Every expected block says it is an example.
+
+def render_expected(spec: dict | None):
+    if not spec:
+        return None
+    kind, data = spec.get("kind"), spec.get("data")
+    if kind == "report":
+        from monsterui.all import render_md
+        body = Div(NotStr(render_md(data or "")), cls="font-sans text-sm leading-6 [&_p]:my-1 [&_strong]:font-semibold")
+    elif kind == "list":
+        body = Ul(*[Li(x, cls="py-0.5 font-sans text-sm") for x in data or []], cls="list-disc pl-5")
+    elif kind == "table":
+        cols, rows = (data or {}).get("columns", []), (data or {}).get("rows", [])
+        body = NotStr("<table class='w-full text-left'><thead><tr>"
+                      + "".join(f"<th class='py-1 pr-3 font-medium text-neutral-500'>{c}</th>" for c in cols)
+                      + "</tr></thead><tbody>"
+                      + "".join("<tr class='border-t border-neutral-200 dark:border-neutral-800'>"
+                                + "".join(f"<td class='py-1 pr-3 font-sans'>{v}</td>" for v in r) + "</tr>" for r in rows)
+                      + "</tbody></table>")
+    elif kind == "widget":
+        fn = getattr(PROJECT, "EXPECTED_WIDGETS", {}).get(spec.get("name", ""))
+        body = fn(data or {}) if fn else _empty(f"widget {spec.get('name')} ainda não existe no projeto")
+    else:
+        body = _empty(f"tipo de saída {kind!r} desconhecido")
+    label = spec.get("title") or {"report": "relatório", "list": "lista", "table": "tabela"}.get(kind, spec.get("name", ""))
+    return Div(
+        Div(Span(spec.get("heading", "Esperado no final"), cls="font-semibold text-neutral-600 dark:text-neutral-300"),
+            Span(label if spec.get("heading") else f"{label} · exemplo", cls="text-neutral-400"), cls="flex justify-between gap-3"),
+        Div(body, cls="mt-2 text-neutral-700 dark:text-neutral-300"),
+        cls="mt-3 rounded border border-dashed border-neutral-300 dark:border-neutral-700 px-3 py-2.5",
+    )
+
+
+for _mod in DOMAINS.values():
+    _mod.render_expected = render_expected  # actions may render an expected spec too
 
 
 def widget_name(fn) -> str:
@@ -202,7 +350,7 @@ def available(event: str) -> list[tuple[str, str]]:
 
 def render_list(ctx: EventContext):
     f = ctx.focus
-    head = (P(f"dados reais: {f['id'][:8]} · {_when(f['at'])} · {PROJECT.ENTITY.lower()} {f[ENTITY_KEY][:8]}",
+    head = (P(f"dados reais: {f['id'][:8]} · {_when(f['at'])} · {PROJECT.ENTITY.lower()} {f[entity_key()][:8]}",
               cls="px-4 pt-3 text-neutral-400") if f else P(f"nenhum {ctx.event} no diário ainda", cls="px-4 pt-3 text-neutral-400"))
     return Div(head, Ul(*[
         Li(Div(P(name, cls="font-semibold text-neutral-800 dark:text-neutral-200"),
@@ -215,11 +363,13 @@ def render_list(ctx: EventContext):
 
 
 def render_one(ctx: EventContext, name: str):
+    fn = next((f for f in _widgets(ctx.event) if widget_name(f) == name), None)
+    if fn is not None and getattr(fn, "fake", False):  # the design step: fake data before the connection
+        return fn(ctx)
     if ctx.focus is None and name != "Observability":
         return _empty(f"Nenhum evento {ctx.event} no diário ainda: o widget só renderiza dados reais.")
     if name == "Observability":
         return observability(ctx)
-    fn = next((f for f in _widgets(ctx.event) if widget_name(f) == name), None)
     return fn(ctx) if fn else _empty(f"Widget {name} não está registrado para {ctx.event}.")
 
 
@@ -229,10 +379,17 @@ def coverage(events_by_category: dict) -> dict[str, list[str]]:
 
 
 W = SimpleNamespace(EventContext=EventContext, render_list=render_list, render_one=render_one, coverage=coverage)
-ENTITY_KEY = getattr(PROJECT, "ENTITY_KEY", "tension_id")  # the journal field that names the entity
+for _mod in DOMAINS.values():
+    write_draft(_mod)  # once: the dummy domain draft, if the domain has none yet
+def entity_key() -> str:
+    """The journal field that names the entity, in the current domain."""
+    return getattr(PROJECT, "ENTITY_KEY", "tension_id")
 
 
 CSS = """
+#pop-body.sim { background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(127,127,127,.06) 14px 15px); }
+#pop-body.sim::before { content: "SIMULADO · os botões funcionam, nada é gravado nem enviado"; display: block; margin-bottom: 14px; font-size: 11px; letter-spacing: .12em; color: #8a8a8a; }
+
 html,body{height:100%;overflow:hidden}
 .tab.on{color:rgb(23 23 23);border-color:rgb(23 23 23)} .dark .tab.on{color:rgb(245 245 245);border-color:rgb(245 245 245)}
 .rec.sel{background:rgb(229 229 229)} .dark .rec.sel{background:rgb(38 38 38)}
@@ -291,9 +448,9 @@ function renderModel(m) {
       + `<span class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]" style="padding-left:${pad + 4}ch;text-indent:-4ch">${codeBlock(l.code.trimStart()) || '&nbsp;'}</span></div>`;
   }).join('') + '</div>';
 }
-new EventSource('/source/stream').onmessage = ev => {
+new EventSource(D.base + '/source/stream').onmessage = ev => {
   D.model = JSON.parse(ev.data);
-  if (tab === 'Model' && $('cy')) { drawGraph(); if (side.id) openSide(side.id); }
+  if (GRAPH(tab) && $('cy')) { drawGraph(); if (side.id) openSide(side.id); }
 };
 
 function codeBlock(src) {  // grayscale highlight: weight, not colour
@@ -315,6 +472,9 @@ function drawGraph() {
   const PATH = dark
     ? {management:'#818cf8', observation:'#2dd4bf', reasoning:'#facc15', relationship:'#38bdf8', action:'#fb7185'}
     : {management:'#4338ca', observation:'#0f766e', reasoning:'#a16207', relationship:'#0369a1', action:'#be123c'};
+  const PAL = dark ? ['#818cf8', '#2dd4bf', '#facc15', '#38bdf8', '#fb7185', '#a3e635']
+                   : ['#4338ca', '#0f766e', '#a16207', '#0369a1', '#be123c', '#4d7c0f'];
+  Object.keys(M().lifecycle).forEach((c, i) => { PATH[c] ??= PAL[i % PAL.length]; });
   const colorOf = id => PATH[id.split('.')[0]];
   // Entity.Event: management happens to the Tension itself; the others to the Value Object of their category.
   const ENT = D.entities || {};
@@ -325,6 +485,8 @@ function drawGraph() {
   const pos = id => {
     if (id === 'human') return {x: 0, y: R * 1.1};
     if (id === M().root) return {x: 0, y: 0};
+    const alt = (M().initial || []).indexOf(id);
+    if (alt > 0) return {x: alt * 300, y: R * 0.55};  // an alternative start: beside the root, nearer the Human
     const c = id.split('.')[0], d = depth[id] ?? 1, k = `${c}:${d}`;
     const sibs = Object.keys(depth).filter(n => n.split('.')[0] === c && depth[n] === d && n !== M().root);
     const cats = Object.keys(M().lifecycle).filter(x => x !== M().root.split('.')[0]);
@@ -344,8 +506,8 @@ function drawGraph() {
   }));
   // ISO 9241-210 (human-centred design): a generic Human is who acts; the first command creates the Tension.
   nodes.push({position: pos('human'), data: {id: 'human', label: 'Human', color: ink}, classes: 'human'});
-  edges.push({data: {id: `human>${M().root}`, source: 'human', target: M().root, color: colorOf(M().root),
-    label: M().commands[M().root]}, classes: 'walked'});
+  (M().initial || [M().root]).forEach(s => edges.push({data: {id: `human>${s}`, source: 'human', target: s, color: colorOf(s),
+    label: M().commands[s]}, classes: D.journal_types[s] ? 'walked' : ''}));
   Object.entries(M().next).forEach(([a, bs]) => bs.forEach(b =>
     edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: M().commands[b]}, classes: D.journal_types[a] && D.journal_types[b] ? 'walked' : ''})));
   const cy = cytoscape({
@@ -381,7 +543,7 @@ function drawGraph() {
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
     + '<span>· aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário</span>';
   cy.on('tap', ev => { if (ev.target === cy) closeSide(); });
-  cy.on('tap', 'node', ev => openSide(ev.target.id()));
+  cy.on('tap', 'node', ev => { if (Q.get('embed') !== 'graph') openSide(ev.target.id()); });  // embed=graph: the graph alone
   window.__cy = cy;
 }
 
@@ -392,7 +554,7 @@ function setQ(k, v) { v ? Q.set(k, v) : Q.delete(k); const q = Q.toString();
   history.replaceState(null, '', location.pathname + (q ? '?' + q : '')); }
 let side = {id: null, tab: Q.get('side') || 'Widgets'};
 const SIDE_TABS = {
-  'Widgets': id => fetch(`/w/${D.state.id}/${id}?e=${Q.get('e') || ''}`).then(r => r.text()),
+  'Widgets': id => frag(`${D.base}/w/${D.state.id}/${id}?e=${Q.get('e') || ''}`),
   'Código': id => {
     const cmd = M().commands[id];
     const html = M().lines.map(l => {
@@ -411,7 +573,7 @@ function openSide(id) {
     $('ev-name').textContent = 'Human';
     $('ev-sub').textContent = 'estado inicial · ISO 9241-210';
     $('ev-tabs').innerHTML = '';
-    $('ev-body').innerHTML = `<p class="p-4 font-sans text-sm text-neutral-700 dark:text-neutral-300">Quem age. Começa pelo comando <b>${M().commands[M().root]}</b>, que grava ${M().root}.</p>`;
+    $('ev-body').innerHTML = `<p class="p-4 font-sans text-sm text-neutral-700 dark:text-neutral-300">Quem age. Começa por ${(M().initial || [M().root]).map(s => `<b>${M().commands[s]}</b> (grava ${s})`).join(' ou ')}.</p>`;
     return;
   }
   const [c, v] = id.split('.'), n = E.filter(e => e.event === id).length, w = (M().coverage || {})[id] || [];
@@ -433,21 +595,45 @@ function renderSide() {
     if (hit) body.scrollTop = hit.offsetTop - body.clientHeight / 2;
   });
 }
+const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
+function inject(el, h) {
+  el.innerHTML = h;
+  el.querySelectorAll('script').forEach(o => { const n = document.createElement('script'); n.textContent = o.textContent; o.replaceWith(n); });
+  if (window.htmx) htmx.process(el);
+}
+const MODE = () => Q.get('mode') === 'sim' ? 'sim' : 'real';
+function paintMode() {
+  document.querySelectorAll('#pop-mode .mode').forEach(m => {
+    const on = m.dataset.mode === MODE();
+    m.classList.toggle('font-semibold', on);
+    m.classList.toggle('bg-neutral-900', on); m.classList.toggle('text-white', on);
+    m.classList.toggle('dark:bg-neutral-100', on); m.classList.toggle('dark:text-neutral-900', on);
+    m.classList.toggle('text-neutral-500', !on);
+  });
+  $('pop-body').classList.toggle('sim', MODE() === 'sim');
+}
+document.querySelectorAll('#pop-mode .mode').forEach(m => m.onclick = () => {
+  setQ('mode', m.dataset.mode === 'sim' ? 'sim' : '');
+  const id = Q.get('ev'), name = Q.get('w');
+  if (id && name) openWidget(id, name);
+});
 function openWidget(id, name) {
-  setQ('w', name);
+  setQ('w', name); paintMode();
   $('pop-name').textContent = name;
   $('pop-sub').textContent = Q.get('e') ? `${id} · evento ${Q.get('e').slice(0, 8)}` : `${id} · primeiro evento real do diário`;
   $('pop-body').innerHTML = '<p class="text-neutral-400">carregando…</p>';
   $('pop').classList.remove('hidden'); $('pop').classList.add('flex');
-  fetch(`/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${Q.get('e') || ''}`).then(r => r.text()).then(h => { $('pop-body').innerHTML = h; });
+  frag(`${D.base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${Q.get('e') || ''}&mode=${MODE()}`).then(h => inject($('pop-body'), h));
 }
-function closeWidget() { setQ('w', ''); $('pop').classList.add('hidden'); $('pop').classList.remove('flex'); }
+function closeWidget() { setQ('mode', ''); setQ('w', ''); $('pop').classList.add('hidden'); $('pop').classList.remove('flex'); }
 const popOpen = () => !$('pop').classList.contains('hidden');
 $('pop-close').onclick = closeWidget;
 $('pop').onclick = e => { if (e.target === $('pop')) closeWidget(); };
 function closeSide() { side.id = null; setQ('ev', ''); setQ('side', ''); setQ('w', ''); setQ('e', ''); const el = $('ev-side'); if (el) el.classList.add('hidden'); }
 
 const TABS = {
+  // Domain (DDD, Evans 2003) is the first tab and reuses the Model graph and sidebar: one graph, one style.
+  'Domain': () => TABS['Model'](),
   'Model': () => `<div class="h-full flex">
       <div class="flex-1 min-w-0 flex flex-col">
         <div class="flex items-center justify-between gap-4 px-4 pt-3">${label('Máquina de estados · a partir do Human')}
@@ -463,6 +649,7 @@ const TABS = {
         <div id="ev-body" class="relative flex-1 min-h-0 overflow-y-auto"></div>
       </aside></div>`,
   'Visão': () => {
+    if (D.home.length) return `<div id="home" class="max-w-4xl px-8 py-8"><p class="text-neutral-400">carregando…</p></div>`;
     const it = items(), done = it.filter(i => isDone(i.state)).length, ps = proposals();
     let g = 'flowchart LR\n  hoje(["Hoje"])\n  desejado(["Desejado"])\n';
     it.forEach((i, n) => {
@@ -527,24 +714,27 @@ const COUNT = {'Proposed Actions': () => proposals().length, 'Observations': () 
   'Relationships': () => items().length,
   'Management': () => of('management').length, 'Eventos': () => E.length};
 
-const KEYS = {'Model': 'm', 'Visão': 'v', 'Proposed Actions': 'p', 'Observations': 'o', 'Relationships': 'r',
+const GRAPH = t => t === 'Domain' || t === 'Model';  // tabs drawn by drawGraph
+const KEYS = {'Domain': 'd', 'Model': 'm', 'Visão': 'v', 'Proposed Actions': 'p', 'Observations': 'o', 'Relationships': 'r',
               'Management': 't', 'Eventos': 'e', 'Tipos': 'y'};
 const keyed = t => { const k = KEYS[t]; if (!k) return t; const i = t.toLowerCase().indexOf(k);
   return i < 0 ? t : `${t.slice(0, i)}<span class="underline underline-offset-4">${t[i]}</span>${t.slice(i + 1)}`; };
-let tab = Q.get('tab') || (location.hash ? decodeURIComponent(location.hash.slice(1)) : 'Model');
-if (!(tab in TABS)) tab = 'Model';
+let tab = Q.get('tab') || (location.hash ? decodeURIComponent(location.hash.slice(1)) : 'Domain');
+if (!(tab in TABS)) tab = 'Domain';
 function show(name) {
   if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); side.id = null; }
-  tab = name; setQ('tab', name === 'Model' ? '' : name);
+  tab = name; setQ('tab', name === 'Domain' ? '' : name);
   $('tabs').innerHTML = Object.keys(TABS).map((t, i) =>
     `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${keyed(t)}${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
   $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.t));
-  const wide = tab === 'Model';
+  const wide = GRAPH(tab);
   $('rail').style.display = $('side').style.display = wide ? 'none' : '';
   $('main').innerHTML = TABS[tab]();
   $('main').querySelectorAll('.rec').forEach(r => r.onclick = () => select(r.dataset.id));
-  if (tab === 'Visão') mermaid.run({querySelector: '#main .mermaid'});
-  if (tab === 'Model') { drawGraph(); $('ev-close').onclick = closeSide; }
+  if (tab === 'Visão' && D.home.length)
+    frag(`${D.base}/w/${D.state.id}/${D.home[0]}/${encodeURIComponent(D.home[1])}`).then(h => inject($('home'), h));
+  else if (tab === 'Visão') mermaid.run({querySelector: '#main .mermaid'});
+  if (GRAPH(tab)) { drawGraph(); $('ev-close').onclick = closeSide; }
 }
 function select(id) {
   document.querySelectorAll('.rec').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
@@ -565,8 +755,9 @@ document.addEventListener('keydown', e => {
   if (popOpen()) return;
 });
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
+if (Q.get('embed')) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
 show(tab);
-if (tab === 'Model' && Q.get('ev')) {
+if (GRAPH(tab) && Q.get('ev')) {
   const ev = Q.get('ev'), w = Q.get('w');
   openSide(ev);
   if (w) openWidget(ev, w);
@@ -577,17 +768,18 @@ if (tab === 'Model' && Q.get('ev')) {
 title_of = PROJECT.title_of
 
 
-@rt("/source/stream")
-async def source_stream():
-    """Server-sent events: the real model again whenever the project SOURCE changes on disk."""
+@rt("/domain/{slug}/source/stream")
+async def source_stream(slug: str):
+    """Server-sent events: the real model again whenever the domain's SOURCE changes on disk."""
     import asyncio
 
     from starlette.responses import StreamingResponse
 
     async def gen():
+        use(slug)
         last = None
         while True:
-            m = SOURCE.stat().st_mtime
+            m = (SOURCE.stat().st_mtime, draft_path().stat().st_mtime if draft_path().exists() else 0)
             if m != last:
                 last = m
                 yield f"data: {json.dumps(real_model(), ensure_ascii=False)}\n\n"
@@ -596,43 +788,73 @@ async def source_stream():
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-def _ctx(tid: str, event: str, eid: str | None = None):
+def _ctx(tid: str, event: str, eid: str | None = None, mode: str = "real"):
     """Context for a real event: ?e=<event id>, else the first event of this type in the journal.
     Its entity (not the one on screen) is what the widget renders."""
     of_type = journal.read({"event": event})
     focus = next((e for e in of_type if e["id"] == eid), None) or (of_type[0] if of_type else None)
-    tid = focus[ENTITY_KEY] if focus else tid
+    tid = focus[entity_key()] if focus else tid
     entities = [{**t, "title": PROJECT.title_of(journal.read({"id": t["id"], "history": True}), t)} for t in journal.read()]
     return W.EventContext(
         event=event, focus=focus, entity_id=tid,
         events=[e for e in journal.read({"id": tid, "history": True}) if e["event"] == event],
         state=journal.read({"id": tid}) or {}, journal_events=of_type, entities=entities,
+        history=tuple(journal.read({"id": tid, "history": True})), mode=mode,
     )
 
 
-@rt("/w/{tid}/{event}/{name}")
-def one_widget(tid: str, event: str, name: str, e: str = ""):
-    """One widget, rendered for the popup."""
-    return W.render_one(_ctx(tid, event, e or None), name)
+@rt("/domain/{slug}/do/{eid}/{name}")
+def do_action(slug: str, eid: str, name: str, mode: str = "real", step: int = 0):
+    """Run a project action on one event (PROJECT.ACTIONS[name](event, mode, step)): the only write path, and it is
+    the project's. mode=sim plays the experience without writing or sending anything; step walks its stages."""
+    if not use(slug):
+        return P(f"domínio {slug} não existe", cls="text-neutral-500")
+    fn = getattr(PROJECT, "ACTIONS", {}).get(name)
+    ev = next((e for e in journal.read({"history": True}) if e["id"] == eid), None)
+    if not fn or not ev:
+        return P(f"ação {name} ou evento {eid[:8]} não existe", cls="text-neutral-500")
+    return fn(ev, mode="sim" if mode == "sim" else "real", step=step)
 
 
-@rt("/w/{tid}/{event}")
-def event_widgets(tid: str, event: str, e: str = ""):
+@rt("/domain/{slug}/w/{tid}/{event}/{name}")
+def one_widget(slug: str, tid: str, event: str, name: str, e: str = "", mode: str = "real"):
+    """One widget, rendered for the popup (mode=sim: simulated, nothing is written)."""
+    if not use(slug):
+        return _empty(f"domínio {slug} não existe")
+    return W.render_one(_ctx(tid, event, e or None, "sim" if mode == "sim" else "real"), name)
+
+
+@rt("/domain/{slug}/w/{tid}/{event}")
+def event_widgets(slug: str, tid: str, event: str, e: str = ""):
     """The list of widgets the project registers for an event, each with its open action."""
+    if not use(slug):
+        return _empty(f"domínio {slug} não existe")
     return W.render_list(_ctx(tid, event, e or None))
 
 
 @rt("/")
 def index():
-    tensions = journal.read()
-    if not tensions:
+    """The first domain; the bar switches between them."""
+    return RedirectResponse(f"/domain/{next(iter(DOMAINS))}", status_code=303)
+
+
+@rt("/domain/{slug}")
+def domain(slug: str, req):
+    if not use(slug):
+        return Title("não encontrado"), Div(f"Domínio {slug} não existe. Há: {', '.join(DOMAINS)}.", cls="p-8 font-mono text-sm")
+    entities = journal.read()
+    if not entities:
         return Title(PROJECT.NAME), Div(f"Nenhum(a) {PROJECT.ENTITY} no diário.", cls="p-8 font-mono text-sm")
-    pick = next((t for t in reversed(tensions) if t["status"] == "open"), tensions[-1])
-    return RedirectResponse(f"/t/{pick['id']}", status_code=303)
+    pick = next((t for t in reversed(entities) if t["status"] == "open"), entities[-1])
+    q = f"?{req.url.query}" if req.url.query else ""  # keep the view (?tab=…&ev=…) across the redirect
+    return RedirectResponse(f"/domain/{slug}/t/{pick['id']}{q}", status_code=303)
 
 
-@rt("/t/{tid}")
-def tension(tid: str):
+@rt("/domain/{slug}/t/{tid}")
+def tension(slug: str, tid: str):
+    if not use(slug):
+        return RedirectResponse("/", status_code=303)
+    base = PROJECT.BASE
     state = journal.read({"id": tid})
     if not state:
         return Title("não encontrado"), Div(f"{PROJECT.ENTITY} não encontrado(a).", cls="p-8 font-mono text-sm")
@@ -647,7 +869,7 @@ def tension(tid: str):
             Div(title_of(journal.read({"id": t["id"], "history": True}), t),
                 cls="truncate " + ("font-semibold text-neutral-900 dark:text-neutral-100" if on else "text-neutral-600 dark:text-neutral-400")),
             Div(f"{t['status']} · {t['event_count']} eventos", cls="text-neutral-400"),
-            onclick=f"location.href='/t/{t['id']}'",
+            onclick=f"location.href='{base}/t/{t['id']}'" + "+location.search",
             cls="px-4 py-2 cursor-pointer border-l-2 " + (
                 "border-neutral-900 dark:border-neutral-100 bg-neutral-100 dark:bg-neutral-900" if on
                 else "border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-900"),
@@ -656,7 +878,7 @@ def tension(tid: str):
     journal_types: dict[str, int] = {}
     for e in journal.read({"history": True}):
         journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
-    payload = json.dumps({"journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES}, ensure_ascii=False).replace("</", "<\\/")
+    payload = json.dumps({"base": base, "name": PROJECT.NAME, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
@@ -666,10 +888,13 @@ def tension(tid: str):
             Div(id="tabs", cls="flex-1 min-w-0 flex overflow-x-auto [scrollbar-width:none]"),
             Div(id="keyhint", cls="shrink-0 w-8 text-neutral-400"),
             # dev-console works at the level of a Project
-            Div(Span("project ", cls="text-neutral-400"), Span(PROJECT.NAME, cls="font-semibold text-neutral-800 dark:text-neutral-200"),
-                Span(f" · {journal.path.name}", cls="text-neutral-400"), title=str(journal.path),
+            # dev-console works at the level of a Domain: each one in its own context, /domain/<slug>
+            Div(Span("domain ", cls="text-neutral-400"),
+                *[A(m.NAME, href=f"/domain/{s}", cls="ml-2 " + ("font-semibold text-neutral-800 dark:text-neutral-200" if m is CURRENT.get()
+                    else "text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200")) for s, m in DOMAINS.items()],
+                Span(f" · {journal.path.name}", cls="ml-2 text-neutral-400"), title=str(journal.path),
                 cls="shrink-0 px-4 truncate"),
-            cls=f"h-10 shrink-0 flex items-center border-b {line}",
+            id="bar", cls=f"h-10 shrink-0 flex items-center border-b {line}",
         ),
         Div(
             Div(Div(PROJECT.ENTITY_PLURAL, cls=head), *rail, id="rail", cls=f"w-56 shrink-0 overflow-y-auto border-r {line}"),
@@ -683,6 +908,10 @@ def tension(tid: str):
             Div(
                 Div(Div(Div(id="pop-name", cls="font-sans text-lg font-semibold text-neutral-900 dark:text-neutral-100"),
                         Div(id="pop-sub", cls="text-neutral-400"), cls="min-w-0"),
+                    Div(Span("REAL", data_mode="real", cls="mode px-2.5 h-7 leading-7 cursor-pointer select-none"),
+                        Span("SIMULADO", data_mode="sim", cls="mode px-2.5 h-7 leading-7 cursor-pointer select-none"),
+                        id="pop-mode", title="SIMULADO: os botões funcionam, nada é gravado nem enviado",
+                        cls="ml-auto mr-3 shrink-0 flex rounded border border-neutral-300 dark:border-neutral-700 text-[11px] tracking-widest"),
                     Div("✕", id="pop-close", title="Esc", cls="shrink-0 px-2 cursor-pointer text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"),
                     cls="shrink-0 flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-neutral-200 dark:border-neutral-800"),
                 Div(id="pop-body", cls="flex-1 min-h-0 overflow-y-auto px-6 py-5"),
@@ -706,13 +935,14 @@ def _serve(port: int) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="dev-console for an event-sourced project")
-    parser.add_argument("--project", default=os.environ.get("DEV_CONSOLE_PROJECT"), help="path to dev_console_project.py")
+    parser.add_argument("--project", action="append", help="path to a dev_console_project.py (repeat: one domain each)")
     parser.add_argument("--port", type=int, default=5057)
     args = parser.parse_args()
-    if not args.project:
+    projects = [Path(p).resolve() for p in (args.project or os.environ.get("DEV_CONSOLE_PROJECT", "").split(os.pathsep)) if p]
+    if not projects:
         parser.error("--project is required (or DEV_CONSOLE_PROJECT)")
-    os.environ["DEV_CONSOLE_PROJECT"] = str(Path(args.project).resolve())
+    os.environ["DEV_CONSOLE_PROJECT"] = os.pathsep.join(map(str, projects))
     from watchfiles import run_process
 
-    # Hot reload: restart on any change in this file or the project folder; live=True reloads the page.
-    run_process(Path(__file__).parent, Path(args.project).resolve().parent, target=_serve, args=(args.port,))
+    # Hot reload: restart on any change in this file or a project folder; live=True reloads the page.
+    run_process(Path(__file__).parent, *{p.parent for p in projects}, target=_serve, args=(args.port,))

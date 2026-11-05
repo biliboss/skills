@@ -1,0 +1,111 @@
+"""The dev-console as a dev-console project: it shows the domains hooked into it, itself included.
+
+Run: uv run --script scripts/dev-console.py --project scripts/dev_console_project.py
+The journal is derived from code (ast), read-only; see console_domain.py.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from console_domain import ConsoleJournal  # noqa: E402
+from fasthtml.common import Div, Iframe, Li, P, Span, Ul  # noqa: E402
+
+NAME = "dev-console"
+SLUG = "dev-console"
+SOURCE = Path(__file__).parent / "console_domain.py"  # the file with EVENTS
+ENTITY = "Domain"
+ENTITY_PLURAL = "domínios"
+ENTITIES = {"domain": "Domain", "widget": "Widget", "action": "Action"}
+ENTITY_KEY = "domain_id"
+PROJECTOR = "_project"
+journal = ConsoleJournal()
+
+K = "text-[11px] uppercase tracking-widest text-neutral-500"
+BODY = "font-sans text-sm text-neutral-800 dark:text-neutral-200"
+
+
+def title_of(history: list[dict], state: dict) -> str:
+    return state.get("name", "")
+
+
+def domain_list(ctx):
+    """Every Domain hooked into the console; the current one marked."""
+    return Ul(*[
+        Li(Span("●" if d["id"] == ctx.entity_id else "○", cls="w-4 shrink-0 text-neutral-500"),
+           Div(P(d["name"], cls="truncate font-sans text-sm "
+                 + ("font-semibold text-neutral-900 dark:text-neutral-100" if d["id"] == ctx.entity_id
+                    else "text-neutral-600 dark:text-neutral-400")),
+               P(f'{len(d["widgets"])} widgets · {len(d["actions"])} ações', cls="text-neutral-400"),
+               cls="min-w-0"),
+           cls="flex gap-2 py-1.5")
+        for d in sorted(ctx.entities, key=lambda d: d["name"].lower())
+    ])
+
+
+def widget_list(ctx):
+    """The widgets this Domain registers, each with its description and the event it opens from."""
+    if not ctx.events:
+        return P("Nenhum widget registrado.", cls="text-neutral-400")
+    return Ul(*[
+        Li(Span(e["value"]["widget"], cls="w-40 shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"),
+           Div(P(e["value"].get("doc") or "sem descrição", cls=BODY),
+               P(f'abre em {e["value"]["event"]}', cls="text-neutral-400"), cls="min-w-0"),
+           cls="flex gap-3 py-1.5 border-b border-neutral-100 dark:border-neutral-900 last:border-0")
+        for e in ctx.events
+    ])
+
+
+def action_list(ctx):
+    """The actions this Domain can run, by name."""
+    if not ctx.events:
+        return P("Nenhuma ação registrada.", cls="text-neutral-400")
+    return Ul(*[Li(Span(e["value"]["name"], cls=BODY), cls="py-1") for e in ctx.events])
+
+
+def domain_card(ctx):
+    """The Domain: its name, one sentence about what it shows, and its widgets (WidgetList)."""
+    s = ctx.state
+    n = len(s["widgets"])
+    sentence = f'Mostra {s["entity"]}: {n} {"evento tem" if n == 1 else "eventos têm"} widget próprio.'
+    if s["actions"]:
+        sentence += f' Aceita {len(s["actions"])} {"ação" if len(s["actions"]) == 1 else "ações"}.'
+    return Div(
+        P(s["name"], cls="font-sans text-2xl font-semibold text-neutral-900 dark:text-neutral-100"),
+        P(sentence, cls="mt-1 font-sans text-[15px] leading-6 text-neutral-600 dark:text-neutral-400"),
+        Div(P("Widgets", cls=K), Div(widget_list(ctx.of("widget.connected")), cls="mt-1"),
+            cls="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-800"),
+    )
+
+
+# --- DomainView: the Domain's screen is the console's own Domain tab. The dev-console documents and builds itself:
+# its screens are widgets of its own domain. The view embeds the Domain tab of the domain it shows (the graph, the
+# sidebar and the popup, the same template), so there is one Domain screen, never a copy.
+def domain_view(ctx):
+    """The Domain tab itself: StateGraph plus the sidebar and popup a click opens."""
+    slug = ctx.entity_id if ctx.focus else SLUG  # no designed domain recorded yet: the dev-console shows itself
+    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=1", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+
+
+domain_view.fake = True  # rendered before the journal records a domain.designed (it then shows that domain)
+
+
+def state_graph(ctx):
+    """The state machine alone, drawn from the real code (EVENTS read with ast): Human, commands, events."""
+    slug = ctx.entity_id if ctx.focus else SLUG
+    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=graph", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+
+
+state_graph.fake = True  # drawn from code, so it exists before any event is recorded
+
+
+HOME = ("domain.imported", "DomainCard")
+INITIAL = ["domain.designed", "domain.imported"]  # Human -> Domain.Designed (new) or Domain.Imported (existing)
+
+WIDGETS = {
+    "domain.designed": [domain_view, state_graph],
+    "domain.imported": [domain_list, domain_card],
+    "widget.connected": [widget_list],
+    "action.proposed": [action_list],
+}
