@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.4.0
+  version: 0.5.0
 ---
 
 # dev-console
@@ -37,6 +37,44 @@ adding a domain needs no restart: append its `dev_console_project.py` path to
 `~/.local/state/dev-console/domains.txt` and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`), so a reload or a shared link reopens the same view.
+
+## A native window
+
+`app/` is a Swift package (product `DevConsole`, bundle `com.biliboss.devconsole`): one regular Dock app with one
+window holding a `WKWebView` (`isInspectable = true`) on the console page (default `http://127.0.0.1:5057/`; the
+FastHTML server still serves it, nothing moved out of the web). The title follows the page title. The console's UI
+is made for **two thirds of a screen**: on first launch the window takes two thirds of the main screen's visible
+width and its full height, docked to the right (the left third stays free for a terminal or chat); `dock left|right`
+re-docks it at two thirds, `resize` sets any size, and the frame is remembered after that.
+
+The agent drives it only through `scripts/window.sh`, and the two files in `~/.local/state/dev-console-window/`
+have one writer each:
+
+| file | writer | content |
+|---|---|---|
+| `command.json` | `scripts/window.sh` only | `id` (increments), `action`, `side`, `url`, `width`, `height`, `js`, `updated_at`; the app applies each new `id` once |
+| `state.json` | the app only | `url` (follows in-page `pushState` too), `title`, `visible`, `width`, `height`, `last_command_id`, `last_result` (the JS result or the error, for `eval`), `last_message`, `updated_at` |
+
+```sh
+W=<skill>/scripts/window.sh
+$W open http://127.0.0.1:5057/domain/tensions   # also: reload | show | hide | resize <w> <h> | dock left|right
+$W eval 'document.title'                        # the result lands in state.json last_result
+$W wait                                         # blocks until last_command_id is the last sent id (5 s cap), prints state
+$W status                                       # prints state.json
+$W install                                      # builds app/build-app.sh, copies to ~/Applications, opens it; $W quit stops it
+```
+
+A page button talks back with `window.webkit.messageHandlers.devconsole.postMessage({...})`: the object is written to
+`state.json` as `last_message`. That is the only native feature.
+
+- **To read the DOM or take a screenshot, keep using the headless browser on the same URL**; the window is for the
+  person to look at and for the agent to move (open a view, dock, hide), and `eval` is for a quick read of one value.
+- **Never write either file by hand.** The id rule (above both the last one sent and the last one applied) and the
+  atomic `mv` live in the script. A bad command is answered in `last_result` as `error: ...`, and its id is consumed.
+- **Do not run `install` just to open a view.** It rebuilds and relaunches; use it when the app is missing or its code changed.
+- `cd app && swift build && swift test` runs the `ConsoleCore` tests (command decode, apply once per id, state, frames).
+  If `swift` fails on an SDK mismatch, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` (`build-app.sh` does it).
+  `DEV_CONSOLE_WINDOW_STATE_DIR` moves both files (tests); `DEV_CONSOLE_URL` sets the app's default page.
 
 ## Hook up a project
 
