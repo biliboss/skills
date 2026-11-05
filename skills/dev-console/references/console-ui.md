@@ -58,14 +58,15 @@ sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
 ## Sidebar and widgets
 
 - Click a node: a ~420 px sidebar with name, command, count here and widget names, and
-  its own tabs `Widgets` · `Código` · `JSON`. Close: ✕, `Esc`, click on the graph
+  its own tabs `Widgets` (only with widgets) · `Code` · `JSON` · `Observability`. Close: ✕, `Esc`, click on the graph
   background; `Esc` closes the popup first.
 - `Widgets` is a list (name, docstring first line, `abrir`); `abrir` opens the widget
   in a centred popup (`fixed inset-0`, ~860 px, 82 vh) over the console.
 - Widgets render a **real** event: `?e=<id>` or the first event of that type in the
   journal; its entity is the one rendered. The list header says `dados reais: <id> ·
   <time> · <entity>`; with none, the widget says so.
-- `Código`: live signatures with the event's command row highlighted; scroll only the
+- `Code`: pseudo-code of the clicked event's context, read live from EVENTS and the projector (command with its EVENTS
+  line, `from`/`then`, the entity's properties and commands, this command highlighted); `?embed=code` shows it alone; scroll only the
   sidebar (`body.scrollTop = row.offsetTop - h/2`). `scrollIntoView` scrolls `#main` too
   and pushes the graph out of view.
 

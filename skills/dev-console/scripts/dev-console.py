@@ -158,13 +158,18 @@ def real_model() -> dict:
                         lines.append({"line": k.lineno, "code": f"    {ast.literal_eval(k)} = {ast.unparse(v)}{note}"})
                     # Commands by category, straight from EVENTS: each command records one event.
                     model = derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None))
+                    cat_line = {}  # each command is written in EVENTS, on its category's line
+                    for top in tree.body:
+                        if isinstance(top, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EVENTS" for t in top.targets) \
+                                and isinstance(top.value, ast.Dict):
+                            cat_line = {ast.literal_eval(k): k.lineno for k in top.value.keys}
                     for cat, cmds in live_events().items():
                         lines.append({"line": None, "code": ""})
                         lines.append({"line": None, "code": f"    # {cat}"})
                         for cmd, ev in cmds.items():
                             if f"{cat}.{ev}" in model["initial"]:
                                 lines.append({"line": None, "code": "    @staticmethod"})
-                            lines.append({"line": None, "code": f"    def {cmd}(value): ...  # -> {cat}.{ev}"})
+                            lines.append({"line": cat_line.get(cat), "code": f"    def {cmd}(value): ...  # -> {cat}.{ev}"})
                     lines.append({"line": None, "code": ""})
                     break
 
@@ -415,8 +420,11 @@ html,body{height:100%;overflow:hidden}
   src: url("https://cdn.jsdelivr.net/gh/ryanoasis/nerd-fonts@v3.2.1/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf") format("truetype"); }
 .nf { font-family: "Symbols Nerd Font Mono"; font-style: normal; display: inline-block; width: 1.25em; margin-right: .3em; text-align: center; opacity: .75; }
 /* ?embed=side: the right menu alone, full width (RightMenu widget) */
-html[data-embed=side] #graph-col, html[data-embed=side] #ev-close { display: none !important; }
+html[data-embed=side] #graph-col, html[data-embed=side] #ev-close,
+html[data-embed=code] #graph-col, html[data-embed=code] #ev-side > div:not(#ev-body) { display: none !important; }
 html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
+/* ?embed=code: the right menu's Code tab alone (Code widget) */
+html[data-embed=code] #ev-side { width: 100% !important; border-left: 0; }
 /* ?embed=toolbar: the real tab bar alone (Toolbar widget) */
 html[data-embed=toolbar] #bar ~ * { display: none !important; }
 html[data-embed=toolbar] #bar { border-bottom: 0; }
@@ -585,14 +593,34 @@ function setQ(k, v) { v ? Q.set(k, v) : Q.delete(k); const q = Q.toString();
 let side = {id: null, tab: Q.get('side') || 'Widgets'};
 const SIDE_TABS = {
   'Widgets': id => frag(`${D.base}/w/${D.state.id}/${id}?e=${Q.get('e') || ''}`),
-  'Código': id => {
-    const cmd = M().commands[id];
-    const html = M().lines.map(l => {
-      const hit = cmd && l.code.trim().startsWith(`def ${cmd}(`);
-      return `<div class="flex ${hit ? 'bg-neutral-200 dark:bg-neutral-800' : ''}" ${hit ? 'id="hit"' : ''}><span class="w-10 shrink-0 pr-3 text-right select-none text-neutral-300 dark:text-neutral-700">${l.line ?? ''}</span>`
-        + `<span class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">${codeBlock(l.code) || '&nbsp;'}</span></div>`;
+  // Code: pseudo-code of the clicked event's context, read from the real model (EVENTS, the projector): the command
+  // that records it, where it comes from and what it opens, and the entity it changes. Short on purpose.
+  'Code': id => {
+    const m = M(), ENT = D.entities || {}, [c, v] = id.split('.');
+    const P = w => w.split('_').map(x => x[0].toUpperCase() + x.slice(1)).join('');
+    const nm = e => { const [k, x] = e.split('.'); return `${ENT[k] || P(k)}.${P(x)}`; };
+    const from = Object.entries(m.next).filter(([, bs]) => bs.includes(id)).map(([a]) => nm(a));
+    if ((m.initial || [m.root]).includes(id)) from.unshift('Human');
+    const to = (m.next[id] || []).map(nm), cmd = m.commands[id];
+    const at = (m.lines.find(l => l.code.trim().startsWith(`def ${cmd}(`)) || {}).line;
+    const root = m.root.split('.')[0], ent = ENT[c] || P(c);
+    const rows = [
+      [at, `${ent}.${cmd}(value) -> ${nm(id)}`],
+      [null, `    from  ${from.join(', ') || '—'}`],
+      [null, `    then  ${to.join(', ') || '—'}`],
+      [null, ''],
+      [null, `class ${ent}:  # ${c === root ? 'the aggregate root, folded by the projector' : 'held by ' + (ENT[root] || P(root))}`],
+      ...(c === root ? [[null, `    ${(m.props || []).join(', ')}`]] : []),
+      ...Object.entries(m.commands).filter(([e]) => e.startsWith(c + '.')).map(([e, k]) =>
+        [null, `    def ${k}(value) -> ${nm(e)}${e === id ? '' : ''}`]),
+    ];
+    const html = rows.map(([n, code]) => {
+      const hit = code.trim().startsWith(`def ${cmd}(`) || n === at && n != null;
+      const pad = (code.match(/^ */) || [''])[0].length;
+      return `<div class="flex ${hit ? 'bg-neutral-200 dark:bg-neutral-800' : ''}"><span class="w-10 shrink-0 pr-3 text-right select-none text-neutral-300 dark:text-neutral-700">${n ?? ''}</span>`
+        + `<span class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]" style="padding-left:${pad + 4}ch;text-indent:-4ch">${codeBlock(code.trimStart()) || '&nbsp;'}</span></div>`;
     }).join('');
-    return Promise.resolve(`<p class="px-4 pt-3 text-neutral-400">${esc(M().file)} · ao vivo</p><div class="px-2 py-3 leading-6 text-neutral-700 dark:text-neutral-300">${html}</div>`);
+    return Promise.resolve(`<p class="px-4 pt-3 text-neutral-400">pseudo-código · de ${esc(m.file)} · ao vivo</p><div class="px-2 py-3 leading-6 text-neutral-700 dark:text-neutral-300">${html}</div>`);
   },
   'JSON': id => Promise.resolve(`<pre class="m-0 p-4 !bg-transparent whitespace-pre-wrap text-neutral-600 dark:text-neutral-400">${esc(JSON.stringify(E.filter(e => e.event === id), null, 2))}</pre>`),
   // every event has it, so it is a tab of the right menu (the last), not a widget in the list

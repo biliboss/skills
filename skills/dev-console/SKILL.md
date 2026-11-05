@@ -49,7 +49,7 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 
 - **Follow the template; never invent a screen.** Any new tab, graph or panel reuses what the
   console has: `TABS` + `KEYS`, `drawGraph` (Human, rays per category, filled/outlined nodes),
-  the contextual sidebar (Widgets | Código | JSON), the popup with REAL | SIMULADO, state in the
+  the contextual sidebar (Widgets | Code | JSON | Observability), the popup with REAL | SIMULADO, state in the
   query. A Mermaid diagram or a second Cytoscape function with its own layout was rejected twice.
 - **Tabs are the first element**; each has a vim-style goto (`g` then the underlined letter:
   `g d` Domain, `g m` Model). Colours for unknown categories come from a fixed palette by
@@ -79,14 +79,14 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   never hand-write a node or an edge in the console.
 - **Filled node** = the journal has at least one event of that type; **outline** = none yet.
 - **Click a node** = a contextual sidebar with its own tabs: Widgets (the list, each with
-  `abrir`, which opens the widget in a centred popup), Código (the signatures, the event's
-  command highlighted) and JSON. No global code toggle: detail belongs to the thing clicked.
+  `abrir`, which opens the widget in a centred popup), Code (pseudo-code of the event's context: the
+  command, from/then, the entity it changes; also a widget, `Code`, on Domain.Updated) and JSON. No global code toggle: detail belongs to the thing clicked.
 - **Code on screen = signatures only**, from the real file, live, with real line numbers;
   the entity's properties are the keys of the projector's dict literal; commands are
   imperative and point to the past-tense event they record.
 - **Every event has Observability, as the right menu's last tab** (count here and in the journal, a time
   strip, who), never as a row of the widget list. The Widgets tab shows only when the event has a widget
-  of its own (Domain.Designed and Domain.Imported have none: Código, JSON, Observability).
+  of its own (Domain.Designed and Domain.Imported have none: Code, JSON, Observability).
 - **A widget shows only what the model has.** Design it from the event's real value (an
   Observation is a sentence, where, when, who; it has no state, no group, no "resolved"):
   never add fields, groupings or summaries the model does not record. Write the text for a
