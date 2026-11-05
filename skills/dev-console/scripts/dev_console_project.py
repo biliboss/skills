@@ -74,7 +74,7 @@ def domain_card(ctx):
     return Div(
         P(s["name"], cls="font-sans text-2xl font-semibold text-neutral-900 dark:text-neutral-100"),
         P(sentence, cls="mt-1 font-sans text-[15px] leading-6 text-neutral-600 dark:text-neutral-400"),
-        Div(P("Widgets", cls=K), Div(widget_list(ctx.of("widget.connected")), cls="mt-1"),
+        Div(P("Widgets", cls=K), Div(widget_list(ctx.of("widget.created")), cls="mt-1"),
             cls="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-800"),
     )
 
@@ -102,7 +102,7 @@ state_graph.fake = True  # drawn from code, so it exists before any event is rec
 
 def right_menu(ctx):
     """The right menu: a clicked event's sidebar, with its own tabs (Widgets, Código, JSON)."""
-    slug = ctx.entity_id if ctx.focus else SLUG
+    slug = SLUG  # ctx.event is an event of this domain (the dev-console's own), so its menu lives here
     return Iframe(src=f"/domain/{slug}?tab=Domain&embed=side&ev={ctx.event}",
                   cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
 
@@ -117,6 +117,6 @@ WIDGETS = {
     "domain.designed": [domain_view, state_graph, right_menu],
     # the console's own screens, for a domain designed here or imported: the same widgets on both starts
     "domain.imported": [domain_view, state_graph, right_menu, domain_list, domain_card],
-    "widget.connected": [widget_list],
+    "widget.created": [widget_list],
     "action.proposed": [action_list],
 }
