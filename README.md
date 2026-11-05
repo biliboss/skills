@@ -4,6 +4,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 
 | Skill | O que faz |
 |---|---|
+| `tensions` | registra eventos de domínio significativos no JSONL global, com Python stdlib e recipes `just` opcionais |
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `skill-smith` | cria, atualiza e porta skills |
