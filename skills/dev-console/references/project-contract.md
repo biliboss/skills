@@ -17,6 +17,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 | `journal` | object with `read(query)`: `{}` all entities, `{"id": x}` one, `{"id": x, "history": True}` its events, `{"event": e}` events of a type, `{"history": True}` every event |
 | `title_of(history, state)` | the entity's title |
 | `INITIAL` | optional `["cat.event", ...]`: the events the Human may start with (Domain.Designed or Domain.Imported) |
+| `TABS` | optional: the tabs after the fixed Domain tab, in order; absent = Domain only |
 | `HUB` | optional `"cat.event"`: every start leads to it and it opens every other category (Domain.Updated) |
 | `DOMAIN_DRAFT` | optional path of the domain draft (default `<SOURCE stem>_draft.py`) |
 | `HOME` | optional `("category.event", "WidgetName")`: the widget the Visão tab opens with |
