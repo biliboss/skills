@@ -34,8 +34,20 @@ whole journal), `entities` (every entity, with `title`), `history` (every event 
 one widget embeds another: TensionDetail renders `observation_list(ctx.of("observation.recorded"))`.
 Build big widgets from small ones; never copy a small widget's markup into a big one.
 
+**A screen is drawn from the code's value objects.** Designing a widget means touching the value object it shows,
+in the domain's SOURCE: a frozen dataclass (fields typed, enums for closed sets, never raw strings), and the
+design's example data is an instance of it (`FAKE_X = ExecutionResult(...)`), not a loose dict. That keeps the
+screen and its documentation tied to the code, the dev-console's main goal. `VALUES = {"cat.event": "ClassName"}`
+in SOURCE says which value object an event carries; the Code part lists every value object and enum of the domain.
+
+A widget may name its visible parts, `fn.parts = [child, ...]`: the right menu's widget list shows them as a nested
+tree under it (and not again at the top). Name only the parts worth seeing; the others stay composed and unlisted.
+
 A widget with `fn.fake = True` is a design on fake data (or an embedded console screen): the console renders it
 before the journal has its event.
+
+Every widget starts with a title for humans (a heading naming what it shows), so it reads on its own in the popup
+or composed inside a bigger one.
 
 A widget's function name is its name on screen (`tension_list` → TensionList) and the first line
 of its docstring is its description in the sidebar.

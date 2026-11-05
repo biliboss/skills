@@ -23,6 +23,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from dataclasses import dataclass
+from enum import StrEnum
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -68,6 +70,127 @@ EVENTS = {
     # feedback (downscore); o de maior pontuação vira o padrão (rascunho: só no grafo).
     "style": {"score": "scored", "downscore": "scored"},
 }
+
+class Method(StrEnum):
+    """How the work ran."""
+
+    PRINT = "print"  # one shot: the harness gets the task, runs and exits
+    INTERACTIVE = "interactive"  # a session someone can follow and steer
+    BY_HAND = "by_hand"  # the agent did it itself, no executor
+
+
+class Harness(StrEnum):
+    """The agent harness that ran it."""
+
+    CLAUDE_CODE = "claude-code"
+    HERMES = "hermes"
+    PI = "pi"
+
+
+class Model(StrEnum):
+    """The model family."""
+
+    SONNET = "sonnet"
+    OPUS = "opus"
+    HAIKU = "haiku"
+
+
+class Effort(StrEnum):
+    """How hard the model was asked to think."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class Delivery(StrEnum):
+    """Where the work landed."""
+
+    PR_OPEN = "pr_open"
+    PR_CLOSED = "pr_closed"
+    MAIN = "main"  # straight on main, no pull request
+
+
+@dataclass(frozen=True)
+class Picture:
+    """One image and the sentence that says what it shows."""
+
+    src: str
+    caption: str
+
+
+@dataclass(frozen=True)
+class BeforeAfter:
+    """How it was and how it is, side by side."""
+
+    title: str
+    before: Picture
+    after: Picture
+
+
+@dataclass(frozen=True)
+class Journey:
+    """The steps of the work, in order, one picture each."""
+
+    title: str
+    steps: tuple[Picture, ...]
+
+
+class PullRequestState(StrEnum):
+    """Where a pull request stands."""
+
+    OPEN = "open"
+    CLOSED = "closed"  # closed without merge
+    MERGED = "merged"
+
+
+@dataclass(frozen=True)
+class Commit:
+    """One commit the work produced."""
+
+    sha: str
+    message: str
+    repo: str  # owner/name
+
+
+@dataclass(frozen=True)
+class PullRequest:
+    """The pull request that carries the work."""
+
+    number: int
+    url: str
+    state: PullRequestState
+
+
+@dataclass(frozen=True)
+class SessionRef:
+    """Where the agent's session can be found again: its id (to resume) and its log."""
+
+    harness: Harness
+    id: str | None  # the harness's session id, when it gave one
+    log: str  # path of the session log
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    """How a task was executed and what it delivered."""
+
+    text: str  # what the execution answered, a report for people (markdown, headings, mermaid)
+    method: Method
+    harness: Harness
+    model: Model
+    effort: Effort
+    cycle_time_s: int  # from the confirmation to the end of the run, in seconds
+    delivery: Delivery
+    session: SessionRef
+    pull_request: PullRequest | None = None  # when the work went through one
+    commits: tuple[Commit, ...] = ()
+    before_afters: tuple[BeforeAfter, ...] = ()  # N comparisons
+    journeys: tuple[Journey, ...] = ()  # N journeys
+
+
+# Which value object each event carries (the dev-console's Code shows it with the event).
+VALUES = {"task.executed": "ExecutionResult"}
 
 # The edges are the commands (UML statechart transitions); a target may name its edge's command when one event has
 # several ({"style.scored": "downscore"}). Drafts are drawn before they are built.
