@@ -2,6 +2,14 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.8.0] - 2026-11-05
+
+### Added
+
+- `task-understand` 0.3.0 (design stage): one command runs the Tasks domain's workflow, Task.Explained then
+  Understanding.TaughtBack (teach-back), with a global journal `~/.local/share/tasks/events.jsonl`, the Input
+  contract in `scripts/input.py` and the Task Skill widget in the dev-console.
+
 ## [0.7.0] - 2026-11-05
 
 ### Changed
