@@ -77,7 +77,7 @@ def domain_card(ctx):
         P(s["name"], cls="font-sans text-2xl font-semibold text-neutral-900 dark:text-neutral-100"),
         P(sentence, cls="mt-1 font-sans text-[15px] leading-6 text-neutral-600 dark:text-neutral-400"),
         Div(P("Widgets da tela inicial", cls=K),
-            Div(render_widget_list(s["id"], (s.get("home") or {}).get("event") or "domain.imported"), cls="mt-1"),
+            Div(render_widget_list(s["id"], (s.get("home") or {}).get("event") or "domain.updated"), cls="mt-1"),
             cls="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-800"),
     )
 
@@ -91,7 +91,7 @@ def domain_view(ctx):
     return Iframe(src=f"/domain/{slug}?tab=Domain&embed=1", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
 
 
-domain_view.fake = True  # rendered before the journal records a domain.designed (it then shows that domain)
+domain_view.fake = True  # a console screen: it renders before any event is recorded
 
 
 def state_graph(ctx):
@@ -113,14 +113,13 @@ def right_menu(ctx):
 right_menu.fake = True  # a console screen: it exists before any event is recorded
 
 
-HOME = ("domain.imported", "DomainCard")
+HOME = ("domain.updated", "DomainCard")
 INITIAL = ["domain.designed", "domain.imported"]  # Human -> Domain.Designed (new) or Domain.Imported (existing)
 HUB = "domain.updated"  # both starts lead to Domain.Updated, and it links every other category
 
 WIDGETS = {
-    "domain.designed": [domain_view, state_graph, right_menu],
-    # the console's own screens, for a domain designed here or imported: the same widgets on both starts
-    "domain.imported": [domain_view, state_graph, right_menu, domain_list, domain_card],
+    # the Domain's widgets hang on Domain.Updated only: Designed and Imported are starts, with nothing to show
+    "domain.updated": [domain_view, state_graph, right_menu, domain_list, domain_card],
     "event.updated": [event_list],
     "widget.updated": [widget_list],
     "tab.updated": [toolbar],
