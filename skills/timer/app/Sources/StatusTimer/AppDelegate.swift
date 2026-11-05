@@ -21,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var stateFile: URL { stateDir.appendingPathComponent("state.json") }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        item.button?.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
         watchDirectory()
@@ -72,17 +71,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: look (same as the macOS menu bar clock)
+
+    /// Menu bar font with monospaced digits, so the width does not jitter while counting.
+    private static let timeFont: NSFont = {
+        let base = NSFont.menuBarFont(ofSize: 0)
+        let descriptor = base.fontDescriptor.addingAttributes([
+            .featureSettings: [[
+                NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
+                NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector,
+            ]],
+        ])
+        return NSFont(descriptor: descriptor, size: base.pointSize) ?? base
+    }()
+
+    /// The Nerd Font timer glyph, or nil when the font (or both glyphs) are missing.
+    private static let nerdIcon: (font: NSFont, glyph: String)? = {
+        let size = NSFont.menuBarFont(ofSize: 0).pointSize
+        // PostScript names as installed (fc-list): IosevkaTermNF (proportional-width NF) and IosevkaTermNFM (Mono).
+        let names = ["IosevkaTermNF", "IosevkaTermNFM", "IosevkaTermNerdFont-Regular",
+                     "IosevkaTerm Nerd Font", "IosevkaTerm NF"]
+        for name in names {
+            guard let font = NSFont(name: name, size: size) else { continue }
+            for glyph in ["\u{F051B}", "\u{F252}"] where hasGlyph(font, glyph) {
+                return (font, glyph)
+            }
+        }
+        return nil
+    }()
+
+    private static func hasGlyph(_ font: NSFont, _ glyph: String) -> Bool {
+        var chars = [UniChar](glyph.utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: chars.count)
+        return CTFontGetGlyphsForCharacters(font, &chars, &glyphs, chars.count) && glyphs.allSatisfy { $0 != 0 }
+    }
+
+    private func iconString(color: NSColor) -> NSAttributedString {
+        if let icon = Self.nerdIcon {
+            return NSAttributedString(string: icon.glyph, attributes: [
+                // The NF glyph's advance is narrower than its ink, so the space after it looks missing:
+                // kern opens the gap to match the spacing between the clock's date and time.
+                .font: icon.font, .foregroundColor: color, .kern: 4,
+            ])
+        }
+        // Fallback: the SF Symbol `timer` as a template attachment.
+        let attachment = NSTextAttachment()
+        let image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Timer")
+        image?.isTemplate = true
+        attachment.image = image
+        let font = Self.timeFont
+        let side = font.capHeight * 1.2
+        attachment.bounds = CGRect(x: 0, y: (font.capHeight - side) / 2, width: side, height: side)
+        return NSAttributedString(attachment: attachment)
+    }
+
     private func render() {
         guard let button = item.button else { return }
+        button.image = nil
+        let result = NSMutableAttributedString()
         switch display(for: state, now: Date()) {
         case .idle:
-            button.title = ""
-            button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Timer")
-        case .text(let text):
-            button.image = nil
-            button.title = text
+            result.append(iconString(color: .labelColor))
+        case .running(let text):
+            result.append(iconString(color: .labelColor))
+            result.append(NSAttributedString(string: " " + text, attributes: [
+                .font: Self.timeFont, .foregroundColor: NSColor.labelColor,
+            ]))
+        case .paused(let text):
+            result.append(iconString(color: .secondaryLabelColor))
+            result.append(NSAttributedString(string: " " + text, attributes: [
+                .font: Self.timeFont, .foregroundColor: NSColor.secondaryLabelColor,
+            ]))
         }
-        button.toolTip = state.label.isEmpty ? nil : state.label
+        button.attributedTitle = result
+        button.toolTip = tooltip(for: state)
     }
 
     private func notify() {

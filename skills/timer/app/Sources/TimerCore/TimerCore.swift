@@ -59,31 +59,29 @@ public struct TimerState: Codable, Equatable, Sendable {
     }
 }
 
-/// What the menu bar shows.
+/// What the menu bar shows next to the icon. The label is not part of the bar, only of the tooltip.
 public enum Display: Equatable, Sendable {
+    /// Icon only.
     case idle
-    case text(String)
+    /// Icon + time, label colour. Also the finished state (`00:00`).
+    case running(String)
+    /// Icon + time, secondary label colour.
+    case paused(String)
 }
 
-/// Pure mapping from state and time to the status item text.
+/// Pure mapping from state and time to the status item content.
 public func display(for state: TimerState, now: Date) -> Display {
     switch state.status {
-    case .idle:
-        return .idle
-    case .paused:
-        return .text("⏸ " + format(seconds: state.remaining(now: now)))
-    case .running:
-        var text = format(seconds: state.remaining(now: now))
-        let label = truncate(state.label, to: 16)
-        if !label.isEmpty { text += " " + label }
-        return .text(text)
+    case .idle: return .idle
+    case .paused: return .paused(format(seconds: state.remaining(now: now)))
+    case .running: return .running(format(seconds: state.remaining(now: now)))
     }
 }
 
-public func truncate(_ text: String, to limit: Int) -> String {
-    let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard t.count > limit else { return t }
-    return String(t.prefix(limit - 1)) + "…"
+/// Tooltip text: the label, or nil when there is none.
+public func tooltip(for state: TimerState) -> String? {
+    let t = state.label.trimmingCharacters(in: .whitespacesAndNewlines)
+    return t.isEmpty ? nil : t
 }
 
 /// Formats seconds as `MM:SS`, or `H:MM:SS` from one hour up. Rounds up so 00:00 only shows at the end.

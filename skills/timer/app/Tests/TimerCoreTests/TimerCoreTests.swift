@@ -41,27 +41,33 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
         #expect(display(for: TimerState(), now: t0) == .idle)
     }
 
-    @Test func runningWithAndWithoutLabel() {
+    @Test func runningIgnoresLabel() {
         var s = TimerState(status: .running, endsAt: 1_000_125)
-        #expect(display(for: s, now: t0) == .text("02:05"))
+        #expect(display(for: s, now: t0) == .running("02:05"))
         s.label = "foco"
-        #expect(display(for: s, now: t0) == .text("02:05 foco"))
+        #expect(display(for: s, now: t0) == .running("02:05"))
     }
 
-    @Test func longLabelTruncatedTo16() {
-        let s = TimerState(status: .running, endsAt: 1_000_060, label: "uma etiqueta muito longa mesmo")
-        #expect(display(for: s, now: t0) == .text("01:00 uma etiqueta mu…"))
-        #expect(truncate("uma etiqueta muito longa mesmo", to: 16).count == 16)
+    @Test func runningOverOneHour() {
+        let s = TimerState(status: .running, endsAt: 1_003_725)
+        #expect(display(for: s, now: t0) == .running("1:02:05"))
     }
 
-    @Test func paused() {
+    @Test func pausedIsDistinctFromRunning() {
         let s = TimerState(status: .paused, remaining: 90, label: "x")
-        #expect(display(for: s, now: t0) == .text("⏸ 01:30"))
+        #expect(display(for: s, now: t0) == .paused("01:30"))
+        #expect(display(for: s, now: t0) != .running("01:30"))
     }
 
     @Test func expiredShowsZero() {
         let s = TimerState(status: .running, endsAt: 1_000_000)
-        #expect(display(for: s, now: t0.addingTimeInterval(3)) == .text("00:00"))
+        #expect(display(for: s, now: t0.addingTimeInterval(3)) == .running("00:00"))
+    }
+
+    @Test func tooltipIsTheLabel() {
+        #expect(tooltip(for: TimerState(label: "foco")) == "foco")
+        #expect(tooltip(for: TimerState(label: "  ")) == nil)
+        #expect(tooltip(for: TimerState()) == nil)
     }
 }
 
