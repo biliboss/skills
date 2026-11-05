@@ -787,12 +787,15 @@ document.querySelectorAll('#pop-mode .mode').forEach(m => m.onclick = () => {
 });
 function openWidget(id, name, base = D.base) {
   setQ('w', name); paintMode();
+  $('pop-mode').classList.remove('hidden');
   $('pop-name').textContent = name;
   $('pop-sub').textContent = Q.get('e') ? `${id} · evento ${Q.get('e').slice(0, 8)}` : `${id} · primeiro evento real do diário`;
   $('pop-body').innerHTML = '<p class="text-neutral-400">carregando…</p>';
   $('pop').classList.remove('hidden'); $('pop').classList.add('flex');
   frag(`${base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${base === D.base ? Q.get('e') || '' : ''}&mode=${MODE()}`).then(h => {
     inject($('pop-body'), h);
+    // a widget generated from a real source (data-real-only: a SKILL.md, the code) has nothing to simulate: no REAL | SIMULADO
+    if ($('pop-body').querySelector('[data-real-only]')) { setQ('mode', ''); $('pop-mode').classList.add('hidden'); }
     // a composed WidgetList inside the popup: its abrir opens that widget here (in its own domain)
     wireRows($('pop-body'));
   });
