@@ -20,6 +20,8 @@ ENTITY = "Tension"                                   # what one item of the rail
 ENTITY_PLURAL = "tensões"
 ENTITIES = {"management": "Tension", "observation": "Observation", "relationship": "Relationship", "action": "Action"}
 ENTITY_KEY = "tension_id"                            # the journal field that names the entity
+# the console tabs this domain shows after the fixed Domain tab (Tab.Updated in the dev-console's journal)
+TABS = ["Model", "Visão", "Proposed Actions", "Observations", "Relationships", "Management", "Eventos", "Tipos"]
 BASE = ""                                            # set by the console: /domain/<slug>
 PROJECTOR = "_project"                               # function that folds events into the entity (its dict literal = the properties)
 journal = Tensions()
