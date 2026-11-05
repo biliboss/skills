@@ -359,7 +359,7 @@ def _widgets(event: str) -> list:
 
 def available(event: str) -> list[tuple[str, str]]:
     doc = lambda fn: (fn.__doc__ or "").strip().splitlines()[0] if fn.__doc__ else ""  # noqa: E731
-    return [(widget_name(fn), doc(fn)) for fn in _widgets(event)] + [("Observability", doc(observability))]
+    return [(widget_name(fn), doc(fn)) for fn in _widgets(event)]  # Observability is the right menu's last tab, not a widget
 
 
 def render_list(ctx: EventContext):
@@ -595,6 +595,8 @@ const SIDE_TABS = {
     return Promise.resolve(`<p class="px-4 pt-3 text-neutral-400">${esc(M().file)} · ao vivo</p><div class="px-2 py-3 leading-6 text-neutral-700 dark:text-neutral-300">${html}</div>`);
   },
   'JSON': id => Promise.resolve(`<pre class="m-0 p-4 !bg-transparent whitespace-pre-wrap text-neutral-600 dark:text-neutral-400">${esc(JSON.stringify(E.filter(e => e.event === id), null, 2))}</pre>`),
+  // every event has it, so it is a tab of the right menu (the last), not a widget in the list
+  'Observability': id => frag(`${D.base}/w/${D.state.id}/${id}/Observability?e=${Q.get('e') || ''}`).then(h => `<div class="p-4">${h}</div>`),
 };
 function openSide(id) {
   side.id = id; setQ('ev', id);
@@ -608,11 +610,14 @@ function openSide(id) {
   }
   const [c, v] = id.split('.'), n = E.filter(e => e.event === id).length, w = (M().coverage || {})[id] || [];
   $('ev-name').textContent = `${c}.${v}`;
-  $('ev-sub').textContent = `comando ${M().commands[id]} · ${n} nesta tensão · ${w.length ? w.join(', ') : 'só Observability'}`;
+  $('ev-sub').textContent = `comando ${M().commands[id]} · ${n} ${n === 1 ? 'evento' : 'eventos'} · ${w.length ? w.join(', ') : 'sem widgets'}`;
   renderSide();
 }
+// the right menu's tabs for one event: Widgets only when it has widgets; Observability always, last
+const sideTabs = id => Object.keys(SIDE_TABS).filter(t => t !== 'Widgets' || ((M().coverage || {})[id] || []).length);
 function renderSide() {
-  $('ev-tabs').innerHTML = Object.keys(SIDE_TABS).map(t =>
+  if (!sideTabs(side.id).includes(side.tab)) side.tab = sideTabs(side.id)[0];
+  $('ev-tabs').innerHTML = sideTabs(side.id).map(t =>
     `<a class="tab shrink-0 px-2 h-8 leading-8 cursor-pointer border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === side.tab ? 'on' : ''}" data-s="${t}">${t}</a>`).join('');
   $('ev-tabs').querySelectorAll('a').forEach(a => a.onclick = () => { side.tab = a.dataset.s; setQ('side', side.tab === 'Widgets' ? '' : side.tab); renderSide(); });
   const want = side.id;
