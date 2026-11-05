@@ -104,7 +104,7 @@ state_graph.fake = True  # drawn from code, so it exists before any event is rec
 
 
 def right_menu(ctx):
-    """The right menu: a clicked event's sidebar, with its own tabs (Widgets, Código, JSON)."""
+    """The right menu: a clicked event's sidebar, with its expandable parts (Widgets, Code, JSON, Observability)."""
     slug = SLUG  # ctx.event is an event of this domain (the dev-console's own), so its menu lives here
     return Iframe(src=f"/domain/{slug}?tab=Domain&embed=side&ev={ctx.event}",
                   cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")

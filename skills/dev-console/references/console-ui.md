@@ -5,7 +5,7 @@ why and the numbers, read when changing a part of the screen.
 
 ## Working on the file
 
-- Start it once in the background (services tab) and just save: `run_process`
+- Start it once in a herdr `services` tab and just save: `run_process`
   (watchfiles) restarts it on any change in the console folder or the project folder,
   and FastHTML `live=True` reloads the page. Kill only a stale server holding the port
   (`kill $(lsof -ti tcp:5057)`).
@@ -38,6 +38,12 @@ why and the numbers, read when changing a part of the screen.
   (`DomainView` = the Domain tab), never a copy of its markup.
   `?embed=graph` = the graph alone (`StateGraph`): no bar, a click opens no sidebar.
   `?embed=side&ev=<event>` = the right menu alone (`RightMenu`): the event's sidebar, full width.
+  `?embed=code&ev=<event>&side=Code` = the Code tab alone (`Code`).
+  `?embed=toolbar` = the real tab bar alone (`Toolbar`); `&sim_tab=<name>` adds an example tab in SIMULADO.
+  Every embed is laid out by CSS on `html[data-embed=…]`, set before `show()`.
+- `HUB` (project file, optional): every start leads to it and it opens every other category.
+  `TABS` (project file, optional): the tabs after the fixed Domain tab; the bar and the goto keys
+  show only those.
 
 ## Domains and URLs
 
@@ -58,7 +64,8 @@ sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
 ## Sidebar and widgets
 
 - Click a node: a ~420 px sidebar with name, command, count here and widget names, and
-  its own tabs `Widgets` (only with widgets) · `Code` · `JSON` · `Observability`. Close: ✕, `Esc`, click on the graph
+  expandable parts `Widgets` (only with widgets) · `Code` · `JSON` · `Observability`, all open at first; each
+  node remembers the parts the user closed in localStorage (`dev-console:part:<base>:<event>:<part>`). Close: ✕, `Esc`, click on the graph
   background; `Esc` closes the popup first.
 - `Widgets` is a list (name, docstring first line, `abrir`); `abrir` opens the widget
   in a centred popup (`fixed inset-0`, ~860 px, 82 vh) over the console.
@@ -77,11 +84,9 @@ sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
   category's first event; inside a category each event follows the previous one).
   When a category's commands are independent, that chain is a guess: the registry
   must say each command's source state; do not fake it in the view.
-- Human = initial pseudostate, a filled dot just below the root (the free downward
-  direction), single edge = the root command.
-- Rays: each category at its own angle; length ~185 px per step + ~80 px × |cos|;
-  siblings spread by a gap scaled by |sin|. Node font 16, root 19, edge labels 15.
-  Change spacing by ~20–30 % per step and screenshot.
+- Human = initial pseudostate, a filled dot in the centre; one edge per `INITIAL` start.
+  Positions come from fCoSE (section Layout below), never from hand-made coordinates.
+  Node font 16, root 19, edge labels 15. Change spacing by ~20–30 % per step and screenshot.
 - Labels on two lines (`Entity` / `Event`); explicit numeric node width (longest line ×
   ~10 + padding) and `curve-style: 'straight'` (`width: 'label'` + bezier hid nodes
   and edges). Edge labels in the path colour on a background box, `autorotate`; dim

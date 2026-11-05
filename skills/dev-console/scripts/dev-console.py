@@ -425,12 +425,16 @@ html[data-embed=code] #graph-col, html[data-embed=code] #ev-side > div:not(#ev-b
 html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
 /* ?embed=code: the right menu's Code tab alone (Code widget) */
 html[data-embed=code] #ev-side { width: 100% !important; border-left: 0; }
+html[data-embed=code] #ev-body details:not([data-part=Code]), html[data-embed=code] #ev-body summary { display: none !important; }
 /* ?embed=toolbar: the real tab bar alone (Toolbar widget) */
 html[data-embed=toolbar] #bar ~ * { display: none !important; }
 html[data-embed=toolbar] #bar { border-bottom: 0; }
 .tab.on{color:rgb(23 23 23);border-color:rgb(23 23 23)} .dark .tab.on{color:rgb(245 245 245);border-color:rgb(245 245 245)}
 .rec.sel{background:rgb(229 229 229)} .dark .rec.sel{background:rgb(38 38 38)}
 .mermaid svg{max-width:100%}
+/* the right menu's expandable parts: no Pico margins, the chevron right after the title */
+#ev-body details { margin: 0; padding: 0; } #ev-body details summary { margin: 0; list-style: none; }
+#ev-body details summary::after { float: none; margin-left: .25rem; }
 """
 
 JS = r"""
@@ -641,23 +645,32 @@ function openSide(id) {
   $('ev-sub').textContent = `comando ${M().commands[id]} · ${n} ${n === 1 ? 'evento' : 'eventos'} · ${w.length ? w.join(', ') : 'sem widgets'}`;
   renderSide();
 }
-// the right menu's tabs for one event: Widgets only when it has widgets; Observability always, last
-const sideTabs = id => Object.keys(SIDE_TABS).filter(t => t !== 'Widgets' || ((M().coverage || {})[id] || []).length);
+// The right menu is a column of expandable parts (Widgets only when the event has widgets; Code, JSON, and
+// Observability last, since every event has it). Every part starts open; each node remembers which parts the user
+// closed, in localStorage (key per domain, event and part).
+const sideParts = id => Object.keys(SIDE_TABS).filter(t => t !== 'Widgets' || ((M().coverage || {})[id] || []).length);
+const partKey = (id, p) => `dev-console:part:${D.base}:${id}:${p}`;
 function renderSide() {
-  if (!sideTabs(side.id).includes(side.tab)) side.tab = sideTabs(side.id)[0];
-  $('ev-tabs').innerHTML = sideTabs(side.id).map(t =>
-    `<a class="tab shrink-0 px-2 h-8 leading-8 cursor-pointer border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === side.tab ? 'on' : ''}" data-s="${t}">${t}</a>`).join('');
-  $('ev-tabs').querySelectorAll('a').forEach(a => a.onclick = () => { side.tab = a.dataset.s; setQ('side', side.tab === 'Widgets' ? '' : side.tab); renderSide(); });
-  const want = side.id;
-  SIDE_TABS[side.tab](want).then(html => {
+  const want = side.id, parts = sideParts(want);
+  $('ev-tabs').innerHTML = '';
+  $('ev-body').innerHTML = parts.map(p => `<details data-part="${p}" ${localStorage.getItem(partKey(want, p)) === 'closed' ? '' : 'open'}
+      class="border-b border-neutral-200 dark:border-neutral-800">
+      <summary class="flex items-center gap-2 px-4 h-9 cursor-pointer select-none text-[11px] uppercase tracking-widest text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">${p}</summary>
+      <div class="part-body pb-2"><p class="px-4 text-neutral-400">carregando…</p></div></details>`).join('');
+  $('ev-body').querySelectorAll('details').forEach(d => d.ontoggle = () =>
+    d.open ? localStorage.removeItem(partKey(want, d.dataset.part)) : localStorage.setItem(partKey(want, d.dataset.part), 'closed'));
+  parts.forEach(p => SIDE_TABS[p](want).then(html => {
     if (side.id !== want) return;
-    $('ev-body').innerHTML = html;
-    wireRows($('ev-body'), want);
-    // scroll only the sidebar (scrollIntoView also scrolled #main and pushed the graph out of view)
-    const hit = document.getElementById('hit'), body = $('ev-body');
-    if (hit) body.scrollTop = hit.offsetTop - body.clientHeight / 2;
-  });
+    const el = $('ev-body').querySelector(`details[data-part="${p}"] .part-body`);
+    inject(el, html);
+    if (p === 'Widgets') wireRows(el, want);
+    if (p === 'Code') {  // scroll only the sidebar to the event's command (scrollIntoView would also scroll #main)
+      const hit = el.querySelector('#hit'), body = $('ev-body');
+      if (hit) body.scrollTop = hit.offsetTop - body.clientHeight / 2;
+    }
+  }));
 }
+
 const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
 function wireRows(el, ev) {  // a WidgetList row opens its widget: click anywhere on it, or Enter / Space when focused
   el.querySelectorAll('.w-row').forEach(r => {
