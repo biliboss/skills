@@ -370,9 +370,13 @@ def render_list(ctx: EventContext):
         Li(Div(P(name, cls="font-semibold text-neutral-800 dark:text-neutral-200"),
                P(desc or "todo evento", cls="text-neutral-400"), cls="min-w-0"),
            NotStr(f'<button class="w-open shrink-0 px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 '
-                  f'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900" data-w="{name}" '
-                  f'data-ev="{ctx.event}" data-base="{PROJECT.BASE}">abrir</button>'),
-           cls="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800")
+                  f'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900" data-w="{name}" tabindex="-1">abrir</button>'),
+           # the whole row opens the widget (click, Enter or Space): a bigger target, and a keyboard stop (WCAG 2.1.1, 2.5.5)
+           # no role="button": Pico/MonsterUI paints [role=button] as a blue centred button; the row keeps the list look
+           tabindex="0", data_w=name, data_ev=ctx.event, data_base=PROJECT.BASE, aria_haspopup="dialog", aria_label=f"abrir {name}",
+           cls="w-row flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b border-neutral-200 "
+               "dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 focus:outline-none "
+               "focus-visible:bg-neutral-100 dark:focus-visible:bg-neutral-900")
         for name, desc in available(ctx.event)
     ]))
 
@@ -615,13 +619,20 @@ function renderSide() {
   SIDE_TABS[side.tab](want).then(html => {
     if (side.id !== want) return;
     $('ev-body').innerHTML = html;
-    $('ev-body').querySelectorAll('.w-open').forEach(b => b.onclick = () => openWidget(want, b.dataset.w));
+    wireRows($('ev-body'), want);
     // scroll only the sidebar (scrollIntoView also scrolled #main and pushed the graph out of view)
     const hit = document.getElementById('hit'), body = $('ev-body');
     if (hit) body.scrollTop = hit.offsetTop - body.clientHeight / 2;
   });
 }
 const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
+function wireRows(el, ev) {  // a WidgetList row opens its widget: click anywhere on it, or Enter / Space when focused
+  el.querySelectorAll('.w-row').forEach(r => {
+    const go = () => openWidget(ev || r.dataset.ev, r.dataset.w, ev ? D.base : r.dataset.base);
+    r.onclick = go;
+    r.onkeydown = k => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); go(); } };
+  });
+}
 function inject(el, h) {
   el.innerHTML = h;
   el.querySelectorAll('script').forEach(o => { const n = document.createElement('script'); n.textContent = o.textContent; o.replaceWith(n); });
@@ -652,7 +663,7 @@ function openWidget(id, name, base = D.base) {
   frag(`${base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${base === D.base ? Q.get('e') || '' : ''}&mode=${MODE()}`).then(h => {
     inject($('pop-body'), h);
     // a composed WidgetList inside the popup: its abrir opens that widget here (in its own domain)
-    $('pop-body').querySelectorAll('.w-open').forEach(b => b.onclick = () => openWidget(b.dataset.ev, b.dataset.w, b.dataset.base));
+    wireRows($('pop-body'));
   });
 }
 function closeWidget() { setQ('mode', ''); setQ('w', ''); $('pop').classList.add('hidden'); $('pop').classList.remove('flex'); }
