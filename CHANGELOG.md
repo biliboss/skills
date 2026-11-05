@@ -2,13 +2,6 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
-## [0.16.0] - 2026-11-05
-
-### Added
-
-- `timer` 0.1.0: a countdown in the Mac menu bar driven by the agent through `scripts/timer.sh`; the StatusTimer app only displays the state file.
-- `timer` 0.2.0: the menu bar looks like the macOS clock (Nerd Font timer icon, monospaced menu bar font, label only in the tooltip).
-
 ## [0.18.0] - 2026-11-05
 
 ### Changed
@@ -26,6 +19,13 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
   O pedido de confirmação passa a ser: implementar com o modelo recomendado, recomendado + um modelo de teste em
   paralelo, só confirmar, não ficou bom — e o teach-back na pergunta é blocos curtos ou lista numerada, com a
   pergunta ("Bate?") sozinha na última linha.
+
+## [0.16.0] - 2026-11-05
+
+### Added
+
+- `timer` 0.1.0: a countdown in the Mac menu bar driven by the agent through `scripts/timer.sh`; the StatusTimer app only displays the state file.
+- `timer` 0.2.0: the menu bar looks like the macOS clock (Nerd Font timer icon, monospaced menu bar font, label only in the tooltip).
 
 ## [0.15.0] - 2026-11-05
 
@@ -141,6 +141,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - `tensions` 0.1.0: shared append-only JSONL journal for meaningful domain events. One Python stdlib script, one SKILL.md and optional scripts/justfile recipes, without NATS, MCP, or Python packages.
  
+
 ## [0.3.0] - 2026-11-04
 
 ### Added
