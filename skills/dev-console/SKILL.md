@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.3.0
+  version: 0.4.0
 ---
 
 # dev-console
