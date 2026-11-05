@@ -298,7 +298,7 @@ def _report(md: str):
         out.append(Pre(m.group(1).strip(), cls="mermaid my-4 !bg-transparent cursor-zoom-in", data_media="1"))
         last = m.end()
     out.append(NotStr(render_md(md[last:])))
-    return Div(*out, cls=f"report {BODY} [&_strong]:font-semibold [&_ul]:my-2 [&_ul]:ml-5 [&_ul]:list-disc [&_li]:my-1")
+    return Div(*out, cls=f"report {BODY} [&_strong]:font-semibold [&_ul]:my-2 [&_ul]:pl-5 [&_li]:my-1")
 
 
 MEDIA_JS = """
@@ -306,6 +306,10 @@ MEDIA_JS = """
   const root = document.currentScript.previousElementSibling; if (!root) return;
   root.querySelectorAll('.report h2').forEach(h => h.className = 'mt-8 mb-2 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100');
   root.querySelectorAll('.report p').forEach(p => p.className = 'my-2');
+  // the markdown renderer's own list classes give a second marker and a bigger font: one marker, the body's size
+  root.querySelectorAll('.report ul').forEach(u => u.className = 'my-2 pl-5 list-disc');
+  root.querySelectorAll('.report ol').forEach(u => u.className = 'my-2 pl-5 list-decimal');
+  root.querySelectorAll('.report li').forEach(l => l.className = 'my-1');
   const go = () => window.mermaid ? window.mermaid.run({nodes: root.querySelectorAll('pre.mermaid:not([data-processed])')}) : setTimeout(go, 200);
   go();
   const items = () => [...root.querySelectorAll('[data-media]')];
@@ -351,7 +355,7 @@ def task_execution_result(ctx):
                                          cls="text-neutral-500 underline decoration-neutral-400/50")) if pr else LABEL[x.delivery]
     return _with_media(
         _title("Resultado da execução"),
-        P(FAKE_TASK, cls="font-sans text-sm text-neutral-500 dark:text-neutral-400"),
+        P((ctx.state or {}).get("title") or FAKE_TASK, cls="font-sans text-sm text-neutral-500 dark:text-neutral-400"),
         Div(fact("Método", LABEL[x.method]), fact("Harness", LABEL[x.harness]), fact("Modelo", LABEL[x.model]),
             fact("Esforço", LABEL[x.effort]), fact("Cycle time", _duration(x.cycle_time_s)), fact("Entrega", delivery),
             cls="mt-4 grid grid-cols-3 gap-x-6 gap-y-3 py-4 border-y border-neutral-200 dark:border-neutral-800"),
