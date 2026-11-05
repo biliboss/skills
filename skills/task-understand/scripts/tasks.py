@@ -206,6 +206,28 @@ TRANSITIONS = {
 }
 
 
+MEDIA_DIR = Path(os.environ.get("TASKS_DIR", DEFAULT_DIR)).expanduser() / "media"  # pictures of executed tasks
+
+
+def result_from(value: dict) -> ExecutionResult | None:
+    """The ExecutionResult a task.executed value carries, or None when the run recorded only its text (older runs)."""
+    if not {"method", "harness", "model", "effort", "cycle_time_s", "delivery"} <= value.keys():
+        return None
+    pic = lambda p: Picture(p["src"], p.get("caption", ""))  # noqa: E731
+    pr = value.get("pull_request")
+    s = value.get("session") or {}
+    return ExecutionResult(
+        text=value.get("text", ""), method=Method(value["method"]), harness=Harness(value["harness"]),
+        model=Model(value["model"]), effort=Effort(value["effort"]), cycle_time_s=int(value["cycle_time_s"]),
+        delivery=Delivery(value["delivery"]),
+        session=SessionRef(Harness(s.get("harness", value["harness"])), s.get("id"), s.get("log", "")),
+        pull_request=PullRequest(pr["number"], pr["url"], PullRequestState(pr["state"])) if pr else None,
+        commits=tuple(Commit(c["sha"], c["message"], c["repo"]) for c in value.get("commits", [])),
+        before_afters=tuple(BeforeAfter(b["title"], pic(b["before"]), pic(b["after"])) for b in value.get("before_afters", [])),
+        journeys=tuple(Journey(j["title"], tuple(pic(x) for x in j["steps"])) for j in value.get("journeys", [])),
+    )
+
+
 def _project(events: list[dict]) -> dict | None:
     state = None
     for e in events:

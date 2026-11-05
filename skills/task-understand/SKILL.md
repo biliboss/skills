@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.9.0
+  version: 0.10.0
 ---
 
 # task-understand
@@ -126,3 +126,8 @@ before it starts.
   - **Tasks**: TaskList beside TaskExecutionResult, composed; it becomes the dev-console's second fixed tab
     (after Domain), filtered by the task's domain, once he approves the widgets.
   Widgets on fake data (`FAKE_*` + the "dados de exemplo" footer) mirror a real run of this skill until approved.
+- A run records its `ExecutionResult` whole in `task.executed` (method, harness, model, effort, cycle_time_s,
+  delivery, session, pull_request, commits, before_afters, journeys; the report in `text` may carry mermaid and
+  images). Pictures live in `~/.local/share/tasks/media/<task id 8>/` and are referenced as `media:<task id 8>/<file>`;
+  the console serves them. A run that recorded only its text shows the text alone (no example data).
+- A domain's Task Results tab shows only the tasks whose `task.explained` names that domain.

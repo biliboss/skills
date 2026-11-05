@@ -2,6 +2,17 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-11-05
+
+### Added
+
+- `result_from`: the real ExecutionResult of a `task.executed` (pictures as `media:` paths, served by the console);
+  the result widget, Before and After and Journey read it, with example data only when nothing ran.
+
+### Fixed
+
+- Task Results lists only the tasks of the domain on screen (the tasks domain no longer shows every task).
+
 ## [0.9.0] - 2026-11-05
 
 ### Changed
