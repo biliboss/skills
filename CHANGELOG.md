@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.5.0] - 2026-11-05
+
+### Added
+
+- `dev-console` 0.1.0: one-file FastHTML console for any event-sourced project in development (`--project`): the state machine of commands and events drawn from the code, entities, journal, and widgets per event in a contextual sidebar and a centred popup.
+
+### Changed
+
+- `tensions` 0.2.0: `EVENTS` is `{category: {command: event}}` and smaller; `created_at` in the projection; the project file `dev_console_project.py` hooks it into the dev-console.
+
 ## [0.4.0] - 2026-11-04
 
 ### Added

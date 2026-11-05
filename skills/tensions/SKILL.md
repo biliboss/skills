@@ -6,7 +6,7 @@ description: >-
   changes, when a decision needs a reason, or when an agent needs to read
   the evolution of a Tension. Not a task manager or agent runtime.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Tensions
@@ -30,16 +30,18 @@ Observations can be disputed or corrected: append new events; never edit history
 
 ## Categories
 
-- **management:** `created`, `redefined`, `resolved`, `reopened`, `archived`.
-  Values: Definition, Resolution, Reason.
-- **observation:** `recorded`, `corrected`, `disputed`.
-  Values: Observation, Evidence, Reason.
-- **reasoning:** `hypothesis_proposed`, `assessment_recorded`, `challenged`.
-  Values: Hypothesis, Assessment.
-- **relationship:** `linked`, `unlinked`, `decomposed`.
-  Value: Relationship.
-- **action:** `proposed`, `started`, `completed`, `failed`.
-  Values: Proposal, Outcome.
+The source of truth is `EVENTS` in `scripts/app_tensions.py`: per category, each
+command and the event it records, in the order a Tension lives them.
+
+- **management:** `create` → `created`, `update` → `updated`. Value: Definition.
+- **observation:** `record` → `recorded`. Values: Observation, Evidence. A new
+  Recorded may supersede 0..N earlier ones through its value.
+- **relationship:** `link` → `linked`, `unlink` → `unlinked`. Value: Relationship.
+- **action:** `propose` → `proposed`, `start` → `started`, `complete` → `completed`.
+  Values: Proposal, Outcome. An Action starts as `proposed`; `started` and
+  `completed` point back with `proposal_id`.
+
+Lines written by v0.1 stay readable (`management.redefined` projects as `updated`).
 
 A Value Object is reusable; no need to define a new VO class for each event.
 The naming is deliberately semantic, not the name of an execution workflow.
@@ -78,6 +80,10 @@ recipes: `just --justfile scripts/justfile list`,
 `just --justfile scripts/justfile emit <event> <json-file> [tension-id]`.
 The last recipe reads the payload from a JSON file rather than passing raw JSON
 through a shell command.
+
+## See it
+
+The `dev-console` skill shows this journal: `uv run --script <dev-console>/scripts/dev-console.py --project scripts/dev_console_project.py`.
 
 ## Boundaries and limitations
 

@@ -15,13 +15,16 @@ from typing import Any
 from uuid import uuid4
 
 DEFAULT_DIR = Path.home() / ".local" / "share" / "tensions"
+# Command -> event it records, per category, in the order a Tension lives them.
+# The first management command creates the Tension; every other category opens from it.
 EVENTS = {
-    "management": {"created", "redefined", "resolved", "reopened", "archived"},
-    "observation": {"recorded", "corrected", "disputed"},
-    "reasoning": {"hypothesis_proposed", "assessment_recorded", "challenged"},
-    "relationship": {"linked", "unlinked", "decomposed"},
-    "action": {"proposed", "started", "completed", "failed"},
+    "management": {"create": "created", "update": "updated"},
+    "observation": {"record": "recorded"},  # a new Recorded may supersede 0..N earlier ones by its value
+    "relationship": {"link": "linked", "unlink": "unlinked"},
+    "action": {"propose": "proposed", "start": "started", "complete": "completed"},
 }
+# Lines written by v0.1 stay readable: their old names project like the current ones.
+LEGACY = {"management.redefined": "management.updated"}
 
 
 class Tensions:
@@ -39,7 +42,7 @@ class Tensions:
     ) -> dict:
         """Append a meaningful event. Creation generates tension_id if absent."""
         category, separator, verb = event.partition(".")
-        if not separator or verb not in EVENTS.get(category, set()):
+        if not separator or verb not in EVENTS.get(category, {}).values():
             raise ValueError(f"Unknown event: {event}")
         if not isinstance(value, dict) or not value:
             raise ValueError("Value must be a non-empty JSON object")
@@ -116,7 +119,7 @@ class Tensions:
     def _project(events: list[dict]) -> dict | None:
         state = None
         for e in events:
-            event, value = e["event"], e["value"]
+            event, value = LEGACY.get(e["event"], e["event"]), e["value"]
             if event == "management.created":
                 state = {
                     "id": e["tension_id"],
@@ -124,15 +127,18 @@ class Tensions:
                     "desired": value["desired"],
                     "context": value.get("context", {}),
                     "status": "open",
+                    # Private and immutable: set once by management.created; no later event writes it.
+                    "created_at": e["at"],
                     "updated_at": e["at"],
                     "event_count": 0,
                 }
             if state is None:
                 continue
-            if event == "management.redefined":
+            if event == "management.updated":
                 for key in ("actual", "desired", "context"):
                     if key in value:
                         state[key] = value[key]
+            # v0.1 lines only: no command records these any more.
             if event in ("management.resolved", "management.reopened", "management.archived"):
                 state["status"] = "open" if event == "management.reopened" else event.split(".")[1]
             state["updated_at"] = e["at"]
