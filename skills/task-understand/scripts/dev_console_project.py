@@ -6,8 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from fasthtml.common import A, Div, Figcaption, Figure, H2, Img, Li, NotStr, Ol, P, Pre, Script, Span, Ul  # noqa: E402
-from tasks import (MEDIA_DIR, TRANSITIONS, BeforeAfter, Commit, Delivery, Effort, ExecutionResult, Harness,  # noqa: E402,F401
-                   Journey, Method, Model, Picture, PullRequest, PullRequestState, SessionRef, TasksJournal, result_from)
+from tasks import (MEDIA_DIR, TRANSITIONS, BeforeAfter, Check, Commit, Delivery, Effort, ExecutionResult,  # noqa: E402,F401
+                   Harness, Journey, Method, Model, Picture, PullRequest, PullRequestState, SessionRef, TaskDelivery,
+                   TasksJournal, Verification, outcome_of, result_from)
 
 NAME = "Biliboss Skills - Tasks"
 SLUG = "tasks"
@@ -168,7 +169,7 @@ def task_list(ctx):
     """Task List: the executed tasks, the newest first; a row opens its Task Detail."""
     rows = []
     # in the Task Results tab of a domain: only that domain's tasks (the tasks domain itself shows them all)
-    done = [t for t in ctx.entities if t.get("status") == "executed"
+    done = [t for t in ctx.entities if t.get("result") is not None
             and (not ctx.domain or t.get("domain") == ctx.domain)]
     for t in sorted(done, key=lambda t: t.get("updated_at", ""), reverse=True):
         on = t["id"] == ctx.entity_id
@@ -218,6 +219,12 @@ FAKE_EXECUTION = ExecutionResult(
     commits=(Commit("99769cd", "feat(task-understand): 0.5.1, the whole process by the executor's first real run",
                     "biliboss/skills"),),
     provider="claude-bridge", plan="mukutu-claude", exit_code=0, duration_s=84, turns=12,
+    verification=Verification(
+        "passou: 2 de 2 checagens", True,
+        (Check("os testes do fluxo", "uv run --script scripts/test_flow.py", "Ran 12 tests ... OK", True),
+         Check("o grafo desenha o fluxo", "abri /domain/tasks e olhei a aba Domain", "task.verified ligado a task.delivered", True)),
+        model="glm", provider="zai", plan="glm-coding-plan", duration_s=61, exit_code=0),
+    delivered=TaskDelivery("entregue por pull request", "pr", "https://github.com/biliboss/skills/pull/41"),
     worktree="~/src/skills.task-b77a228e-sonnet", branch="task/b77a228e-sonnet", tokens=141_702, cost_usd=None,
     before_afters=(
         BeforeAfter("O processo",
@@ -242,6 +249,7 @@ FAKE_EXECUTION = ExecutionResult(
 FAKE_TASK, FAKE_AT = "Implementar todo o desenho do Tasks na skill e atualizar o SKILL.md", "2026-11-05T10:46:15Z"
 
 # How each typed value reads for a person
+DELIVERY_KIND = {"pr": "Pull request", "direct": "Direto, sem PR", "none": "Nada a entregar"}
 LABEL = {Method.PRINT: "Execução de uma vez", Method.INTERACTIVE: "Sessão interativa", Method.BY_HAND: "À mão, pelo agente",
          Harness.CLAUDE_CODE: "Claude Code", Harness.HERMES: "Hermes", Harness.PI: "pi",
          Model.SONNET: "Sonnet", Model.OPUS: "Opus", Model.HAIKU: "Haiku",
@@ -255,7 +263,7 @@ def _result(ctx) -> tuple[ExecutionResult | None, dict | None]:
     the design's example only when the journal has no run at all."""
     run = _executed(ctx)
     if run:
-        return result_from(run["value"]), run
+        return outcome_of(ctx.history)[0], run  # the run with the verification and delivery that followed it
     return FAKE_EXECUTION, None
 
 
@@ -364,6 +372,30 @@ MEDIA_JS = """
 """
 
 
+def _verification(v: Verification):
+    """The independent verification under the run: passed or not, each check with its evidence."""
+    tone = "text-emerald-700 dark:text-emerald-400" if v.passed else "text-rose-700 dark:text-rose-400"
+    rows = [Li(Span("✓ " if c.passed else "✗ ", cls=("text-emerald-600" if c.passed else "text-rose-600") + " font-mono"),
+               Span(c.what, cls="font-semibold"),
+               Div(f"como: {c.how}", cls="ml-5 text-xs text-neutral-500") if c.how else "",
+               Div(c.evidence, cls="ml-5 font-mono text-xs text-neutral-500 whitespace-pre-wrap") if c.evidence else "",
+               cls=f"{BODY} mt-2") for c in v.checks]
+    by = " · ".join(x for x in (LABEL.get(v.model, v.model), v.plan, _duration(v.duration_s) if v.duration_s is not None else "") if x)
+    return Div(Div("Verificação independente", cls=K),
+               P(("Passou" if v.passed else "Não passou") + f" — {v.text}", cls=f"mt-1 font-sans text-[15px] font-semibold {tone}"),
+               P(f"verificado por {by}, em contexto novo" if by else "verificado em contexto novo", cls="text-xs text-neutral-400"),
+               Ul(*rows, cls="mt-1"), cls="mt-6")
+
+
+def _delivered(d: TaskDelivery):
+    """The delivery under the run: its kind and, when there is one, the link."""
+    link = A(d.url, href=d.url, target="_blank", cls="text-neutral-500 underline decoration-neutral-400/50 break-all") if d.url else ""
+    return Div(Div("Entrega", cls=K),
+               Div(Span(DELIVERY_KIND.get(d.kind, d.kind), cls="font-semibold"), Span(" · ", cls="text-neutral-400") if d.url else "", link,
+                   cls=f"{BODY} mt-1"),
+               P(d.text, cls="text-xs text-neutral-400") if d.text else "", cls="mt-6")
+
+
 def task_execution_result(ctx):
     """Task Execution Result: how the task was executed and what it delivered, drawn from ExecutionResult."""
     x, run = _result(ctx)
@@ -402,6 +434,8 @@ def task_execution_result(ctx):
             cls="mt-4 grid grid-cols-3 gap-x-6 gap-y-3 py-4 border-y border-neutral-200 dark:border-neutral-800"),
         Div(_report(x.text), cls="mt-4"),
         P(_when(run["at"] if run else FAKE_AT), cls="mt-4 text-xs text-neutral-400"),
+        _verification(x.verification) if x.verification else "",
+        _delivered(x.delivered) if x.delivered else "",
         # the parts, composed (never copied), each only when the run brought it
         Div(before_after(ctx, standalone=False), cls="mt-8") if x.before_afters else "",
         Div(journey(ctx, standalone=False), cls="mt-8") if x.journeys else "",
@@ -487,7 +521,7 @@ task_execution_log.fake = True  # a design on the value object
 
 def tasks(ctx):
     """Task Results: the executed tasks of a domain, the Task List beside the result of the selected one."""
-    some = any(t.get("status") == "executed" and (not ctx.domain or t.get("domain") == ctx.domain)
+    some = any(t.get("result") is not None and (not ctx.domain or t.get("domain") == ctx.domain)
                for t in ctx.entities)
     return Div(
         _title("Task Results"),

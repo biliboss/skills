@@ -2,6 +2,31 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-11-05
+
+### Added
+
+- `tasks.py verify` (IV&V): pi in a fresh context (`--no-session`, a flat-plan registry model, the delivery's worktree)
+  checks a `task.executed` delivery against the confirmed request. The prompt holds only the task's text, the last
+  confirmed teach-back and the delivery (worktree, branch, PR, the executor's report); never the executor's transcript
+  or learnings. It asks for the gap, not everything, and for a last JSON block `{passed, checks}`; `task.verified`
+  records it. No parsable block, a failed check or a crashed verifier is `passed: false`.
+- `tasks.py deliver --kind pr|direct|none`: `task.delivered`, refused unless the last verification passed.
+- `tasks.py merge` and `tasks.py request-review --text`: `pull_request.merged` and `pull_request.review_requested`,
+  only after a `task.delivered` of kind `pr`.
+- The projector knows `verified`, `delivered` and `merged`; a verification that did not pass, and a review
+  requested, put the task back at `confirmed` so `execute` runs again, told which checks failed or why the review
+  was asked. `ExecutionResult` gains `verification` and `delivered` (defaults `None`); `outcome_of(history)` attaches
+  what followed the last run; older events and `result_from` are unchanged.
+- SKILL.md steps 10 to 12: verify → deliver → the PR ask (merge direct for a prototype, review first for product or
+  client code, then leave it open).
+- dev-console: Task Execution Result shows the verification (each check with its evidence) and the delivery (kind and
+  link) under the run; the Task List shows every task that has run.
+
+### Changed
+
+- The four events are real: the "rascunho, só no grafo" marks are gone from `EVENTS`.
+
 ## [0.12.2] - 2026-11-05
 
 ### Changed
