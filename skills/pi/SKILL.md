@@ -3,7 +3,7 @@ name: pi
 description: >-
   Run the pi coding agent (pi.dev) with the owner's Claude accounts through the subscription, not an API key — on the Mac via the pi-claude-bridge extension, choosing the account (the main or the secondary one) by CLAUDE_CONFIG_DIR; check which account each folder has; install or repair the bridge; and see how pi reaches its providers on the VPS. Every action is a script in scripts/. Use when the user says "roda o pi", "pi com a conta do Claude", "pi com a conta principal", "usa o pi.dev aqui", "pi via cli", "as contas do pi", "o pi da VPS", "instala o bridge do pi". Not `delegate` (another Claude Code session) nor `bili` (the Hermes agent that launches pi robots on the VPS): this one runs pi itself, here.
 metadata:
-  version: 0.2.2
+  version: 0.3.0
 ---
 
 # pi — o pi.dev com as contas do Claude
@@ -26,16 +26,21 @@ O `pi` é o agente de terminal (pi.dev) que roda os robôs da VPS e que também 
    - Outro modelo: `--model claude-bridge/claude-haiku-4-5` (o padrão é `claude-bridge/claude-sonnet-5`, ou `$PI_CLAUDE_MODEL`).
    - Interativo: `S/pi-claude.sh <conta>`, e dentro dele `/model` para trocar o modelo.
    - Passe sempre `--model claude-bridge/...` ou deixe o script pôr. Sem isso, o pi cai no padrão do `settings.json` (`zai/glm-5.3`), e os `~anthropic/...` da lista são da OpenRouter, que cobra por token.
+   - **GLM pelo Coding Plan (o outro plano fixo):** `ZAI_API_KEY="$(cat ~/glm_token)" pi -p --no-session --mode json --model zai/glm-5.3 "<pedido>"` (ou `zai/glm-5.3-flash`). A chave entra só no ambiente do processo filho; nunca a imprima nem a ponha num arquivo do repo.
+   - **Sem interação, para orquestrar:** `-p --no-session --mode json > <scratch>/run.jsonl`; o fim da execução é o evento `agent_end` (a resposta final em `.messages[-1].content[].text`), e o uso por turno vem em `message_end`/`turn_end` `.message.usage` (`input`, `output`, `cost.total`, que é preço de tabela, não cobrança do plano).
+3b. **Comparar modelos na mesma tarefa** (quando o dono quer saber "funciona neste modelo?"): um worktree e um ramo por modelo a partir do `origin/main` (`git worktree add ../<repo>.wt-<tarefa>-<modelo> -b run/<tarefa>-<modelo> origin/main`), o mesmo brief num arquivo fora dos worktrees, e os dois `pi -p` em paralelo num só `terminal(background=true, notify=true)` com `( ... ; echo "<modelo> exit=$? $(date +%s)" >> done ) &` e `wait`. Depois, confira você mesmo os testes de cada ramo, monte a tabela (tempo, testes, o que faltou, custo) e escolha um ramo para o PR, dizendo por quê; registre o resultado de cada modelo, inclusive o não escolhido, para aprender que tarefa cada um faz bem. Só planos fixos entram: Claude pela conta da empresa do trabalho e o GLM do Coding Plan, nunca OpenRouter.
 4. **As nossas skills no pi:** `S/ligar-skills.sh` liga em `~/.pi/agent/skills/` cada skill deste plugin (`biliboss/skills`), lida do `plugin.json`, e tira do caminho a que saiu do plugin. Rode depois de criar ou tirar uma skill; no pi aberto, mande `/reload`.
 5. **A VPS:** `S/vps.sh` mostra, para cada `~/.pi/agent` da VPS, os provedores logados (só o tipo), o padrão e se o `anthropic` está pronto. Lá o `root` usa o login do próprio pi (`anthropic` por OAuth), não o bridge.
 
 ## O que pega
 
-- **Credencial do Claude não vai para o envless nem é copiada entre máquinas** (nem o `~/.pi/agent/auth.json`, nem a pasta do Claude Code). É OAuth, e o token se renova a cada uso: a cópia envelhece e pode derrubar o login da outra máquina. O envless é para chave fixa (`zai`, `kimi`).
+- **O login OAuth da pasta não vai para o envless nem é copiado entre máquinas** (nem o `~/.pi/agent/auth.json`, nem a pasta do Claude Code): o token se renova a cada uso, e a cópia envelhece e pode derrubar o login da outra máquina. O token do `claude setup-token` é fixo por 1 ano e vai para o envless, como as chaves `zai` e `kimi`.
 - **Login é do dono:** o OAuth acontece no navegador, e o agente não o conclui sozinho. Peça `! CLAUDE_CONFIG_DIR=<pasta> claude auth login` (uma conta no Claude Code) ou `! pi` seguido de `/login` (o login do próprio pi, como na VPS).
+- **`pi --list-models` só mostra os modelos `zai` com `ZAI_API_KEY` no ambiente:** sem ela, o GLM parece não existir. Confira com `ZAI_API_KEY="$(cat ~/glm_token)" pi --list-models | grep glm`.
 - **O catálogo do `claude-bridge` vem do pi e pode estar atrás** dos modelos novos. Confira com `pi --list-models claude-bridge` antes de pedir um modelo, e atualize com `S/atualizar.sh mac`.
 - **`pi auth check --no-refresh` diz "ready" mesmo com o token de renovação vencido:** ele só vê que a credencial existe. Para saber se o login vale, rode sem `--no-refresh`. "invalid" pede um `/login` novo do dono.
 - **O bridge para o turno se outra extensão mexer no prompt de sistema do pi,** porque a Anthropic poderia cobrar como uso extra. `CLAUDE_BRIDGE_DEBUG=1` grava o prompt em `~/.pi/agent/claude-bridge.log`.
 - **O `/goal` é o do `@narumitw/pi-goal`; não instale o `pi-goal-x` no pi global:** os dois registram `/goal`, e o auditor do `pi-goal-x`, rodando pelo `claude-bridge`, não devolve o marcador de aprovação e deixa o goal `blocked` com o trabalho pronto.
 - **Para testar uma extensão sem trocar o pi de todos:** instale-a numa pasta à parte (`npm install --prefix <pasta> <pacote>`) e rode `pi -ne -e <bridge> -e <extensão>`, com os caminhos do campo `pi.extensions` de cada `package.json` (o bridge: `~/.pi/agent/npm/node_modules/pi-claude-bridge/src/index.ts`). O `-ne` desliga as extensões globais, então passe também as que o teste precisa (ex.: `~/.pi/agent/extensions/herdr-agent-state.ts`, para o herdr ver o estado).
 - **Um `pi -p` com o bridge leva de 10 a 60 s** (ele sobe um Claude Code por chamada). Num laço, rode em segundo plano.
+- **Troca de conta com tokens (`pi-claude-accounts`):** o `setup-token` autoriza na conta do navegador padrão, não na do `CLAUDE_CONFIG_DIR`. A receita (gerar na conta certa, guardar no envless sem ver, conferir, levar ao pi, prazos) está em [references/contas-tokens.md](references/contas-tokens.md).

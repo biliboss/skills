@@ -29,6 +29,18 @@ $A novo <tema> pi --cwd <pasta> -- -ne -e <extensão.ts>   # outra pasta; o que 
 
 Ele imprime o pane. O nome sai na aba, no pane e na sessão (`/rename` no Claude Code, `--name` no pi).
 
+**Workspace novo com o Hermes** ("cria um workspace X e sobe o Hermes / o claude-mukutu lá"):
+
+```sh
+herdr workspace create --label <nome> --cwd <pasta>     # imprime root_pane e tab_id; sem --focus
+herdr tab rename <tab> <nome>; herdr pane rename <pane> <nome>
+herdr pane send-text <pane> 'hermes -p bili'; sleep 1; herdr pane send-keys <pane> Enter
+herdr pane read <pane> --source recent --lines 30          # responda o prompt de abertura, se houver
+```
+
+- **"Hermes na conta mukutu" = `hermes -p bili`**: o perfil já fixa o `claude_config_dir` na `~/.claude-mukutu`. O alias `claude-mukutu` do zsh abre o **Claude Code**, não o Hermes; na dúvida entre os dois, o pedido do dono que diz "hermes" vence.
+- **Leia o pane depois de abrir:** o Claude Code numa pasta nova para na pergunta de confiança (Esc sai sem criar sessão), e o Hermes pode abrir com uma pergunta (ex.: auto-prune; Enter adia). Só diga "pronto" quando aparecer o prompt.
+
 - **Sem instrução**, quando o dono pedir "só com o nome": abra e pare aí.
 - **Com tarefa:** escreva o briefing em `~/.local/state/<tema>.md` (objetivo verificável, contexto com repo e páginas do `.wiki`, limites, o que é do dono, como fechar). Depois mande o `/goal` com o detalhe no arquivo: `$A barra <pane> 'goal <resultado numa linha>. Detalhe e regras em ~/.local/state/<tema>.md'`.
 - **Limites que vão em todo briefing:** trabalhar direto no `main` e sempre commitar e sincronizar; planejar primeiro escrevendo no `.wiki`; implementar com subagentes; Docker só se precisar, e no fim remover os containers e as imagens que ele criou (nunca `docker system prune`); segredo só pelo envless (`.wiki/segredos.md`).
@@ -46,8 +58,13 @@ herdr-events esperar <pane> --until idle,done,blocked --timeout 1800   # só com
 - **Esperar é sempre em segundo plano**, num comando só dele: os hooks do Mac barram um comando que espera em primeiro plano ou que junta `sleep` com um laço. A notificação chega quando a sessão para.
 
 - **Mensagem longa vai por arquivo**, nunca pelo `send-text` direto: o texto colado vira "[Pasted text]", e o script reenvia o Enter até entrar.
+- **Fila é o padrão; desviar o turno, só para corrigir o rumo.** O que não é urgente vai para a fila do agente (`mux.sh fila <id> <arquivo>` da skill `prime-agent`: Tab no Hermes). `manda` (Enter) faz o agente largar o turno em curso para ler a mensagem.
 - **pi ocupado:** a mensagem vira "Steering" e entra quando ele terminar o turno; não mande de novo.
+- **Digitando por script (`tmux send-keys`), pause ~1 s entre o texto e o Enter** e confira na tela que submeteu: um Enter colado ao texto vira quebra de linha ou se perde, e o comando fica parado na caixa.
+- **Limpar a caixa de um agente** (um texto parado de um teste, um comando que não submeteu): `herdr pane send-keys <pane> ctrl+u` e confira com `herdr pane read`. O herdr usa nomes como `ctrl+u` e `esc`; os do tmux (`C-u`) ele recusa com `invalid_key`.
 - **Depois de `/reload` no pi**, espere uns segundos antes da próxima mensagem: uma mensagem durante o reload se perde.
+- **`done`/`idle` não quer dizer que parou:** um pi ou um Claude Code que só espera um subagente aparece como `done`/`idle` no herdr. Leia o rodapé do pane (`N running agent`, `live agents`, um `Agents` com spinner) antes de tratar como terminado, puxar o próximo ou avisar o dono.
+- **Layout por script:** no `herdr pane split|move --ratio r`, o `r` é a fração que fica com o pane **original** (ou o alvo), e o novo vai à direita ou embaixo. O `pane resize` não encolhe um pane abaixo de umas 6 linhas: um pane curto (uma barra de 1 linha) tem de nascer curto. Crie o pane e mova o vizinho para baixo dele com `--split down --target-pane <curto> --ratio 0.02`. Depois de um `move`, renomeie o pane, porque o rótulo se perde. Confira sempre com `herdr pane layout --pane <p>` (os `rect`).
 - **Pergunta da sessão (`blocked`)** é do dono. Você só responde por ele quando ele mandar.
 - **Mover:** `herdr pane move <pane> --new-tab --no-focus` e `herdr tab rename <tab> <tema>`; para o foco, `herdr pane move <pane> --tab <tab> --split right --target-pane $HERDR_PANE_ID --no-focus`.
 
@@ -78,6 +95,7 @@ $A novo <tema> pi --retoma <arquivo.jsonl> [--modelo M]
 ```
 
 - **Antes de fechar:** a sessão parada (`idle`/`done`), o que ela escreveu commitado, e o id na foto do `.wiki/herdr-sessoes.md`. "Fecha as outras" quer dizer as sessões de trabalho; a sua e a que o dono nomeou ficam.
+- **Limpar a mesa (fechar tudo fora do foco):** liste os panes de cada workspace (`herdr pane list`, com status e cwd). Para cada agente, leia o rodapé: um vigia em segundo plano ou um subagente vivo quer dizer que não parou, mesmo com `done`. Rode `git status` no cwd dele: mudança suja de dono desconhecido deixa aquele pane aberto, e você diz qual. Feche os agentes com `agente.sh fecha` (junte as linhas `retomar:` para a foto). Pane só de ficha ou de cartão sai com `herdr pane close`, depois de conferir que a ficha existe. Por fim, `herdr workspace rename` e `close` nos vazios, e uma seção na foto com tema, harness, id e onde parou.
 - **O pi não guarda o modelo na sessão:** retome com o mesmo `--modelo` com que ela nasceu.
 - **Teste descartável** (comparar extensões, modelos, um goal de brinquedo): `--cwd` numa pasta do scratchpad, para não sujar o repo, e `fecha` no fim.
 - **O contexto que importa mora no `.wiki` e nas skills**, não no resume: uma sessão nova que lê o `.wiki` vale tanto quanto a retomada.

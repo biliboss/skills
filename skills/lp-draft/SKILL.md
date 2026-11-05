@@ -34,6 +34,8 @@ Ask only what the conversation has not answered, up to 4 questions per call, rec
 - **What is fact and what is open**: price, niche, numbers, names of people, clients, years of experience, testimonials. Open items stay out of the page.
 - **Brand and tone**, unless a design system answers it (Step 2).
 
+When the page's content already comes from this conversation (a study, a comparison, the user's own thesis), skip the grill: decide audience, promise and CTA yourself and state them in the report as "Decidi X porque Y" — the desk owner wants autonomy, and a question about a draft costs more than a wrong guess he can revert.
+
 Pitfall: never fill a gap with an invented fact (initials for the founders, "90+ years", a client logo, a testimonial) — a draft that looks finished gets shown to clients as is. An illustrative example (a sample chat, sample numbers) is fine when it reads as an example.
 
 ## Step 2 — Absorb or create the design system
@@ -56,6 +58,8 @@ Details and the token contract: [references/design-system.md](references/design-
 - **Tokens**: `<link rel="stylesheet" href="<produto>/tokens.css">` (or the absorbed source), and every color from a token. Dark mode under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`, and again under `:root[data-theme="dark"]`.
 - **Libraries** only from a CDN with an exact version; fonts only from Google Fonts.
 - **Layout**: works at 390px with a 16px gutter and no horizontal scroll; `prefers-reduced-motion` respected.
+- **Section spacing**: when a section also carries a layout class (`<section class="wrap">`), the class's `padding` shorthand overrides `section { padding }` and the sections glue together; write `section.wrap { padding-top: … }` (higher specificity), and in a grid of cards make an odd last item span the row (`li:last-child:nth-child(odd) { grid-column: 1 / -1 }`) or a gray empty cell shows.
+- **A family of pages** (a second LP on the same study) reuses the first one's `tokens.css` and copies its CSS patterns; no new design system.
 - **Structure is free, per product.** The only fixed parts: the promise at the top with the CTA, an opening paragraph that passes the copy ruler, and the CTA again at the end. Footer: product, version and "rascunho".
 
 ## Step 4 — Serve with hot reload
@@ -68,11 +72,15 @@ Run it in the background. If 5180 is taken, a server is probably already up: ope
 
 ## Step 5 — Look at it
 
-With the browser tools (Claude in Chrome), on `http://localhost:5180/<file>`: screenshot at 390px and at desktop width, in light and in dark (set `document.documentElement.dataset.theme = 'dark'` with the JavaScript tool). Fix what breaks (overflow, contrast, a section that collapses badly) and look again. Say in the report what you looked at; if the browser was unavailable, say the page was not seen.
+With the browser tools (Claude in Chrome, or Hermes `browser_exec` with `local=true` so it reaches localhost), on `http://localhost:5180/<file>`: screenshot at 390px and at desktop width, in light and in dark (set `document.documentElement.dataset.theme = 'dark'` with the JavaScript tool). Recipe for `browser_exec`: viewport via `cdp('Emulation.setDeviceMetricsOverride', width=390, height=844, deviceScaleFactor=1, mobile=True)` (1280×900 for desktop); set `document.documentElement.style.scrollBehavior='auto'` first, because the page's `scroll-behavior: smooth` makes a capture right after `scrollTo` land mid-scroll; jump per `section[id]` and copy each `capture_screenshot()` to its own file (the helper overwrites one path). Check `document.documentElement.scrollWidth == 390` for horizontal overflow. Fix what breaks (overflow, contrast, a section that collapses badly) and look again. Say in the report what you looked at; if the browser was unavailable, say the page was not seen.
 
 ## Step 6 — Link it in the wiki
 
 Load `wiki-smith` and let it do the wiki part: one line in `index.md` and in the product's `moc-*` pointing to `resources/<produto>-<versão>-lp.html` (with "`npm run wiki:resources` para abrir" or the Vite command), a diary note, dates, lint, and a commit of only these paths (the page, the product's `tokens.css` / `design.md`, the index and moc lines, the note). No push.
+
+## Delegating the page
+
+The page is long work: hand Step 3 to a subagent with a facts file as its ONLY source ("do not invent"), the design-system path, the section list, and "no git, no server". The parent keeps Steps 4–6: serve, screenshot, fix, commit. A subagent that never opened a browser says "not rendered" — treat the layout as unchecked until Step 5. For an LP that compares several things (frameworks, vendors, tools), the research-to-page pipeline is in [references/comparison-lp.md](references/comparison-lp.md).
 
 ## Report
 
