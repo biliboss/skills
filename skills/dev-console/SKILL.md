@@ -59,7 +59,7 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   implementation. It never overwrites it: the draft is the user's to edit.
 - **The dev-console is built with the dev-console.** Its own domain (`scripts/console_domain.py`) is
   our development process: Human → Domain.Designed (new) or Domain.Imported (existing), then the
-  draft, widgets (designed, approved, connected) and actions (proposed, simulated, ran). Its screens
+  draft, widgets (created, updated) and actions (proposed, simulated, ran). Its screens
   are widgets of that domain: DomainView (on domain.designed) embeds the Domain tab (`?embed=1`).
 - **Model** is the state machine (UML statechart vocabulary): **Human** is the initial
   pseudostate (ISO 9241-210, human-centred design), each edge is a command, each node an event.

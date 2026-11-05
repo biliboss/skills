@@ -391,6 +391,9 @@ CSS = """
 #pop-body.sim::before { content: "SIMULADO · os botões funcionam, nada é gravado nem enviado"; display: block; margin-bottom: 14px; font-size: 11px; letter-spacing: .12em; color: #8a8a8a; }
 
 html,body{height:100%;overflow:hidden}
+/* ?embed=side: the right menu alone, full width (RightMenu widget) */
+html[data-embed=side] #graph-col, html[data-embed=side] #ev-close { display: none !important; }
+html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
 .tab.on{color:rgb(23 23 23);border-color:rgb(23 23 23)} .dark .tab.on{color:rgb(245 245 245);border-color:rgb(245 245 245)}
 .rec.sel{background:rgb(229 229 229)} .dark .rec.sel{background:rgb(38 38 38)}
 .mermaid svg{max-width:100%}
@@ -635,7 +638,7 @@ const TABS = {
   // Domain (DDD, Evans 2003) is the first tab and reuses the Model graph and sidebar: one graph, one style.
   'Domain': () => TABS['Model'](),
   'Model': () => `<div class="h-full flex">
-      <div class="flex-1 min-w-0 flex flex-col">
+      <div id="graph-col" class="flex-1 min-w-0 flex flex-col">
         <div class="flex items-center justify-between gap-4 px-4 pt-3">${label('Máquina de estados · a partir do Human')}
           <span id="legend" class="flex flex-wrap gap-3 text-neutral-400"></span></div>
         <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div></div>
@@ -757,10 +760,7 @@ document.addEventListener('keydown', e => {
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
 if (Q.get('embed')) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
 show(tab);
-if (Q.get('embed') === 'side') {  // ?embed=side: the right menu alone (the event's sidebar), full width
-  $('ev-side').previousElementSibling.style.display = 'none';  // the graph column
-  $('ev-side').classList.replace('w-[420px]', 'w-full'); $('ev-close').style.display = 'none';
-}
+if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');  // CSS hides what an embed leaves out
 if (GRAPH(tab) && Q.get('ev')) {
   const ev = Q.get('ev'), w = Q.get('w');
   openSide(ev);

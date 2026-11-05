@@ -1,10 +1,10 @@
 """The dev-console's own domain: our development process. A Human designs a new Domain or imports one that exists;
-then its draft, its widgets (designed on fake data, approved, connected to real data) and its actions (proposed,
+then its draft, its widgets (created, updated) and its actions (proposed,
 simulated in the console, run).
 
 The journal is DERIVED and read-only: on every read it scans <skills>/*/scripts/dev_console_project.py and parses
 each with `ast` only (never imported or executed). It emits only what the code proves: the domain was imported (its
-project file exists), its home widget, and each widget connected (registered in WIDGETS). The other steps stay
+project file exists, with its home widget) and each widget created (registered in WIDGETS). The other steps stay
 outlined in the graph until the process records them.
 """
 from __future__ import annotations
@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 EVENTS = {
-    "domain": {"design": "designed", "import": "imported", "draft": "drafted", "set_home": "home_set"},
-    "widget": {"design_widget": "designed", "approve": "approved", "connect": "connected"},
+    "domain": {"design": "designed", "import": "imported", "draft": "drafted"},
+    "widget": {"create_widget": "created", "update_widget": "updated"},
     "action": {"propose": "proposed", "simulate": "simulated", "run": "ran"},
 }
 
@@ -41,7 +41,7 @@ def _project(events: list[dict]) -> dict | None:
                 # the project file that hooks it into the console
                 "source": value["source"],
                 # the widget the Visão tab opens with, as {event, widget}
-                "home": None,
+                "home": value.get("home"),
                 # the widgets registered, as [{event, widget, doc}]
                 "widgets": [],
                 # the names of the actions the project can run
@@ -55,9 +55,7 @@ def _project(events: list[dict]) -> dict | None:
             }
         if state is None:
             continue
-        if event == "domain.home_set":
-            state["home"] = {"event": value["event"], "widget": value["widget"]}
-        elif event == "widget.connected":
+        if event == "widget.created":
             state["widgets"].append({"event": value["event"], "widget": value["widget"], "doc": value.get("doc", "")})
         elif event == "action.proposed":
             state["actions"].append(value["name"])
@@ -131,10 +129,9 @@ class ConsoleJournal:
             eid = hashlib.sha1(f"{slug}{event}{key}".encode()).hexdigest()
             return {"id": eid, "event": event, "at": at, "actor": "código", "domain_id": slug, "value": value}
 
-        out = [make("domain.imported", "", {"name": name, "slug": slug, "entity": entity, "source": source})]
         home = _literal(assigns.get("HOME"))
-        if isinstance(home, (tuple, list)) and len(home) == 2:
-            out.append(make("domain.home_set", "", {"event": home[0], "widget": home[1]}))
+        home = {"event": home[0], "widget": home[1]} if isinstance(home, (tuple, list)) and len(home) == 2 else None
+        out = [make("domain.imported", "", {"name": name, "slug": slug, "entity": entity, "source": source, "home": home})]
         widgets = assigns.get("WIDGETS")
         if isinstance(widgets, ast.Dict):
             for k, v in zip(widgets.keys, widgets.values):
@@ -143,6 +140,6 @@ class ConsoleJournal:
                     continue
                 for fn in v.elts:
                     if isinstance(fn, ast.Name):
-                        out.append(make("widget.connected", f"{ev}:{fn.id}",
+                        out.append(make("widget.created", f"{ev}:{fn.id}",
                                         {"event": ev, "widget": _pascal(fn.id), "doc": funcs.get(fn.id, "")}))
         return out
