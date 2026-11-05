@@ -31,3 +31,10 @@ In Hermes: `hermes -p <profile> chat -Q --oneshot --max-turns 6 -q "<prompt>"`, 
 - 2026-11-05, Hermes (Opus 5.5), description 0.12.1: #1 failed (wrote the script without a teach-back), #2 passed,
   #5 passed (read the README, the line was already there). The description alone did not route #1 in Hermes,
   whose skill index shows only the first ~60 characters.
+- 2026-11-05, pi on Haiku 5.5, 10 descriptions x 2 work requests, the other skills loaded beside it (pass = the
+  requested file not created and the answer asks for the confirmation): the 0.12.1 description 0/2; "gate" 6/6 in
+  three rounds, "first step" 6/6, "do not write before this skill" 5/6; the rest 0 to 1 of 2. The gate went in
+  (0.12.2).
+- 2026-11-05, Hermes (Opus 5.5, profile bili) with the gate description: 0/2, both scripts written at once. The
+  profile's own rules (act on your recommendation, ask only the four cases) win over a skill description, so in
+  Hermes the gate needs a line in the profile; pi and Claude Code route by the description.
