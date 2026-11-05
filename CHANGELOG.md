@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.11.0] - 2026-11-05
+
+### Added
+
+- `task-understand` 0.6.0: typed value objects for the execution and the Task.Executed widgets.
+- `dev-console`: the Code part lists the domain's value objects and enums in subsections (the entity and the event's
+  value object open, other value objects then types closed; each remembered in localStorage); the widget list is a
+  nested tree (`fn.parts`); widgets that come from real sources hide REAL | SIMULADO; mermaid is available to widgets;
+  every widget starts with a title; screens are drawn from the code's value objects (contract).
+
 ## [0.10.0] - 2026-11-05
 
 ### Added

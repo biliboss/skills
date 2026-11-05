@@ -140,6 +140,41 @@ def derive(events: dict, initial: list[str] | None = None, hub: str | None = Non
             "hub": hub if hub in commands else None, "edge_cmd": edge_cmd}
 
 
+def value_objects() -> list[dict]:
+    """The domain's value objects, read live from SOURCE with ast: every frozen dataclass (equal by value, no identity),
+    with its docstring, fields and line; VALUES = {"cat.event": "ClassName"} in SOURCE says which event carries which."""
+    import ast
+
+    tree = ast.parse(SOURCE.read_text())
+    carried: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "VALUES" for t in node.targets):
+            try:
+                carried = {v: k for k, v in ast.literal_eval(node.value).items()}
+            except ValueError:
+                pass
+    out = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        frozen = any(isinstance(d, ast.Call) and "dataclass" in ast.unparse(d.func)
+                     and any(k.arg == "frozen" and ast.unparse(k.value) == "True" for k in d.keywords)
+                     for d in node.decorator_list)
+        enum = any("Enum" in ast.unparse(base) for base in node.bases)  # typed values: an enum is a value object too
+        if enum:
+            members = [st.value.value for st in node.body if isinstance(st, ast.Assign) and isinstance(st.value, ast.Constant)]
+            out.append({"name": node.name, "line": node.lineno, "doc": (ast.get_docstring(node) or "").split("\n")[0],
+                        "fields": [], "members": members, "event": carried.get(node.name)})
+            continue
+        if not frozen:
+            continue
+        fields = [(st.target.id, ast.unparse(st.annotation), st.lineno) for st in node.body
+                  if isinstance(st, ast.AnnAssign) and isinstance(st.target, ast.Name) and "ClassVar" not in ast.unparse(st.annotation)]
+        out.append({"name": node.name, "line": node.lineno, "doc": (ast.get_docstring(node) or "").split("\n")[0],
+                    "fields": fields, "event": carried.get(node.name)})
+    return out
+
+
 def descriptions() -> dict:
     """What each event means, for a human: the code comment of its command in EVENTS (the comment lines right above
     it, or the one at the end of its line), read live from SOURCE. The code is the only source: no other place."""
@@ -242,7 +277,7 @@ def real_model() -> dict:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
-            "coverage": W.coverage(live_events()), "descriptions": descriptions(), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+            "coverage": W.coverage(live_events()), "descriptions": descriptions(), "value_objects": value_objects(), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
                          getattr(PROJECT, "TRANSITIONS", None))}
 
 
@@ -426,19 +461,40 @@ def render_list(ctx: EventContext):
     f = ctx.focus
     head = (P(f"dados reais: {f['id'][:8]} · {_when(f['at'])} · {PROJECT.ENTITY.lower()} {f[entity_key()][:8]}",
               cls="px-4 pt-3 text-neutral-400") if f else P(f"nenhum {ctx.event} no diário ainda", cls="px-4 pt-3 text-neutral-400"))
-    return Div(head, Ul(*[
-        Li(Div(P(name, cls="font-semibold text-neutral-800 dark:text-neutral-200"),
-               P(desc or "todo evento", cls="text-neutral-400"), cls="min-w-0"),
+    # A nested tree: a widget that names its visible parts (fn.parts = [child, ...]) shows them under it, indented with a
+    # guide line; a part shown under a parent is not repeated at the top. Only the parts someone asked to see are named.
+    fns = {widget_name(f): f for f in _widgets(ctx.event)}
+    docs = dict(available(ctx.event))
+    kids = {n: [widget_name(k) for k in getattr(f, "parts", []) if widget_name(k) in fns] for n, f in fns.items()}
+    nested = {k for ks in kids.values() for k in ks}
+
+    def row(name: str, depth: int, seen: frozenset):
+        here = Li(Div(Div(*[Span(cls="w-4 shrink-0 self-stretch border-l border-neutral-300 dark:border-neutral-700 ml-1")
+                              for _ in range(depth)],
+                          Div(P(name, cls="font-semibold text-neutral-800 dark:text-neutral-200"),
+                              P(docs.get(name) or "todo evento", cls="text-neutral-400"), cls="min-w-0"),
+                          cls="flex min-w-0 gap-2"),
+                      cls="min-w-0"),
            NotStr(f'<button class="w-open shrink-0 px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 '
                   f'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900" data-w="{name}" tabindex="-1">abrir</button>'),
            # the whole row opens the widget (click, Enter or Space): a bigger target, and a keyboard stop (WCAG 2.1.1, 2.5.5)
            # no role="button": Pico/MonsterUI paints [role=button] as a blue centred button; the row keeps the list look
            tabindex="0", data_w=name, data_ev=ctx.event, data_base=PROJECT.BASE, aria_haspopup="dialog", aria_label=f"abrir {name}",
+           aria_level=str(depth + 1),
            cls="w-row flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b border-neutral-200 "
                "dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 focus:outline-none "
                "focus-visible:bg-neutral-100 dark:focus-visible:bg-neutral-900")
-        for name, desc in available(ctx.event)
-    ]))
+        out = [here]
+        for k in kids.get(name, []):
+            if k not in seen:  # a part that composes its own parent would loop
+                out += row(k, depth + 1, seen | {k})
+        return out
+
+    items = []
+    for name, _ in available(ctx.event):
+        if name not in nested:
+            items += row(name, 0, frozenset({name}))
+    return Div(head, Ul(*items, role="tree" if nested else None))
 
 
 def render_one(ctx: EventContext, name: str):
@@ -480,7 +536,7 @@ html[data-embed=code] #graph-col, html[data-embed=code] #ev-side > div:not(#ev-b
 html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
 /* ?embed=code: the right menu's Code tab alone (Code widget) */
 html[data-embed=code] #ev-side { width: 100% !important; border-left: 0; }
-html[data-embed=code] #ev-body details:not([data-part=Code]), html[data-embed=code] #ev-body summary { display: none !important; }
+html[data-embed=code] #ev-body > details:not([data-part=Code]), html[data-embed=code] #ev-body > details > summary { display: none !important; }
 /* ?embed=switcher: the Domain Switcher alone, open (DomainSwitcher widget) */
 html[data-embed=switcher] #bar, html[data-embed=switcher] #bar ~ :not(#dom) { visibility: hidden; }
 html[data-embed=switcher] #dom { padding-top: 24px; }
@@ -503,6 +559,7 @@ const dark = matchMedia('(prefers-color-scheme: dark)').matches;
 mermaid.initialize({startOnLoad:false, theme:'base', fontFamily:'inherit', themeVariables:{
   primaryColor: dark?'#262626':'#fafafa', primaryBorderColor: dark?'#525252':'#a3a3a3',
   primaryTextColor: dark?'#e5e5e5':'#262626', lineColor: dark?'#737373':'#a3a3a3'}});
+window.mermaid = mermaid;  // widgets render their own diagrams (a fenced mermaid block in a report)
 
 const M = () => D.model;  // derived from the project's EVENTS, refreshed live
 const E = D.events, byId = Object.fromEntries(E.map(e => [e.id, e]));
@@ -672,23 +729,46 @@ const SIDE_TABS = {
     const to = (m.next[id] || []).map(nm), cmd = m.commands[id];
     const at = (m.lines.find(l => l.code.trim().startsWith(`def ${cmd}(`)) || {}).line;
     const root = m.root.split('.')[0], ent = ENT[c] || P(c);
-    const rows = [
+    // Subsections, in order of relevance: the entity (the command and its class) and the value object this event
+    // carries open by default; the other value objects, then the types (enums) last, closed. Each item remembers
+    // being opened or closed in localStorage, by name, so it stays that way on every node.
+    const line = (n, code) => {
+      const hit = code.trim().startsWith(`def ${cmd}(`) || n === at && n != null;
+      const pad = (code.match(/^ */) || [''])[0].length;
+      return `<div class="flex ${hit ? 'bg-neutral-200 dark:bg-neutral-800' : ''}"><span class="w-10 shrink-0 pr-3 text-right select-none text-neutral-300 dark:text-neutral-700">${n ?? ''}</span>`
+        + `<span class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]" style="padding-left:${pad + 4}ch;text-indent:-4ch">${codeBlock(code.trimStart()) || '&nbsp;'}</span></div>`;
+    };
+    const key = name => `dev-console:code:${D.base}:${name}`;
+    const item = (name, label, rows, open) => {
+      const saved = localStorage.getItem(key(name)), isOpen = saved ? saved === 'open' : open;
+      return `<details data-code-item="${esc(name)}" ${isOpen ? 'open' : ''} class="mb-1">`
+        + `<summary class="flex items-center gap-2 px-2 h-7 cursor-pointer select-none text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">${label}</summary>`
+        + `<div class="pb-2">${rows.map(([n, code]) => line(n, code)).join('')}</div></details>`;
+    };
+    const group = title => `<div class="px-2 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-400">${title}</div>`;
+    const entityRows = [
       [at, `${ent}.${cmd}(value) -> ${nm(id)}`],
       [null, `    from  ${from.join(', ') || '—'}`],
       [null, `    then  ${to.join(', ') || '—'}`],
       [null, ''],
       [null, `class ${ent}:  # ${c === root ? 'the aggregate root, folded by the projector' : 'held by ' + (ENT[root] || P(root))}`],
       ...(c === root ? [[null, `    ${(m.props || []).join(', ')}`]] : []),
-      ...Object.entries(m.commands).filter(([e]) => e.startsWith(c + '.')).map(([e, k]) =>
-        [null, `    def ${k}(value) -> ${nm(e)}${e === id ? '' : ''}`]),
+      ...Object.entries(m.commands).filter(([e]) => e.startsWith(c + '.')).map(([e, k]) => [null, `    def ${k}(value) -> ${nm(e)}`]),
     ];
-    const html = rows.map(([n, code]) => {
-      const hit = code.trim().startsWith(`def ${cmd}(`) || n === at && n != null;
-      const pad = (code.match(/^ */) || [''])[0].length;
-      return `<div class="flex ${hit ? 'bg-neutral-200 dark:bg-neutral-800' : ''}"><span class="w-10 shrink-0 pr-3 text-right select-none text-neutral-300 dark:text-neutral-700">${n ?? ''}</span>`
-        + `<span class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]" style="padding-left:${pad + 4}ch;text-indent:-4ch">${codeBlock(code.trimStart()) || '&nbsp;'}</span></div>`;
-    }).join('');
-    return Promise.resolve(`<p class="px-4 pt-3 text-neutral-400">pseudo-código · de ${esc(m.file)} · ao vivo</p><div class="px-2 py-3 leading-6 text-neutral-700 dark:text-neutral-300">${html}</div>`);
+    const vos = m.value_objects || [];
+    const voRows = vo => [[vo.line, `@value class ${vo.name}:  # ${vo.doc}`], ...vo.fields.map(([f, t, ln]) => [ln, `    ${f}: ${t}`])];
+    const mine = vos.filter(vo => !vo.members && vo.event === id);
+    const others = vos.filter(vo => !vo.members && vo.event !== id);
+    const types = vos.filter(vo => vo.members);
+    const html = item(`entity:${ent}`, `${ent} · ${cmd}`, entityRows, true)
+      + mine.map(vo => item(`vo:${vo.name}`, `${vo.name} · o valor de ${nm(id)}`, voRows(vo), true)).join('')
+      + (others.length ? group('Value objects') + others.map(vo => item(`vo:${vo.name}`, vo.name, voRows(vo), false)).join('') : '')
+      + (types.length ? group('Tipos') + types.map(vo => item(`type:${vo.name}`, `${vo.name} <span class="text-neutral-400">· ${esc(vo.members.join(' | '))}</span>`,
+          [[vo.line, `@enum ${vo.name}: ${vo.members.join(' | ')}  # ${vo.doc}`]], false)).join('') : '');
+    // save only what the person toggles (a click on the summary), never the default state of a first render
+    setTimeout(() => document.querySelectorAll('[data-code-item] > summary').forEach(s => s.onclick = () => {
+      const d = s.parentElement; setTimeout(() => localStorage.setItem(key(d.dataset.codeItem), d.open ? 'open' : 'closed'), 0); }), 0);
+    return Promise.resolve(`<p class="px-4 pt-3 text-neutral-400">pseudo-código · de ${esc(m.file)} · ao vivo</p><div class="px-2 py-2 leading-6 text-neutral-700 dark:text-neutral-300">${html}</div>`);
   },
   'JSON': id => Promise.resolve(`<pre class="m-0 p-4 !bg-transparent whitespace-pre-wrap text-neutral-600 dark:text-neutral-400">${esc(JSON.stringify(E.filter(e => e.event === id), null, 2))}</pre>`),
   // every event has it, so it is a tab of the right menu (the last), not a widget in the list

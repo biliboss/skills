@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.5.1
+  version: 0.6.0
 ---
 
 # task-understand
@@ -18,12 +18,14 @@ other workflows of the domain come as `task-<action>` skills.
 
 **One Entity:** Task, a piece of work explained to someone (the most universal name: a to-do at home, an
 assignment at school, a ticket in a software team).
-**Two events, in order:**
+**The core loop** (the full list, with each event's description, is `EVENTS` in `scripts/tasks.py`):
 
 | Event | Command | What happened |
 |---|---|---|
 | `task.explained` | `explain` | someone explained the task, in their own way and with the time it needed |
 | `understanding.taught_back` | `teach_back` | at the end, the receiver repeated it back the way they understood it |
+| `understanding.confirmed` | `confirm` | the Human said the repetition matches (an edge from the Human) |
+| `task.executed` | `execute` | the receiver, or the configured executor, did the work |
 
 The practice is **teach-back** (health literacy: "explain it back in your own words"); the loop it closes is
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
@@ -88,6 +90,12 @@ before it starts.
   applied at once, not a new task.
 - Record `task.executed` honestly: `--actor` is whoever did the work (the agent itself when it worked by hand,
   the executor when `execute` ran it).
+- When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
+  repeating back and split the repetition into **what is already done** and **what is missing**: he asked for the
+  verification to come inside the teach-back, not after it.
+- After `execute`, review the executor's work before shipping: read its diff, run its tests yourself (it may have
+  been denied the commands to run them) and fix what its report says it could not check; then version, changelog
+  and PR.
 
 ## Design stage
 
@@ -97,3 +105,14 @@ before it starts.
 - The comment above each command in `EVENTS` is the event's description for humans (the dev-console shows it).
 - See it in the dev-console: add `scripts/dev_console_project.py` to `~/.local/state/dev-console/domains.txt`
   and open `/domain/tasks`. Change events in `EVENTS`, never in the console.
+- Widgets on `task.executed` (in `scripts/dev_console_project.py`), validated one by one before a Tasks tab exists:
+  - **TaskList**: only executed tasks, newest first, title and date (no status); a row opens the Tasks view.
+  - **TaskExecutionResult**, for a person: first how it ran (method, harness, model, effort, cycle time from the
+    confirmation to the end of the run, delivery as PR aberto / PR fechado / direto na main), then the run's report
+    as markdown, then the date.
+  - **DomainDiff**: the diff of the domain's pseudo-code (the dev-console Code part) before and after the run;
+    one line saying nothing changed when the run did not touch the domain.
+  - **TaskExecutionLog**, for agents: when, who, executor, exit code, turns, cost, session id, event id.
+  - **Tasks**: TaskList beside TaskExecutionResult, composed; it becomes the dev-console's second fixed tab
+    (after Domain), filtered by the task's domain, once he approves the widgets.
+  Widgets on fake data (`FAKE_*` + the "dados de exemplo" footer) mirror a real run of this skill until approved.

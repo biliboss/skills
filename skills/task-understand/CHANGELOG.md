@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-05
+
+### Added
+
+- Typed value objects in `tasks.py`: `ExecutionResult` (the value of Task.Executed) with `SessionRef`, `PullRequest`,
+  `Commit`, N `BeforeAfter` and N `Journey` of `Picture`s, and enums `Method`, `Harness`, `Model`, `Effort`,
+  `Delivery`, `PullRequestState`; `VALUES` maps each event to its value object.
+- Widgets on Task.Executed, designed on an `ExecutionResult` instance: Tasks (Task List + Task Execution Result),
+  Task Execution Result (method, harness, model, effort, cycle time, delivery; the report with mermaid; Before and
+  After, Journey and Domain Diff composed), Task Execution Log, Before and After, Journey, Domain Diff; media open
+  fullscreen and the arrows walk through them.
+
 ## [0.5.1] - 2026-11-05
 
 ### Fixed
