@@ -2,6 +2,29 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.6.0] - 2026-11-05
+
+### Added
+
+- `dev-console` 0.3.0: many domains in one console, each in its own context at `/domain/<slug>` (repeat `--project`).
+- `dev-console` describes itself: its own domain is the development process (Human → Domain.Designed or Domain.Imported; widgets designed, approved, connected; actions proposed, simulated, ran), journal derived from code with `ast`; DomainView and StateGraph widgets embed the console's own Domain tab (`?embed=1`, `?embed=graph`).
+- `INITIAL` (several starting events), `DOMAIN_DRAFT` (a dummy `<SOURCE>_draft.py` written once when missing) and `fn.fake` (design widgets render before their event exists) in the project contract.
+
+### Changed
+
+- `dev-console`: Domain is the first tab and reuses the Model graph (`drawGraph`), sidebar and popup.
+- `tensions`: action links use the console's `BASE` (`/domain/<slug>`).
+
+## [0.5.0] - 2026-11-05
+
+### Added
+
+- `dev-console` 0.1.0: one-file FastHTML console for any event-sourced project in development (`--project`): the state machine of commands and events drawn from the code, entities, journal, and widgets per event in a contextual sidebar and a centred popup.
+
+### Changed
+
+- `tensions` 0.2.0: `EVENTS` is `{category: {command: event}}` and smaller; `created_at` in the projection; the project file `dev_console_project.py` hooks it into the dev-console.
+
 ## [0.4.0] - 2026-11-04
 
 ### Added
