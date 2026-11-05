@@ -72,7 +72,10 @@ shows which kinds of task each model does well and with what quality.
 
 1. Listen to the whole explanation; do not interrupt and do not start the work.
 2. Record the task as it came: what it is, the explanation, who explained it, to whom and the domain it is about
-   (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab.
+   (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab. The domain is
+   the one the work changes, never `tasks` by default: only work on this skill itself is `tasks`; a task about a
+   client's board or a personal tool goes under its own slug (or none when it has no domain yet), or it pollutes
+   another domain's Task Results.
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`), and ask for the
    confirmation with the harness's ask tool whenever it has one (Hermes `clarify`, Claude Code `AskUserQuestion`,
    pi's question tool): the repetition is the question and the choices are, in this order:
@@ -166,9 +169,10 @@ before it starts.
 - When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
   repeating back and split the repetition into **what is already done** and **what is missing**: he asked for the
   verification to come inside the teach-back, not after it.
-- After `execute`, `verify` is the review: an independent context reads the diff and runs the proofs. Still read the
-  executor's diff yourself when the verifier flags something, and fix what the report says it could not check;
-  then version, changelog and PR.
+- After `execute`, `verify` is the review: an independent context reads the diff and runs the proofs. What is
+  left to you is only the gap, what neither the executor nor the verifier could run or prove (a build its
+  permissions blocked, the app on screen, a screenshot): fix that, and do not re-run what was already proved with
+  evidence; a second identical pass is waste. Then version, changelog and PR.
 
 ## Design stage
 
