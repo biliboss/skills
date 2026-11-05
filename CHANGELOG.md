@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.7.0] - 2026-11-05
+
+### Changed
+
+- `dev-console` 0.4.0: its own domain is Human → Domain.Designed or Domain.Imported → Domain.Updated (the hub, `HUB`), which links Event.Updated, Widget.Updated and Tab.Updated; Action left the domain. The journal is an editable JSONL (`console_domain.jsonl`).
+- `dev-console`: the graph uses fCoSE with the Human pinned in the centre; the tab bar shows each domain's `TABS` (Domain fixed), with Nerd Font icons.
+- `dev-console`: the right menu is expandable parts (Widgets, Code, JSON, Observability), open at first, closed ones remembered per node in localStorage; Code is a short pseudo-code of the event's context.
+- `dev-console`: widgets compose the real components (WidgetList, Toolbar, Code, DomainView, StateGraph, RightMenu); a WidgetList row opens on click, Enter or Space; the Domain's widgets hang on Domain.Updated only.
+- `dev-console`: the server runs in a herdr `services` tab.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added
