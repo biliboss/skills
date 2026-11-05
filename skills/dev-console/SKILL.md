@@ -28,7 +28,9 @@ uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_con
 
 When the implementation is complete and verified (headless browser: load, screenshot), open it
 for Gabriel in **Safari** on the domain he asked about: `open -a Safari http://127.0.0.1:5057/domain/<slug>`.
-Run the server as a tracked background process (services tab), never in the user's tmux window;
+Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
+--label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
+never as an agent's background process (it dies with the session) nor in the user's tmux window;
 adding a domain means restarting it with one more `--project` (the env of the running process
 keeps the old list). It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
