@@ -19,7 +19,7 @@ ENTITY_KEY = "task_id"
 PROJECTOR = "_project"
 
 journal = TasksJournal()
-MEDIA = MEDIA_DIR  # the console serves /domain/tasks/media/<path> from here
+MEDIA = MEDIA_DIR  # the console serves /domain/tasks/media?f=<path> from here
 
 # The Human explains the task and, after the teach-back, confirms the understanding: both edges leave the Human.
 INITIAL = ["task.explained", "understanding.confirmed"]
@@ -259,7 +259,7 @@ def _result(ctx) -> tuple[ExecutionResult | None, dict | None]:
 
 def _src(src: str) -> str:
     """A picture kept with the task (media:<path>) is served by the tasks domain; data URIs and URLs pass as they are."""
-    return f"/domain/tasks/media/{src[6:]}" if src.startswith("media:") else src
+    return f"/domain/tasks/media?f={src[6:]}" if src.startswith("media:") else src
 
 
 def _duration(seconds: int) -> str:

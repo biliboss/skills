@@ -12,7 +12,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 ### Added
 
-- `dev-console`: `/domain/<slug>/media/<path>` serves the files a domain keeps (`MEDIA`), never outside it.
+- `dev-console`: `/domain/<slug>/media?f=<path>` serves the files a domain keeps (`MEDIA`), never outside it.
 - `task-understand` 0.10.0: the real ExecutionResult with mermaid and pictures; Task Results filtered by domain.
 
 ## [0.14.0] - 2026-11-05
