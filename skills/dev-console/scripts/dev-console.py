@@ -426,6 +426,9 @@ html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
 /* ?embed=code: the right menu's Code tab alone (Code widget) */
 html[data-embed=code] #ev-side { width: 100% !important; border-left: 0; }
 html[data-embed=code] #ev-body details:not([data-part=Code]), html[data-embed=code] #ev-body summary { display: none !important; }
+/* ?embed=switcher: the Domain Switcher alone, open (DomainSwitcher widget) */
+html[data-embed=switcher] #bar, html[data-embed=switcher] #bar ~ :not(#dom) { visibility: hidden; }
+html[data-embed=switcher] #dom { padding-top: 24px; }
 /* ?embed=toolbar: the real tab bar alone (Toolbar widget) */
 html[data-embed=toolbar] #bar ~ * { display: none !important; }
 html[data-embed=toolbar] #bar { border-bottom: 0; }
@@ -672,6 +675,39 @@ function renderSide() {
 }
 
 const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
+// --- Domain Switcher: fuzzy subsequence match (fzf-style), matched letters in bold, Enter opens /domain/<slug> ----------
+let domSel = 0, domHits = [];
+function fuzzy(q, s) {  // every letter of q, in order, inside s; a lower score is a tighter match
+  q = q.toLowerCase(); const low = s.toLowerCase(); let i = -1, last = -1, gaps = 0; const at = [];
+  for (const ch of q) { i = low.indexOf(ch, i + 1); if (i < 0) return null; if (last >= 0) gaps += i - last - 1; at.push(i); last = i; }
+  return {score: gaps + (at[0] || 0), at};
+}
+function domRender() {
+  const q = $('dom-q').value.trim();
+  domHits = D.domains.map(d => ({d, m: fuzzy(q, d.name)})).filter(x => x.m).sort((a, b) => a.m.score - b.m.score);
+  domSel = Math.min(domSel, Math.max(domHits.length - 1, 0));
+  $('dom-list').innerHTML = domHits.length ? domHits.map(({d, m}, i) => {
+    const name = [...d.name].map((ch, k) => m.at.includes(k) ? `<b class="text-neutral-900 dark:text-neutral-100">${esc(ch)}</b>` : esc(ch)).join('');
+    return `<div class="dom-row flex items-center justify-between gap-4 px-4 h-9 cursor-pointer ${i === domSel ? 'bg-neutral-100 dark:bg-neutral-900' : ''}" data-i="${i}">
+      <span class="text-neutral-600 dark:text-neutral-400">${name}${d.slug === D.base.split('/').pop() ? '<span class="ml-2 text-neutral-400">· atual</span>' : ''}</span>
+      <span class="text-neutral-400">${esc(d.entity)}</span></div>`;
+  }).join('') : '<p class="px-4 h-9 leading-9 text-neutral-400">nenhum domínio</p>';
+  $('dom-list').querySelectorAll('.dom-row').forEach(r => { r.onclick = () => { domSel = +r.dataset.i; domGo(); }; r.onmousemove = () => { if (domSel !== +r.dataset.i) { domSel = +r.dataset.i; domRender(); } }; });
+}
+const domGo = () => { const h = domHits[domSel]; if (h) location.href = `/domain/${h.d.slug}`; };
+const domIsOpen = () => !$('dom').classList.contains('hidden');
+function domOpen() { $('dom').classList.remove('hidden'); $('dom').classList.add('flex'); $('dom-q').value = ''; domSel = 0; domRender(); $('dom-q').focus(); }
+function domClose() { if (Q.get('embed') === 'switcher') return; $('dom').classList.add('hidden'); $('dom').classList.remove('flex'); }
+$('dom-open').onclick = domOpen;
+$('dom').onclick = e => { if (e.target === $('dom')) domClose(); };
+$('dom-q').oninput = () => { domSel = 0; domRender(); };
+$('dom-q').onkeydown = e => {
+  if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) { domSel = Math.min(domSel + 1, domHits.length - 1); domRender(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) { domSel = Math.max(domSel - 1, 0); domRender(); e.preventDefault(); }
+  else if (e.key === 'Enter') { domGo(); e.preventDefault(); }
+  else if (e.key === 'Escape') { domClose(); e.preventDefault(); e.stopPropagation(); }
+};
+document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { domIsOpen() ? domClose() : domOpen(); e.preventDefault(); } });
 function wireRows(el, ev) {  // a WidgetList row opens its widget: click anywhere on it, or Enter / Space when focused
   el.querySelectorAll('.w-row').forEach(r => {
     const go = () => openWidget(ev || r.dataset.ev, r.dataset.w, ev ? D.base : r.dataset.base);
@@ -849,7 +885,8 @@ $('inspector').textContent = JSON.stringify(D.state, null, 2);
 if (Q.get('embed') && Q.get('embed') !== 'toolbar') $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
 if (Q.get('embed') === 'toolbar' && Q.get('sim_tab')) D.tabs.push(Q.get('sim_tab'));  // SIMULADO: an example tab, nothing recorded
 show(tab);
-if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');  // CSS hides what an embed leaves out
+if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');
+if (Q.get('embed') === 'switcher') domOpen();  // the DomainSwitcher widget: the real switcher, open  // CSS hides what an embed leaves out
 if (GRAPH(tab) && Q.get('ev')) {
   const ev = Q.get('ev'), w = Q.get('w');
   openSide(ev);
@@ -972,7 +1009,8 @@ def tension(slug: str, tid: str):
     for e in journal.read({"history": True}):
         journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
     tabs = ["Domain", *[t for t in getattr(PROJECT, "TABS", []) if t != "Domain"]]  # Domain is fixed; TABS is the context's
-    payload = json.dumps({"base": base, "name": PROJECT.NAME, "tabs": tabs, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    payload = json.dumps({"base": base, "name": PROJECT.NAME, "tabs": tabs, "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
@@ -983,11 +1021,12 @@ def tension(slug: str, tid: str):
             Div(id="keyhint", cls="shrink-0 w-8 text-neutral-400"),
             # dev-console works at the level of a Project
             # dev-console works at the level of a Domain: each one in its own context, /domain/<slug>
+            # the current domain; a click or ⌘K opens the Domain Switcher (fuzzy search over an overlay)
             Div(Span("domain ", cls="text-neutral-400"),
-                *[A(m.NAME, href=f"/domain/{s}", cls="ml-2 " + ("font-semibold text-neutral-800 dark:text-neutral-200" if m is CURRENT.get()
-                    else "text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200")) for s, m in DOMAINS.items()],
-                Span(f" · {journal.path.name}", cls="ml-2 text-neutral-400"), title=str(journal.path),
-                cls="shrink-0 px-4 truncate"),
+                Span(PROJECT.NAME, cls="ml-1 font-semibold text-neutral-800 dark:text-neutral-200"),
+                Span("⌘K", cls="ml-2 px-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-400"),
+                id="dom-open", title="trocar de domínio (⌘K)",
+                cls="shrink-0 px-4 truncate cursor-pointer hover:text-neutral-900 dark:hover:text-neutral-100"),
             id="bar", cls=f"h-10 shrink-0 flex items-center border-b {line}",
         ),
         Div(
@@ -1013,6 +1052,16 @@ def tension(slug: str, tid: str):
                     "bg-white dark:bg-neutral-950 shadow-2xl",
             ),
             id="pop", cls="hidden fixed inset-0 z-[10000] items-center justify-center bg-black/40 backdrop-blur-[1px]",
+        ),
+        # Domain Switcher: a fuzzy finder (fzf, the editors' command palette) over an overlay
+        Div(
+            Div(NotStr('<input id="dom-q" autocomplete="off" spellcheck="false" placeholder="domínio…" '
+                       'class="w-full h-11 px-4 bg-transparent border-0 border-b border-neutral-200 dark:border-neutral-800 '
+                       'font-mono text-sm text-neutral-900 dark:text-neutral-100 outline-none">'),
+                Div(id="dom-list", cls="max-h-[50vh] overflow-y-auto py-1"),
+                Div("↑↓ escolher · Enter abrir · Esc fechar", cls="px-4 h-8 leading-8 border-t border-neutral-200 dark:border-neutral-800 text-neutral-400"),
+                cls="w-[min(560px,92vw)] rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl"),
+            id="dom", cls="hidden fixed inset-0 z-[10001] items-start justify-center pt-[16vh] bg-black/40 backdrop-blur-[1px]",
         ),
         Script(payload, type="application/json", id="data"),
         Script(src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"),
