@@ -2,6 +2,14 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.18.0] - 2026-11-05
+
+### Changed
+
+- `task-understand` 0.13.0: `verify` (independent verification, IV&V, in a fresh pi context), `deliver` and the PR
+  decision (`merge`, `request-review`) become real commands; a failed verification or a requested review sends the
+  task back to execution; the dev-console shows the verification and the delivery under the run.
+
 ## [0.16.0] - 2026-11-05
 
 ### Added

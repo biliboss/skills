@@ -20,6 +20,11 @@ Storage: one global append-only JSONL shared by every agent, ~/.local/share/task
     uv run --script tasks.py execute --task <task_id> [--models sonnet,glm] [--cwd <repo>]
                                                                    # pi in parallel, one worktree per model;
                                                                    # only after understanding.confirmed
+    uv run --script tasks.py verify --task <task_id> [--model sonnet] [--cwd <dir>] [--executed <event_id>]
+                                                                   # IV&V: pi in a fresh context checks the delivery
+    uv run --script tasks.py deliver --task <task_id> --kind pr|direct|none [--url <link>] [--text "..."]
+    uv run --script tasks.py merge --task <task_id> [--url <link>]  # records pull_request.merged (gh pr merge is yours)
+    uv run --script tasks.py request-review --task <task_id> --text "<why>"
 """
 from __future__ import annotations
 
@@ -74,8 +79,7 @@ EVENTS = {
     # confirmado, quem recebeu executou a tarefa. Um contexto novo, de fora, que só conhece o pedido confirmado e a
     # entrega, verificou o trabalho (verificação independente, IV&V) e gravou as checagens com as evidências; se não
     # passou, a tarefa volta a ser executada. Depois veio a entrega, com o tipo: PR, mudança direta (uma issue criada,
-    # um card movido) ou nenhuma; o PR é um tipo de entrega, não um passo obrigatório (verify e deliver: rascunho, só
-    # no grafo).
+    # um card movido) ou nenhuma; o PR é um tipo de entrega, não um passo obrigatório.
     "task": {"explain": "explained", "execute": "executed", "verify": "verified", "deliver": "delivered"},
     # No fim, quem recebeu a tarefa repetiu tudo o que ouviu, do jeito que entendeu (o teach-back), e quem explicou
     # confirmou que bate.
@@ -91,8 +95,8 @@ EVENTS = {
     # feedback (downscore); o de maior pontuação vira o padrão (rascunho: só no grafo).
     "style": {"score": "scored", "downscore": "scored"},
     # A entrega foi um PR, e quem explicou decidiu pelo peso do trabalho, com a recomendada primeiro: protótipo ou
-    # experimento, o merge direto; produto ou cliente, pedir a revisão antes (deixar aberto não é evento). Os nomes são
-    # os do GitHub (rascunho: só no grafo).
+    # experimento, o merge direto; produto ou cliente, pedir a revisão antes, e a tarefa volta a ser executada (deixar
+    # aberto não é evento). Os nomes são os do GitHub.
     "pull_request": {"merge": "merged", "request_review": "review_requested"},
 }
 
@@ -197,6 +201,39 @@ class SessionRef:
 
 
 @dataclass(frozen=True)
+class Check:
+    """One thing the independent verifier checked: what, how, the evidence it saw and whether it held."""
+
+    what: str
+    how: str = ""
+    evidence: str = ""
+    passed: bool = False
+
+
+@dataclass(frozen=True)
+class Verification:
+    """What the independent verification (IV&V) found: a fresh context, only the request and the delivery."""
+
+    text: str  # a short summary
+    passed: bool
+    checks: tuple[Check, ...] = ()
+    model: str = ""  # the registry id that verified
+    provider: str = ""
+    plan: str = ""
+    duration_s: int | None = None
+    exit_code: int | None = None
+
+
+@dataclass(frozen=True)
+class TaskDelivery:
+    """Where the work landed once it was verified: a pull request, a direct change, or nothing to hand over."""
+
+    text: str
+    kind: str  # pr | direct | none
+    url: str = ""
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     """How a task was executed and what it delivered."""
 
@@ -222,10 +259,13 @@ class ExecutionResult:
     turns: int | None = None
     tokens: int | None = None
     cost_usd: float | None = None  # None on a flat plan: no per-token cost to report
+    # what came after the run (0.13.0), attached by outcome_of from the events that follow it
+    verification: Verification | None = None
+    delivered: TaskDelivery | None = None
 
 
 # Which value object each event carries (the dev-console's Code shows it with the event).
-VALUES = {"task.executed": "ExecutionResult"}
+VALUES = {"task.executed": "ExecutionResult", "task.verified": "Verification", "task.delivered": "TaskDelivery"}
 
 # The edges are the commands (UML statechart transitions); a target may name its edge's command when one event has
 # several ({"style.scored": "downscore"}). Drafts are drawn before they are built.
@@ -246,6 +286,8 @@ TRANSITIONS = {
     "pull_request.review_requested": ["task.executed"],
 }
 
+
+DELIVERY_KINDS = ("pr", "direct", "none")  # a PR is one kind of delivery, not a required step
 
 MEDIA_DIR = Path(os.environ.get("TASKS_DIR", DEFAULT_DIR)).expanduser() / "media"  # pictures of executed tasks
 
@@ -285,6 +327,35 @@ def result_from(value: dict) -> ExecutionResult | None:
     )
 
 
+def verification_from(value: dict) -> Verification:
+    """The Verification a task.verified value carries."""
+    return Verification(
+        text=value.get("text", ""), passed=bool(value.get("passed")),
+        checks=tuple(Check(str(c.get("what", "")), str(c.get("how", "")), str(c.get("evidence", "")),
+                           bool(c.get("passed"))) for c in value.get("checks") or [] if isinstance(c, dict)),
+        model=value.get("model", ""), provider=value.get("provider", ""), plan=value.get("plan", ""),
+        duration_s=value.get("duration_s"), exit_code=value.get("exit_code"))
+
+
+def outcome_of(history: list[dict]) -> tuple[ExecutionResult | None, dict | None]:
+    """The task's last run with what came after it: its ExecutionResult carrying the verification and the delivery
+    that followed it, and its task.executed event ((None, event) for a run that recorded only its text, (None, None)
+    when it never ran). A later run starts over: it has no verification yet."""
+    from dataclasses import replace
+
+    at = next((i for i in range(len(history) - 1, -1, -1) if history[i]["event"] == "task.executed"), None)
+    if at is None:
+        return None, None
+    run = history[at]
+    x = result_from(run["value"])
+    if x is None:
+        return None, run
+    verified = next((verification_from(e["value"]) for e in reversed(history[at:]) if e["event"] == "task.verified"), None)
+    d = next((e["value"] for e in reversed(history[at:]) if e["event"] == "task.delivered"), None)
+    delivered = TaskDelivery(d.get("text", ""), d.get("kind", "none"), d.get("url", "")) if d else None
+    return replace(x, verification=verified, delivered=delivered), run
+
+
 def _project(events: list[dict]) -> dict | None:
     state = None
     for e in events:
@@ -309,7 +380,14 @@ def _project(events: list[dict]) -> dict | None:
                 "style": None,
                 # what the execution answered, once executed
                 "result": None,
-                # explained, taught_back, confirmed or executed
+                # the last independent verification of the last run: {text, passed, checks, model}, once verified
+                "verification": None,
+                # how the work was handed over: {kind, url, text}, once delivered
+                "delivery": None,
+                # each request of a review on a delivered PR, verbatim
+                "review_requests": [],
+                # explained, taught_back, confirmed, executed, verified, delivered or merged; a verification that did
+                # not pass, and a review requested on the PR, put the task back at confirmed (execute runs it again)
                 "status": "explained",
                 # when the task last moved
                 "updated_at": e["at"],
@@ -335,7 +413,21 @@ def _project(events: list[dict]) -> dict | None:
             state["status"] = "confirmed"
         elif event == "task.executed":
             state["result"] = value["text"]
+            state["verification"] = state["delivery"] = None  # a new run starts over
             state["status"] = "executed"
+        elif event == "task.verified":
+            state["verification"] = {"text": value["text"], "passed": bool(value.get("passed")),
+                                     "checks": value.get("checks") or [], "model": value.get("model")}
+            state["status"] = "verified" if value.get("passed") else "confirmed"
+        elif event == "task.delivered":
+            state["delivery"] = {"text": value["text"], "kind": value.get("kind", "none"), "url": value.get("url", "")}
+            state["status"] = "delivered"
+        elif event == "pull_request.merged":
+            state["status"] = "merged"
+        elif event == "pull_request.review_requested":
+            state["review_requests"].append(value["text"])
+            state["verification"] = state["delivery"] = None
+            state["status"] = "confirmed"
         state["updated_at"] = e["at"]
     return state
 
@@ -360,6 +452,10 @@ class TasksJournal:
             value = {**value, "version": value.get("version", STYLES[value["style"]]["version"])}
         if event == "style.scored" and not isinstance(value.get("delta"), int):
             raise ValueError("style.scored needs an integer delta (+ score, - downscore)")
+        if event == "task.verified" and not isinstance(value.get("passed"), bool):
+            raise ValueError("task.verified needs passed (true or false)")
+        if event == "task.delivered" and value.get("kind") not in DELIVERY_KINDS:
+            raise ValueError(f"task.delivered needs a kind, one of {list(DELIVERY_KINDS)}")
         if event == "option.chosen" and not value.get("option_id"):
             raise ValueError("option.chosen needs option_id")
         if event == "task.explained":
@@ -560,16 +656,21 @@ def _worktree_for(repo: Path, id8: str, mid: str) -> tuple[Path, str]:
 
 def _pi_run(spec: dict, prompt: str, repo: Path, id8: str) -> dict:
     """One pi run of the prompt on this model, in its own worktree: what it answered and what it cost."""
+    worktree, branch = _worktree_for(repo, id8, spec["id"])
+    return _pi_exec(spec, prompt, worktree, branch)
+
+
+def _pi_exec(spec: dict, prompt: str, worktree: Path, branch: str) -> dict:
+    """pi, print mode, fresh context (no session), in this directory: what it answered and what it cost."""
     import subprocess
     import time
 
-    worktree, branch = _worktree_for(repo, id8, spec["id"])
     cmd = ["pi", "-p", "--no-session", "--mode", "json", "--model", spec["model"], prompt]
     started = time.monotonic()
     done = subprocess.run(cmd, cwd=worktree, env={**os.environ, **_model_env(spec)}, capture_output=True, text=True)
     run = {"worktree": str(worktree), "branch": branch, "exit_code": done.returncode,
            "duration_s": int(time.monotonic() - started), "turns": 0, "session_id": None, "pi_model": None,
-           "tokens": None, "cost_usd": None, "text": ""}
+           "tokens": None, "cost_usd": None, "text": "", "answer": ""}
     answer, usage = "", {}
     for line in done.stdout.splitlines():  # pi's --mode json stream: one JSON object per line
         try:
@@ -589,6 +690,7 @@ def _pi_run(spec: dict, prompt: str, repo: Path, id8: str) -> dict:
     if usage:
         run["tokens"] = usage.get("totalTokens")
         run["cost_usd"] = (usage.get("cost") or {}).get("total")
+    run["answer"] = answer  # whole, for the verifier's JSON block
     run["text"] = (answer or done.stderr.strip() or "(sem resposta)")[-4000:]
     return run
 
@@ -605,14 +707,24 @@ def execute(task_id: str, cwd: str | None = None, models: list[str] | None = Non
     if state["status"] != "confirmed":
         raise ValueError(f"task {task_id} is {state['status']}: only a confirmed understanding is executed")
     specs = [resolve_model(m) for m in (models or [default_model()])]  # a refused provider never runs
+    history = journal.read({"id": task_id, "history": True})
+    failed = next((e["value"] for e in reversed(history)
+                   if e["event"] in ("task.verified", "pull_request.review_requested")), None)  # what sent it back
+    rework = ""
+    if failed and "passed" in failed:  # a verification that did not pass
+        bad = [c for c in failed.get("checks") or [] if not c.get("passed")]
+        rework = ("A execução anterior não passou na verificação independente; corrija:\n"
+                  + ("\n".join(f"- {c.get('what', '')}: {c.get('evidence', '')}" for c in bad) or f"- {failed['text']}")
+                  + "\n\n")
+    elif failed:  # a review asked for on the PR
+        rework = f"A revisão do PR pediu mudanças; corrija:\n- {failed['text']}\n\n"
     prompt = (f"Tarefa: {state['title']}\n\nComo foi explicada:\n{state['text']}\n\n"
               f"Como foi entendida (confirmado por quem explicou):\n{state['teach_backs'][-1]}\n\n"
               + ("Ajustes de quem explicou:\n" + "\n".join(f"- {x}" for x in state["learnings"]) + "\n\n" if state["learnings"] else "")
-              + "Execute a tarefa e termine com um relato curto do que fez.")
+              + rework + "Execute a tarefa e termine com um relato curto do que fez.")
     repo, id8 = Path(cwd or os.getcwd()).resolve(), task_id[:8]
     with ThreadPoolExecutor(max_workers=len(specs)) as pool:  # "does it work on this model?": one worktree each
         runs = list(pool.map(lambda spec: _pi_run(spec, prompt, repo, id8), specs))
-    history = journal.read({"id": task_id, "history": True})
     confirmed = next((e["at"] for e in reversed(history) if e["event"] == "understanding.confirmed"), None)
     now = datetime.now(timezone.utc)
     records = []
@@ -630,6 +742,140 @@ def execute(task_id: str, cwd: str | None = None, models: list[str] | None = Non
     return records
 
 
+VERIFIER_RULES = """Você é um verificador independente: não fez este trabalho e não viu como foi feito. Confira a entrega \
+contra o pedido confirmado, não contra o relato de quem a fez.
+
+- Verifique a lacuna, não tudo: o que o relato diz que NÃO conseguiu checar, e o que só aparece fora dele (um app \
+instalado, uma página no ar, o comportamento de verdade). Não rode de novo o que o relato já prova com evidência, \
+a menos que você duvide dela.
+- Rode o que prova (testes, build, o comando de verdade) dentro do worktree indicado; não edite nada.
+- Cada checagem diz o que foi checado, como, a evidência que você viu (saída, trecho, número) e se passou.
+- Termine com UM bloco JSON, o último da resposta, e nada depois dele:
+```json
+{"passed": true, "summary": "uma linha", "checks": [{"what": "...", "how": "...", "evidence": "...", "passed": true}]}
+```
+`passed` só é true quando todas as checagens passaram."""
+
+
+def verifier_prompt(task_text: str, teach_back: str, delivery: dict) -> str:
+    """The independent verifier's whole context: the request as explained, the repetition that was confirmed and the
+    delivery under test (where it is and the executor's own report). Never the executor's transcript or learnings."""
+    pr = delivery.get("pull_request") or {}
+    where = [f"- worktree: {delivery.get('worktree') or '(não informado)'}",
+             f"- branch: {delivery.get('branch') or '(não informado)'}"]
+    if pr:
+        where.append(f"- pull request: {pr.get('url', '')} (#{pr.get('number', '')})")
+    return (VERIFIER_RULES + f"\n\n## O pedido, como foi explicado\n{task_text}\n\n"
+            f"## O que foi entendido e confirmado por quem explicou\n{teach_back}\n\n"
+            "## A entrega a verificar\n" + "\n".join(where) + "\n\n### Relato de quem fez\n"
+            + (delivery.get("text") or "(sem relato)"))
+
+
+def parse_verdict(answer: str) -> dict | None:
+    """The last JSON object of the answer that has a "passed" key (a fenced block or bare), or None."""
+    import re
+
+    found, end = None, 0
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\{", answer):
+        if m.start() < end:  # inside an object already read: the checks carry their own "passed"
+            continue
+        try:
+            obj, end = decoder.raw_decode(answer, m.start())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict) and "passed" in obj:
+            found = obj
+    return found
+
+
+def verify(task_id: str, model: str | None = None, cwd: str | None = None, executed_id: str | None = None, *,
+           actor: str | None = None) -> dict:
+    """IV&V: pi in a fresh context checks a task.executed delivery against the confirmed request; records task.verified.
+
+    The verifier sees only the task's text, the last confirmed teach-back and the delivery (worktree, branch, pull
+    request and the executor's report). A verification that does not pass puts the task back where execute runs."""
+    journal = TasksJournal()
+    state = journal.read({"id": task_id})
+    if not state:
+        raise ValueError(f"no task {task_id}")
+    if state["status"] != "executed":
+        raise ValueError(f"task {task_id} is {state['status']}: only an executed task is verified")
+    history = journal.read({"id": task_id, "history": True})
+    runs = [e for e in history if e["event"] == "task.executed"]
+    target = next((e for e in runs if e["id"] == executed_id), None) if executed_id else runs[-1]
+    if not target:
+        raise ValueError(f"no task.executed {executed_id} on task {task_id}")
+    spec = resolve_model(model or default_model())
+    delivery = target["value"]
+    work = Path(delivery.get("worktree") or "")
+    where = work if delivery.get("worktree") and work.is_dir() else Path(cwd or os.getcwd()).resolve()
+    run = _pi_exec(spec, verifier_prompt(state["text"], state["teach_backs"][-1], delivery), where,
+                   delivery.get("branch", ""))
+    verdict = parse_verdict(run["answer"])
+    checks = [{"what": str(c.get("what", "")), "how": str(c.get("how", "")), "evidence": str(c.get("evidence", "")),
+               "passed": c.get("passed") is True} for c in (verdict or {}).get("checks") or [] if isinstance(c, dict)]
+    if verdict is None:
+        checks = [{"what": "a resposta do verificador", "how": "último bloco JSON da resposta",
+                   "evidence": "sem bloco JSON com `passed`: " + (run["answer"] or run["text"])[-300:], "passed": False}]
+    if run["exit_code"] != 0:
+        checks.append({"what": "a execução do verificador", "how": f"pi saiu com {run['exit_code']}",
+                       "evidence": run["text"][-300:], "passed": False})
+    passed = verdict is not None and verdict.get("passed") is True and run["exit_code"] == 0 \
+        and all(c["passed"] for c in checks)
+    ok = sum(c["passed"] for c in checks)
+    summary = f"{'passou' if passed else 'não passou'}: {ok} de {len(checks)} checagens"
+    if verdict and verdict.get("summary"):
+        summary += f" — {verdict['summary']}"
+    value = {"text": summary, "passed": passed, "checks": checks, "model": spec["id"], "provider": spec["provider"],
+             "plan": spec["plan"], "duration_s": run["duration_s"], "exit_code": run["exit_code"],
+             "executed_id": target["id"]}
+    return journal.emit("task.verified", value, task_id, actor=actor or os.environ.get("TASKS_ACTOR", "pi"))
+
+
+def deliver(task_id: str, kind: str, url: str | None = None, text: str | None = None, *,
+            actor: str | None = None) -> dict:
+    """Record task.delivered; only after a task.verified that passed. kind: pr, direct (a change made in place) or none."""
+    journal = TasksJournal()
+    state = journal.read({"id": task_id})
+    if not state:
+        raise ValueError(f"no task {task_id}")
+    if state["status"] != "verified":
+        raise ValueError(f"task {task_id} is {state['status']}: only a task with a passing verification is delivered")
+    if kind not in DELIVERY_KINDS:
+        raise ValueError(f"kind is one of {list(DELIVERY_KINDS)}")
+    value = {"text": text or {"pr": "entregue por pull request", "direct": "entregue direto, sem PR",
+                              "none": "nada a entregar"}[kind], "kind": kind}
+    if url:
+        value["url"] = url
+    return journal.emit("task.delivered", value, task_id, actor=actor)
+
+
+def _pr_delivery(task_id: str, what: str) -> tuple[TasksJournal, dict]:
+    journal = TasksJournal()
+    state = journal.read({"id": task_id})
+    if not state:
+        raise ValueError(f"no task {task_id}")
+    if state["status"] != "delivered" or (state["delivery"] or {}).get("kind") != "pr":
+        raise ValueError(f"task {task_id} is {state['status']}: {what} only follows a task.delivered with kind pr")
+    return journal, state["delivery"]
+
+
+def merge(task_id: str, url: str | None = None, *, actor: str | None = None) -> dict:
+    """Record pull_request.merged (the agent ran `gh pr merge` itself); the url defaults to the delivery's."""
+    journal, delivery = _pr_delivery(task_id, "a merge")
+    value = {"text": "pull request merged"}
+    if url or delivery.get("url"):
+        value["url"] = url or delivery["url"]
+    return journal.emit("pull_request.merged", value, task_id, actor=actor)
+
+
+def request_review(task_id: str, text: str, *, actor: str | None = None) -> dict:
+    """Record pull_request.review_requested with the reason; the task goes back where execute runs."""
+    journal, _ = _pr_delivery(task_id, "a review request")
+    return journal.emit("pull_request.review_requested", {"text": text}, task_id, actor=actor)
+
+
 if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="tasks: emit or read the global journal")
     sub = cli.add_subparsers(dest="cmd", required=True)
@@ -643,6 +889,26 @@ if __name__ == "__main__":
     ex.add_argument("--models", help="comma-separated ids of the registry (default: the recommended model)")
     ex.add_argument("--cwd")
     ex.add_argument("--actor")
+    vf = sub.add_parser("verify", help="IV&V: pi in a fresh context checks an executed task's delivery")
+    vf.add_argument("--task", required=True)
+    vf.add_argument("--model", help="the verifier's registry id (default: the recommended model)")
+    vf.add_argument("--cwd", help="where to run when the run recorded no worktree")
+    vf.add_argument("--executed", help="the task.executed event to verify (default: the last one)")
+    vf.add_argument("--actor")
+    dl = sub.add_parser("deliver", help="task.delivered, after a passing verification")
+    dl.add_argument("--task", required=True)
+    dl.add_argument("--kind", required=True, choices=DELIVERY_KINDS)
+    dl.add_argument("--url")
+    dl.add_argument("--text")
+    dl.add_argument("--actor")
+    mg = sub.add_parser("merge", help="record pull_request.merged (run gh pr merge yourself first)")
+    mg.add_argument("--task", required=True)
+    mg.add_argument("--url")
+    mg.add_argument("--actor")
+    rr = sub.add_parser("request-review", help="pull_request.review_requested: back to execution")
+    rr.add_argument("--task", required=True)
+    rr.add_argument("--text", required=True)
+    rr.add_argument("--actor")
     ul = sub.add_parser("use-learnings", help="record learning.used with the learnings that apply to the task")
     ul.add_argument("--task", required=True)
     ul.add_argument("--actor")
@@ -680,6 +946,14 @@ if __name__ == "__main__":
     elif args.cmd == "execute":
         ids = [m.strip() for m in args.models.split(",")] if args.models else None
         print(json.dumps(execute(args.task, args.cwd, ids, actor=args.actor), ensure_ascii=False))
+    elif args.cmd == "verify":
+        out(verify(args.task, args.model, args.cwd, args.executed, actor=args.actor))
+    elif args.cmd == "deliver":
+        out(deliver(args.task, args.kind, args.url, args.text, actor=args.actor))
+    elif args.cmd == "merge":
+        out(merge(args.task, args.url, actor=args.actor))
+    elif args.cmd == "request-review":
+        out(request_review(args.task, args.text, actor=args.actor))
     elif args.cmd == "emit":
         print(json.dumps(journal.emit(args.event, json.loads(args.value), args.task, actor=args.actor), ensure_ascii=False))
     else:
