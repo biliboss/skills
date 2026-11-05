@@ -205,19 +205,20 @@ def _mock(title: str, lines: list[str], tone: str = "#8b8ef0") -> str:
 # Design first, on the code's own value object: a run like the one that implemented this skill (task b77a228e).
 # The screen is drawn from ExecutionResult, so the design cannot drift from the code.
 FAKE_EXECUTION = ExecutionResult(
-    text="Implementei o desenho inteiro na skill e atualizei o SKILL.md, mas **não consegui rodar nada**: o sandbox "
-         "pediu aprovação para todo comando Python.\n\n- **Aprendizados:** antes de repetir, busca os que servem.\n"
-         "- **Estilos:** três fixos e versionados, direto, passo-a-passo e exemplo.\n- **Feedback:** tira um ponto do "
-         "estilo criticado e abre as três opções.\n- **Escolha:** dá um ponto ao estilo escolhido.\n\n"
-         "## O processo agora\n\n```mermaid\nflowchart LR\n  E[Task Explained] --> U[Learning Used] --> T[Taught Back]\n"
+    text="Rodei pelo pi (Sonnet, mukutu) no meu worktree e implementei o desenho inteiro na skill, atualizando o SKILL.md, "
+         "mas **não consegui rodar nada**: o sandbox pediu aprovação para todo comando Python.\n\n- **Aprendizados:** "
+         "antes de repetir, busca os que servem.\n- **Estilos:** três fixos e versionados, direto, passo-a-passo e "
+         "exemplo.\n- **Feedback:** tira um ponto do estilo criticado e abre as três opções.\n- **Escolha:** dá um "
+         "ponto ao estilo escolhido.\n\n## O processo agora\n\n```mermaid\nflowchart LR\n  E[Task Explained] --> U[Learning Used] --> T[Taught Back]\n"
          "  T -->|ajuste| L[Learning Recorded] --> U\n  T -->|não ficou bom| F[Feedback] --> O[3 opções] --> C[Escolha]\n"
          "  C -->|score| S[Style Scored]\n  F -->|downscore| S\n```",
-    method=Method.PRINT, harness=Harness.CLAUDE_CODE, model=Model.SONNET, effort=Effort.MEDIUM,
-    cycle_time_s=87, delivery=Delivery.PR_CLOSED,
-    session=SessionRef(Harness.CLAUDE_CODE, None, "~/.local/state/tasks-execute-b77a.log"),
+    method=Method.PRINT, harness=Harness.PI, model="sonnet", effort=None, cycle_time_s=87,
+    delivery=Delivery.PR_CLOSED, session=None,
     pull_request=PullRequest(41, "https://github.com/biliboss/skills/pull/41", PullRequestState.MERGED),
     commits=(Commit("99769cd", "feat(task-understand): 0.5.1, the whole process by the executor's first real run",
                     "biliboss/skills"),),
+    provider="claude-bridge", plan="mukutu-claude", exit_code=0, duration_s=84, turns=12,
+    worktree="~/src/skills.task-b77a228e-sonnet", branch="task/b77a228e-sonnet", tokens=141_702, cost_usd=None,
     before_afters=(
         BeforeAfter("O processo",
                     Picture(_mock("Antes", ["Task Explained", "Understanding Taught Back"], "#737373"),
@@ -244,6 +245,7 @@ FAKE_TASK, FAKE_AT = "Implementar todo o desenho do Tasks na skill e atualizar o
 LABEL = {Method.PRINT: "Execução de uma vez", Method.INTERACTIVE: "Sessão interativa", Method.BY_HAND: "À mão, pelo agente",
          Harness.CLAUDE_CODE: "Claude Code", Harness.HERMES: "Hermes", Harness.PI: "pi",
          Model.SONNET: "Sonnet", Model.OPUS: "Opus", Model.HAIKU: "Haiku",
+         "sonnet": "Sonnet", "glm": "GLM 5.3", "glm-flash": "GLM 5.3 Flash",
          Effort.LOW: "baixo", Effort.MEDIUM: "médio", Effort.HIGH: "alto",
          Delivery.PR_OPEN: "PR aberto", Delivery.PR_CLOSED: "PR fechado", Delivery.MAIN: "direto na main"}
 
@@ -374,13 +376,29 @@ def task_execution_result(ctx):
                            P(f"{_when(run['at'])} · execução antiga: só o relato foi registrado", cls="mt-4 text-xs text-neutral-400"),
                            cls="max-w-[760px]")
     pr = x.pull_request
-    delivery = Span(LABEL[x.delivery], A(f" · #{pr.number}", href=pr.url, target="_blank",
-                                         cls="text-neutral-500 underline decoration-neutral-400/50")) if pr else LABEL[x.delivery]
+    delivery = None
+    if pr:
+        delivery = Span(LABEL.get(x.delivery, x.delivery), A(f" · #{pr.number}", href=pr.url, target="_blank",
+                                                             cls="text-neutral-500 underline decoration-neutral-400/50"))
+    elif x.delivery:
+        delivery = LABEL.get(x.delivery, x.delivery)
+    facts = [("Método", LABEL.get(x.method) if x.method else None),
+             ("Harness", LABEL.get(x.harness) if x.harness else None),
+             ("Modelo", LABEL.get(x.model, x.model) if x.model else None),
+             ("Esforço", LABEL.get(x.effort) if x.effort else None),
+             ("Cycle time", _duration(x.cycle_time_s) if x.cycle_time_s is not None else None),
+             ("Entrega", delivery)]
+    if x.provider:  # a pi run (0.11.0): the flat plan that rode it and what the run itself reports
+        facts += [("Provedor", x.provider), ("Plano", x.plan),
+                  ("Exit code", str(x.exit_code) if x.exit_code is not None else None),
+                  ("Duração", _duration(x.duration_s) if x.duration_s is not None else None),
+                  ("Turnos", str(x.turns) if x.turns is not None else None),
+                  ("Tokens", f"{x.tokens:,}".replace(",", ".") if x.tokens is not None else None),
+                  ("Custo", f"US$ {x.cost_usd}" if x.cost_usd is not None else None)]
     example = run is None
     return _with_media(
         *head,
-        Div(fact("Método", LABEL[x.method]), fact("Harness", LABEL[x.harness]), fact("Modelo", LABEL[x.model]),
-            fact("Esforço", LABEL[x.effort]), fact("Cycle time", _duration(x.cycle_time_s)), fact("Entrega", delivery),
+        Div(*[fact(k, v) for k, v in facts if v],
             cls="mt-4 grid grid-cols-3 gap-x-6 gap-y-3 py-4 border-y border-neutral-200 dark:border-neutral-800"),
         Div(_report(x.text), cls="mt-4"),
         P(_when(run["at"] if run else FAKE_AT), cls="mt-4 text-xs text-neutral-400"),
@@ -432,18 +450,34 @@ domain_diff.fake = True  # a design on fake data
 
 
 def task_execution_log(ctx):
-    """Task Execution Log: the traces of the run for agents, session to resume, log, pull request and commits."""
+    """Task Execution Log: the traces of the run for agents: harness, model and plan, worktree, pull request, commits."""
     x = FAKE_EXECUTION
     row = lambda k, v: Div(Span(k, cls="w-32 shrink-0 text-neutral-400"), Span(v, cls="min-w-0 break-all"),  # noqa: E731
                            cls="flex gap-3 py-1 font-mono text-xs")
     pr = x.pull_request
+    rows = [row("harness", x.harness.value if x.harness else ""), row("método", x.method.value if x.method else "")]
+    if x.provider:  # a pi run: the flat plan that rode it and what the run itself reports
+        rows.append(row("modelo", f"{x.model} · {x.provider} ({x.plan})"))
+        rows.append(row("worktree", x.worktree))
+        rows.append(row("branch", x.branch))
+    elif x.model:
+        rows.append(row("modelo", f"{x.model} · {x.effort.value if x.effort else ''}"))
+    if x.session:
+        rows.append(row("sessão", x.session.id or "sem id (rodou antes da saída JSON)"))
+        rows.append(row("log", x.session.log))
+    for k, v in [("exit code", str(x.exit_code) if x.exit_code is not None else None),
+                 ("turnos", str(x.turns) if x.turns is not None else None),
+                 ("tokens", f"{x.tokens:,}".replace(",", ".") if x.tokens is not None else None),
+                 ("custo", f"US$ {x.cost_usd}" if x.cost_usd is not None else None),
+                 ("duração", f"{x.duration_s} s" if x.duration_s is not None else None),
+                 ("cycle time", f"{x.cycle_time_s} s" if x.cycle_time_s is not None else None),
+                 ("pull request", f"#{pr.number} {pr.state.value} · {pr.url}" if pr else None)]:
+        if v:
+            rows.append(row(k, v))
+    rows += [row("commit", f"{c.sha} {c.repo} · {c.message}") for c in x.commits]
     return Div(
         _title("Registro da execução"),
-        row("harness", x.harness.value), row("método", x.method.value), row("modelo", f"{x.model.value} · {x.effort.value}"),
-        row("cycle time", f"{x.cycle_time_s} s"),
-        row("sessão", x.session.id or "sem id (rodou antes da saída JSON)"), row("log", x.session.log),
-        row("pull request", f"#{pr.number} {pr.state.value} · {pr.url}") if pr else row("pull request", "nenhum"),
-        *[row("commit", f"{c.sha} {c.repo} · {c.message}") for c in x.commits],
+        *rows,
         P("dados de exemplo no value object ExecutionResult", cls="mt-6 text-xs text-neutral-400"),
         cls="max-w-[760px]")
 

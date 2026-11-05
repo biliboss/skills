@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.10.0
+  version: 0.11.0
 ---
 
 # task-understand
@@ -49,6 +49,22 @@ What reaches the agent when someone explains a task is a value object, and its c
 assembled by the harness). Change the Input there, never here; check a recorded one with
 `uv run --script scripts/input.py check <input.json>`. The dev-console draws it from that file.
 
+## Models
+
+The registry lives in `MODELS` of `scripts/tasks.py` (id → pi's `provider/model`, plan, env recipe, one-line name):
+`sonnet` = `claude-bridge/claude-sonnet-5-5` (the **mukutu** Claude subscription, through the pi skill's
+claude-bridge, account chosen by `CLAUDE_CONFIG_DIR=~/.claude-mukutu`), `glm` = `zai/glm-5.3` and
+`glm-flash` = `zai/glm-5.3-flash` (our **GLM Coding Plan**; the key is read from `~/glm_token` into the child
+process's `ZAI_API_KEY` only — never printed, logged or committed). Flat plans only: per-token providers
+(OpenRouter, `~anthropic/...`) are refused, in config as in `--models`. Override and extend in
+`~/.config/tasks/config.json` (`"models"` and `"default_model"`); the old `"execute"` command override is gone —
+pi is the only executor. `uv run --script scripts/tasks.py models` prints the registry and, per model, whether pi
+sees it right now (`pi --list-models` with the model's env; cheap, no model call).
+
+To read results per model: every run records its own `task.executed`, so the journal accumulates, task by task,
+which model ran it, how long it took, what it cost in turns and tokens, and what it answered — over time that
+shows which kinds of task each model does well and with what quality.
+
 ## Explain
 
 1. Listen to the whole explanation; do not interrupt and do not start the work.
@@ -57,13 +73,18 @@ assembled by the harness). Change the Input there, never here; check a recorded 
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`), and ask for the
    confirmation with the harness's ask tool whenever it has one (Hermes `clarify`, Claude Code `AskUserQuestion`,
    pi's question tool): the repetition is the question and the choices are, in this order:
-   1. **Confirmar e implementar (<method>)**: confirm and execute at once (step 9), naming the method in the label,
-      the configured default (Claude Code on mukutu with Sonnet) or the better choice for this task (by hand, a
-      Hermes subagent) when there is one; the recommended choice, first.
-   2. **Só confirmar**: record `understanding.confirmed` and wait for a word to execute.
-   3. **Não ficou bom**: feedback (step 7).
-   The tool's own free-text row is an adjustment (step 5). The three options of step 7 are asked the same way, one
-   choice per style. Plain text only where the harness has no ask tool.
+   1. **Implementar com pi · <modelo recomendado>**: confirm and execute at once (step 9) with the model you believe
+      is the best for this task, named in the label (e.g. `Implementar com pi · Claude Sonnet (mukutu)`); the
+      registry's default (`sonnet`) when nothing speaks for another one.
+   2. **Pi · <recomendado> + <teste>, em paralelo**: the recommended model plus one test model you pick (e.g.
+      `Pi · Claude Sonnet + GLM 5.3, em paralelo`), each in its own worktree (step 9), to learn what this kind of
+      task looks like on that model.
+   3. **Só confirmar**: record `understanding.confirmed` and wait for a word to execute.
+   4. **Não ficou bom**: feedback (step 7).
+   The teach-back text in the ask is never a run-on paragraph: short blocks or a numbered list, then a blank line,
+   and the question alone on the last line ("Bate?"). The tool's own free-text row is an adjustment (step 5). The
+   three options of step 7 are asked the same way, one choice per style. Plain text only where the harness has no
+   ask tool.
 4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
    ("segue", "develop it") counts as the confirmation.
 5. A reply that is not a confirmation is an adjustment: record it as a learning (`learning.recorded`, a value
@@ -81,12 +102,11 @@ assembled by the harness). Change the Input there, never here; check a recorded 
 8. The Human picks one: `... choose --task <id> --option <option id>` records `option.chosen` (that text becomes
    the repetition to confirm) and scores (+1) its style. Wait for the confirmation as in step 4.
 9. Once the Human confirms (`understanding.confirmed`), execute: `uv run --script scripts/tasks.py execute --task <id>
-   [--cwd <folder>]` runs the configured executor and records `task.executed` with its answer. The default executor is
-   the claude-code skill's print mode on the mukutu account with Sonnet, by that skill's rules: `--max-turns 30`, only
-   the tools the work needs (read, edit, `uv run`, git status/diff), its own git worktree (`--worktree task-<id>`, so
-   edits never land on a shared checkout) and JSON output (cost, turns and session id go into `task.executed`).
-   Change it in `~/.config/tasks/config.json` as `{"execute": {"command": [..., "{prompt}"], "env": {}}}`; `{task}` is
-   the task id's first 8 characters. After it runs, review the worktree's diff and open the PR from it.
+   [--models sonnet,glm] [--cwd <repo>]` runs **pi** on each chosen model, in parallel, each in its own git worktree
+   (`<repo>/../<repo>.task-<id8>-<model>`, branch `task/<id8>-<model>`, from the repo's HEAD), and records one
+   `task.executed` per model: the run's answer, model, provider, plan, harness, exit code, duration, worktree, branch
+   and what pi's JSON reports (turns, tokens, cost). No `--models` runs the registry's default. After the runs,
+   review each worktree's diff and open the PR from the one that came out best.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`
@@ -95,9 +115,9 @@ before it starts.
 
 - Put the emits in a small `.sh` in the scratch folder and run it: the person's verbatim words carry quotes and
   accents that break an inline JSON argument. Capture the `task_id` from the first emit's output for the rest.
-- Keep the teach-back to one short paragraph in the person's language, ending with one question ("Bate?");
-  a follow-up that only adjusts (a new detail, "mais ou menos…") is a `learning.recorded` on the same task,
-  applied at once, not a new task.
+- Keep the teach-back, in the person's language, to short blocks or a numbered list (never a run-on paragraph), a
+  blank line, and the question alone on the last line ("Bate?"); a follow-up that only adjusts (a new detail,
+  "mais ou menos…") is a `learning.recorded` on the same task, applied at once, not a new task.
 - Record `task.executed` honestly: `--actor` is whoever did the work (the agent itself when it worked by hand,
   the executor when `execute` ran it).
 - When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
@@ -118,16 +138,19 @@ before it starts.
 - Widgets on `task.executed` (in `scripts/dev_console_project.py`), validated one by one before a Tasks tab exists:
   - **TaskList**: only executed tasks, newest first, title and date (no status); a row opens the Tasks view.
   - **TaskExecutionResult**, for a person: first how it ran (method, harness, model, effort, cycle time from the
-    confirmation to the end of the run, delivery as PR aberto / PR fechado / direto na main), then the run's report
-    as markdown, then the date.
+    confirmation to the end of the run, delivery as PR aberto / PR fechado / direto na main; a pi run adds provider,
+    plan, exit code, duration, turns, tokens, cost), then the run's report as markdown, then the date.
   - **DomainDiff**: the diff of the domain's pseudo-code (the dev-console Code part) before and after the run;
     one line saying nothing changed when the run did not touch the domain.
-  - **TaskExecutionLog**, for agents: when, who, executor, exit code, turns, cost, session id, event id.
+  - **TaskExecutionLog**, for agents: when, who, harness, model and plan, worktree and branch, exit code, turns,
+    tokens, cost, session id, event id.
   - **Tasks**: TaskList beside TaskExecutionResult, composed; it becomes the dev-console's second fixed tab
     (after Domain), filtered by the task's domain, once he approves the widgets.
   Widgets on fake data (`FAKE_*` + the "dados de exemplo" footer) mirror a real run of this skill until approved.
 - A run records its `ExecutionResult` whole in `task.executed` (method, harness, model, effort, cycle_time_s,
   delivery, session, pull_request, commits, before_afters, journeys; the report in `text` may carry mermaid and
-  images). Pictures live in `~/.local/share/tasks/media/<task id 8>/` and are referenced as `media:<task id 8>/<file>`;
-  the console serves them. A run that recorded only its text shows the text alone (no example data).
+  images). A pi run (one `task.executed` per model) adds provider, plan, exit_code, duration_s, worktree, branch,
+  turns, tokens and cost. Pictures live in `~/.local/share/tasks/media/<task id 8>/` and are referenced as
+  `media:<task id 8>/<file>`; the console serves them. A run that recorded only its text shows the text alone
+  (no example data).
 - A domain's Task Results tab shows only the tasks whose `task.explained` names that domain.
