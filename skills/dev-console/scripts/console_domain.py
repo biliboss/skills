@@ -63,8 +63,10 @@ def _project(events: list[dict]) -> dict | None:
             state["tabs"].append(value["tab"])
         elif event == "event.updated":
             state["events"].append(value["event"])
-        elif event == "widget.updated":
-            state["widgets"].append({"event": value["event"], "widget": value["widget"], "doc": value.get("doc", "")})
+        elif event == "widget.updated":  # one event for create, change or delete (value.change)
+            state["widgets"] = [w for w in state["widgets"] if w["widget"] != value["widget"]]
+            if value.get("change") != "deleted":
+                state["widgets"].append({"event": value["event"], "widget": value["widget"], "doc": value.get("doc", "")})
         state["updated_at"] = max(state["updated_at"], e["at"])
         state["event_count"] += 1
     return state
