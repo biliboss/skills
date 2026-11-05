@@ -98,3 +98,12 @@ sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
 Embed `{base, name, journal_types, events, state, model, entities, home}` as
 `<script type="application/json">` with `</` escaped; escape every journal string
 before `innerHTML`.
+
+## Layout (fCoSE)
+
+- The graph uses fCoSE (Balci & Dogrusoz 2022; `layout-base`, `cose-base`, `cytoscape-fcose` from jsdelivr) with
+  `randomize: false` from a seed (ring = steps from the Human), so a reload draws the same picture.
+- Constraints: the Human is pinned at (0,0); `INITIAL` starts are aligned horizontally with it, one on each side
+  (`relativePlacementConstraint`, gap 160); the `HUB` sits below the Human and its children below the hub.
+- Rejected: the hand-made radial (`pos`), dagre left to right (the Human is not in the centre) and breadthfirst
+  `circle` (overlaps). Forces that read well: `idealEdgeLength` 130, `nodeRepulsion` 45000, `gravity` 0.4.

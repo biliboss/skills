@@ -47,6 +47,10 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 
 ## The screen, and the rules it follows
 
+- **Follow the template; never invent a screen.** Any new tab, graph or panel reuses what the
+  console has: `TABS` + `KEYS`, `drawGraph` (Human, rays per category, filled/outlined nodes),
+  the contextual sidebar (Widgets | Código | JSON), the popup with REAL | SIMULADO, state in the
+  query. A Mermaid diagram or a second Cytoscape function with its own layout was rejected twice.
 - **Tabs are the first element**; each has a vim-style goto (`g` then the underlined letter:
   `g d` Domain, `g m` Model). Colours for unknown categories come from a fixed palette by
   category order, so any domain draws. Esc closes the popup, then the sidebar.
@@ -58,9 +62,17 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   ValueObject, DomainEvent), fields typed `Any`, command stubs `-> CategoryEvent: ...`, no
   implementation. It never overwrites it: the draft is the user's to edit.
 - **The dev-console is built with the dev-console.** Its own domain (`scripts/console_domain.py`) is
-  our development process: Human → Domain.Designed (new) or Domain.Imported (existing), then the
-  draft, widgets (created, updated) and actions (proposed, simulated, ran). Its screens
-  are widgets of that domain: DomainView (on domain.designed) embeds the Domain tab (`?embed=1`).
+  our development process: Human → Domain.Designed (new) or Domain.Imported (existing) → Domain.Updated (the hub), which links
+  Event.Updated, Widget.Updated and Tab.Updated (one event each for create, change, delete). Its
+  journal is `scripts/console_domain.jsonl`, seeded from the code once and then edited by hand. When Gabriel names a
+  "view"/"screen"/"menu" of this domain he means **the console's own screen**, embedded as a
+  widget, not a new design: DomainView (the Domain tab, `?embed=1`), StateGraph (graph alone,
+  `?embed=graph`), RightMenu (the event sidebar alone, `?embed=side&ev=…`), each an `Iframe` with
+  `fn.fake = True`, registered on **both** starts (Domain.Designed and Domain.Imported). An embed
+  never shows the tab bar.
+- **Name events simply.** Prefer plain lifecycle verbs (Widget Created, Widget Updated) over
+  invented process steps (designed/approved/connected). A configuration value (the home widget)
+  is not an event: it rides in the value of the event that records the thing (Domain.Imported).
 - **Model** is the state machine (UML statechart vocabulary): **Human** is the initial
   pseudostate (ISO 9241-210, human-centred design), each edge is a command, each node an event.
   It is drawn from the project's `EVENTS` registry read live with `ast` (no language server):
@@ -154,6 +166,11 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
 - A project-file constant the console reads (`HOME`, `ACTIONS`, `EXPECTED_WIDGETS`) must have
   exactly that name; check `D.home` / the route after adding one, a typo fails silently.
 - Keep `.sesskey` out of git: FastHTML writes its session secret next to the script it runs.
+- Lay out an embed with CSS keyed on `html[data-embed=…]`, set before `show()`: `show()` re-renders
+  `#main`, so JS that hides or resizes elements first is lost or hits the wrong node.
+- An embedded console screen points at the domain whose event it shows (the dev-console's own
+  `SLUG` for its process events): pointing at `ctx.entity_id` opened another domain without that
+  event ("comando undefined").
 - Edit the console with small patcher scripts that assert each replacement: sed misses JS
   with quotes and backslashes without saying so.
 - The user iterates fast on the look: one change, screenshot at his width (~1000 px, dark
