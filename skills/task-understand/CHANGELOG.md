@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-11-05
+
+### Changed
+
+- The teach-back asks for the confirmation with the harness's ask tool (Hermes `clarify`, Claude Code
+  `AskUserQuestion`): confirm, not good (feedback) or a free-text adjustment; the three styled options too.
+
 ## [0.7.0] - 2026-11-05
 
 ### Added

@@ -2,6 +2,17 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.13.0] - 2026-11-05
+
+### Fixed
+
+- `dev-console`: the Task Results tab takes the whole width (no entity rail, no JSON inspector); tab labels keep their
+  spaces; report lists have one marker at the body's size; the result names the selected task.
+
+### Changed
+
+- `task-understand` 0.8.0: the teach-back asks for the confirmation with the harness's ask tool.
+
 ## [0.12.0] - 2026-11-05
 
 ### Added

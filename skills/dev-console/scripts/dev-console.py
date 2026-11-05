@@ -999,9 +999,9 @@ function show(name) {
   if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); side.id = null; }
   tab = name; setQ('tab', name === 'Domain' ? '' : name);
   $('tabs').innerHTML = Object.keys(TABS).filter(t => D.tabs.includes(t)).map((t, i) =>
-    `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${nf(t)}${keyed(t)}${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
+    `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${nf(t)}<span>${keyed(t)}</span>${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
   $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.t));
-  const wide = GRAPH(tab);
+  const wide = GRAPH(tab) || tab === 'Task Results';  // full width: no entity rail, no JSON inspector
   $('rail').style.display = $('side').style.display = wide ? 'none' : '';
   $('main').innerHTML = TABS[tab]();
   $('main').querySelectorAll('.rec').forEach(r => r.onclick = () => select(r.dataset.id));
