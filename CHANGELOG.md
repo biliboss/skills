@@ -2,6 +2,15 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.10.0] - 2026-11-05
+
+### Added
+
+- `task-understand` 0.5.1: the whole process implemented (learnings used, feedback with downscore, three fixed
+  versioned styles, options, choice with score, default style = highest score); the default executor follows the
+  claude-code skill (max turns, allowed tools, own worktree, JSON output). Implemented by the executor itself, the
+  first real run of `tasks.py execute`.
+
 ## [0.9.0] - 2026-11-05
 
 ### Added

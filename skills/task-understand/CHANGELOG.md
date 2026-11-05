@@ -2,6 +2,23 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-11-05
+
+### Fixed
+
+- The default executor follows the claude-code skill: `--max-turns 30`, allowed tools only, its own git worktree and
+  JSON output (cost, turns, session id recorded in `task.executed`); before, it edited the shared checkout with no cap.
+- `test_flow.py` runs with `uv run python scripts/test_flow.py`.
+
+## [0.5.0] - 2026-11-05
+
+### Added
+
+- `tasks.py use-learnings` (real `learning.used`), `feedback` (`feedback.given` + downscore), `options` (`option.generated` x3),
+  `choose` (`option.chosen` + score) and `styles` (scores, default = highest).
+- Three fixed, versioned styles (`STYLES`); the projector keeps `options` and `style`; `scripts/test_flow.py`.
+- SKILL.md: Styles section and steps 6 to 9 (learnings, feedback, options, choice).
+
 ## [0.4.0] - 2026-11-05
 
 ### Added

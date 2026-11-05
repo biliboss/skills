@@ -7,12 +7,12 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.4.0
+  version: 0.5.1
 ---
 
 # task-understand
 
-One command runs the whole workflow, from `task.explained` to `understanding.taught_back`. The domain is
+One command runs the whole workflow, from `task.explained` to `task.executed`, including adjustments, feedback and styles. The domain is
 **Tasks** (plural: the set of tasks), shown in the dev-console as Biliboss Skills - Tasks at `/domain/tasks`;
 other workflows of the domain come as `task-<action>` skills.
 
@@ -27,6 +27,18 @@ assignment at school, a ticket in a software team).
 
 The practice is **teach-back** (health literacy: "explain it back in your own words"); the loop it closes is
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
+
+## Styles
+
+Three fixed styles of repetition, in `STYLES` of `scripts/tasks.py`, each with a version: `direto` (one sentence),
+`passo-a-passo` (numbered steps), `exemplo` (a paragraph with a concrete example). Changing a style's guide means
+bumping its version, and the style then starts again from zero. A style gains a point when its option is chosen
+(`style.scored`, `score`) and loses one when its repetition gets feedback (`style.scored`, `downscore`). The default
+style is the one with the highest score (a tie goes to the first declared); `tasks.py styles` shows it.
+
+The full flow, as drawn in the graph: `task.explained` → `learning.used` → `understanding.taught_back` → the Human
+confirms (`understanding.confirmed` → `task.executed`), or adjusts (`learning.recorded` → `learning.used`), or gives
+feedback (`feedback.given` → `style.scored` downscore + `option.generated` x3 → `option.chosen` → `style.scored` score).
 
 ## Input
 
@@ -44,16 +56,38 @@ assembled by the harness). Change the Input there, never here; check a recorded 
    ("segue", "develop it") counts as the confirmation.
 5. A reply that is not a confirmation is an adjustment: record it as a learning (`learning.recorded`, a value
    event, their words verbatim), repeat back again, and wait for the confirmation.
-6. Before repeating back, look for the learnings that apply and use them (`learning.used`, also a value event).
-7. Once the Human confirms (`understanding.confirmed`), execute: `uv run --script scripts/tasks.py execute --task <id>
+6. Before repeating back, look for the learnings that apply and use them: `uv run --script scripts/tasks.py
+   use-learnings --task <id>` records `learning.used` (a value event) with the learnings recorded on this task, or on
+   another that shares two or more words with it, and prints them; apply what it prints. Nothing applies, nothing is
+   recorded. Give the repetition in the current default style: `uv run --script scripts/tasks.py styles`, and
+   pass `"style": "<name>"` in `understanding.taught_back`.
+7. If the reply says the repetition was not good (feedback, not an adjustment of the task): `uv run --script
+   scripts/tasks.py feedback --task <id> --text "<their words>"` records `feedback.given`, downscores (-1) the style
+   of that repetition (`style.scored`) and prints the three styles with their guides. Write one repetition in each
+   style and record them with `... options --task <id> '{"direto": "...", "passo-a-passo": "...", "exemplo": "..."}'`
+   (`option.generated` x3). Show the three to the Human, each with its style name.
+8. The Human picks one: `... choose --task <id> --option <option id>` records `option.chosen` (that text becomes
+   the repetition to confirm) and scores (+1) its style. Wait for the confirmation as in step 4.
+9. Once the Human confirms (`understanding.confirmed`), execute: `uv run --script scripts/tasks.py execute --task <id>
    [--cwd <folder>]` runs the configured executor and records `task.executed` with its answer. The default executor is
-   the claude-code skill's print mode on the mukutu account with Sonnet (`CLAUDE_CONFIG_DIR=~/.claude-mukutu claude -p
-   --model sonnet`); change it in `~/.config/tasks/config.json` as `{"execute": {"command": [..., "{prompt}"], "env": {}}}`.
+   the claude-code skill's print mode on the mukutu account with Sonnet, by that skill's rules: `--max-turns 30`, only
+   the tools the work needs (read, edit, `uv run`, git status/diff), its own git worktree (`--worktree task-<id>`, so
+   edits never land on a shared checkout) and JSON output (cost, turns and session id go into `task.executed`).
+   Change it in `~/.config/tasks/config.json` as `{"execute": {"command": [..., "{prompt}"], "env": {}}}`; `{task}` is
+   the task id's first 8 characters. After it runs, review the worktree's diff and open the PR from it.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`
 with its repetition (`--task <id>`, `--actor <the agent>`), and answers with that repetition and nothing else
 before it starts.
+
+- Put the emits in a small `.sh` in the scratch folder and run it: the person's verbatim words carry quotes and
+  accents that break an inline JSON argument. Capture the `task_id` from the first emit's output for the rest.
+- Keep the teach-back to one short paragraph in the person's language, ending with one question ("Bate?");
+  a follow-up that only adjusts (a new detail, "mais ou menos…") is a `learning.recorded` on the same task,
+  applied at once, not a new task.
+- Record `task.executed` honestly: `--actor` is whoever did the work (the agent itself when it worked by hand,
+  the executor when `execute` ran it).
 
 ## Design stage
 
