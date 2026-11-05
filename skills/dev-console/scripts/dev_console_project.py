@@ -21,6 +21,7 @@ ENTITIES = {"domain": "Domain", "event": "Event", "widget": "Widget", "tab": "Ta
 ENTITY_KEY = "domain_id"
 PROJECTOR = "_project"
 journal = ConsoleJournal()
+render_widget_list = None  # set by the console: the right menu's WidgetList, for composition
 
 K = "text-[11px] uppercase tracking-widest text-neutral-500"
 BODY = "font-sans text-sm text-neutral-800 dark:text-neutral-200"
@@ -45,16 +46,10 @@ def domain_list(ctx):
 
 
 def widget_list(ctx):
-    """The widgets this Domain registers, each with its description and the event it opens from."""
-    if not ctx.events:
+    """The widgets of one event, each with abrir: the right menu's own WidgetList, composed (never a copy)."""
+    if not ctx.focus:
         return P("Nenhum widget registrado.", cls="text-neutral-400")
-    return Ul(*[
-        Li(Span(e["value"]["widget"], cls="w-40 shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"),
-           Div(P(e["value"].get("doc") or "sem descrição", cls=BODY),
-               P(f'abre em {e["value"]["event"]}', cls="text-neutral-400"), cls="min-w-0"),
-           cls="flex gap-3 py-1.5 border-b border-neutral-100 dark:border-neutral-900 last:border-0")
-        for e in ctx.events
-    ])
+    return render_widget_list(ctx.focus["domain_id"], ctx.focus["value"]["event"])
 
 
 def event_list(ctx):
@@ -81,7 +76,8 @@ def domain_card(ctx):
     return Div(
         P(s["name"], cls="font-sans text-2xl font-semibold text-neutral-900 dark:text-neutral-100"),
         P(sentence, cls="mt-1 font-sans text-[15px] leading-6 text-neutral-600 dark:text-neutral-400"),
-        Div(P("Widgets", cls=K), Div(widget_list(ctx.of("widget.updated")), cls="mt-1"),
+        Div(P("Widgets da tela inicial", cls=K),
+            Div(render_widget_list(s["id"], (s.get("home") or {}).get("event") or "domain.imported"), cls="mt-1"),
             cls="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-800"),
     )
 
