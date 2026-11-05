@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.17.0] - 2026-11-05
+
+### Changed
+
+- `task-understand` 0.11.0: pi é o executor, só nos planos flat — a assinatura Claude da mukutu (claude-bridge) e
+  o GLM Coding Plan (zai; a chave lida de `~/glm_token` só no env do filho). A mesma tarefa pode rodar em paralelo
+  em vários modelos, cada um no seu worktree (`task/<id8>-<model>`), com um `task.executed` por modelo (model,
+  provider, plano, exit code, duração, turnos, tokens, custo); OpenRouter e provedores por token são recusados.
+  O pedido de confirmação passa a ser: implementar com o modelo recomendado, recomendado + um modelo de teste em
+  paralelo, só confirmar, não ficou bom — e o teach-back na pergunta é blocos curtos ou lista numerada, com a
+  pergunta ("Bate?") sozinha na última linha.
+
 ## [0.15.0] - 2026-11-05
 
 ### Changed

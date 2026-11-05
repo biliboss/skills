@@ -16,7 +16,10 @@ Storage: one global append-only JSONL shared by every agent, ~/.local/share/task
     uv run --script tasks.py options --task <task_id> '{"direto": "...", "passo-a-passo": "...", "exemplo": "..."}'
     uv run --script tasks.py choose --task <task_id> --option <option_id>   # option.chosen + style score
     uv run --script tasks.py styles                                # scores and the default style
-    uv run --script tasks.py execute --task <task_id> [--cwd <folder>]   # only after understanding.confirmed
+    uv run --script tasks.py models                                # the model registry, and which ones pi sees now
+    uv run --script tasks.py execute --task <task_id> [--models sonnet,glm] [--cwd <repo>]
+                                                                   # pi in parallel, one worktree per model;
+                                                                   # only after understanding.confirmed
 """
 from __future__ import annotations
 
@@ -31,17 +34,31 @@ from typing import Any
 from uuid import uuid4
 
 DEFAULT_DIR = "~/.local/share/tasks"
-CONFIG = Path(os.environ.get("TASKS_CONFIG", "~/.config/tasks/config.json")).expanduser()
-# Who executes a confirmed task. Default: the claude-code skill's print mode, on the mukutu account, with Sonnet.
-# Override in CONFIG ({"execute": {"command": [...], "env": {...}}}); {prompt} is replaced by the task's prompt.
-# Following the claude-code skill: print mode, a cap on turns, only the tools the work needs, its own git worktree
-# (so edits never land on a shared checkout), and JSON output (result, cost, turns, session id for --resume).
-# {prompt} is the task's prompt, {task} the first 8 characters of its id.
-DEFAULT_EXECUTOR = {
-    "command": ["claude", "-p", "--model", "sonnet", "--max-turns", "30", "--output-format", "json",
-                "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash(uv run *),Bash(git status*),Bash(git diff*)",
-                "--worktree", "task-{task}", "{prompt}"],
-    "env": {"CLAUDE_CONFIG_DIR": "~/.claude-mukutu"},
+
+
+def _config() -> dict:
+    """~/.config/tasks/config.json (override with TASKS_CONFIG), when it exists and parses."""
+    path = Path(os.environ.get("TASKS_CONFIG", "~/.config/tasks/config.json")).expanduser()
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+# The models a confirmed task may run on, each on one of our flat plans: the mukutu Claude subscription (pi's
+# claude-bridge provider; the account is chosen by CLAUDE_CONFIG_DIR) or our GLM Coding Plan (provider zai). An env
+# value that starts with "@" is a recipe: the named file's content, stripped, goes to the child process's env only
+# (the GLM key is read from ~/glm_token into ZAI_API_KEY and never printed, logged or committed). Per-token providers
+# (OpenRouter, ~anthropic/...) are refused. Override and extend in ~/.config/tasks/config.json, keys "models" and
+# "default_model"; this replaced the old "execute" command override of 0.4.0-0.10.0 (pi is the only executor now).
+FLAT_PLANS = {"claude-bridge": "mukutu-claude", "zai": "glm-coding-plan"}
+DEFAULT_MODELS = {
+    "sonnet": {"model": "claude-bridge/claude-sonnet-5-5", "plan": "mukutu-claude",
+               "env": {"CLAUDE_CONFIG_DIR": "~/.claude-mukutu"}, "name": "Claude Sonnet (mukutu)"},
+    "glm": {"model": "zai/glm-5.3", "plan": "glm-coding-plan", "env": {"ZAI_API_KEY": "@~/glm_token"},
+            "name": "GLM 5.3 (coding plan)"},
+    "glm-flash": {"model": "zai/glm-5.3-flash", "plan": "glm-coding-plan", "env": {"ZAI_API_KEY": "@~/glm_token"},
+                  "name": "GLM 5.3 Flash (coding plan)"},
 }
 
 # The three fixed styles of a repetition. Each has a version: change the guide, bump the version, and the style starts
@@ -176,17 +193,27 @@ class ExecutionResult:
     """How a task was executed and what it delivered."""
 
     text: str  # what the execution answered, a report for people (markdown, headings, mermaid)
-    method: Method
-    harness: Harness
-    model: Model
-    effort: Effort
-    cycle_time_s: int  # from the confirmation to the end of the run, in seconds
-    delivery: Delivery
-    session: SessionRef
+    method: Method | None = None
+    harness: Harness | None = None
+    model: str | None = None  # a registry id (sonnet, glm, glm-flash) or a Model family, in older runs
+    effort: Effort | None = None
+    cycle_time_s: int | None = None  # from the confirmation to the end of the run, in seconds
+    delivery: Delivery | None = None
+    session: SessionRef | None = None
     pull_request: PullRequest | None = None  # when the work went through one
     commits: tuple[Commit, ...] = ()
     before_afters: tuple[BeforeAfter, ...] = ()  # N comparisons
     journeys: tuple[Journey, ...] = ()  # N journeys
+    # a pi run (0.11.0, one per model): the flat plan that rode it and what the run itself reports
+    provider: str = ""  # pi's provider (claude-bridge, zai)
+    plan: str = ""  # the flat plan (mukutu-claude, glm-coding-plan)
+    exit_code: int | None = None
+    duration_s: int | None = None  # the run itself, in seconds
+    worktree: str = ""
+    branch: str = ""
+    turns: int | None = None
+    tokens: int | None = None
+    cost_usd: float | None = None  # None on a flat plan: no per-token cost to report
 
 
 # Which value object each event carries (the dev-console's Code shows it with the event).
@@ -211,20 +238,36 @@ MEDIA_DIR = Path(os.environ.get("TASKS_DIR", DEFAULT_DIR)).expanduser() / "media
 
 def result_from(value: dict) -> ExecutionResult | None:
     """The ExecutionResult a task.executed value carries, or None when the run recorded only its text (older runs)."""
-    if not {"method", "harness", "model", "effort", "cycle_time_s", "delivery"} <= value.keys():
+    full = {"method", "harness", "model", "effort", "cycle_time_s", "delivery"} <= value.keys()
+    pi = {"exit_code", "worktree"} <= value.keys()  # a pi run (0.11.0), one per model
+    if not full and not pi:
         return None
     pic = lambda p: Picture(p["src"], p.get("caption", ""))  # noqa: E731
     pr = value.get("pull_request")
     s = value.get("session") or {}
+
+    def one_of(enum, key):  # a field older runs always carried; a pi run may not have it
+        return enum(value[key]) if key in value else None
+
+    def model_of(key):  # a Model family of the older runs, or the registry id as-is (glm, glm-flash, one from config)
+        try:
+            return Model(value[key])
+        except ValueError:
+            return value[key]
+
     return ExecutionResult(
-        text=value.get("text", ""), method=Method(value["method"]), harness=Harness(value["harness"]),
-        model=Model(value["model"]), effort=Effort(value["effort"]), cycle_time_s=int(value["cycle_time_s"]),
-        delivery=Delivery(value["delivery"]),
-        session=SessionRef(Harness(s.get("harness", value["harness"])), s.get("id"), s.get("log", "")),
+        text=value.get("text", ""), method=one_of(Method, "method"), harness=one_of(Harness, "harness"),
+        model=model_of("model") if "model" in value else None, effort=one_of(Effort, "effort"),
+        cycle_time_s=int(value["cycle_time_s"]) if "cycle_time_s" in value else None,
+        delivery=one_of(Delivery, "delivery"),
+        session=SessionRef(Harness(s.get("harness", value["harness"])), s.get("id"), s.get("log", "")) if full else None,
         pull_request=PullRequest(pr["number"], pr["url"], PullRequestState(pr["state"])) if pr else None,
         commits=tuple(Commit(c["sha"], c["message"], c["repo"]) for c in value.get("commits", [])),
         before_afters=tuple(BeforeAfter(b["title"], pic(b["before"]), pic(b["after"])) for b in value.get("before_afters", [])),
         journeys=tuple(Journey(j["title"], tuple(pic(x) for x in j["steps"])) for j in value.get("journeys", [])),
+        provider=value.get("provider", ""), plan=value.get("plan", ""), exit_code=value.get("exit_code"),
+        duration_s=value.get("duration_s"), worktree=value.get("worktree", ""), branch=value.get("branch", ""),
+        turns=value.get("turns"), tokens=value.get("tokens"), cost_usd=value.get("cost_usd"),
     )
 
 
@@ -417,16 +460,129 @@ def choose(task_id: str, option_id: str, *, actor: str | None = None) -> dict:
     return chosen
 
 
-def executor() -> dict:
-    """The configured executor (CONFIG's "execute"), or the default one."""
-    if CONFIG.exists():
-        return {**DEFAULT_EXECUTOR, **json.loads(CONFIG.read_text()).get("execute", {})}
-    return DEFAULT_EXECUTOR
+def models_registry() -> dict[str, dict]:
+    """The MODELS registry: the defaults of this file, overridden and extended by config's "models"."""
+    cfg = {k: v for k, v in (_config().get("models") or {}).items() if isinstance(v, dict)}
+    out = {mid: {**spec, **cfg.get(mid, {})} for mid, spec in DEFAULT_MODELS.items()}
+    out.update({mid: entry for mid, entry in cfg.items() if mid not in out and entry.get("model")})
+    return out
 
 
-def execute(task_id: str, cwd: str | None = None, *, actor: str | None = None) -> dict:
-    """Run the executor on a confirmed task and record task.executed with what it answered."""
+def default_model() -> str:
+    """The recommended model's id: config's default_model, or "sonnet"."""
+    return _config().get("default_model") or "sonnet"
+
+
+def resolve_model(mid: str) -> dict:
+    """One registry entry resolved for pi ({id, model, provider, plan, env, name}); per-token providers are refused."""
+    spec = models_registry().get(mid)
+    if not spec or not spec.get("model"):
+        raise ValueError(f"modelo desconhecido: {mid} (conheço {sorted(models_registry())})")
+    provider = str(spec["model"]).partition("/")[0]
+    if provider not in FLAT_PLANS:  # OpenRouter and any per-token provider: never on this skill's runs
+        raise ValueError(f"{mid} ({spec['model']}) cobra por token ({provider}): recusado — esta skill só roda nos "
+                         f"planos flat {', '.join(f'{p} ({plan})' for p, plan in FLAT_PLANS.items())}")
+    return {"id": mid, "model": str(spec["model"]), "provider": provider,
+            "plan": spec.get("plan") or FLAT_PLANS[provider], "env": spec.get("env") or {},
+            "name": spec.get("name") or str(spec["model"])}
+
+
+def _model_env(spec: dict) -> dict[str, str]:
+    """A model's env, only for the child process: literals (~ expanded) and "@<file>" recipes (the file's content,
+    stripped; the GLM key never touches this process's env, a log or the console)."""
+    env = {}
+    for key, value in (spec.get("env") or {}).items():
+        if isinstance(value, str) and value.startswith("@"):
+            path = Path(value[1:]).expanduser()
+            try:
+                env[key] = path.read_text(encoding="utf-8").strip()
+            except OSError as e:
+                raise RuntimeError(f"o env do modelo precisa do arquivo {path}: {e.strerror or e}") from None
+        else:
+            env[key] = os.path.expanduser(str(value))
+    return env
+
+
+def models_overview() -> dict:
+    """The registry for `tasks.py models`: each model, its plan, and whether pi sees it right now."""
     import subprocess
+
+    out = {}
+    for mid, spec in models_registry().items():
+        provider, _, name = str(spec.get("model", "")).partition("/")
+        entry = {"model": spec.get("model"), "plan": spec.get("plan"), "name": spec.get("name"),
+                 "env": spec.get("env") or {}, "refused": provider not in FLAT_PLANS}
+        if entry["refused"] or not name:  # a per-token provider never runs, even when pi lists it
+            entry["usable"] = False
+        else:
+            try:  # pi --list-models with the model's env: cheap, no model call
+                done = subprocess.run(["pi", "--list-models"], env={**os.environ, **_model_env(spec)},
+                                      capture_output=True, text=True, timeout=120)
+                entry["usable"] = done.returncode == 0 and any(
+                    cols[0] == provider and cols[1] == name for cols in (l.split() for l in done.stdout.splitlines())
+                    if len(cols) >= 2)
+            except (OSError, subprocess.SubprocessError):
+                entry["usable"] = False
+        out[mid] = entry
+    return {"default": default_model(), "models": out}
+
+
+def _worktree_for(repo: Path, id8: str, mid: str) -> tuple[Path, str]:
+    """The model's own git worktree, from the repo's HEAD: <repo>/../<repo>.task-<id8>-<model> on branch
+    task/<id8>-<model> (reused when it already exists, so a re-run lands on the same branch)."""
+    import subprocess
+
+    path = repo.parent / f"{repo.name}.task-{id8}-{mid}"
+    branch = f"task/{id8}-{mid}"
+    if path.exists():
+        return path, branch
+    done = subprocess.run(["git", "worktree", "add", str(path), "-b", branch], cwd=repo, capture_output=True, text=True)
+    if done.returncode != 0:  # the branch can exist from an earlier run: attach the worktree without creating it
+        done = subprocess.run(["git", "worktree", "add", str(path), branch], cwd=repo, capture_output=True, text=True)
+    if done.returncode != 0:
+        raise RuntimeError(f"git worktree add {path}: {done.stderr.strip() or done.stdout.strip()}")
+    return path, branch
+
+
+def _pi_run(spec: dict, prompt: str, repo: Path, id8: str) -> dict:
+    """One pi run of the prompt on this model, in its own worktree: what it answered and what it cost."""
+    import subprocess
+    import time
+
+    worktree, branch = _worktree_for(repo, id8, spec["id"])
+    cmd = ["pi", "-p", "--no-session", "--mode", "json", "--model", spec["model"], prompt]
+    started = time.monotonic()
+    done = subprocess.run(cmd, cwd=worktree, env={**os.environ, **_model_env(spec)}, capture_output=True, text=True)
+    run = {"worktree": str(worktree), "branch": branch, "exit_code": done.returncode,
+           "duration_s": int(time.monotonic() - started), "turns": 0, "session_id": None, "pi_model": None,
+           "tokens": None, "cost_usd": None, "text": ""}
+    answer, usage = "", {}
+    for line in done.stdout.splitlines():  # pi's --mode json stream: one JSON object per line
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        kind = rec.get("type")
+        if kind == "session":
+            run["session_id"] = rec.get("id")
+        elif kind == "turn_end":
+            run["turns"] += 1
+        elif kind == "message_end" and (rec.get("message") or {}).get("role") == "assistant":
+            m = rec["message"]
+            run["pi_model"] = m.get("responseModel") or m.get("model") or run["pi_model"]
+            usage = m.get("usage") or usage
+            answer = "".join(b.get("text", "") for b in m.get("content", []) if b.get("type") == "text") or answer
+    if usage:
+        run["tokens"] = usage.get("totalTokens")
+        run["cost_usd"] = (usage.get("cost") or {}).get("total")
+    run["text"] = (answer or done.stderr.strip() or "(sem resposta)")[-4000:]
+    return run
+
+
+def execute(task_id: str, cwd: str | None = None, models: list[str] | None = None, *,
+            actor: str | None = None) -> list[dict]:
+    """Run pi on a confirmed task, in parallel, one model per worktree, and record one task.executed per model."""
+    from concurrent.futures import ThreadPoolExecutor
 
     journal = TasksJournal()
     state = journal.read({"id": task_id})
@@ -434,25 +590,31 @@ def execute(task_id: str, cwd: str | None = None, *, actor: str | None = None) -
         raise ValueError(f"no task {task_id}")
     if state["status"] != "confirmed":
         raise ValueError(f"task {task_id} is {state['status']}: only a confirmed understanding is executed")
+    specs = [resolve_model(m) for m in (models or [default_model()])]  # a refused provider never runs
     prompt = (f"Tarefa: {state['title']}\n\nComo foi explicada:\n{state['text']}\n\n"
               f"Como foi entendida (confirmado por quem explicou):\n{state['teach_backs'][-1]}\n\n"
               + ("Ajustes de quem explicou:\n" + "\n".join(f"- {x}" for x in state["learnings"]) + "\n\n" if state["learnings"] else "")
               + "Execute a tarefa e termine com um relato curto do que fez.")
-    run = executor()
-    env = {**os.environ, **{k: os.path.expanduser(v) for k, v in run.get("env", {}).items()}}
-    cmd = [prompt if part == "{prompt}" else part.replace("{task}", task_id[:8]) for part in run["command"]]
-    done = subprocess.run(cmd, cwd=cwd or os.getcwd(), env=env, capture_output=True, text=True)
-    out = done.stdout.strip()
-    extra: dict = {}
-    try:  # --output-format json: keep the answer and what it cost
-        res = json.loads(out)
-        out = res.get("result") or out
-        extra = {k: res[k] for k in ("session_id", "num_turns", "total_cost_usd", "subtype") if k in res}
-    except (json.JSONDecodeError, AttributeError):
-        pass
-    answer = (out or done.stderr.strip() or "(sem resposta)")[-4000:]
-    return journal.emit("task.executed", {"text": answer, "exit_code": done.returncode, "executor": run["command"][0], **extra},
-                        task_id, actor=actor or os.environ.get("TASKS_ACTOR", run["command"][0]))
+    repo, id8 = Path(cwd or os.getcwd()).resolve(), task_id[:8]
+    with ThreadPoolExecutor(max_workers=len(specs)) as pool:  # "does it work on this model?": one worktree each
+        runs = list(pool.map(lambda spec: _pi_run(spec, prompt, repo, id8), specs))
+    history = journal.read({"id": task_id, "history": True})
+    confirmed = next((e["at"] for e in reversed(history) if e["event"] == "understanding.confirmed"), None)
+    now = datetime.now(timezone.utc)
+    records = []
+    for spec, run in zip(specs, runs):  # one task.executed per model, in the order they were asked for
+        value = {"text": run["text"], "model": spec["id"], "provider": spec["provider"], "plan": spec["plan"],
+                 "harness": Harness.PI.value, "method": Method.PRINT.value, "exit_code": run["exit_code"],
+                 "duration_s": run["duration_s"], "worktree": run["worktree"], "branch": run["branch"],
+                 "turns": run["turns"], "session_id": run["session_id"], "pi_model": run["pi_model"],
+                 "tokens": run["tokens"], "cost_usd": run["cost_usd"],
+                 "cycle_time_s": int((now - datetime.fromisoformat(confirmed.replace("Z", "+00:00"))).total_seconds())
+                 if confirmed else None}
+        value = {k: v for k, v in value.items() if v is not None}
+        records.append(journal.emit("task.executed", value, task_id,
+                                    actor=actor or os.environ.get("TASKS_ACTOR", "pi")))
+    return records
+
 
 if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="tasks: emit or read the global journal")
@@ -462,8 +624,9 @@ if __name__ == "__main__":
     em.add_argument("value", help="a JSON object")
     em.add_argument("--task")
     em.add_argument("--actor")
-    ex = sub.add_parser("execute", help="run the configured executor on a confirmed task")
+    ex = sub.add_parser("execute", help="run pi on a confirmed task, one model per worktree, in parallel")
     ex.add_argument("--task", required=True)
+    ex.add_argument("--models", help="comma-separated ids of the registry (default: the recommended model)")
     ex.add_argument("--cwd")
     ex.add_argument("--actor")
     ul = sub.add_parser("use-learnings", help="record learning.used with the learnings that apply to the task")
@@ -482,6 +645,7 @@ if __name__ == "__main__":
     ch.add_argument("--option", required=True)
     ch.add_argument("--actor")
     sub.add_parser("styles", help="scores per style and the default one")
+    sub.add_parser("models", help="the model registry, and which ones pi sees right now")
     rd = sub.add_parser("read")
     rd.add_argument("--task")
     args = cli.parse_args()
@@ -497,8 +661,11 @@ if __name__ == "__main__":
         out(choose(args.task, args.option, actor=args.actor))
     elif args.cmd == "styles":
         out({"scores": style_scores(), "default": default_style(), "styles": STYLES})
+    elif args.cmd == "models":
+        out(models_overview())
     elif args.cmd == "execute":
-        print(json.dumps(execute(args.task, args.cwd, actor=args.actor), ensure_ascii=False))
+        ids = [m.strip() for m in args.models.split(",")] if args.models else None
+        print(json.dumps(execute(args.task, args.cwd, ids, actor=args.actor), ensure_ascii=False))
     elif args.cmd == "emit":
         print(json.dumps(journal.emit(args.event, json.loads(args.value), args.task, actor=args.actor), ensure_ascii=False))
     else:

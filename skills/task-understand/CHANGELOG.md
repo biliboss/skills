@@ -2,6 +2,36 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-11-05
+
+### Changed
+
+- The executor is **pi** (`pi -p --no-session --mode json`), never Claude Code: the same task runs in parallel on
+  several models, each in its own git worktree (`<repo>.task-<id8>-<model>`, branch `task/<id8>-<model>`, from the
+  repo's HEAD), and one `task.executed` is recorded per model (model, provider, plan, harness, exit code, duration,
+  worktree, branch, turns, tokens, cost), so over time we learn which kinds of task each model does well.
+- The confirmation choices: implement with the recommended model (the label names it), the recommended plus one
+  test model in parallel, just confirm, not good; the teach-back in the ask is short blocks or a numbered list, a
+  blank line, and the question ("Bate?") alone on the last line.
+
+### Added
+
+- `MODELS` registry in `tasks.py` (id → pi's provider/model, plan, env recipe, one-line name): `sonnet` =
+  `claude-bridge/claude-sonnet-5-5` (mukutu subscription), `glm` = `zai/glm-5.3` and `glm-flash` = `zai/glm-5.3-flash`
+  (GLM Coding Plan; the key is read from `~/glm_token` into the child process's `ZAI_API_KEY` only, never printed
+  or logged); override and extend in `~/.config/tasks/config.json` (`"models"`, `"default_model"`).
+- `tasks.py models`: the registry and, per model, whether pi sees it right now (`pi --list-models` with the model's
+  env; cheap, no model call).
+- `ExecutionResult` gains, with defaults, the pi-run fields (provider, plan, exit_code, duration_s, worktree,
+  branch, turns, tokens, cost_usd); `result_from` parses them without breaking older events, and the Task Results
+  and Task Execution Log widgets show them; `test_flow.py` covers the registry, the refusal and the parallel
+  execute with a fake pi on PATH (no real model call).
+
+### Removed
+
+- The `{"execute": ...}` config override and the Claude Code default executor: pi on the flat plans is the only
+  executor; per-token providers (OpenRouter, `~anthropic/...`) are refused.
+
 ## [0.10.0] - 2026-11-05
 
 ### Added
