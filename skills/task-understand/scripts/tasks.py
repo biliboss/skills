@@ -71,8 +71,12 @@ STYLES = {
 
 EVENTS = {
     # Alguém explicou uma tarefa a outra pessoa, do jeito dele e com o tempo que ela pedia; depois do entendimento
-    # confirmado, quem recebeu executou a tarefa.
-    "task": {"explain": "explained", "execute": "executed"},
+    # confirmado, quem recebeu executou a tarefa. Um contexto novo, de fora, que só conhece o pedido confirmado e a
+    # entrega, verificou o trabalho (verificação independente, IV&V) e gravou as checagens com as evidências; se não
+    # passou, a tarefa volta a ser executada. Depois veio a entrega, com o tipo: PR, mudança direta (uma issue criada,
+    # um card movido) ou nenhuma; o PR é um tipo de entrega, não um passo obrigatório (verify e deliver: rascunho, só
+    # no grafo).
+    "task": {"explain": "explained", "execute": "executed", "verify": "verified", "deliver": "delivered"},
     # No fim, quem recebeu a tarefa repetiu tudo o que ouviu, do jeito que entendeu (o teach-back), e quem explicou
     # confirmou que bate.
     "understanding": {"teach_back": "taught_back", "confirm": "confirmed"},
@@ -86,6 +90,10 @@ EVENTS = {
     # O estilo ganhou pontos quando a opção dele foi escolhida (score) e perdeu quando a repetição dele recebeu
     # feedback (downscore); o de maior pontuação vira o padrão (rascunho: só no grafo).
     "style": {"score": "scored", "downscore": "scored"},
+    # A entrega foi um PR, e quem explicou decidiu pelo peso do trabalho, com a recomendada primeiro: protótipo ou
+    # experimento, o merge direto; produto ou cliente, pedir a revisão antes (deixar aberto não é evento). Os nomes são
+    # os do GitHub (rascunho: só no grafo).
+    "pull_request": {"merge": "merged", "request_review": "review_requested"},
 }
 
 class Method(StrEnum):
@@ -230,6 +238,12 @@ TRANSITIONS = {
     "option.generated": ["option.chosen"],
     "option.chosen": {"style.scored": "score"},
     "understanding.confirmed": ["task.executed"],
+    "task.executed": ["task.verified"],
+    "task.verified": ["task.delivered", "task.executed"],  # did not pass: executed again (another executor or by hand)
+    # A delivered PR: the Human merges it or asks for a review (an INITIAL edge would hide a whole category from the
+    # derived graph, so the decision hangs off task.delivered); a review goes back to execution.
+    "task.delivered": ["pull_request.merged", "pull_request.review_requested"],
+    "pull_request.review_requested": ["task.executed"],
 }
 
 
