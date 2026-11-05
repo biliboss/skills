@@ -7,7 +7,7 @@ description: >-
   tarefa", "vou te passar uma tarefa". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.3.0
+  version: 0.4.0
 ---
 
 # task-understand
@@ -42,6 +42,13 @@ assembled by the harness). Change the Input there, never here; check a recorded 
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`).
 4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
    ("segue", "develop it") counts as the confirmation.
+5. A reply that is not a confirmation is an adjustment: record it as a learning (`learning.recorded`, a value
+   event, their words verbatim), repeat back again, and wait for the confirmation.
+6. Before repeating back, look for the learnings that apply and use them (`learning.used`, also a value event).
+7. Once the Human confirms (`understanding.confirmed`), execute: `uv run --script scripts/tasks.py execute --task <id>
+   [--cwd <folder>]` runs the configured executor and records `task.executed` with its answer. The default executor is
+   the claude-code skill's print mode on the mukutu account with Sonnet (`CLAUDE_CONFIG_DIR=~/.claude-mukutu claude -p
+   --model sonnet`); change it in `~/.config/tasks/config.json` as `{"execute": {"command": [..., "{prompt}"], "env": {}}}`.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`

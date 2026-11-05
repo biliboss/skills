@@ -104,8 +104,12 @@ def derive(events: dict, initial: list[str] | None = None, hub: str | None = Non
     """Everything the screen shows comes from EVENTS ({category: {command: event}}, ordered):
     the categories and their events, the commands, and the graph edges (created opens every other
     category; inside a category each event follows the previous one)."""
-    lifecycle = {c: list(cmds.values()) for c, cmds in events.items()}
-    commands = {f"{c}.{ev}": cmd for c, cmds in events.items() for cmd, ev in cmds.items()}
+    lifecycle = {c: list(dict.fromkeys(cmds.values())) for c, cmds in events.items()}
+    commands: dict[str, str] = {}  # several commands may record one event (upscore | downscore -> Style.Scored)
+    for c, cmds in events.items():
+        for cmd, ev in cmds.items():
+            key = f"{c}.{ev}"
+            commands[key] = f"{commands[key]} | {cmd}" if key in commands else cmd
     root = next(f"{c}.{evs[0]}" for c, evs in lifecycle.items())
     # INITIAL (optional, in the project file): the events the Human may start with; the first is the root, the others
     # are alternative starts that lead to the same next step (e.g. Domain.Designed or Domain.Imported).
@@ -122,10 +126,18 @@ def derive(events: dict, initial: list[str] | None = None, hub: str | None = Non
         nxt[alt] = [n for n in nxt.get(root, []) if n.split(".")[0] == root.split(".")[0]][:1]
     # TRANSITIONS (optional, UML statechart term): {"cat.event": ["cat.event", ...]} replaces the derived edges when the
     # process branches or loops (a teach-back that goes back to the explanation); the Human still opens INITIAL.
+    # A target may name the command of that edge ({"style.scored": "downscore"}) when one event has several commands.
+    edge_cmd: dict[str, str] = {}
     if transitions:
-        nxt = {s: [t for t in ts if t in commands] for s, ts in transitions.items() if s in commands}
+        nxt = {}
+        for s, ts in transitions.items():
+            if s not in commands:
+                continue
+            nxt[s] = [t for t in ts if t in commands]
+            if isinstance(ts, dict):
+                edge_cmd.update({f"{s}>{t}": cmd for t, cmd in ts.items() if t in commands and cmd})
     return {"lifecycle": lifecycle, "commands": commands, "next": nxt, "root": root, "initial": initial,
-            "hub": hub if hub in commands else None}
+            "hub": hub if hub in commands else None, "edge_cmd": edge_cmd}
 
 
 def descriptions() -> dict:
@@ -586,7 +598,7 @@ function drawGraph() {
   (M().initial || [M().root]).forEach(s => edges.push({data: {id: `human>${s}`, source: 'human', target: s, color: colorOf(s),
     label: M().commands[s]}, classes: D.journal_types[s] ? 'walked' : ''}));
   Object.entries(M().next).forEach(([a, bs]) => bs.forEach(b =>
-    edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: M().commands[b]}, classes: [D.journal_types[a] && D.journal_types[b] ? 'walked' : '', (M().next[b] || []).includes(a) ? 'loop' : ''].join(' ')})));
+    edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: (M().edge_cmd || {})[`${a}>${b}`] || M().commands[b]}, classes: [D.journal_types[a] && D.journal_types[b] ? 'walked' : '', (M().next[b] || []).includes(a) ? 'loop' : ''].join(' ')})));
   const STARTS = M().initial || [M().root];
   const cy = cytoscape({
     container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
