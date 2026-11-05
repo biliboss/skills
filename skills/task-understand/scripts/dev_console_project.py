@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from fasthtml.common import A, Div, Figcaption, Figure, H2, Img, Li, NotStr, Ol, P, Pre, Script, Span, Ul  # noqa: E402
-from tasks import (TRANSITIONS, BeforeAfter, Commit, Delivery, Effort, ExecutionResult, Harness, Journey,  # noqa: E402,F401
-                   Method, Model, Picture, PullRequest, PullRequestState, SessionRef, TasksJournal)
+from tasks import (MEDIA_DIR, TRANSITIONS, BeforeAfter, Commit, Delivery, Effort, ExecutionResult, Harness,  # noqa: E402,F401
+                   Journey, Method, Model, Picture, PullRequest, PullRequestState, SessionRef, TasksJournal, result_from)
 
 NAME = "Biliboss Skills - Tasks"
 SLUG = "tasks"
@@ -19,6 +19,7 @@ ENTITY_KEY = "task_id"
 PROJECTOR = "_project"
 
 journal = TasksJournal()
+MEDIA = MEDIA_DIR  # the console serves /domain/tasks/media/<path> from here
 
 # The Human explains the task and, after the teach-back, confirms the understanding: both edges leave the Human.
 INITIAL = ["task.explained", "understanding.confirmed"]
@@ -168,7 +169,7 @@ def task_list(ctx):
     rows = []
     # in the Task Results tab of a domain: only that domain's tasks (the tasks domain itself shows them all)
     done = [t for t in ctx.entities if t.get("status") == "executed"
-            and (not ctx.domain or ctx.domain == "tasks" or t.get("domain") == ctx.domain)]
+            and (not ctx.domain or t.get("domain") == ctx.domain)]
     for t in sorted(done, key=lambda t: t.get("updated_at", ""), reverse=True):
         on = t["id"] == ctx.entity_id
         rows.append(A(
@@ -247,6 +248,20 @@ LABEL = {Method.PRINT: "Execução de uma vez", Method.INTERACTIVE: "Sessão int
          Delivery.PR_OPEN: "PR aberto", Delivery.PR_CLOSED: "PR fechado", Delivery.MAIN: "direto na main"}
 
 
+def _result(ctx) -> tuple[ExecutionResult | None, dict | None]:
+    """The selected task's real ExecutionResult and its event; (None, event) for a run that recorded only its text;
+    the design's example only when the journal has no run at all."""
+    run = _executed(ctx)
+    if run:
+        return result_from(run["value"]), run
+    return FAKE_EXECUTION, None
+
+
+def _src(src: str) -> str:
+    """A picture kept with the task (media:<path>) is served by the tasks domain; data URIs and URLs pass as they are."""
+    return f"/domain/tasks/media/{src[6:]}" if src.startswith("media:") else src
+
+
 def _duration(seconds: int) -> str:
     m, s = divmod(seconds, 60)
     return f"{m} min {s} s" if m else f"{s} s"
@@ -254,7 +269,7 @@ def _duration(seconds: int) -> str:
 
 def _figure(pic: Picture, label: str = "", wide: bool = True):
     return Figure(Div(label, cls="text-[11px] uppercase tracking-widest text-neutral-400") if label else "",
-                  Img(src=pic.src, alt=pic.caption, cls="mt-1 w-full rounded border border-neutral-200 dark:border-neutral-800"),
+                  Img(src=_src(pic.src), alt=pic.caption, cls="mt-1 w-full rounded border border-neutral-200 dark:border-neutral-800"),
                   Figcaption(pic.caption, cls="mt-1 text-sm text-neutral-500"),
                   cls="" if wide else "w-[220px] shrink-0 cursor-zoom-in", **({} if wide else {"data_media": "1"}))
 
@@ -266,7 +281,8 @@ def _with_media(*children, **kw):
 
 def before_after(ctx, standalone: bool = True):
     """Before and After: N comparisons, each a picture of how it was beside one of how it is; a click opens it fullscreen."""
-    pairs = FAKE_EXECUTION.before_afters
+    r = _result(ctx)[0]
+    pairs = r.before_afters if r else ()
     body = [Div(P(ba.title, cls="mt-4 font-sans text-sm font-semibold text-neutral-700 dark:text-neutral-300"),
                 Div(_figure(ba.before, "Antes"), _figure(ba.after, "Depois"),
                     cls="mt-2 grid grid-cols-2 gap-4 cursor-zoom-in", data_media="1")) for ba in pairs]
@@ -276,7 +292,8 @@ def before_after(ctx, standalone: bool = True):
 
 def journey(ctx, standalone: bool = True):
     """Journey: N journeys, each the steps of the work as a row of pictures in order; a click opens them fullscreen."""
-    js = FAKE_EXECUTION.journeys
+    r = _result(ctx)[0]
+    js = r.journeys if r else ()
     body = [Div(P(j.title, cls="mt-4 font-sans text-sm font-semibold text-neutral-700 dark:text-neutral-300"),
                 Div(*[_figure(pic, wide=False) for pic in j.steps], cls="mt-2 flex gap-3 overflow-x-auto pb-2")) for j in js]
     content = Div(_title("Jornada"), *body) if js else Div(_title("Jornada"), P("nenhuma", cls="text-neutral-400"))
@@ -347,25 +364,32 @@ MEDIA_JS = """
 
 def task_execution_result(ctx):
     """Task Execution Result: how the task was executed and what it delivered, drawn from ExecutionResult."""
-    x = FAKE_EXECUTION
+    x, run = _result(ctx)
     fact = lambda label, value: Div(Div(label, cls="text-[11px] uppercase tracking-widest text-neutral-400"),  # noqa: E731
                                     Div(value, cls="mt-0.5 font-sans text-[15px] text-neutral-900 dark:text-neutral-100"))
+    head = [_title("Resultado da execução"),
+            P((ctx.state or {}).get("title") or FAKE_TASK, cls="font-sans text-sm text-neutral-500 dark:text-neutral-400")]
+    if x is None:  # an older run: only its text was recorded
+        return _with_media(*head, Div(_report(run["value"].get("text", "")), cls="mt-4"),
+                           P(f"{_when(run['at'])} · execução antiga: só o relato foi registrado", cls="mt-4 text-xs text-neutral-400"),
+                           cls="max-w-[760px]")
     pr = x.pull_request
     delivery = Span(LABEL[x.delivery], A(f" · #{pr.number}", href=pr.url, target="_blank",
                                          cls="text-neutral-500 underline decoration-neutral-400/50")) if pr else LABEL[x.delivery]
+    example = run is None
     return _with_media(
-        _title("Resultado da execução"),
-        P((ctx.state or {}).get("title") or FAKE_TASK, cls="font-sans text-sm text-neutral-500 dark:text-neutral-400"),
+        *head,
         Div(fact("Método", LABEL[x.method]), fact("Harness", LABEL[x.harness]), fact("Modelo", LABEL[x.model]),
             fact("Esforço", LABEL[x.effort]), fact("Cycle time", _duration(x.cycle_time_s)), fact("Entrega", delivery),
             cls="mt-4 grid grid-cols-3 gap-x-6 gap-y-3 py-4 border-y border-neutral-200 dark:border-neutral-800"),
         Div(_report(x.text), cls="mt-4"),
-        P(_when(FAKE_AT), cls="mt-4 text-xs text-neutral-400"),
+        P(_when(run["at"] if run else FAKE_AT), cls="mt-4 text-xs text-neutral-400"),
         # the parts, composed (never copied), each only when the run brought it
         Div(before_after(ctx, standalone=False), cls="mt-8") if x.before_afters else "",
         Div(journey(ctx, standalone=False), cls="mt-8") if x.journeys else "",
-        Div(domain_diff(ctx, standalone=False), cls="mt-8") if any(sign != " " for sign, _ in FAKE_DOMAIN_DIFF) else "",
-        P("dados de exemplo no value object ExecutionResult: o desenho vem antes da conexão", cls="mt-6 text-xs text-neutral-400"),
+        Div(domain_diff(ctx, standalone=False), cls="mt-8") if example else "",
+        P("dados de exemplo no value object ExecutionResult: o desenho vem antes da conexão", cls="mt-6 text-xs text-neutral-400")
+        if example else "",
         cls="max-w-[760px]",
     )
 
@@ -429,7 +453,7 @@ task_execution_log.fake = True  # a design on the value object
 
 def tasks(ctx):
     """Task Results: the executed tasks of a domain, the Task List beside the result of the selected one."""
-    some = any(t.get("status") == "executed" and (not ctx.domain or ctx.domain == "tasks" or t.get("domain") == ctx.domain)
+    some = any(t.get("status") == "executed" and (not ctx.domain or t.get("domain") == ctx.domain)
                for t in ctx.entities)
     return Div(
         _title("Task Results"),

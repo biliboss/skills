@@ -2,6 +2,19 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.15.0] - 2026-11-05
+
+### Changed
+
+- `dev-console`, laid out for two thirds of a MacBook screen (1140 × 1000): right menu at a third of the window,
+  the graph header in one line (reading key behind "?"), "N widgets" as the sidebar subtitle, each start's own
+  events kept on its side of the Human; Task Results opens on the domain's newest task.
+
+### Added
+
+- `dev-console`: `/domain/<slug>/media/<path>` serves the files a domain keeps (`MEDIA`), never outside it.
+- `task-understand` 0.10.0: the real ExecutionResult with mermaid and pictures; Task Results filtered by domain.
+
 ## [0.14.0] - 2026-11-05
 
 ### Changed

@@ -658,6 +658,13 @@ function drawGraph() {
   Object.entries(M().next).forEach(([a, bs]) => bs.forEach(b =>
     edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: (M().edge_cmd || {})[`${a}>${b}`] || M().commands[b]}, classes: [D.journal_types[a] && D.journal_types[b] ? 'walked' : '', (M().next[b] || []).includes(a) ? 'loop' : ''].join(' ')})));
   const STARTS = M().initial || [M().root];
+  // each start keeps its own side: what only the left start reaches stays left of the Human, what only the right one
+  // reaches stays right, so no edge has to cross the Human (shared nodes, like a hub, go where the forces put them)
+  const reach = s => { const seen = new Set([s]), q = [s];
+    while (q.length) (M().next[q.shift()] || []).forEach(b => { if (!seen.has(b)) { seen.add(b); q.push(b); } }); return seen; };
+  const SIDES = STARTS.length > 1 ? (() => { const L = reach(STARTS[0]), R = reach(STARTS[1]);
+    return [...[...L].filter(n => !R.has(n) && n !== STARTS[0]).map(n => ({left: n, right: 'human', gap: 200})),
+            ...[...R].filter(n => !L.has(n) && n !== STARTS[1]).map(n => ({left: 'human', right: n, gap: 200}))]; })() : [];
   const cy = cytoscape({
     container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
     // fCoSE: force-directed, the Human pinned in the centre; seeded (randomize false + fixed seed positions) so a
@@ -668,7 +675,7 @@ function drawGraph() {
              fixedNodeConstraint: [{nodeId: 'human', position: {x: 0, y: 0}}],
              // the starts sit in line with the Human, one on each side; what follows them hangs below
              ...(STARTS.length > 1 ? {alignmentConstraint: {horizontal: [['human', ...STARTS]]},
-               relativePlacementConstraint: [{left: STARTS[0], right: 'human', gap: 160}, {left: 'human', right: STARTS[1], gap: 160},
+               relativePlacementConstraint: [{left: STARTS[0], right: 'human', gap: 160}, {left: 'human', right: STARTS[1], gap: 160}, ...SIDES,
                  ...(M().hub ? [{top: 'human', bottom: M().hub, gap: 140},
                    ...(M().next[M().hub] || []).map(b => ({top: M().hub, bottom: b, gap: 90}))] : [])]} : {})}, maxZoom: 3,
     style: [
@@ -701,7 +708,7 @@ function drawGraph() {
     box = k; cy.resize(); cy.fit(undefined, 20);
   }).observe($('cy'));
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
-    + '<span>· aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário</span>';
+    + '';
   cy.on('tap', ev => { if (ev.target === cy) closeSide(); });
   cy.on('tap', 'node', ev => { if (Q.get('embed') !== 'graph') openSide(ev.target.id()); });  // embed=graph: the graph alone
   window.__cy = cy;
@@ -787,7 +794,7 @@ function openSide(id) {
   }
   const [c, v] = id.split('.'), n = E.filter(e => e.event === id).length, w = (M().coverage || {})[id] || [];
   $('ev-name').textContent = `${c}.${v}`;
-  $('ev-sub').textContent = `comando ${M().commands[id]} · ${n} ${n === 1 ? 'evento' : 'eventos'} · ${w.length ? w.join(', ') : 'sem widgets'}`;
+  $('ev-sub').textContent = `comando ${M().commands[id]} · ${n} ${n === 1 ? 'evento' : 'eventos'} · ${w.length ? `${w.length} ${w.length === 1 ? 'widget' : 'widgets'}` : 'sem widgets'}`;
   renderSide();
 }
 // The right menu is a column of expandable parts (Widgets only when the event has widgets; Code, JSON, and
@@ -906,11 +913,12 @@ const TABS = {
   'Task Results': () => '<div id="task-results" class="h-full overflow-auto px-6 py-5"><p class="text-neutral-400">carregando…</p></div>',
   'Model': () => `<div class="h-full flex">
       <div id="graph-col" class="flex-1 min-w-0 flex flex-col">
-        <div class="flex items-center justify-between gap-4 px-4 pt-3">${label('Máquina de estados · a partir do Human')}
-          <span id="legend" class="flex flex-wrap gap-3 text-neutral-400"></span></div>
+        <div class="flex items-center gap-4 px-4 pt-3 min-w-0">
+          <span id="legend" class="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400 min-w-0"></span>
+          <span class="ml-auto shrink-0 cursor-help text-neutral-500" title="Máquina de estados a partir do Human · aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário">?</span></div>
         <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div></div>
       </div>
-      <aside id="ev-side" class="hidden w-[420px] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
+      <aside id="ev-side" class="hidden w-[min(380px,34vw)] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
         <div class="shrink-0 flex items-start justify-between gap-3 px-4 pt-3 pb-2">
           <div class="min-w-0"><p id="ev-name" class="font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100"></p>
             <p id="ev-sub" class="text-neutral-400"></p></div>
@@ -1103,10 +1111,27 @@ def one_widget(slug: str, tid: str, event: str, name: str, e: str = "", mode: st
     entity's last event of this type; ?domain=<slug> says which domain the screen is about."""
     if not use(slug):
         return _empty(f"domínio {slug} não existe")
+    if domain and not task and not e:  # no pick yet: the newest entity of that domain that has this event
+        mine = {t["id"] for t in journal.read() if t.get("domain") == domain}
+        own = [x for x in journal.read({"event": event}) if x[entity_key()] in mine]
+        e = own[-1]["id"] if own else ""
     if task and not e:
         own = [x for x in journal.read({"id": task, "history": True}) if x["event"] == event]
         e = own[-1]["id"] if own else ""
     return W.render_one(_ctx(tid, event, e or None, "sim" if mode == "sim" else "real", domain), name)
+
+
+@rt("/domain/{slug}/media/{path:path}")
+def media(slug: str, path: str):
+    """A file the domain keeps with its records (MEDIA in the project file: pictures of a run), never outside it."""
+    from starlette.responses import FileResponse, Response
+
+    mod = DOMAINS.get(slug)
+    root = Path(getattr(mod, "MEDIA", "") or "/nonexistent").expanduser().resolve()
+    file = (root / path).resolve()
+    if mod is None or root not in file.parents or not file.is_file():
+        return Response("não encontrado", status_code=404)
+    return FileResponse(file)
 
 
 @rt("/domain/{slug}/w/{tid}/{event}")
