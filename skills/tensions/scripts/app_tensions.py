@@ -60,7 +60,11 @@ class Tensions:
             "version": 1,
         }
         encoded = (json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
-        self.directory.mkdir(parents=True, exist_ok=True)
+        self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if not self.path.exists():
+            # A private journal by default; existing files retain their permissions.
+            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            os.close(fd)
         with self.path.open("ab", buffering=0) as file:
             fcntl.flock(file, fcntl.LOCK_EX)
             try:
@@ -130,7 +134,7 @@ class Tensions:
                     if key in value:
                         state[key] = value[key]
             if event in ("management.resolved", "management.reopened", "management.archived"):
-                state["status"] = event.split(".")[1]
+                state["status"] = "open" if event == "management.reopened" else event.split(".")[1]
             state["updated_at"] = e["at"]
             state["event_count"] += 1
         return state
