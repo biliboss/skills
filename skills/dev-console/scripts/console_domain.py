@@ -17,10 +17,21 @@ from pathlib import Path
 from typing import Any
 
 EVENTS = {
-    "domain": {"design": "designed", "import": "imported", "update": "updated"},
-    "event": {"update_event": "updated"},  # one event for create, update or delete of an event type: simpler at this level
+    # Um domínio entra no console: desenhado do zero, importado de um código que já existe, e depois atualizado.
+    "domain": {
+        # Alguém desenhou um domínio novo, que ainda não tem código.
+        "design": "designed",
+        # Alguém trouxe para o console um domínio que já tinha código.
+        "import": "imported",
+        # O domínio mudou: os eventos, os widgets ou as abas dele.
+        "update": "updated",
+    },
+    # Um tipo de evento do domínio foi criado, mudou ou saiu.
+    "event": {"update_event": "updated"},
+    # Um widget de um evento foi criado, mudou ou saiu.
     "widget": {"update_widget": "updated"},
-    "tab": {"update_tab": "updated"},  # Domain is the one fixed tab; the others are the context's (create, change, delete)  # like Event: one event for create, update or delete
+    # Uma aba do console foi criada, mudou ou saiu (Domain é a única fixa).
+    "tab": {"update_tab": "updated"},
 }
 
 SKILLS_DIR = Path(__file__).resolve().parents[2]  # <skills>/dev-console/scripts/this_file -> <skills>

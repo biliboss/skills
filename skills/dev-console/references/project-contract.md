@@ -9,7 +9,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 | `SLUG` | optional: the domain's URL, `/domain/<slug>` (default: the skill folder name) |
 | `BASE` | set by the console (`/domain/<slug>`): build every link to the console with it (`f"{BASE}/do/..."`) |
 | `SOURCE` | path of the file that holds `EVENTS` (read live with `ast`) |
-| `EVENTS` in `SOURCE` | `{category: {command: event}}`, ordered: the first category's first command creates the entity; inside a category each event follows the previous one |
+| `EVENTS` in `SOURCE` | `{category: {command: event}}`, ordered; the comment of each command (above it or at the end of its line) is the event's description for humans, the right menu's first part: the first category's first command creates the entity; inside a category each event follows the previous one |
 | `ENTITY`, `ENTITY_PLURAL` | what one item of the rail is, singular and plural |
 | `ENTITIES` | `{category: entity name}`, for node labels (`Tension.Created`, `Action.Proposed`) |
 | `ENTITY_KEY` | the journal field that names the entity (`tension_id`) |

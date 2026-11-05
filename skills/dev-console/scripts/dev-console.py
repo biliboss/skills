@@ -128,6 +128,30 @@ def derive(events: dict, initial: list[str] | None = None, hub: str | None = Non
             "hub": hub if hub in commands else None}
 
 
+def descriptions() -> dict:
+    """What each event means, for a human: the code comment of its command in EVENTS (the comment lines right above
+    it, or the one at the end of its line), read live from SOURCE. The code is the only source: no other place."""
+    import ast
+
+    out: dict[str, str] = {}
+    lines = SOURCE.read_text().splitlines()
+    for node in ast.parse(SOURCE.read_text()).body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EVENTS" for t in node.targets) \
+                and isinstance(node.value, ast.Dict):
+            for ck, cv in zip(node.value.keys, node.value.values):
+                if isinstance(cv, ast.Dict):
+                    for k, v in zip(cv.keys, cv.values):
+                        above, i = [], k.lineno - 2
+                        while i >= 0 and lines[i].strip().startswith("#"):
+                            above.insert(0, lines[i].strip().lstrip("#").strip())
+                            i -= 1
+                        line = lines[v.end_lineno - 1]
+                        text = " ".join(above) or (line.split("#", 1)[1].strip() if "#" in line else "")
+                        if text:
+                            out[f"{ast.literal_eval(ck)}.{ast.literal_eval(v)}"] = text
+    return out
+
+
 def live_events() -> dict:
     """EVENTS as written in the project SOURCE right now (ast.literal_eval of the assignment)."""
     import ast
@@ -206,7 +230,7 @@ def real_model() -> dict:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
-            "coverage": W.coverage(live_events()), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+            "coverage": W.coverage(live_events()), "descriptions": descriptions(), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
                          getattr(PROJECT, "TRANSITIONS", None))}
 
 
@@ -620,6 +644,10 @@ function setQ(k, v) { v ? Q.set(k, v) : Q.delete(k); const q = Q.toString();
   history.replaceState(null, '', location.pathname + (q ? '?' + q : '')); }
 let side = {id: null, tab: Q.get('side') || 'Widgets'};
 const SIDE_TABS = {
+  // Description: what the event means, for a human: the code comment of its command in EVENTS
+  'Description': id => Promise.resolve((M().descriptions || {})[id]
+    ? `<p class="px-4 py-2 font-sans text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200">${esc(M().descriptions[id])}</p>`
+    : '<p class="px-4 py-2 text-neutral-400">sem descrição: escreva um comentário no comando, em EVENTS</p>'),
   'Widgets': id => frag(`${D.base}/w/${D.state.id}/${id}?e=${Q.get('e') || ''}`),
   // Code: pseudo-code of the clicked event's context, read from the real model (EVENTS, the projector): the command
   // that records it, where it comes from and what it opens, and the entity it changes. Short on purpose.
