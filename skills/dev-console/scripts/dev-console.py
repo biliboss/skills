@@ -41,6 +41,18 @@ def load_project(path: str):
 if "--project" in sys.argv:  # the module body needs the projects, so read the flags before argparse runs
     os.environ["DEV_CONSOLE_PROJECT"] = os.pathsep.join(
         str(Path(sys.argv[i + 1]).expanduser().resolve()) for i, a in enumerate(sys.argv) if a == "--project")
+# The domain registry: one dev_console_project.py path per line. Adding a line adds a domain with no restart by hand:
+# the watcher sees the file, re-reads it and watches the new project folder too.
+REGISTRY = Path(os.environ.get("DEV_CONSOLE_REGISTRY", "~/.local/state/dev-console/domains.txt")).expanduser()
+
+
+def registered() -> list[str]:
+    return [str(Path(l.strip()).expanduser().resolve()) for l in (REGISTRY.read_text().splitlines() if REGISTRY.exists() else [])
+            if l.strip() and not l.startswith("#") and Path(l.strip()).expanduser().exists()]
+
+
+_all = [p for p in os.environ.get("DEV_CONSOLE_PROJECT", "").split(os.pathsep) if p]
+os.environ["DEV_CONSOLE_PROJECT"] = os.pathsep.join(dict.fromkeys(_all + registered()))
 if not os.environ.get("DEV_CONSOLE_PROJECT"):
     sys.exit("dev-console: pass --project <path/to/dev_console_project.py> (or set DEV_CONSOLE_PROJECT)")
 
@@ -87,7 +99,8 @@ journal = _Live(lambda: CURRENT.get().journal)
 SOURCE = _Live(lambda: Path(CURRENT.get().SOURCE))
 
 
-def derive(events: dict, initial: list[str] | None = None, hub: str | None = None) -> dict:
+def derive(events: dict, initial: list[str] | None = None, hub: str | None = None,
+           transitions: dict | None = None) -> dict:
     """Everything the screen shows comes from EVENTS ({category: {command: event}}, ordered):
     the categories and their events, the commands, and the graph edges (created opens every other
     category; inside a category each event follows the previous one)."""
@@ -107,6 +120,10 @@ def derive(events: dict, initial: list[str] | None = None, hub: str | None = Non
             nxt.setdefault(x, []).append(y)
     for alt in initial[1:]:  # an alternative start joins the root's own next step
         nxt[alt] = [n for n in nxt.get(root, []) if n.split(".")[0] == root.split(".")[0]][:1]
+    # TRANSITIONS (optional, UML statechart term): {"cat.event": ["cat.event", ...]} replaces the derived edges when the
+    # process branches or loops (a teach-back that goes back to the explanation); the Human still opens INITIAL.
+    if transitions:
+        nxt = {s: [t for t in ts if t in commands] for s, ts in transitions.items() if s in commands}
     return {"lifecycle": lifecycle, "commands": commands, "next": nxt, "root": root, "initial": initial,
             "hub": hub if hub in commands else None}
 
@@ -157,7 +174,8 @@ def real_model() -> dict:
                         note = f"  {above}" if above.startswith("#") else ""
                         lines.append({"line": k.lineno, "code": f"    {ast.literal_eval(k)} = {ast.unparse(v)}{note}"})
                     # Commands by category, straight from EVENTS: each command records one event.
-                    model = derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None))
+                    model = derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+                         getattr(PROJECT, "TRANSITIONS", None))
                     cat_line = {}  # each command is written in EVENTS, on its category's line
                     for top in tree.body:
                         if isinstance(top, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EVENTS" for t in top.targets) \
@@ -188,7 +206,8 @@ def real_model() -> dict:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
-            "coverage": W.coverage(live_events()), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None))}
+            "coverage": W.coverage(live_events()), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+                         getattr(PROJECT, "TRANSITIONS", None))}
 
 
 # --- the domain draft: dummy code the user edits ------------------------------------------------------------------
@@ -543,7 +562,7 @@ function drawGraph() {
   (M().initial || [M().root]).forEach(s => edges.push({data: {id: `human>${s}`, source: 'human', target: s, color: colorOf(s),
     label: M().commands[s]}, classes: D.journal_types[s] ? 'walked' : ''}));
   Object.entries(M().next).forEach(([a, bs]) => bs.forEach(b =>
-    edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: M().commands[b]}, classes: D.journal_types[a] && D.journal_types[b] ? 'walked' : ''})));
+    edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: M().commands[b]}, classes: [D.journal_types[a] && D.journal_types[b] ? 'walked' : '', (M().next[b] || []).includes(a) ? 'loop' : ''].join(' ')})));
   const STARTS = M().initial || [M().root];
   const cy = cytoscape({
     container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
@@ -576,6 +595,8 @@ function drawGraph() {
       {selector: 'edge', style: {width: 2, 'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
         'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'curve-style': 'straight', 'line-opacity': 0.45}},
       {selector: 'edge.walked', style: {width: 3.5, 'line-opacity': 1}},
+      // a loop (A -> B and B -> A, from TRANSITIONS): two curved edges, side by side, so neither hides the other
+      {selector: 'edge.loop', style: {'curve-style': 'bezier', 'control-point-step-size': 60}},
       {selector: ':selected', style: {'border-width': 4, 'border-color': ink, 'border-opacity': 1}},
     ],
   });
@@ -975,7 +996,7 @@ def domain(slug: str, req):
     entities = journal.read()
     if not entities:
         return Title(PROJECT.NAME), Div(f"Nenhum(a) {PROJECT.ENTITY} no diário.", cls="p-8 font-mono text-sm")
-    pick = next((t for t in reversed(entities) if t["status"] == "open"), entities[-1])
+    pick = next((t for t in reversed(entities) if t.get("status") == "open"), entities[-1])
     q = f"?{req.url.query}" if req.url.query else ""  # keep the view (?tab=…&ev=…) across the redirect
     return RedirectResponse(f"/domain/{slug}/t/{pick['id']}{q}", status_code=303)
 
@@ -993,12 +1014,13 @@ def tension(slug: str, tid: str):
     ctx = state.get("context") or {}
 
     rail = []
-    for t in sorted(journal.read(), key=lambda s: (s["status"] != "open", s["updated_at"])):
+    for t in sorted(journal.read(), key=lambda s: (s.get("status") != "open", s.get("updated_at", ""))):  # a domain's entity may lack these
         on = t["id"] == tid
         rail.append(Div(
             Div(title_of(journal.read({"id": t["id"], "history": True}), t),
                 cls="truncate " + ("font-semibold text-neutral-900 dark:text-neutral-100" if on else "text-neutral-600 dark:text-neutral-400")),
-            Div(f"{t['status']} · {t['event_count']} eventos", cls="text-neutral-400"),
+            Div(" · ".join(x for x in (str(t.get("status", "")), f"{t['event_count']} eventos" if "event_count" in t else "") if x),
+                cls="text-neutral-400"),
             onclick=f"location.href='{base}/t/{t['id']}'" + "+location.search",
             cls="px-4 py-2 cursor-pointer border-l-2 " + (
                 "border-neutral-900 dark:border-neutral-100 bg-neutral-100 dark:bg-neutral-900" if on
@@ -1085,11 +1107,23 @@ if __name__ == "__main__":
     parser.add_argument("--project", action="append", help="path to a dev_console_project.py (repeat: one domain each)")
     parser.add_argument("--port", type=int, default=5057)
     args = parser.parse_args()
-    projects = [Path(p).resolve() for p in (args.project or os.environ.get("DEV_CONSOLE_PROJECT", "").split(os.pathsep)) if p]
+    projects = [Path(p).resolve() for p in dict.fromkeys((args.project or []) + os.environ.get("DEV_CONSOLE_PROJECT", "").split(os.pathsep)) if p]
     if not projects:
         parser.error("--project is required (or DEV_CONSOLE_PROJECT)")
     os.environ["DEV_CONSOLE_PROJECT"] = os.pathsep.join(map(str, projects))
     from watchfiles import run_process
 
     # Hot reload: restart on any change in this file or a project folder; live=True reloads the page.
-    run_process(Path(__file__).parent, *{p.parent for p in projects}, target=_serve, args=(args.port,))
+    REGISTRY.parent.mkdir(parents=True, exist_ok=True)
+
+    def _registry_changed(changes) -> None:  # a new domain: re-exec, so the watcher also watches its folder
+        if any(Path(p) == REGISTRY for _, p in changes) and set(registered()) - {str(p) for p in projects}:
+            import multiprocessing
+
+            for child in multiprocessing.active_children():  # free the port before the new watcher starts its server
+                child.terminate()
+                child.join(5)
+            os.execv(sys.executable, [sys.executable, *sys.argv])
+
+    run_process(Path(__file__).parent, REGISTRY.parent, *{p.parent for p in projects}, target=_serve, args=(args.port,),
+                callback=_registry_changed)
