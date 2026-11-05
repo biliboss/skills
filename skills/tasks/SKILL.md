@@ -24,6 +24,20 @@ assignment at school, a ticket in a software team).
 The practice is **teach-back** (health literacy: "explain it back in your own words"); the loop it closes is
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
 
+## Input
+
+What reaches the agent when someone explains a task is a value object, and its contract is
+`scripts/input.py`: User Prompt, Skill and Session Context (System Prompt, History, Memory, Environment, Tools,
+assembled by the harness). Change the Input there, never here; check a recorded one with
+`uv run --script scripts/input.py check <input.json>`. The dev-console draws it from that file.
+
+## Explain
+
+1. Listen to the whole explanation; do not interrupt and do not start the work.
+2. Record the task as it came: what it is, the explanation, who explained it and to whom (`task.explained`).
+3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`).
+4. Start only when whoever explained confirms the repetition matches.
+
 ## Design stage
 
 - The code is `scripts/tasks.py` (`EVENTS`, the projector `_project`, `TasksJournal`); the journal is
