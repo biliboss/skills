@@ -7,7 +7,7 @@ description: >-
   tarefa", "abre o tasks no dev-console". Not tensions (gaps between actual and desired reality) and not
   the Linear (the team's board).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Tasks
@@ -40,8 +40,9 @@ assembled by the harness). Change the Input there, never here; check a recorded 
 
 ## Design stage
 
-- The code is `scripts/tasks.py` (`EVENTS`, the projector `_project`, `TasksJournal`); the journal is
-  `scripts/tasks.jsonl`, edited by hand while the domain is designed.
+- The code is `scripts/tasks.py` (`EVENTS`, the projector `_project`, `TasksJournal`). The journal is global and
+  append-only, shared by every agent: `~/.local/share/tasks/events.jsonl` (override `TASKS_DIR`). Write it only
+  through `uv run --script scripts/tasks.py emit <event> '<json>' [--task <id>] --actor <who>`.
 - The comment above each command in `EVENTS` is the event's description for humans (the dev-console shows it).
 - See it in the dev-console: add `scripts/dev_console_project.py` to `~/.local/state/dev-console/domains.txt`
   and open `/domain/tasks`. Change events in `EVENTS`, never in the console.
