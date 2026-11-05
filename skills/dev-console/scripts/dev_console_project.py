@@ -113,13 +113,22 @@ def right_menu(ctx):
 right_menu.fake = True  # a console screen: it exists before any event is recorded
 
 
+def code(ctx):
+    """The event's pseudo-code: the right menu's Code tab, embedded (never a copy)."""
+    return Iframe(src=f"/domain/{SLUG}?tab=Domain&embed=code&ev={ctx.event}&side=Code",
+                  cls="w-full h-[60vh] rounded border border-neutral-200 dark:border-neutral-800")
+
+
+code.fake = True  # drawn from the code, so it exists before any event is recorded
+
+
 HOME = ("domain.updated", "DomainCard")
 INITIAL = ["domain.designed", "domain.imported"]  # Human -> Domain.Designed (new) or Domain.Imported (existing)
 HUB = "domain.updated"  # both starts lead to Domain.Updated, and it links every other category
 
 WIDGETS = {
     # the Domain's widgets hang on Domain.Updated only: Designed and Imported are starts, with nothing to show
-    "domain.updated": [domain_view, state_graph, right_menu, domain_list, domain_card],
+    "domain.updated": [domain_view, state_graph, right_menu, code, domain_list, domain_card],
     "event.updated": [event_list],
     "widget.updated": [widget_list],
     "tab.updated": [toolbar],
