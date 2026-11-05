@@ -11,6 +11,7 @@ Storage: one global append-only JSONL shared by every agent, ~/.local/share/task
 
     uv run --script tasks.py emit task.explained '{"title": ..., "text": ..., "to": ...}' --actor gabriel
     uv run --script tasks.py emit understanding.taught_back '{"text": ...}' --task <task_id> --actor bili-local
+    uv run --script tasks.py execute --task <task_id> [--cwd <folder>]   # only after understanding.confirmed
 """
 from __future__ import annotations
 
@@ -23,12 +24,44 @@ from typing import Any
 from uuid import uuid4
 
 DEFAULT_DIR = "~/.local/share/tasks"
+CONFIG = Path(os.environ.get("TASKS_CONFIG", "~/.config/tasks/config.json")).expanduser()
+# Who executes a confirmed task. Default: the claude-code skill's print mode, on the mukutu account, with Sonnet.
+# Override in CONFIG ({"execute": {"command": [...], "env": {...}}}); {prompt} is replaced by the task's prompt.
+DEFAULT_EXECUTOR = {
+    "command": ["claude", "-p", "--model", "sonnet", "--permission-mode", "acceptEdits", "{prompt}"],
+    "env": {"CLAUDE_CONFIG_DIR": "~/.claude-mukutu"},
+}
 
 EVENTS = {
-    # Alguém explicou uma tarefa a outra pessoa, do jeito dele e com o tempo que ela pedia.
-    "task": {"explain": "explained"},
-    # No fim, quem recebeu a tarefa repetiu tudo o que ouviu, do jeito que entendeu (o teach-back).
-    "understanding": {"teach_back": "taught_back"},
+    # Alguém explicou uma tarefa a outra pessoa, do jeito dele e com o tempo que ela pedia; depois do entendimento
+    # confirmado, quem recebeu executou a tarefa.
+    "task": {"explain": "explained", "execute": "executed"},
+    # No fim, quem recebeu a tarefa repetiu tudo o que ouviu, do jeito que entendeu (o teach-back), e quem explicou
+    # confirmou que bate.
+    "understanding": {"teach_back": "taught_back", "confirm": "confirmed"},
+    # A resposta de quem explicou foi um ajuste, não uma confirmação: virou aprendizado, um evento de valor. Antes de
+    # repetir, quem recebeu procura os aprendizados que servem e usa (o uso também é um evento de valor).
+    "learning": {"record_learning": "recorded", "use_learning": "used"},
+    # Quem explicou disse que a repetição não ficou boa.
+    "feedback": {"give_feedback": "given"},
+    # Nasceram três opções de repetição, cada uma numa versão com o nome de um estilo (rascunho: só no grafo).
+    "option": {"generate_options": "generated", "choose": "chosen"},
+    # O estilo ganhou pontos quando a opção dele foi escolhida (score) e perdeu quando a repetição dele recebeu
+    # feedback (downscore); o de maior pontuação vira o padrão (rascunho: só no grafo).
+    "style": {"score": "scored", "downscore": "scored"},
+}
+
+# The edges are the commands (UML statechart transitions); a target may name its edge's command when one event has
+# several ({"style.scored": "downscore"}). Drafts are drawn before they are built.
+TRANSITIONS = {
+    "task.explained": ["learning.used"],
+    "learning.used": ["understanding.taught_back"],
+    "understanding.taught_back": ["learning.recorded", "feedback.given"],  # the Human confirms (INITIAL)
+    "learning.recorded": ["learning.used"],
+    "feedback.given": {"option.generated": "generate_options", "style.scored": "downscore"},
+    "option.generated": ["option.chosen"],
+    "option.chosen": {"style.scored": "score"},
+    "understanding.confirmed": ["task.executed"],
 }
 
 
@@ -46,7 +79,11 @@ def _project(events: list[dict]) -> dict | None:
                 "text": value["text"],
                 # each teach-back, in the receiver's words
                 "teach_backs": [],
-                # explained or taught_back
+                # each adjustment of whoever explained, verbatim
+                "learnings": [],
+                # what the execution answered, once executed
+                "result": None,
+                # explained, taught_back, confirmed or executed
                 "status": "explained",
                 # when the task last moved
                 "updated_at": e["at"],
@@ -56,6 +93,13 @@ def _project(events: list[dict]) -> dict | None:
         if event == "understanding.taught_back":
             state["teach_backs"].append(value["text"])
             state["status"] = "taught_back"
+        elif event == "learning.recorded":
+            state["learnings"].append(value["text"])
+        elif event == "understanding.confirmed":
+            state["status"] = "confirmed"
+        elif event == "task.executed":
+            state["result"] = value["text"]
+            state["status"] = "executed"
         state["updated_at"] = e["at"]
     return state
 
@@ -106,6 +150,36 @@ class TasksJournal:
         return [s for g in groups.values() if (s := _project(g))]
 
 
+
+def executor() -> dict:
+    """The configured executor (CONFIG's "execute"), or the default one."""
+    if CONFIG.exists():
+        return {**DEFAULT_EXECUTOR, **json.loads(CONFIG.read_text()).get("execute", {})}
+    return DEFAULT_EXECUTOR
+
+
+def execute(task_id: str, cwd: str | None = None, *, actor: str | None = None) -> dict:
+    """Run the executor on a confirmed task and record task.executed with what it answered."""
+    import subprocess
+
+    journal = TasksJournal()
+    state = journal.read({"id": task_id})
+    if not state:
+        raise ValueError(f"no task {task_id}")
+    if state["status"] != "confirmed":
+        raise ValueError(f"task {task_id} is {state['status']}: only a confirmed understanding is executed")
+    prompt = (f"Tarefa: {state['title']}\n\nComo foi explicada:\n{state['text']}\n\n"
+              f"Como foi entendida (confirmado por quem explicou):\n{state['teach_backs'][-1]}\n\n"
+              + ("Ajustes de quem explicou:\n" + "\n".join(f"- {x}" for x in state["learnings"]) + "\n\n" if state["learnings"] else "")
+              + "Execute a tarefa e termine com um relato curto do que fez.")
+    run = executor()
+    env = {**os.environ, **{k: os.path.expanduser(v) for k, v in run.get("env", {}).items()}}
+    cmd = [prompt if part == "{prompt}" else part for part in run["command"]]
+    done = subprocess.run(cmd, cwd=cwd or os.getcwd(), env=env, capture_output=True, text=True)
+    answer = (done.stdout.strip() or done.stderr.strip() or "(sem resposta)")[-4000:]
+    return journal.emit("task.executed", {"text": answer, "exit_code": done.returncode, "executor": run["command"][0]},
+                        task_id, actor=actor or os.environ.get("TASKS_ACTOR", run["command"][0]))
+
 if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="tasks: emit or read the global journal")
     sub = cli.add_subparsers(dest="cmd", required=True)
@@ -114,11 +188,17 @@ if __name__ == "__main__":
     em.add_argument("value", help="a JSON object")
     em.add_argument("--task")
     em.add_argument("--actor")
+    ex = sub.add_parser("execute", help="run the configured executor on a confirmed task")
+    ex.add_argument("--task", required=True)
+    ex.add_argument("--cwd")
+    ex.add_argument("--actor")
     rd = sub.add_parser("read")
     rd.add_argument("--task")
     args = cli.parse_args()
     journal = TasksJournal()
-    if args.cmd == "emit":
+    if args.cmd == "execute":
+        print(json.dumps(execute(args.task, args.cwd, actor=args.actor), ensure_ascii=False))
+    elif args.cmd == "emit":
         print(json.dumps(journal.emit(args.event, json.loads(args.value), args.task, actor=args.actor), ensure_ascii=False))
     else:
         print(json.dumps(journal.read({"id": args.task} if args.task else {}), ensure_ascii=False, indent=2))

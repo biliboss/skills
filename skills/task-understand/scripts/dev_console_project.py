@@ -6,18 +6,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from fasthtml.common import Div, Li, Ol, P, Script, Span, Ul  # noqa: E402
-from tasks import TasksJournal  # noqa: E402
+from tasks import TRANSITIONS, TasksJournal  # noqa: E402,F401
 
 NAME = "Biliboss Skills - Tasks"
 SLUG = "tasks"
 SOURCE = Path(__file__).parent / "tasks.py"  # the file with EVENTS
 ENTITY = "Task"
 ENTITY_PLURAL = "tarefas"
-ENTITIES = {"task": "Task", "understanding": "Understanding"}
+ENTITIES = {"task": "Task", "understanding": "Understanding", "feedback": "Feedback", "option": "Option", "style": "Style"}
 ENTITY_KEY = "task_id"
 PROJECTOR = "_project"
 
 journal = TasksJournal()
+
+# The Human explains the task and, after the teach-back, confirms the understanding: both edges leave the Human.
+INITIAL = ["task.explained", "understanding.confirmed"]
 
 
 def title_of(history: list[dict], state: dict) -> str:

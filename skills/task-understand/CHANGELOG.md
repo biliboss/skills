@@ -2,6 +2,17 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-05
+
+### Added
+
+- `tasks.py execute --task <id>`: runs the configured executor on a confirmed task and records `task.executed`;
+  default is Claude Code print mode on the mukutu account with Sonnet, configurable in `~/.config/tasks/config.json`.
+- Draft of the whole process in the dev-console graph: Learning (recorded, used), Understanding.Confirmed by the
+  Human, Feedback.Given, three styled Options (generated, chosen), Style.Scored by score or downscore, Task.Executed.
+- Steps 5 to 7 in SKILL.md: adjustments become learnings, learnings are used before repeating back, execute after
+  the confirmation.
+
 ## [0.3.0] - 2026-11-05
 
 ### Changed

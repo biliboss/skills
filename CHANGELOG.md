@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.9.0] - 2026-11-05
+
+### Added
+
+- `task-understand` 0.4.0: configurable executor (default Claude Code on mukutu with Sonnet) and the draft of the
+  feedback, learning and style process.
+- `dev-console`: the right menu opens with Description (from the code comment of each command); `TRANSITIONS` may
+  name the command of each edge; several commands may record one event; domains join through
+  `~/.local/state/dev-console/domains.txt` with no restart.
+
 ## [0.8.0] - 2026-11-05
 
 ### Added
