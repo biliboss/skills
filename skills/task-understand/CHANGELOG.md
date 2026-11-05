@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-05
+
+### Changed
+
+- The confirmation choices are, in order: Confirm and implement (naming the method: the default executor or the
+  better one for the task), Just confirm, Not good (feedback); free text is an adjustment.
+
 ## [0.8.0] - 2026-11-05
 
 ### Changed
