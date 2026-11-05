@@ -17,7 +17,7 @@ SLUG = "dev-console"
 SOURCE = Path(__file__).parent / "console_domain.py"  # the file with EVENTS
 ENTITY = "Domain"
 ENTITY_PLURAL = "domínios"
-ENTITIES = {"domain": "Domain", "widget": "Widget", "action": "Action"}
+ENTITIES = {"domain": "Domain", "event": "Event", "widget": "Widget", "tab": "Tab"}
 ENTITY_KEY = "domain_id"
 PROJECTOR = "_project"
 journal = ConsoleJournal()
@@ -37,7 +37,7 @@ def domain_list(ctx):
            Div(P(d["name"], cls="truncate font-sans text-sm "
                  + ("font-semibold text-neutral-900 dark:text-neutral-100" if d["id"] == ctx.entity_id
                     else "text-neutral-600 dark:text-neutral-400")),
-               P(f'{len(d["widgets"])} widgets · {len(d["actions"])} ações', cls="text-neutral-400"),
+               P(f'{len(d["widgets"])} widgets', cls="text-neutral-400"),
                cls="min-w-0"),
            cls="flex gap-2 py-1.5")
         for d in sorted(ctx.entities, key=lambda d: d["name"].lower())
@@ -57,11 +57,19 @@ def widget_list(ctx):
     ])
 
 
-def action_list(ctx):
-    """The actions this Domain can run, by name."""
+def event_list(ctx):
+    """The event types this Domain declares, each with the command that records it."""
     if not ctx.events:
-        return P("Nenhuma ação registrada.", cls="text-neutral-400")
-    return Ul(*[Li(Span(e["value"]["name"], cls=BODY), cls="py-1") for e in ctx.events])
+        return P("Nenhum evento declarado.", cls="text-neutral-400")
+    return Ul(*[Li(Span(e["value"]["event"], cls="w-56 shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"),
+                   Span(e["value"]["command"], cls=BODY), cls="flex gap-3 py-1") for e in ctx.events])
+
+
+def tab_view(ctx):
+    """The tab itself, as the console draws it for its domain (no tab bar)."""
+    v = (ctx.focus or {}).get("value", {})
+    slug, tab = (ctx.focus or {}).get("domain_id", SLUG), v.get("tab", "Domain")
+    return Iframe(src=f"/domain/{slug}?tab={tab}&embed=1", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
 
 
 def domain_card(ctx):
@@ -69,12 +77,10 @@ def domain_card(ctx):
     s = ctx.state
     n = len(s["widgets"])
     sentence = f'Mostra {s["entity"]}: {n} {"evento tem" if n == 1 else "eventos têm"} widget próprio.'
-    if s["actions"]:
-        sentence += f' Aceita {len(s["actions"])} {"ação" if len(s["actions"]) == 1 else "ações"}.'
     return Div(
         P(s["name"], cls="font-sans text-2xl font-semibold text-neutral-900 dark:text-neutral-100"),
         P(sentence, cls="mt-1 font-sans text-[15px] leading-6 text-neutral-600 dark:text-neutral-400"),
-        Div(P("Widgets", cls=K), Div(widget_list(ctx.of("widget.created")), cls="mt-1"),
+        Div(P("Widgets", cls=K), Div(widget_list(ctx.of("widget.updated")), cls="mt-1"),
             cls="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-800"),
     )
 
@@ -112,11 +118,13 @@ right_menu.fake = True  # a console screen: it exists before any event is record
 
 HOME = ("domain.imported", "DomainCard")
 INITIAL = ["domain.designed", "domain.imported"]  # Human -> Domain.Designed (new) or Domain.Imported (existing)
+HUB = "domain.updated"  # both starts lead to Domain.Updated, and it links every other category
 
 WIDGETS = {
     "domain.designed": [domain_view, state_graph, right_menu],
     # the console's own screens, for a domain designed here or imported: the same widgets on both starts
     "domain.imported": [domain_view, state_graph, right_menu, domain_list, domain_card],
-    "widget.created": [widget_list],
-    "action.proposed": [action_list],
+    "event.updated": [event_list],
+    "widget.updated": [widget_list],
+    "tab.updated": [tab_view],
 }

@@ -28,27 +28,31 @@ class Domain(AggregateRoot):
     entity: Any
     source: Any
     home: Any
+    events: list[Event]
+    tabs: list[Tab]
     widgets: list[Widget]
-    actions: list[Action]
     status: Any
     event_count: Any
     updated_at: Any
 
     def design(self) -> DomainDesigned: ...
     def import(self) -> DomainImported: ...
-    def draft(self) -> DomainDrafted: ...
+    def update(self) -> DomainUpdated: ...
+
+
+class Event(Entity):
+    """Event: held by Domain."""
+
+    def update_event(self) -> EventUpdated: ...
 
 
 class Widget(Entity):
     """Widget: held by Domain."""
 
-    def create_widget(self) -> WidgetCreated: ...
     def update_widget(self) -> WidgetUpdated: ...
 
 
-class Action(Entity):
-    """Action: held by Domain."""
+class Tab(Entity):
+    """Tab: held by Domain."""
 
-    def propose(self) -> ActionProposed: ...
-    def simulate(self) -> ActionSimulated: ...
-    def run(self) -> ActionRan: ...
+    def update_tab(self) -> TabUpdated: ...

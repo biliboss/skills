@@ -87,7 +87,7 @@ journal = _Live(lambda: CURRENT.get().journal)
 SOURCE = _Live(lambda: Path(CURRENT.get().SOURCE))
 
 
-def derive(events: dict, initial: list[str] | None = None) -> dict:
+def derive(events: dict, initial: list[str] | None = None, hub: str | None = None) -> dict:
     """Everything the screen shows comes from EVENTS ({category: {command: event}}, ordered):
     the categories and their events, the commands, and the graph edges (created opens every other
     category; inside a category each event follows the previous one)."""
@@ -101,13 +101,14 @@ def derive(events: dict, initial: list[str] | None = None) -> dict:
     nxt: dict[str, list[str]] = {}
     for c, evs in lifecycle.items():
         chain = [f"{c}.{ev}" for ev in evs if f"{c}.{ev}" not in initial[1:]]
-        if chain[0] != root:
-            nxt.setdefault(root, []).append(chain[0])
+        if chain[0] != root:  # every other category opens from the root, or from the HUB when the project names one
+            nxt.setdefault(hub if hub in commands else root, []).append(chain[0])
         for x, y in zip(chain, chain[1:]):
             nxt.setdefault(x, []).append(y)
     for alt in initial[1:]:  # an alternative start joins the root's own next step
         nxt[alt] = [n for n in nxt.get(root, []) if n.split(".")[0] == root.split(".")[0]][:1]
-    return {"lifecycle": lifecycle, "commands": commands, "next": nxt, "root": root, "initial": initial}
+    return {"lifecycle": lifecycle, "commands": commands, "next": nxt, "root": root, "initial": initial,
+            "hub": hub if hub in commands else None}
 
 
 def live_events() -> dict:
@@ -156,7 +157,7 @@ def real_model() -> dict:
                         note = f"  {above}" if above.startswith("#") else ""
                         lines.append({"line": k.lineno, "code": f"    {ast.literal_eval(k)} = {ast.unparse(v)}{note}"})
                     # Commands by category, straight from EVENTS: each command records one event.
-                    model = derive(live_events(), getattr(PROJECT, "INITIAL", None))
+                    model = derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None))
                     for cat, cmds in live_events().items():
                         lines.append({"line": None, "code": ""})
                         lines.append({"line": None, "code": f"    # {cat}"})
@@ -182,7 +183,7 @@ def real_model() -> dict:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
-            "coverage": W.coverage(live_events()), **derive(live_events(), getattr(PROJECT, "INITIAL", None))}
+            "coverage": W.coverage(live_events()), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None))}
 
 
 # --- the domain draft: dummy code the user edits ------------------------------------------------------------------
@@ -482,40 +483,41 @@ function drawGraph() {
   // Entity.Event: management happens to the Tension itself; the others to the Value Object of their category.
   const ENT = D.entities || {};
   const pascal = w => w.split('_').map(x => x[0].toUpperCase() + x.slice(1)).join('');
-  // Rays: each category leaves the centre at its own angle; depth = steps from created along the ray.
-  const ANGLE = {management: -90, observation: -18, reasoning: 36, relationship: 144, action: 198};
-  const R = 185;
-  const pos = id => {
-    if (id === 'human') return {x: 0, y: R * 1.1};
-    if (id === M().root) return {x: 0, y: 0};
-    const alt = (M().initial || []).indexOf(id);
-    if (alt > 0) return {x: alt * 300, y: R * 0.55};  // an alternative start: beside the root, nearer the Human
-    const c = id.split('.')[0], d = depth[id] ?? 1, k = `${c}:${d}`;
-    const sibs = Object.keys(depth).filter(n => n.split('.')[0] === c && depth[n] === d && n !== M().root);
-    const cats = Object.keys(M().lifecycle).filter(x => x !== M().root.split('.')[0]);
-    const a = (ANGLE[c] ?? (-18 + 72 * cats.indexOf(c))) * Math.PI / 180;
-    // wide nodes on a horizontal ray eat the edge: add room in proportion to |cos a|
-    const r = d * (R + 80 * Math.abs(Math.cos(a)));
-    const gap = 66 + 110 * Math.abs(Math.sin(a));  // siblings side by side need room for the label width
-    const i = sibs.indexOf(id), off = (i - (sibs.length - 1) / 2) * gap;
-    return {x: Math.cos(a) * r - Math.sin(a) * off, y: Math.sin(a) * r + Math.cos(a) * off};
-  };
   const name = id => { const [c, v] = id.split('.'); return `${ENT[c] || pascal(c)}.${pascal(v)}`; };
-  const depth = {[M().root]: 0}, queue = [M().root];  // rings: steps from created
+  const CENTER = M().hub || M().root;
+  const depth = {[CENTER]: 0}, queue = [CENTER];  // rings: steps from the centre (the hub, else created)
   while (queue.length) { const a = queue.shift(); (M().next[a] || []).forEach(b => { if (!(b in depth)) { depth[b] = depth[a] + 1; queue.push(b); } }); }
   Object.entries(M().lifecycle).forEach(([cat, verbs]) => verbs.forEach(v => {
     const id = `${cat}.${v}`;
-    nodes.push({position: pos(id), data: {id, color: PATH[cat], label: name(id).replace('.', '\n')}, classes: [D.journal_types[id] ? 'used' : '', id === M().root ? 'root' : ''].join(' ')});
+    nodes.push({data: {id, color: PATH[cat], label: name(id).replace('.', '\n')}, classes: [D.journal_types[id] ? 'used' : '', id === M().root ? 'root' : ''].join(' ')});
   }));
   // ISO 9241-210 (human-centred design): a generic Human is who acts; the first command creates the Tension.
-  nodes.push({position: pos('human'), data: {id: 'human', label: 'Human', color: ink}, classes: 'human'});
+  nodes.push({data: {id: 'human', label: 'Human', color: ink}, classes: 'human'});
+  {  // seed: ring = steps from the Human, angle = order; fCoSE refines from here (randomize: false)
+    const hd = {human: 0}, q = ['human'], start = M().initial || [M().root];
+    start.forEach(s => { hd[s] = 1; q.push(s); }); q.shift();
+    while (q.length) { const a = q.shift(); (M().next[a] || []).forEach(b => { if (!(b in hd)) { hd[b] = hd[a] + 1; q.push(b); } }); }
+    nodes.forEach((n, i) => { const d = hd[n.data.id] ?? 3, t = 2 * Math.PI * i / nodes.length;
+      n.position = d ? {x: Math.cos(t) * d * 160, y: Math.sin(t) * d * 160} : {x: 0, y: 0}; });
+  }
   (M().initial || [M().root]).forEach(s => edges.push({data: {id: `human>${s}`, source: 'human', target: s, color: colorOf(s),
     label: M().commands[s]}, classes: D.journal_types[s] ? 'walked' : ''}));
   Object.entries(M().next).forEach(([a, bs]) => bs.forEach(b =>
     edges.push({data: {id: `${a}>${b}`, source: a, target: b, color: colorOf(b), label: M().commands[b]}, classes: D.journal_types[a] && D.journal_types[b] ? 'walked' : ''})));
+  const STARTS = M().initial || [M().root];
   const cy = cytoscape({
     container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
-    layout: {name: 'preset', padding: 16}, maxZoom: 3,
+    // fCoSE: force-directed, the Human pinned in the centre; seeded (randomize false + fixed seed positions) so a
+    // reload draws the same picture. nodeRepulsion and idealEdgeLength leave room for the edge labels.
+    layout: {name: 'fcose', quality: 'proof', randomize: false, animate: false, padding: 24,
+             nodeDimensionsIncludeLabels: true, idealEdgeLength: () => 130, nodeRepulsion: () => 45000,
+             edgeElasticity: () => 0.45, gravity: 0.4, gravityRange: 2.5, numIter: 5000, nodeSeparation: 90,
+             fixedNodeConstraint: [{nodeId: 'human', position: {x: 0, y: 0}}],
+             // the starts sit in line with the Human, one on each side; what follows them hangs below
+             ...(STARTS.length > 1 ? {alignmentConstraint: {horizontal: [['human', ...STARTS]]},
+               relativePlacementConstraint: [{left: STARTS[0], right: 'human', gap: 160}, {left: 'human', right: STARTS[1], gap: 160},
+                 ...(M().hub ? [{top: 'human', bottom: M().hub, gap: 140},
+                   ...(M().next[M().hub] || []).map(b => ({top: M().hub, bottom: b, gap: 90}))] : [])]} : {})}, maxZoom: 3,
     style: [
       {selector: 'node', style: {shape: 'round-rectangle', width: n => Math.max(...n.data('label').split('\n').map(l => l.length)) * 10 + 28, height: 56,
         'text-wrap': 'wrap', 'line-height': 1.3,
@@ -926,6 +928,10 @@ def tension(slug: str, tid: str):
         ),
         Script(payload, type="application/json", id="data"),
         Script(src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"),
+        # fCoSE (Balci & Dogrusoz 2022): force-directed with constraints; the Human is pinned in the centre
+        Script(src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"),
+        Script(src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"),
+        Script(src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js"),
         Script(JS, type="module"),
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )
