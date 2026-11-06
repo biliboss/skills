@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.73.0
+
+- thread 0.1.0: a card's topic thread in one call: tmux window + Hermes session (`/branch` of the card's session or new) named `<card> · <topic>`, brief inline by argument, stdin heredoc or gzip+base64 (bracketed paste, no temp file).
+
 ## 0.71.0
 
 - backbrief 0.18.0: the "pelo resultado" mode (context first, up to 5 questions, the 5-field request + the week's bet) and the optional `intent` of the teach-back. kanban 0.7.0: `kanban.sh describe` (`card.described`), shown under the card's title on the Quadro.
