@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.30.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.13.0 a 0.16.0: segunda instância sem live reload; `console.sh`, a porta dos agentes (instâncias num journal, domínios, estado em JSON, url, actions, janela por dono); o Playground passa a ser do próprio console (sem iframe e sem chat; o servidor do design-playground portado para Python, dados em `~/.local/state/dev-console/playground/`).
+
 ## [0.29.0] - 2026-11-06
 
 ### Added
