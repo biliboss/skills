@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.9.0
+  version: 0.10.0
 ---
 
 # dev-console
@@ -79,6 +79,27 @@ A page button talks back with `window.webkit.messageHandlers.devconsole.postMess
 - `cd app && swift build && swift test` runs the `ConsoleCore` tests (command decode, apply once per id, state, frames).
   If `swift` fails on an SDK mismatch, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` (`build-app.sh` does it).
   `DEV_CONSOLE_WINDOW_STATE_DIR` moves both files (tests); `DEV_CONSOLE_URL` sets the app's default page.
+
+## Playground
+
+`/playground` (no slug) is a **mode** beside Domain, tied to no domain: the console's top bar and, filling the rest,
+the design-playground's web (a tldraw canvas, `~/biliboss/dev/design-playground`) in an `iframe`. The canvas is composed,
+never copied, and the console adds nothing to that project. **Its web has no canvas-only mode, so its chat shows on the
+right as it is**; hiding it is a change in the design-playground, the owner's call.
+
+- `DEV_CONSOLE_PLAYGROUND_URL` (default `http://127.0.0.1:5317`) is the web. When it does not answer the page says so in
+  one line with the command that starts it (`scripts/motor.sh http --servidor`, skill `design`), looks again every 3 s
+  through `GET /playground/up` and opens the canvas as soon as it answers; never a broken frame.
+- **The money bar**: no domain, so `PLAYGROUND_COST_CENTER` (env `DEV_CONSOLE_PLAYGROUND_COST_CENTER`, default
+  `biliboss-skills`) names the cost center; the same bar and the same records (`domain: playground`), through
+  `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
+- **Modules.** Every page carries `D.modules` (`{name, href}`: Domain, Playground); the Domain Switcher (⌘K, the
+  same script on both pages: `SWITCHER_JS` is cut out of the main page's JS, one copy) lists each module except Domain as
+  a fixed last row, after the domains, shown when it matches the query. The ⌘P module switcher that comes next reads `D.modules`.
+- Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`), pointing the env at a
+  closed port for the "not running" line and at a design-playground started on another port (`PORT=5318 ABRIR_WEB=0
+  DADOS_DIR=<temp> bun run src/main.ts --servidor`) for the canvas; never at the owner's 5317. Keep the registry
+  in a folder of its own: the watcher restarts the console on any write beside it (the money clock writes `running.json`).
 
 ## Hook up a project
 
