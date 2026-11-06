@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.43.1] - 2026-11-06
+
+### Changed
+
+- `hermes` 0.2.0: código vai ao perfil `hacker`.
+- `backbrief` 0.16.2: a opção de implementar já diz o perfil (`Implementar com hacker (Hermes)`).
+
 ## [0.43.0] - 2026-11-06
 
 ### Added

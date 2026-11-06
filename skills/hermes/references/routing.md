@@ -11,7 +11,7 @@ profile's SOUL.md, not by its model.
 | search, ads, seo | `via-ads` | read only (Search Console today); changes are the owner's |
 | disk, Mac upkeep | `mantainer` | write its scope in SOUL.md before depending on it |
 | coordination across profiles | `bili` | local orchestrator, not the VPS Bili |
-| code with a PR | none | worktree plus a native subagent (backbrief step 9) |
+| code: a feature, a fix, a PR | hacker | the builder: its own worktree, tests, diff-review, the PR |
 
 ## Facts behind the skill
 
