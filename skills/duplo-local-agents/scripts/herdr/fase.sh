@@ -94,7 +94,7 @@ case "$cmd" in
       # TROCA: o focus já está montado (card, title-bar, o agente da frente, o Bili). Nenhum pane novo, nenhum reinício:
       # o card e a title-bar leem o KV mesa_focus.
       velho=$(rotulo_tab "$ft")
-      frente=$(panes_tab "$ft" | grep -v '	card$' | grep -v '	title-bar$' | grep -v '	barra$' | grep -v "	$BILI - ")
+      frente=$(panes_tab "$ft" | grep -v '	card$' | grep -v '	title-bar$' | grep -v '	barra$' | grep -v "	$BILI - " || true)
       if [ -n "$frente" ]; then
         # trabalhando sozinho -> working; com ficha (desligado de propósito) -> backlog
         fase=working; [ ! -f "${BACKLOG_DIR:-$HOME/.local/state/herdr-backlog}/$velho.ficha" ] || fase=backlog
