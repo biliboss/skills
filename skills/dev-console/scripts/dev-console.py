@@ -14,8 +14,8 @@ Layout: the work area (entity rail on the left, the selected record on the right
 domain model (DDD: aggregate root, entities, commands, events); Model = the state machine.
 Keys (vim-style goto): g d Domain, g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
 g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. All UI state lives in the query.
-A module may be a project widget (MODULE_WIDGETS), and / opens the module a domain names with CONSOLE_HOME (the
-Kanban's Quadro), else the first domain.
+A module may be a project widget (MODULE_WIDGETS). / is the home, the focus (console_focus.py; g h from any page): the
+Kanban card in Doing with the focus inside, else the module a domain names with CONSOLE_HOME (the Kanban's Quadro).
 """
 from __future__ import annotations
 
