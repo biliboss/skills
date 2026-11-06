@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var idleTimer: Timer?
     private var palette: PaletteController!
     private let statusLine = StatusLineController()
+    private var keyMonitor: Any?
 
     private let stateDir: URL = {
         if let o = ProcessInfo.processInfo.environment["DEV_CONSOLE_WINDOW_STATE_DIR"], !o.isEmpty {
@@ -53,6 +54,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         palette = PaletteController(parent: { [weak self] in self?.window }, currentURL: { [weak self] in self?.webView.url ?? self?.defaultURL },
                                     open: { [weak self] in self?.webView.load(URLRequest(url: $0)) })
         statusLine.onPalette = { [weak self] in self?.palette.show($0) }
+        // ⌘K/⌘P reach the palette before the web view, which would swallow them (see PaletteMode.forShortcut).
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard let self, let mode = PaletteMode.forShortcut(event.charactersIgnoringModifiers, command: flags.contains(.command),
+                                                                otherModifiers: !flags.isDisjoint(with: [.shift, .option, .control]))
+            else { return event }
+            self.palette.toggle(mode)
+            return nil
+        }
         watchDirectory()
         webView.load(URLRequest(url: state.url.flatMap(URL.init(string:)) ?? defaultURL))
         window.makeKeyAndOrderFront(nil)
