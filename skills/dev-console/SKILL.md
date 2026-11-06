@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.11.0
+  version: 0.12.0
 ---
 
 # dev-console
@@ -111,6 +111,30 @@ right as it is**; hiding it is a change in the design-playground, the owner's ca
   closed port for the "not running" line and at a design-playground started on another port (`PORT=5318 ABRIR_WEB=0
   DADOS_DIR=<temp> bun run src/main.ts --servidor`) for the canvas; never at the owner's 5317. Keep the registry
   in a folder of its own: the watcher restarts the console on any write beside it (the money clock writes `running.json`).
+
+## Agents
+
+`/agents` (listed by ⌘P beside Domain and Playground): what the owner typed to the agents and the agents' session logs,
+in real time. Two views switched in place (`?view=prompts|log`): **Prompts** (time, session, folder, text; a click
+expands the whole text) and **Log** (prompts, assistant text, tool calls). A filter by session (`?session=`), chips for
+`cross` / `notification` / `other` / `side` (`?show=`), a pause for the autoscroll (`?pause=1`). Delivery 1 reads Claude
+Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are another source class in `SOURCES`.
+
+- **What is a prompt (an allow-list)**: exactly `origin.kind == "human"` and `promptSource == "typed"` (a string, or an
+  array: its text blocks plus a marker such as `[image]`). `origin.kind == "peer"` is `cross`, `"task-notification"` is
+  `notification`, anything else (no origin, `human` without `typed`, `queued`, unknown) is `other`, never `prompt`.
+  `isSidechain` lines and `agent-*.jsonl` files carry `side` and stay out of Prompts unless the `side` chip is on.
+  Lines above 1 MB (api-request-blob) are skipped without parsing.
+- **Real time by events**: one thread for all clients; `watchfiles` (FSEvents) names the `.jsonl` that changed and the hub
+  reads it from its stored byte offset (about 100 ms from the write to the SSE message). A safety net rescans the roots
+  and checks every file every ~5 s. If `watchfiles` cannot be imported it polls every ~1 s and the page shows one warning line.
+- `DEV_CONSOLE_AGENTS_DIRS`: roots, `os.pathsep`-separated (default `~/.claude/projects`; deduplicated by realpath, so
+  the `~/.claude-mukutu/projects` symlink is read once). Tests point it at a temp folder.
+- **Privacy**: the logs hold private prompts. Read-only, only inside the roots, memory only (no cache, no persistence),
+  no entry text in any log or print, all text rendered with `textContent`. The console binds 127.0.0.1 only. Tests use
+  invented lines; never commit a real prompt, id or path of a session.
+- Code: `scripts/console_agents.py` (source, normalizer, hub, SSE, page script); `dev-console.py` has only the glue.
+  Tests: `uv run --script scripts/test_console_agents.py`.
 
 ## Hook up a project
 
