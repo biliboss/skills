@@ -1315,7 +1315,9 @@ if (box && D.money && !Q.get('embed')) {
   box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { act(e.target); e.preventDefault(); } });
   document.addEventListener('click', e => { if (popOpen && !box.contains(e.target) && !pop.contains(e.target)) togglePop(false); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && popOpen) togglePop(false); });
-  for (const t of ['keydown', 'click', 'scroll', 'pointermove', 'wheel']) addEventListener(t, () => { last = Date.now(); }, {capture: true, passive: true});
+  let entered = false;  // the first gesture of a person here ends a stretch running in another domain (agents' clicks are not trusted)
+  for (const t of ['keydown', 'click', 'scroll', 'pointermove', 'wheel']) addEventListener(t, e => { last = Date.now();
+    if (!entered && e.isTrusted) { entered = true; post('enter'); } }, {capture: true, passive: true});
   // the native app calls this every 5 s with the seconds since the Mac's last input of any kind
   window.devconsoleIdle = seconds => { native = {seconds, at: Date.now()}; };
   const idleSeconds = () => native ? native.seconds + (Date.now() - native.at) / 1000 : (Date.now() - last) / 1000;
@@ -1463,6 +1465,16 @@ def time_state(slug: str):
     return _json(state or {"error": "no cost center"}, 200 if state else 404)
 
 
+@rt("/domain/{slug}/time/enter", methods=["POST"])
+def time_enter(slug: str):
+    """A person acted on this domain's page (a trusted gesture): a stretch running in another domain ends."""
+    if not use(slug):
+        return _json({"error": "no such domain"}, 404)
+    if C:
+        _leave(slug)
+    return _json(_money_state(slug) or {"error": "no cost center"})
+
+
 @rt("/domain/{slug}/time/start", methods=["POST"])
 def time_start(slug: str):
     """Start a stretch (the only way the clock runs); one at a time, another domain's ends first (domain_change)."""
@@ -1597,8 +1609,7 @@ def tension(slug: str, tid: str, embed: str = ""):
         return RedirectResponse("/", status_code=303)
     money = None
     if C and not embed:  # an embed (a widget's iframe) neither runs the clock nor ends another domain's stretch
-        try:  # the money bar is a bonus: it never breaks the page
-            _leave(slug)
+        try:  # the money bar is a bonus: it never breaks the page (loading it never ends a stretch: a gesture does)
             money = _money_state(slug)
         except Exception:
             money = None
