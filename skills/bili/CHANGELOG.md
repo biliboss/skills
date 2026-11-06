@@ -2,6 +2,11 @@
 
 Todas as mudanças do skill `bili`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-11-04
+
+### Added
+- `watch.py` lê os assuntos de cada vigia de um arquivo JSON (`CASA_BILI_WATCH_SUBJECTS_FILE`); sem o arquivo, ou para o nome ausente, valem os assuntos embutidos de antes. Continua sem importar a lib da casa. Testes em `scripts/test_watch.py`.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added

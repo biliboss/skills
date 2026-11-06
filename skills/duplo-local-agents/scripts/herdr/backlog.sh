@@ -1,7 +1,8 @@
 #!/bin/sh
+# SOMENTE HERDR: usa workspaces, abas e mover panes do herdr (herdr workspace|tab|pane move); não há equivalente no mux.sh.
 # backlog.sh: a aba "backlog (N)" do herdr, antes da "doing": uma sessão desligada por pane, numa grade igual
 # (até 3 colunas), cada uma com um banner do que ela é, onde parou, o próximo passo e como retomar.
-# Enter no pane retoma a sessão ali mesmo; ela vira agente trabalhando e o mesa.sh a leva para a doing.
+# Enter no pane retoma a sessão ali mesmo; ela vira agente trabalhando e a leva para a aba doing.
 #   guardar <tema> claude|pi <id|arquivo.jsonl> "<o que é>" "<onde parou>" "<próximo passo>"
 #                     guarda a ficha e remonta a aba
 #   puxar <tema>      retoma a sessão à direita de quem chama (o foco), tira a ficha e remonta a aba
@@ -19,14 +20,14 @@ CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
 : "${CASA_CONTA_PRINCIPAL_DIR:?backlog: falta CASA_CONTA_PRINCIPAL_DIR em $CASA}"
 
 AQUI="$(cd "$(dirname "$0")" && pwd)"
-PI_CLAUDE="$AQUI/../../pi/scripts/pi-claude.sh"
+PI_CLAUDE="$AQUI/../../../pi/scripts/pi-claude.sh"
 DIR="${BACKLOG_DIR:-$HOME/.local/state/herdr-backlog}"
 ABA="${MESA_ABA_BACKLOG:-backlog}"
 TRAB="${MESA_ABA_TRABALHO:-doing}"
 REV="${MESA_ABA_REVISAO:-review}"
 # Só o workspace de quem chama (ou MESA_WORKSPACE): nada fora dele é tocado.
 WS="${MESA_WORKSPACE:-$(herdr pane list | jq -r --arg p "${HERDR_PANE_ID:-}" '.result.panes[] | select(.pane_id == $p) | .workspace_id')}"
-uso() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+uso() { sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 cmd=$1; shift
 

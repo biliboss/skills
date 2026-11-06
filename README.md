@@ -7,7 +7,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `tensions` | registra eventos de domínio significativos no JSONL global, com Python stdlib e recipes `just` opcionais |
 | `backbrief` | em desenho, domínio Tasks: um comando para a tarefa explicada a alguém e repetida de volta do jeito que foi entendida (teach-back) |
 | `cost-track` | domínio Costs: tudo tem custo; cada domínio pertence a um centro de custo e o tempo ligado vira dinheiro; único escritor do diário de custos |
-| `kanban` | o quadro do dono (Upstream, Downstream, Feito), cada card ligado a um domínio do dev-console; o Quadro é a página inicial do console, com o que o tempo em Upstream custou hoje, na semana e no mês; limite de WIP por repo (3 PRs abertos) e a varredura diária do que passou de 48 h |
+| `kanban` | o quadro do dono (Todo, Upstream, Downstream, Feito; o topo da coluna é o card em foco), cada card ligado a um domínio do dev-console; o Quadro é a página inicial do console, com o que o tempo em Upstream custou hoje, na semana e no mês; limite de WIP por repo (3 PRs abertos) e a varredura diária do que passou de 48 h |
 | `brainstorm` | pensar junto quando a ideia ainda está aberta, antes do backbrief: Double Diamond com pensamento sistêmico (Cynefin, iceberg, laço causal desenhado no dev-console, pontos de alavanca); termina numa nota "Decidi X porque Y" |
 | `retro` | a revisão da sessão (after-action review): as correções do dono viram regras nos skills certos, escolhidas por ele e aplicadas num PR |
 | `diff-review` | a revisão de código de um diff local, com prompt próprio no plano flat: só problemas que o diff introduziu, cada um com cenário de falha; bloqueio aberto volta para a execução |
@@ -20,7 +20,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `lp-draft` | o rascunho de uma landing page num HTML só, no `.wiki/resources/` |
 | `bili` | falar com o Bili (o agente de vida longa) por um cartão do Linear: pedir, esperar, ler |
 | `linear` | o Linear do dono: ler um projeto, criar cartões, marcos e updates, subir imagens |
-| `herdr-agentes` | abrir, conduzir, fechar e retomar sessões de agente (Claude Code ou pi) nas abas do herdr |
+| `duplo-local-agents` | sessões de agente locais (Claude Code, pi) no herdr, no tmux ou sem multiplexador, pelo `mux.sh`; a mesa em fases e o focus no herdr |
 | `delegate-and-review` | passar uma tarefa de código a um subagente que abre um PR, e revisar e corrigir depois |
 | `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
@@ -30,6 +30,8 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `copywriting` | a escrita do Gabriel que vende uma ideia: post do LinkedIn, o Diário e o artigo, com a voz e as métricas de prosa da wiki |
 | `faceless-art` | a arte sem rosto do Gabriel gerada pelo Codex, com os prompts de referência |
 | `linkedin-publish` | publicar, editar e conferir um post do LinkedIn pelo Safari do Mac já logado |
+| `envless` | usar um segredo do cofre (envless) num comando sem que o valor passe pela conversa |
+| `disky` | achar onde mora o espaço do disco com o disky e propor a limpeza numa tabela que o dono aprova |
 
 ## Instalar
 
@@ -42,7 +44,7 @@ Rode `/setup-biliboss` uma vez em cada repo.
 
 ## A configuração da casa
 
-As skills da casa (`bili`, `linear`, `herdr-agentes`, `pi`, `estudo-html`, `design`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal, o design-playground e os checkouts dos produtos. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
+As skills da casa (`bili`, `linear`, `duplo-local-agents`, `pi`, `estudo-html`, `design`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal, o design-playground e os checkouts dos produtos. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
 
 ```sh
 mkdir -p ~/.config/biliboss

@@ -10,6 +10,10 @@ Pick what to watch by name; with no names it watches `asks` and `errors`:
     uv run --script scripts/watch.py asks panes llm  # several
     uv run --script scripts/watch.py --list          # what each name covers
 
+The subjects behind each name come from a JSON file when CASA_BILI_WATCH_SUBJECTS_FILE is set
+(`{"asks": ["x.pane.*.ask"], "errors": ["x.log.>"]}`: names not in the file keep the built-in subjects).
+The file only changes WHERE to listen; what each name prints stays the formatter's.
+
 Only new events (no replay), stdout flushed per line, the same line is not repeated within 60 s.
 Field names are read in English and in the older Portuguese ones while both exist on the stream.
 """
@@ -105,6 +109,26 @@ WATCHES: dict[str, tuple[list[str], Callable[[str, dict], str | None], str]] = {
 }
 
 
+def load_subjects(path: str | None) -> None:
+    """Override the subjects of the named watches from a JSON file {name: [subject, ...]}."""
+    if not path:
+        return
+    try:
+        with open(os.path.expanduser(path)) as f:
+            cfg = json.load(f)
+    except (OSError, ValueError) as e:
+        sys.exit(f"watch: cannot read {path}: {e}")
+    if not isinstance(cfg, dict):
+        sys.exit(f"watch: {path} must be a JSON object {{name: [subjects]}}")
+    for name, subjects in cfg.items():
+        if name not in WATCHES:
+            sys.exit(f"watch: {path}: unknown watch {name!r}; known: {', '.join(WATCHES)}")
+        if not isinstance(subjects, list) or not subjects or not all(isinstance(x, str) and x for x in subjects):
+            sys.exit(f"watch: {path}: {name!r} must be a non-empty list of subjects")
+        _, fmt, about = WATCHES[name]
+        WATCHES[name] = (subjects, fmt, about)
+
+
 async def main(names: list[str]) -> None:
     nc = await nats.connect(NATS_URL, max_reconnect_attempts=-1)
     seen: dict[str, float] = {}
@@ -132,6 +156,7 @@ async def main(names: list[str]) -> None:
 
 if __name__ == "__main__":
     args = sys.argv[1:]
+    load_subjects(os.environ.get("CASA_BILI_WATCH_SUBJECTS_FILE"))
     if "--list" in args or "-h" in args or "--help" in args:
         for name, (subjects, _, about) in WATCHES.items():
             print(f"{name:8} {about}  [{', '.join(subjects)}]")

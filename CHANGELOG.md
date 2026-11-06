@@ -2,11 +2,33 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
-## [0.55.0] - 2026-11-06
+## [0.57.0] - 2026-11-06
 
 ### Added
 
 - `kanban` 0.3.0: ordem dos cards numa etapa (`top`, `rank`, `card.prioritized`; o topo é o card em foco), `rename`, a etapa `Todo` (backlog, não conta como dinheiro de Upstream) e o Quadro com o tempo subindo no navegador e atualizando sozinho quando o journal muda.
+
+## [0.56.0] - 2026-11-06
+
+### Added
+
+- `bili` 0.8.0: `watch.py` lê os assuntos de cada vigia de um arquivo JSON (`CASA_BILI_WATCH_SUBJECTS_FILE`); sem o arquivo, o comportamento é o de antes. Com `test_watch.py`. (Reaplica o PR #10.)
+
+## [0.55.0] - 2026-11-06
+
+### Added
+
+- `duplo-local-agents` 1.0.0: junta `herdr-agentes`, `herdr-mesa` e o `mux.sh` da `prime-agent` numa skill só, independente do multiplexador (herdr, tmux ou nenhum). Detalhe em `skills/duplo-local-agents/CHANGELOG.md`.
+- `envless` 0.1.0: o segredo entra no comando pelo `envless exec`, nunca na conversa; `list` sem valores, `set` pelo stdin, `get` só com `--confirm`.
+- `disky` 0.1.0: o diagnóstico de disco com o disky e a tabela de limpeza que o dono aprova antes de qualquer apagamento.
+- `prime-agent` 0.4.0: ids TNN/HNN nos panes, `mux.sh fila` (o padrão para mandar) e a skill Python `mux`; o `mux.sh` passa a viver na `duplo-local-agents`.
+- `pi` 0.3.3: `contas-tokens.sh` (os tokens do `setup-token` do envless na extensão `pi-claude-accounts`, principal primeiro).
+
+### Removed
+
+- `herdr-agentes` e `herdr-mesa` (e o `mesa.sh`, o `cartao.py`); o que a `herdr-agentes` ganhou na main desde o #5 foi para a `duplo-local-agents`.
+
+(Reaplica os PRs #2, #3, #4 e #5 sobre a main.)
 
 ## [0.54.0] - 2026-11-06
 
