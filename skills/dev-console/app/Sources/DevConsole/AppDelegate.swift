@@ -37,10 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var stateFile: URL { stateDir.appendingPathComponent("state.json") }
     private var commandFile: URL { stateDir.appendingPathComponent("command.json") }
 
-    private var defaultURL: URL {
-        let text = ProcessInfo.processInfo.environment["DEV_CONSOLE_URL"] ?? "http://127.0.0.1:5057/"
-        return URL(string: text) ?? URL(string: "http://127.0.0.1:5057/")!
-    }
+    private var defaultURL: URL { launchURL(environment: ProcessInfo.processInfo.environment) }
 
     // MARK: launch
 
@@ -66,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             return nil
         }
         watchDirectory()
-        webView.load(URLRequest(url: state.url.flatMap(URL.init(string:)) ?? defaultURL))
+        webView.load(URLRequest(url: defaultURL))  // the home (the focus), never the last URL saved in state.json
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         syncWindowState()
