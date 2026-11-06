@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# devc: the dev-console's own CLI (logic in devc.py, PEP 723 uv). Resolves symlinks, so `devc install` works.
+set -euo pipefail
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+dir="$(cd "$(dirname "$src")" && pwd)"
+export DEVC_SCRIPTS_DIR="${DEVC_SCRIPTS_DIR:-$dir}"
+exec uv run --script "$dir/devc.py" "$@"
