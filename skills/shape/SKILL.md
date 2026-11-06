@@ -4,11 +4,12 @@ description: >-
   Use for any request to build, write, change or decide something: the default planning door. Shapes the work before
   anyone builds it (Shape Up): reads the context, routes to the right planning tool for the kind of request
   (brainstorm, the outcome questions, interview, the domain graph, service design, design-taste), then the backbrief
-  (mandatory) and only then the delegation (subagent, thread or card in Upstream). Triggers "shape", "planeja",
+  (mandatory) and the choice of resources; it never executes nor delegates: whoever called it opens the subagent,
+  thread or card. Triggers "shape", "planeja",
   "plan", "vamos fazer", "quero", "faz", "nova tarefa", "brainstorm", "backbrief". Questions and one-line commands skip
   it.
 metadata:
-  version: 0.3.1
+  version: 0.4.0
   license: MIT
 ---
 
@@ -47,10 +48,9 @@ a piece by name (`skill_view`) or by its file (`../<piece>/SKILL.md`).
    ceiling: on the owner's 2nd adjustment the shaping opens a line of understanding instead of guessing a 3rd time
    (see *O melhor caminho*).
 4. **Choose the resources** (`shape.sh choose '<kind>'`): the least-cost combination, "Decidi X porque Y".
-5. **Delegate** by the size: a subagent with a fit-for-purpose model (minutes), a `thread` (a topic that lives on),
-   or a card in Upstream (`kanban`, one card per piece of work). Decisions the agent takes itself go as "Decidi X
-   porque Y"; only money, login, publishing outward and deleting wait for the owner.
-
+5. **Hand back.** Shape ends here: the shaped request plus the recommended form ("Decidi thread porque…",
+   `resources.chosen`). Shape never opens a thread, a subagent or a card (no `thread.sh`, no `delegate_task`, no
+   `kanban.sh pull`): the caller (the Bili, or the agent that loaded it) executes and emits `work.delegated`.
 ## Pelo resultado (a coisa nomeada sem número)
 
 Use this mode when the request **names a thing** (site, landing, página, app) or **has no measurable outcome**
@@ -157,6 +157,8 @@ Every question and backbrief in short paragraphs with a blank line between them;
 ## Pitfalls
 
 - Shaping is not doing: no file is written before the backbrief's ok.
+- Shape does not execute nor delegate: it never opens a thread, a subagent or a card. It recommends the form;
+  the caller opens it and emits `work.delegated` (the cost learning still closes).
 - One row of the router, not a tour of every piece: the piece is chosen by the request, and a clear request skips
   step 2.
 - A piece is never called on its own by the agent; the owner can, by `/name`.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Shape stops at the choice: it never opens a thread, a subagent or a card; the caller executes and emits
+  `work.delegated` (owner's rule: delegating is not the planner's job).
+
 ## [0.3.1] - 2026-11-06
 
 ### Fixed
