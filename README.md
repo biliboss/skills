@@ -27,6 +27,8 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `hermes` | o Claude Code e o pi comandam os perfis locais do Hermes (researcher, designer, sre, via-ads, mantainer) como agentes com memória própria |
 | `interview` | formulários de perguntas ricos (pi-interview) numa janela única com fila; rascunho salvo a cada mudança, e o tempo limite não perde respostas |
 | `copywriting` | a escrita do Gabriel que vende uma ideia: post do LinkedIn, o Diário e o artigo, com a voz e as métricas de prosa da wiki |
+| `faceless-art` | a arte sem rosto do Gabriel gerada pelo Codex, com os prompts de referência |
+| `linkedin-publish` | publicar, editar e conferir um post do LinkedIn pelo Safari do Mac já logado |
 
 ## Instalar
 
