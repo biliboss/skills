@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.102.0
+
+- handoff 0.2.0: the guard, a Hermes plugin (`handoff-guard`) that, in folders with `HANDOFF_AT=<percent>`, injects the handoff order at the threshold and blocks the turn at +15. setup-biliboss 0.2.0: fourth choice, the guard (off by default).
+
 ## 0.94.0
 
 - Loose edits from other sessions landed: auth, backbrief, choice, delegate-and-review, dev-console, doctor, domain-plan, envless, handoff, hermes, interview, lp-draft, modifier-here, shape, sync, thread, tmux (patch bumps; auth, domain-plan and lp-draft keep the minor they already carried).

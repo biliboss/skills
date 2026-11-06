@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-06
+
+### Added
+
+- The guard: Hermes plugin `plugin/handoff-guard` (opt-in per folder with `HANDOFF_AT=<percent>`): injects the handoff order at the threshold, blocks the turn at +15, real context use from `post_api_request`. `scripts/test_guard.py`.
+
 ## [0.1.1] - 2026-11-06
 
 ### Changed
