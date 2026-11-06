@@ -1793,6 +1793,25 @@ def clock_log(hop: str, **fields) -> None:
         pass
 
 
+@rt("/api/claude-usage")
+def claude_usage():
+    """The weekly limit of the owner's Claude accounts (claude-usage.sh's cache). Refreshed in the background when it is
+    over 5 minutes old, so a page load never waits on Anthropic."""
+    import subprocess
+    out = Path("~/.local/state/dev-console/claude-usage.json").expanduser()
+    script = Path(__file__).resolve().parent / "claude-usage.sh"
+    try:
+        age = time.time() - out.stat().st_mtime
+    except OSError:
+        age = 1e9
+    if age > 300 and script.exists():
+        subprocess.Popen(["bash", str(script)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        return Response(out.read_text(), media_type="application/json")
+    except OSError:
+        return Response('{"accounts":[]}', media_type="application/json")
+
+
 @rt("/clock/applied", methods=["POST"])
 async def clock_applied(req):
     """The page's beacon: it swapped the new clock in (push_ms = the push it reacts to)."""
@@ -2435,7 +2454,15 @@ def _status_bar(name: str, money: bool, module: bool = True):
                 cls="shrink-0 px-1 text-neutral-500")] if module else []),
         Div(id="keyhint", cls="shrink-0 w-8 text-neutral-400"),
         *([Div(id="money", cls=f"shrink-0 h-full flex items-center gap-3 px-3 whitespace-nowrap border-l {line}")] if money else []),
-        Div("⌘K domínio · ⌘P módulo", cls="ml-auto shrink-0 pr-3 whitespace-nowrap text-neutral-300 dark:text-neutral-700"),
+        # the Claude accounts' weekly limit, minimal: "mukutu 100% · pessoal 82%"; bordô only when an account is spent
+        Span(id="bar-claude", title="limite semanal das contas do Claude",
+             cls="ml-auto shrink-0 px-3 tabular-nums whitespace-nowrap text-neutral-400"),
+        Script("(()=>{const e=document.getElementById('bar-claude');if(!e)return;const f=async()=>{try{const d=await(await "
+               "fetch('/api/claude-usage',{cache:'no-store'})).json();e.innerHTML=(d.accounts||[]).map(a=>a.error?a.name+' —':"
+               "(a.week>=100?'<span class=\"text-[#800020] dark:text-[#a3263f] font-semibold\">':'<span>')+a.name+' '+a.week+'%</span>')"
+               ".join(' · ');e.title='limite semanal do Claude · '+(d.accounts||[]).map(a=>a.name+(a.resets?' volta '+new Date(a.resets)"
+               ".toLocaleString('pt-BR',{weekday:'short',hour:'2-digit',minute:'2-digit'}):'')).join(' · ')}catch(_){}};f();setInterval(f,60000)})()"),
+        Div("⌘K domínio · ⌘P módulo", cls="shrink-0 pr-3 whitespace-nowrap text-neutral-300 dark:text-neutral-700"),
         id="bar", cls=f"h-7 shrink-0 flex items-center border-t {line} text-neutral-500",
     )
 

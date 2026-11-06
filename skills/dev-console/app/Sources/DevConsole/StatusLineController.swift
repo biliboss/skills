@@ -21,6 +21,9 @@ final class StatusLineController {
     private let clock = NSTextField(labelWithString: "")
     private var clockTimer: Timer?
     private var colonOn = true
+    /// The weekly limit of the owner's Claude accounts, from the console's /api/claude-usage.
+    private let usage = NSTextField(labelWithString: "")
+    private var usageTimer: Timer?
     /// A click on the domain (left) or on the module (right) asks for the native palette in that mode.
     var onPalette: ((PaletteMode) -> Void)?
 
@@ -56,7 +59,10 @@ final class StatusLineController {
         clock.textColor = .labelColor
         clock.setContentHuggingPriority(.required, for: .horizontal)
         clock.setContentCompressionResistancePriority(.required, for: .horizontal)
-        bar.setViews([clock, button, center, money, spacer, module], in: .leading)
+        usage.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        usage.textColor = .tertiaryLabelColor
+        usage.setContentHuggingPriority(.required, for: .horizontal)
+        bar.setViews([clock, button, center, money, spacer, usage, module], in: .leading)
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.wantsLayer = true
         let line = NSBox(); line.boxType = .separator; line.translatesAutoresizingMaskIntoConstraints = false
@@ -81,6 +87,10 @@ final class StatusLineController {
             MainActor.assumeIsolated { self?.tickClock() }
         }
         clockTimer?.tolerance = 0.05
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in MainActor.assumeIsolated { self?.fetchUsage() } }
+        usageTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fetchUsage() }
+        }
         // Fallback: a page that is loading, throttled or gone does not push; a slow refresh keeps the numbers honest.
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
@@ -165,5 +175,36 @@ final class StatusLineController {
             .font: font, .foregroundColor: colonOn ? NSColor.labelColor : NSColor.clear]))
         text.append(NSAttributedString(string: mm, attributes: [.font: font, .foregroundColor: NSColor.labelColor]))
         clock.attributedStringValue = text
+    }
+
+    /// "mukutu 100% · pessoal 82%": the spent account (100%) in red, the others tertiary; the tooltip says when each resets.
+    private func fetchUsage() {
+        guard let origin = webView?.url, var parts = URLComponents(url: origin, resolvingAgainstBaseURL: false) else { return }
+        parts.path = "/api/claude-usage"; parts.query = nil; parts.fragment = nil
+        guard let url = parts.url else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data, let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let accounts = obj["accounts"] as? [[String: Any]] else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    let font = self.usage.font ?? NSFont.systemFont(ofSize: 11)
+                    let text = NSMutableAttributedString()
+                    var tips: [String] = []
+                    for (i, a) in accounts.enumerated() {
+                        let name = a["name"] as? String ?? "?"
+                        let week = a["week"] as? Int
+                        if i > 0 { text.append(NSAttributedString(string: " · ", attributes: [.font: font, .foregroundColor: NSColor.tertiaryLabelColor])) }
+                        let spent = (week ?? 0) >= 100
+                        text.append(NSAttributedString(string: week.map { "\(name) \($0)%" } ?? "\(name) —", attributes: [
+                            .font: spent ? NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold) : font,
+                            .foregroundColor: spent ? NSColor.systemRed : NSColor.tertiaryLabelColor]))
+                        if let r = a["resets"] as? String { tips.append("\(name) volta \(r.prefix(16).replacingOccurrences(of: "T", with: " "))") }
+                    }
+                    self.usage.attributedStringValue = text
+                    self.usage.toolTip = "limite semanal do Claude · " + tips.joined(separator: " · ")
+                }
+            }
+        }.resume()
     }
 }
