@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.44.1] - 2026-11-06
+
+### Changed
+
+- `dev-console` 0.22.1: o desenho de ramos (branch) é o padrão de todo domínio; raios/metro só pela tecla `L`, sem botão (o nome aparece num aviso rápido).
+
 ## [0.44.0] - 2026-11-06
 
 ### Added

@@ -307,7 +307,7 @@ def real_model() -> dict:
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
             "coverage": W.coverage(live_events()), "descriptions": descriptions(), "value_objects": value_objects(),
-            "layout": getattr(PROJECT, "LAYOUT", None) or "metro",
+            "layout": getattr(PROJECT, "LAYOUT", None) or "branch",
             "stages": dict(getattr(PROJECT, "STAGES", None) or {}), "stage_order": list(getattr(PROJECT, "STAGE_ORDER", None) or []),
             "stage_labels": dict(getattr(PROJECT, "STAGE_LABELS", None) or {}), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
                          getattr(PROJECT, "TRANSITIONS", None))}
@@ -695,10 +695,15 @@ function codeBlock(src) {  // grayscale highlight: weight, not colour
 
 let graphRO = null;  // the resize observer of the drawing on screen (a redraw disconnects it)
 const layoutKey = () => `dev-console:layout:${D.base}`;
-function toggleLayout() {  // `L` or the corner button: branch <-> metro (rays), remembered per domain
-  const m = localStorage.getItem(layoutKey()) || M().layout;
-  localStorage.setItem(layoutKey(), m === 'branch' ? 'metro' : 'branch');
+function toggleLayout() {  // `L` only (no button): branch <-> metro (rays), remembered per domain; the name shows as a brief toast
+  const m = localStorage.getItem(layoutKey()) || M().layout, next = m === 'branch' ? 'metro' : 'branch';
+  localStorage.setItem(layoutKey(), next);
   drawGraph();
+  let t = $('layout-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'layout-toast';
+    t.className = 'fixed right-4 top-4 z-50 px-2 py-1 rounded text-xs bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 pointer-events-none'; document.body.appendChild(t); }
+  t.textContent = ({branch: 'ramos', metro: 'raios'})[next]; t.style.display = '';
+  clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1200);
 }
 
 function drawGraph() {
@@ -1137,8 +1142,6 @@ function drawGraph() {
   cy.ready(centreHuman);
   if ($('centre-human')) $('centre-human').onclick = () => cy.animate(BR ? {zoom: homeView().zoom, pan: homeView().pan, duration: 250, complete: offCentre}
     : {center: {eles: cy.$('#human')}, duration: 250, complete: offCentre});
-  const lt = $('layout-toggle');  // the drawing on screen, as a small text button; a click does what L does
-  if (lt) { lt.textContent = ({branch: 'ramos', metro: 'raios', clock: 'relógio'})[MODE] || 'forças'; lt.onclick = toggleLayout; }
   cy.scratch('branch', BRINFO);
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
     + '';
@@ -1380,7 +1383,6 @@ const TABS = {
           <span id="legend" class="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400 min-w-0"></span>
           <span class="ml-auto shrink-0 cursor-help text-neutral-500" title="Máquina de estados a partir do Human · aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário">?</span></div>
         <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div>
-          <button id="layout-toggle" title="L: alterna o desenho entre ramos e raios" class="absolute right-3 top-3 z-10 px-2 py-0.5 rounded text-xs text-neutral-500 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"></button>
           <button id="centre-human" class="hidden absolute right-3 bottom-3 z-10 px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">◎ Centralizar Human</button></div>
       </div>
       <aside id="ev-side" class="hidden w-[min(380px,34vw)] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
@@ -1500,7 +1502,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'g') { $('keyhint').textContent = 'g…'; pending = setTimeout(() => { pending = null; $('keyhint').textContent = ''; }, 1200); return; }
-  if ((e.key === 'l' || e.key === 'L') && GRAPH(tab) && $('layout-toggle') && !popOpen()) { toggleLayout(); e.preventDefault(); return; }
+  if ((e.key === 'l' || e.key === 'L') && GRAPH(tab) && !popOpen()) { toggleLayout(); e.preventDefault(); return; }
   if (e.key === 'Escape') { popOpen() ? closeWidget() : closeSide(); return; }
   if (popOpen()) return;
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.1] - 2026-11-06
+
+### Changed
+
+- **The branch layout (rails) is the default domain view.** A project's explicit `LAYOUT` still wins. The rays/metro view stays behind `L` only; the corner button is gone and the layout name shows as a brief toast when `L` is pressed.
+
 ## [0.22.0] - 2026-11-06
 
 ### Added

@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.22.0
+  version: 0.22.1
 ---
 
 # dev-console
@@ -496,7 +496,7 @@ For a product whose code already records domain events (Domain.Imported):
    both so he compares on the real domain. When he asks "sugira algo" about layout, sketch it in ASCII first.
 5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
-6. **The branch layout** (`LAYOUT = "branch"`, or `L` on any domain): the same domain as a git graph (`git log --graph`) read
+6. **The branch layout** (the default for every domain; a project's `LAYOUT` still wins; `L` cycles to the rays/metro, no button, the name shows as a brief toast): the same domain as a git graph (`git log --graph`) read
    left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane (a branch), top to
    bottom in `EVENTS` order; a line follows `TRANSITIONS` as the metro does, but its fork is a 45° spur inside the lane. A lane is
    born where its transition comes from (its first station sits one column right of the station that leads into it, joined
