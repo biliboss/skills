@@ -103,6 +103,10 @@ right as it is**; hiding it is a change in the design-playground, the owner's ca
   of the main page's JS, one copy). The Playground page has the same bottom status line (`_status_bar`, its name there is
   "Playground") and ⌘P. Loading `/playground` never ends a running stretch: its script posts `enter` on the first trusted
   gesture like a domain page.
+- **Navigation he wants: ⌘K switches the domain, ⌘P the module** (Domain, the project's `TABS`, Playground), both the
+  same floating fuzzy overlay; the tab bar goes away and a thin **status line at the bottom** carries `domain · module ·
+  money bar` (a click on each opens its switcher), so the graph or canvas gets the full height. In the native app ⌘P
+  is Print: the app menu takes it for the page.
 - Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`), pointing the env at a
   closed port for the "not running" line and at a design-playground started on another port (`PORT=5318 ABRIR_WEB=0
   DADOS_DIR=<temp> bun run src/main.ts --servidor`) for the canvas; never at the owner's 5317. Keep the registry
@@ -278,6 +282,10 @@ For a product whose code already records domain events (Domain.Imported):
    `events/core.ts`) and a grep of the emit calls (`fact(`, `appendTo(`) for where each one is born (file:line).
    Keep apart **entity streams** (`list:<id>`: ListCreated, ListItemSaved; the entity's own facts) and **analytics
    facts** on another stream (the visitor's ItemSaved, ListOpened): mixing them into one line misdraws the domain.
+   **Widgets for an imported event come from what the code records about it**: its payload fields (BrokerSignedUp:
+   `entry_point`, `has_account`) and the sets the code declares (an `ACTIVATION` list of steps becomes a funnel
+   widget; its missing steps are missing stations). An event the catalogue marks `proposed` (not recorded yet) gets
+   fake-data widgets until the product records it.
    Before proposing a new event name, check whether the code already has one; a code comment like "nothing is
    updated" vetoes a proposed `Updated`. A renamed kind stays a draft here; the rename in the product is a card for
    whoever owns that repo.
@@ -463,8 +471,10 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   (a dict entry followed by `**derive(...)`): it swallows the rest of the line. After every patch to
   `dev-console.py` run `uv run --with python-fasthtml python -m py_compile <file>`: the hot reload restarts on save,
   and a syntax error kills the console for every domain, his native window included.
-- While the money clock runs in his window, do not open another domain's page anywhere (curl, `fetch`, headless):
-  a page GET of another domain closes the running stretch (`domain_change`). Check other domains on a test console.
+- A domain change is a person's gesture, never a page load: loading another domain's page (curl, an agent, a headless
+  browser) must not close the running stretch; the page's first trusted input (`e.isTrusted` on keydown/click/pointer)
+  posts `time/enter`, which ends a stretch running elsewhere (`domain_change`). Agents' synthetic clicks are not
+  trusted. Still check other domains on a test console when you can.
 - The user iterates fast on the look: one change, screenshot at his width (~1000 px, dark
   mode), short report; spacing moves by small steps (too tight and too loose both get
   rejected).
