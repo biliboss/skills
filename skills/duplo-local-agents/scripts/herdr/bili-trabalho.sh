@@ -1,4 +1,5 @@
 #!/bin/sh
+# SOMENTE HERDR: usa workspaces, abas e mover panes do herdr (herdr workspace|tab|pane move); não há equivalente no mux.sh.
 # bili-trabalho.sh: o trabalho que uma sessão local passou ao Bili, acompanhado num pane da aba doing.
 # A sessão local fecha (com a ficha para retomar); o pane mostra ao vivo as atividades da sessão de agente
 # do Bili no cartão e o tempo desde o pedido e desde a última atividade. Quando o Bili responde no cartão,
@@ -16,13 +17,13 @@ CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
 : "${CASA_CONTA_PRINCIPAL_DIR:?bili-trabalho: falta CASA_CONTA_PRINCIPAL_DIR em $CASA}"
 
 AQUI="$(cd "$(dirname "$0")" && pwd)"
-PI_CLAUDE="$AQUI/../../pi/scripts/pi-claude.sh"
-DONO="$AQUI/../../linear/scripts/dono.sh"
+PI_CLAUDE="$AQUI/../../../pi/scripts/pi-claude.sh"
+DONO="$AQUI/../../../linear/scripts/dono.sh"
 DIR="${BACKLOG_DIR:-$HOME/.local/state/herdr-backlog}/bili"
 TRAB="${MESA_ABA_TRABALHO:-doing}"
 REV="${MESA_ABA_REVISAO:-review}"
 PASSO="${BILI_TRABALHO_PASSO:-20}"
-uso() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+uso() { sed -n '3,11p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || uso
 cmd=$1; shift
 

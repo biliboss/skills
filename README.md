@@ -20,7 +20,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `lp-draft` | o rascunho de uma landing page num HTML só, no `.wiki/resources/` |
 | `bili` | falar com o Bili (o agente de vida longa) por um cartão do Linear: pedir, esperar, ler |
 | `linear` | o Linear do dono: ler um projeto, criar cartões, marcos e updates, subir imagens |
-| `herdr-agentes` | abrir, conduzir, fechar e retomar sessões de agente (Claude Code ou pi) nas abas do herdr |
+| `duplo-local-agents` | sessões de agente locais (Claude Code, pi) no herdr, no tmux ou sem multiplexador, pelo `mux.sh`; a mesa em fases e o focus no herdr |
 | `delegate-and-review` | passar uma tarefa de código a um subagente que abre um PR, e revisar e corrigir depois |
 | `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
@@ -30,6 +30,8 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `copywriting` | a escrita do Gabriel que vende uma ideia: post do LinkedIn, o Diário e o artigo, com a voz e as métricas de prosa da wiki |
 | `faceless-art` | a arte sem rosto do Gabriel gerada pelo Codex, com os prompts de referência |
 | `linkedin-publish` | publicar, editar e conferir um post do LinkedIn pelo Safari do Mac já logado |
+| `envless` | usar um segredo do cofre (envless) num comando sem que o valor passe pela conversa |
+| `disky` | achar onde mora o espaço do disco com o disky e propor a limpeza numa tabela que o dono aprova |
 
 ## Instalar
 
@@ -42,7 +44,7 @@ Rode `/setup-biliboss` uma vez em cada repo.
 
 ## A configuração da casa
 
-As skills da casa (`bili`, `linear`, `herdr-agentes`, `pi`, `estudo-html`, `design`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal, o design-playground e os checkouts dos produtos. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
+As skills da casa (`bili`, `linear`, `duplo-local-agents`, `pi`, `estudo-html`, `design`) precisam de valores que são de cada um: o workspace e os ids do Linear, o host da VPS, as contas do Claude, o repo principal, o design-playground e os checkouts dos produtos. Nada disso mora aqui. Cada máquina tem um `casa.env` fora do git:
 
 ```sh
 mkdir -p ~/.config/biliboss

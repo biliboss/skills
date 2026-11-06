@@ -2,6 +2,22 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.51.0] - 2026-11-06
+
+### Added
+
+- `duplo-local-agents` 1.0.0: junta `herdr-agentes`, `herdr-mesa` e o `mux.sh` da `prime-agent` numa skill só, independente do multiplexador (herdr, tmux ou nenhum). Detalhe em `skills/duplo-local-agents/CHANGELOG.md`.
+- `envless` 0.1.0: o segredo entra no comando pelo `envless exec`, nunca na conversa; `list` sem valores, `set` pelo stdin, `get` só com `--confirm`.
+- `disky` 0.1.0: o diagnóstico de disco com o disky e a tabela de limpeza que o dono aprova antes de qualquer apagamento.
+- `prime-agent` 0.4.0: ids TNN/HNN nos panes, `mux.sh fila` (o padrão para mandar) e a skill Python `mux`; o `mux.sh` passa a viver na `duplo-local-agents`.
+- `pi` 0.3.3: `contas-tokens.sh` (os tokens do `setup-token` do envless na extensão `pi-claude-accounts`, principal primeiro).
+
+### Removed
+
+- `herdr-agentes` e `herdr-mesa` (e o `mesa.sh`, o `cartao.py`); o que a `herdr-agentes` ganhou na main desde o #5 foi para a `duplo-local-agents`.
+
+(Reaplica os PRs #2, #3, #4 e #5 sobre a main.)
+
 ## [0.50.0] - 2026-11-06
 
 ### Added

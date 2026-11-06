@@ -1,6 +1,6 @@
 ---
 name: tmux
-description: Faz tudo o que um agente precisa nos panes e janelas do tmux por scripts, sem montar comando na mão. Lê as últimas linhas de um pane, lista sessões, janelas e panes com comando e pasta, manda texto (inclusive um comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, e espera um pane mostrar um texto, com prazo. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "o que a janela bili-sonnet está mostrando", "renomeia a janela". Para abas e sessões do herdr use a `herdr-agentes`; esta é só do tmux.
+description: Faz tudo o que um agente precisa nos panes e janelas do tmux por scripts, sem montar comando na mão. Lê as últimas linhas de um pane, lista sessões, janelas e panes com comando e pasta, manda texto (inclusive um comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, e espera um pane mostrar um texto, com prazo. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "o que a janela bili-sonnet está mostrando", "renomeia a janela". Para abas e sessões do herdr use a `duplo-local-agents`; esta é só do tmux.
 metadata:
   version: 0.1.1
 ---
@@ -9,7 +9,7 @@ metadata:
 
 Toda necessidade de tmux de um agente passa por aqui, e quem precisar de algo novo evolui os scripts (e o `CHANGELOG.md`), em vez de improvisar. Scripts em `scripts/` (nesta pasta); chame pelo caminho completo. Nenhum script daqui mata sessão ou servidor.
 
-Isto é para panes e janelas do **tmux**. As abas e sessões de agente do **herdr** são da skill `herdr-agentes`. O `prime-agent/scripts/mux.sh` continua como está.
+Isto é para panes e janelas do **tmux**. As abas e sessões de agente do **herdr** são da skill `duplo-local-agents`, que também fala com o tmux pelo `mux.sh` dela.
 
 ## Alvos (o argumento `<alvo>`)
 
