@@ -21,6 +21,8 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 - The view state is closed as a value object (`scripts/view_state.py`: Goal, Stage with the Definition of Ready, Step, Artifact, Decision, Worker, and `check`); `view.py` refuses any write outside the shape; `view_state.py check <view.json>` validates a file.
 - Definition of Ready: `view.py stage check add "<item>"` / `check <n> done`; the % ready comes from the list, drawn under the stage line while in the Upstream.
 - Grayscale with one accent (a lighter bordô, `#c4405e`) for what moves or waits for the owner; hierarchy from weight, type and space.
+- The Definitions of Ready are a catalog the agents improve from use, `templates/ready.json`: `base` (the domain drawn in the dev-console, the widgets of each event, the backbrief confirmed) at every thread's birth, plus one list per kind of work (`tui`, `web`) added with `view.py stage check template <kind>`.
+- The shape line (`--no-shape` opts out) now reaches the thread view's queue too: it is applied before either path takes the brief.
 
 ### Fixed
 

@@ -8,6 +8,7 @@ threadview.py draws it; the SKILL.md points here instead of repeating it. Python
 from __future__ import annotations
 
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -113,20 +114,23 @@ class ViewState:
     workers: List[Worker] = field(default_factory=list)
 
 
-# The house's Definition of Ready: what is usually true before any Downstream starts. The agent drops what does not
-# apply to its thread and adds what is specific to it.
-DEFAULT_READY = (
-    "domínio desenhado no dev-console (eventos e transições)",
-    "widgets de cada evento desenhados",
-    "backbrief confirmado pelo dono",
-)
+# The Definitions of Ready live in templates/ready.json (base + one list per kind of work: tui, web, ...): a file the
+# agents edit from use, not a list frozen in code. Every thread is born with "base".
+READY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates", "ready.json")
+
+
+def ready_templates() -> dict:
+    try:
+        with open(READY_FILE) as f: return json.load(f)
+    except Exception:
+        return {"base": []}
 
 
 def template() -> dict:
     """What every thread is born with: in progress in the Upstream, with the house's Definition of Ready."""
     return {"goal": {"title": "", "subtitle": ""},
             "stage": {"upstream": "doing", "downstream": "todo", "ready": 0,
-                      "checklist": [{"text": t, "done": False} for t in DEFAULT_READY]},
+                      "checklist": [{"text": t, "done": False} for t in ready_templates().get("base", [])]},
             "steps": [], "artifacts": [], "decision": None, "pulse": ""}
 
 

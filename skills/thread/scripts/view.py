@@ -15,7 +15,7 @@ The human never reads the agent's chat text; they read this screen.
   view.py <sid> stage upstream|downstream doing|done   the thread's lane: the agent marks the Upstream done (ready);
         only the owner moves it to the Downstream (the screen's D key: stage downstream doing --by owner)
   view.py <sid> stage ready <0-100>           how ready for the Downstream the agent thinks the thread is (100 = Upstream done)
-  view.py <sid> stage check add "<item>" | check <n> done|todo | check clear
+  view.py <sid> stage check add "<item>" | check <n> done|todo | check template <kind> | check clear
         the Definition of Ready: what must be true to start the Downstream; with a list, the % is items done / total
   view.py <sid> worker add <id> "<what it does>" [--pid PID]   register background work (Agentes queue)
   view.py <sid> worker done <id> ["<result>"]  |  worker fail <id> "<why>"
@@ -28,7 +28,7 @@ Rules: short, for a human. One goal. 3-6 steps. A decision only when the owner m
 import json, os, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from view_state import check, template  # the view state, closed as a value object
+from view_state import check, ready_templates, template  # the view state, closed as a value object
 
 ROOT = os.path.expanduser(os.environ.get("THREADVIEW_DIR", "~/.local/state/threadview"))
 STATES = {"done", "doing", "blocked", "todo"}
@@ -200,8 +200,14 @@ def main(a):
             ck[n - 1]["done"] = rest[2] == "done"
         elif rest[1:2] == ["clear"]:
             sg["checklist"] = ck = []
+        elif rest[1:2] == ["template"] and len(rest) > 2:
+            # add a kind's Definition of Ready (tui, web, ...) to the list; templates/ready.json is the catalog
+            t = ready_templates()
+            if rest[2] not in t: die(f"no template {rest[2]!r}; there are {sorted(t)} (create it in templates/ready.json)")
+            have = {c["text"] for c in ck}
+            ck.extend({"text": x, "done": False} for x in t[rest[2]] if x not in have)
         else:
-            die('stage check add "<item>" | stage check <n> done|todo | stage check clear')
+            die('stage check add "<item>" | check <n> done|todo | check template <kind> | check clear')
         if ck:
             sg["ready"] = round(100 * sum(1 for c in ck if c["done"]) / len(ck))
             if sg.get("downstream", "todo") == "todo":
