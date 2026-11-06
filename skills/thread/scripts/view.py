@@ -12,6 +12,11 @@ The human never reads the agent's chat text; they read this screen.
         view.py renumbers by rank: 01 is always the most recommended, artifacts follow the same numbers
   view.py <sid> decision --clear
   view.py <sid> pulse "<one line of life>"
+  view.py <sid> stage upstream|downstream doing|done   the thread's lane: the agent marks the Upstream done (ready);
+        only the owner moves it to the Downstream (the screen's D key: stage downstream doing --by owner)
+  view.py <sid> stage ready <0-100>           how ready for the Downstream the agent thinks the thread is (100 = Upstream done)
+  view.py <sid> stage check add "<item>" | check <n> done|todo | check template <kind> | check clear
+        the Definition of Ready: what must be true to start the Downstream; with a list, the % is items done / total
   view.py <sid> worker add <id> "<what it does>" [--pid PID]   register background work (Agentes queue)
   view.py <sid> worker done <id> ["<result>"]  |  worker fail <id> "<why>"
 
@@ -22,6 +27,9 @@ Rules: short, for a human. One goal. 3-6 steps. A decision only when the owner m
 """
 import json, os, sys, tempfile, time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from view_state import check, ready_templates, template  # the view state, closed as a value object
+
 ROOT = os.path.expanduser(os.environ.get("THREADVIEW_DIR", "~/.local/state/threadview"))
 STATES = {"done", "doing", "blocked", "todo"}
 
@@ -31,9 +39,12 @@ def load(sid):
     try:
         with open(path(sid)) as f: return json.load(f)
     except FileNotFoundError:
-        return {"goal": {"title": "", "subtitle": ""}, "steps": [], "artifacts": [], "decision": None, "pulse": ""}
+        return template()
 
 def save(sid, v):
+    problems = check(v)
+    if problems:  # nothing outside the shape reaches the screen
+        die("; ".join(problems))
     os.makedirs(ROOT, exist_ok=True)
     v["updated_at"] = time.time()
     fd, tmp = tempfile.mkstemp(dir=ROOT, suffix=".tmp")
@@ -177,6 +188,50 @@ def main(a):
             if not w: die(f"no worker {wid}")
             w.update(state=sub, ended_at=time.time(), note=rest[2] if len(rest) > 2 else "")
         else: die("worker add|done|fail")
+    elif cmd == "stage" and rest[:1] == ["check"]:
+        # the Definition of Ready: what must be true to start the Downstream; with a list, the % comes from it
+        sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        ck = sg.setdefault("checklist", [])
+        if rest[1:2] == ["add"] and len(rest) > 2:
+            ck.append({"text": rest[2], "done": False})
+        elif len(rest) > 2 and rest[1].isdigit() and rest[2] in ("done", "todo"):
+            n = int(rest[1])
+            if not 1 <= n <= len(ck): die(f"no item {n}; there are {len(ck)}")
+            ck[n - 1]["done"] = rest[2] == "done"
+        elif rest[1:2] == ["clear"]:
+            sg["checklist"] = ck = []
+        elif rest[1:2] == ["template"] and len(rest) > 2:
+            # add a kind's Definition of Ready (tui, web, ...) to the list; templates/ready.json is the catalog
+            t = ready_templates()
+            if rest[2] not in t: die(f"no template {rest[2]!r}; there are {sorted(t)} (create it in templates/ready.json)")
+            have = {c["text"] for c in ck}
+            ck.extend({"text": x, "done": False} for x in t[rest[2]] if x not in have)
+        else:
+            die('stage check add "<item>" | check <n> done|todo | check template <kind> | check clear')
+        if ck:
+            sg["ready"] = round(100 * sum(1 for c in ck if c["done"]) / len(ck))
+            if sg.get("downstream", "todo") == "todo":
+                sg["upstream"] = "done" if sg["ready"] == 100 else "doing"
+    elif cmd == "stage" and rest[:1] == ["ready"]:
+        # the Upstream's goal is to be ready for the Downstream: the agent's own estimate, 0-100
+        pct = (rest + ["", ""])[1].rstrip("%")
+        if not pct.isdigit() or not 0 <= int(pct) <= 100: die("stage ready <0-100>")
+        sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        sg["ready"] = int(pct)
+        if sg.get("downstream", "todo") == "todo":  # in the Upstream the % decides: 100 is ready, below is still in progress
+            sg["upstream"] = "done" if int(pct) == 100 else "doing"
+    elif cmd == "stage":
+        lane, st = (rest + ["", ""])[:2]
+        owner = "--by" in rest and rest[rest.index("--by") + 1:rest.index("--by") + 2] == ["owner"]
+        if lane not in ("upstream", "downstream") or st not in ("doing", "done"):
+            die("stage upstream|downstream doing|done [--by owner]")
+        sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        if lane == "downstream" and sg.get("downstream", "todo") == "todo" and not owner:
+            # only the owner moves a thread to the Downstream (the kanban rule); the agent marks the Upstream ready
+            die("only the owner moves a thread to the Downstream: mark `stage upstream done` (ready) and wait for him")
+        sg[lane] = st
+        if lane == "downstream":
+            sg["upstream"] = "done"
     elif cmd == "pulse":
         v["pulse"] = rest[0] if rest else ""
     elif cmd == "put":

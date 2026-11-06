@@ -1,0 +1,16 @@
+{
+  "base": [
+    "domínio desenhado no dev-console (eventos e transições)",
+    "widgets de cada evento desenhados",
+    "backbrief confirmado pelo dono"
+  ],
+  "tui": [
+    "cabe em 1/3 da tela (88 colunas)",
+    "tons de cinza com um acento só; hierarquia por peso, tipo e espaço",
+    "testado no pane real com pane.sh do (teclas e leitura num tiro)"
+  ],
+  "web": [
+    "segue o look do dev-console (escuro, monoespaçado, tela cheia)",
+    "aberto no dev-console e conferido com devc shot"
+  ]
+}

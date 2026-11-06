@@ -2,6 +2,32 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-11-06
+
+### Changed
+
+- A thread opens **the thread agent** by default: the same offline branch (fork.py), run headless, with the tab running the thread view (`threadview.py <new id>`) and the brief as the first message of its queue (no paste, no waiting for the Hermes TUI). `--cli` (or `THREAD_UI=cli`) keeps the Hermes CLI; `--new` always uses it.
+- SKILL.md: the thread shape (goal, steps, artifacts, decision, pulse, workers) written as the model's contract.
+- Stage (Upstream → Downstream): every thread is born from the template in progress in the Upstream; `view.py stage upstream done` checks it and starts the Downstream; `stage downstream done` ends it. Drawn as one strip at the top.
+- 20/80 screen: done steps collapse to one line, the step that moves or blocks shows whole with its note; an empty section is not drawn; the pulse is one line; the view draws at most 88 columns (a third of the screen, `THREADVIEW_WIDTH`).
+
+- The lane's state comes from the screen: with a decision open it reads `◆ esperando você` (bordô), never "em progresso"; Agentes shows the Hermes subagents of the thread's tab (`@subagents`) besides the workers, and the prompt says that Downstream in progress means someone working, registered there.
+
+- The Upstream's goal is to be ready for the Downstream: `view.py stage ready <0-100>` (in the template, 0 at birth), drawn as `UPSTREAM 70% pronto ▰▰▰▰▰▰▰▱▱▱`; 100 marks it ready and the owner moves it (D). Only the owner moves a thread to the Downstream (`--by owner`); the agent is refused.
+- Agentes shows N subagents in parallel, one line each, read from Hermes's `async_delegations` of the thread's session (a batch "N parallel subagents: a; b" becomes N lines; done ones stay 15 s). `THREADVIEW_DB` points it at another database (tests).
+- Related (part of the template): artifacts that are not images (the skill, the domain, the PR, the card) are link lines.
+- The stage line is the first line; the subtitle keeps its indent; a decision is only for when the thread waits for the owner.
+
+- The view state is closed as a value object (`scripts/view_state.py`: Goal, Stage with the Definition of Ready, Step, Artifact, Decision, Worker, and `check`); `view.py` refuses any write outside the shape; `view_state.py check <view.json>` validates a file.
+- Definition of Ready: `view.py stage check add "<item>"` / `check <n> done`; the % ready comes from the list, drawn under the stage line while in the Upstream.
+- Grayscale with one accent (a lighter bordô, `#c4405e`) for what moves or waits for the owner; hierarchy from weight, type and space.
+- The Definitions of Ready are a catalog the agents improve from use, `templates/ready.json`: `base` (the domain drawn in the dev-console, the widgets of each event, the backbrief confirmed) at every thread's birth, plus one list per kind of work (`tui`, `web`) added with `view.py stage check template <kind>`.
+- The shape line (`--no-shape` opts out) now reaches the thread view's queue too: it is applied before either path takes the brief.
+
+### Fixed
+
+- `i` (answer something else) no longer hides the open decision; only a decision edge answers it.
+
 ## [0.9.0] - 2026-11-06
 
 ### Added

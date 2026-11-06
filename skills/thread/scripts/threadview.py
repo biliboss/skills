@@ -12,19 +12,23 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from rich.padding import Padding
 from rich import box
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VIEWS = os.path.expanduser(os.environ.get("THREADVIEW_DIR", "~/.local/state/threadview"))
+KANBAN = os.path.normpath(os.path.join(HERE, "..", "..", "kanban", "scripts", "kanban.sh"))
 TOURNAMENT = os.path.normpath(os.path.join(HERE, "..", "..", "choice", "scripts", "tournament.py"))
 SID = sys.argv[1]
 PROFILE = os.environ.get("TV_PROFILE", "bili")
-DB = os.path.expanduser(f"~/.hermes/profiles/{PROFILE}/state.db")
+DB = os.environ.get("THREADVIEW_DB") or os.path.expanduser(f"~/.hermes/profiles/{PROFILE}/state.db")
 VIEW = os.path.join(VIEWS, f"{SID}.json")
 VIEWPY = os.path.join(HERE, "view.py")
 LOG = os.path.join(VIEWS, f"{SID}.hermes.log")
-BORDO, DIM, ACC = "#800020", "grey50", "#d7875f"
-c = Console()
+BORDO = ACC = "#c4405e"   # the single accent: what is moving or waits for the owner
+DIM, MID, HI = "grey50", "grey70", "bright_white"
+# the thread view is designed for a third of the screen: it draws at most THREADVIEW_WIDTH columns (default 88)
+c = Console(width=min(shutil.get_terminal_size((88, 40)).columns, int(os.environ.get("THREADVIEW_WIDTH", "88"))))
 LABELS = [False]
 
 WRAP = """[thread view] Gabriel digitou na thread view: «{msg}»
@@ -34,6 +38,11 @@ Você é o agente normal desta thread e pode fazer qualquer coisa, mas a priorid
 - O seu turno tem que acabar em até 10 segundos. Atualize a tela primeiro.
 - Trabalho que passa de 10 s (gerar, codar, buildar) vai para um worker: registre com `worker add <id> "<o que faz>"`, rode em background desacoplado (nohup … &) e faça o comando terminar chamando `worker done <id> "<resultado>"` (ou `worker fail`). Ele aparece na fila Agentes, no topo da tela.
 - No texto, fale das opções pelo NOME (nunca letra nem número: a numeração muda pelo ranking). Sem artefato "comparativo": a galeria já compara.
+- Downstream em progresso = trabalho rodando: quem trabalha aparece em Agentes (`worker add <id> "<o que faz>"`, inclusive outra thread ou um subagente que faz o trabalho; `worker done` quando acaba). Esperar uma escolha do dono não é progresso: a tela mostra "esperando você" sozinha.
+- No Upstream o objetivo é ficar pronta para o Downstream. Mantenha a Definition of Ready: `stage check add "<o que precisa ser verdade>"` (3 a 6 itens concretos) e `stage check <n> done` quando cumprir; o % sai da lista. A thread nasce com a Definition of Ready da casa (o "base" de templates/ready.json); trabalho de TUI ou web soma o template do tipo (`stage check template tui|web`). O catálogo é seu para melhorar: item que você acrescentou à mão e que vale para o tipo, ou que o dono pediu, vai para templates/ready.json; um tipo novo de trabalho ganha a sua lista. Em 100%, espere o dono mover (D).
+- Estágio da thread: nasce em progresso no Upstream; quando o Upstream conclui, `stage upstream done` (pronto) e ESPERE: só o dono a move para o Downstream (tecla D na tela). Nunca construa antes disso. No fim do Downstream, `stage downstream done`.
+- Relacionados (padrão de toda thread): registre em artifacts o que a thread toca, com path ou url: a skill, o domínio do dev-console, o PR, o cartão. Imagem vira quadro; o resto vira linha com link.
+- Decisão é a ferramenta de pergunta da tela: só quando ESTA thread está parada esperando o dono. Nunca para oferecer o próximo assunto, abrir outra thread ou pedir permissão para seguir: isso vira um passo (todo) ou uma linha do pulse.
 - Escolher entre opções (logo, tela, nome, texto) é um torneio: siga a skill choice (rode python3 {tourn} …, com --thread {sid}). Mensagem "torneio <slug>: …" é a resposta do dono a uma rodada, já registrada pela tela: não rode answer de novo; desenhe a próxima rodada (worker) e chame round.
 - Opção da decisão = "<key do artefato> · <nome>". O view.py renumera tudo por ranking: 01 é sempre a mais recomendada, e os artefatos seguem o mesmo número.
 - Decisão com opções: cada opção leva o seu % de certeza, somando 100 (--option "<rótulo>" <pct>); a primeira é sempre a recomendada.
@@ -55,42 +64,139 @@ def load_view():
 def tag(r, name):
     if not LABELS[0]: return r
     g = Table.grid(expand=True); g.add_column(ratio=1); g.add_column(width=12, justify="right")
-    g.add_row(r, Text(name, style="italic magenta")); return g
+    g.add_row(r, Text(name, style="italic " + DIM)); return g
 
 def section(name, on=False): return Text.assemble(("● " if on else "", ACC), (name.upper(), f"bold {ACC}" if on else f"bold {DIM}"))
 
-MARK = {"done": ("✓", "green"), "doing": ("◐", ACC), "blocked": ("■", f"bold {BORDO}"), "todo": ("○", DIM)}
+MARK = {"done": ("✓", MID), "doing": ("◐", ACC), "blocked": ("■", f"bold {BORDO}"), "todo": ("○", DIM)}
+
+SUBAGENTS = {"n": 0, "since": time.time(), "checked": 0}
+
+DELEG = {"rows": [], "checked": 0}
+
+def delegations():
+    """This thread's Hermes subagents (delegate_task), one line each: running, or done in the last 15 s. A batch
+    ("N parallel subagents: a; b") becomes N lines."""
+    if time.time() - DELEG["checked"] >= 2:
+        DELEG["checked"] = time.time()
+        rows = []
+        try:
+            con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+            q = con.execute("select delegation_id, state, dispatched_at, completed_at, json_extract(task_json,'$.goal') "
+                            "from async_delegations where parent_session_id=? and (state='running' or completed_at > ?)",
+                            (SID, time.time() - 15)).fetchall()
+            con.close()
+        except Exception:
+            q = []
+        for did, state, t0, t1, goal in q:
+            goal = (goal or did).strip()
+            if ":" in goal and goal.split(":")[0].split()[-1:] == ["subagents"]: goal = goal.split(":", 1)[1]
+            for g in [x.strip() for x in goal.split(";") if x.strip()]:
+                rows.append({"id": did, "what": g.replace("biliboss/skills · ", ""), "started_at": t0, "ended_at": t1,
+                             "state": {"running": "running", "completed": "done"}.get(state, "fail")})
+        DELEG["rows"] = rows
+    return DELEG["rows"]
+
+def read_subagents():
+    """The Hermes subagents running for this thread: @subagents on the tab whose @hsid is this session."""
+    if time.time() - SUBAGENTS["checked"] < 2: return
+    SUBAGENTS["checked"] = time.time()
+    try:
+        out = subprocess.run(["tmux", "list-windows", "-a", "-F", "#{@hsid} #{@subagents}"], capture_output=True, text=True, timeout=2).stdout
+        n = next((int(l.split()[1]) for l in out.splitlines() if l.split()[:1] == [SID] and len(l.split()) > 1 and l.split()[1].isdigit()), 0)
+    except Exception:
+        n = 0
+    if n and not SUBAGENTS["n"]: SUBAGENTS["since"] = time.time()
+    SUBAGENTS["n"] = n
 
 def body(v, flash={}):
+    read_subagents()
     fl = lambda k: ("● ", ACC) if k in flash else ("", "")
     parts = []
+    sg = v.get("stage")
+    if sg:  # the thread's lane: Upstream, then Downstream (an optional component, on by the thread template)
+        def lane(name, st):
+            if st == "done": return [("✓ ", MID), (name, "bold " + MID)]
+            if st == "doing":
+                return [("◐◓◑◒"[int(time.time() * 3) % 4] + " ", ACC), (name, f"bold {ACC}"), ("  em progresso", ACC)]
+            return [("○ ", DIM), (name, DIM)]
+        # the lane's state comes from the screen, not only from what was declared: an open decision means the
+        # thread waits for the owner, whatever the lane says
+        waiting = bool(poll_of(v)) or bool((v.get("decision") or {}).get("text"))
+        cur = "downstream" if sg.get("downstream") in ("doing", "done") else "upstream"
+        def lane2(name, key):
+            st = sg.get(key, "todo")
+            if key == "upstream" and st == "doing" and "ready" in sg and not waiting:
+                r = int(sg.get("ready") or 0); n = round(r / 10)
+                return lane(name, st)[:2] + [(f"  {r}% pronto ", f"bold {ACC}"), ("▰" * n, ACC), ("▱" * (10 - n), "grey30")]
+            if key == "downstream" and st == "todo" and sg.get("upstream") == "done":
+                return [("◆ ", f"bold {BORDO}"), (name, f"bold {BORDO}"), ("  pronto · D move para cá", BORDO)]
+            if key == cur and st == "doing" and waiting:
+                return [("◆ ", f"bold {BORDO}"), (name, f"bold {BORDO}"), ("  esperando você", BORDO)]
+            return lane(name, st)
+        parts.append(tag(Text.assemble(*lane2("UPSTREAM", "upstream"), ("   ──▶   ", DIM),
+                                       *lane2("DOWNSTREAM", "downstream")), "Stage"))
+        ck = sg.get("checklist") or []
+        if ck and sg.get("downstream", "todo") == "todo":  # the Definition of Ready, only while in the Upstream
+            ct = Table.grid(padding=(0, 1)); ct.add_column(width=4); ct.add_column(ratio=1)
+            for c in ck:
+                ct.add_row(Text("  ☑" if c["done"] else "  ☐", MID if c["done"] else DIM),
+                           Text(c["text"], DIM if c["done"] else ""))
+            parts.append(tag(ct, "Ready"))
+        parts.append(Text())
     ws = [w for w in v.get("workers", []) if w.get("state") == "running" or time.time() - (w.get("ended_at") or 0) < 15]
+    dl = delegations()
+    ws = ws + dl
+    subs = SUBAGENTS["n"]
+    if subs and not [d for d in dl if d["state"] == "running"]:  # the tab knows a count but the database has no rows
+        ws = ws + [{"id": "sub", "what": f"{subs} subagente{'s' if subs > 1 else ''} do Hermes", "state": "running",
+                    "started_at": SUBAGENTS["since"]}]
     if ws:
-        wt = Table.grid(expand=True, padding=(0, 1)); wt.add_column(width=1); wt.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
-        wt.add_column(justify="right"); wt.add_column(width=5, justify="right")
+        wt = Table.grid(expand=True, padding=(0, 1)); wt.add_column(width=1); wt.add_column(ratio=1)
+        wt.add_column(width=0); wt.add_column(width=5, justify="right")
         for w in ws:
             st = w.get("state")
             if st == "running" and w.get("pid"):
                 try: os.kill(w["pid"], 0)
                 except OSError: st = "lost"
-            glyph = {"running": ("◐◓◑◒"[int(time.time() * 3) % 4], ACC), "done": ("✓", "green"), "fail": ("✗", "red"), "lost": ("?", "red")}[st]
+            glyph = {"running": ("◐◓◑◒"[int(time.time() * 3) % 4], ACC), "done": ("✓", MID), "fail": ("✗", ACC), "lost": ("?", ACC)}[st]
             end = w.get("ended_at") or time.time()
-            wt.add_row(Text(*glyph), Text(w.get("what", w["id"]), "" if st == "running" else DIM),
-                       Text(w.get("note", "") if st != "lost" else "sumiu", DIM), Text(ago(end - w["started_at"]), DIM))
+            what = Text(w.get("what", w["id"]), "bold" if st == "running" else DIM)
+            note = w.get("note", "") if st != "lost" else "sumiu"
+            if note: what.append("\n" + note, style=DIM)  # the name first; the note under it, never squeezing it
+            wt.add_row(Text(*glyph), what, Text(""), Text(ago(end - w["started_at"]), DIM))
         parts += [section("agentes", "workers" in flash), tag(wt, "Agents"), Text()]
     g = v.get("goal") or {}
     title = Text.assemble(fl("goal"), ("▍", ACC), (" " + (g.get("title") or ""), "bold bright_white"))
-    if g.get("subtitle"): title.append("\n  " + g["subtitle"], style=f"italic {DIM}")
+    if g.get("subtitle"):
+        title = Group(title, Padding(Text(g["subtitle"], style=f"italic {DIM}"), (0, 0, 0, 2)))
     parts += [tag(title, "Goal"), Text()]
-    if v.get("steps"):
-        st = Table.grid(padding=(0, 1), expand=True); st.add_column(width=2); st.add_column(no_wrap=True); st.add_column(justify="right", ratio=1, no_wrap=True, overflow="ellipsis")
-        for s in v["steps"]:
-            m, sty = MARK.get(s.get("state", "todo"), MARK["todo"])
-            todo = s.get("state", "todo") == "todo"
-            st.add_row(Text(m, sty), Text(s.get("text", ""), DIM if todo else ("bold" if s.get("state") in ("doing", "blocked") else "")),
-                       Text(s.get("note", ""), BORDO if s.get("state") == "blocked" else DIM))
+    if v.get("steps"):  # 20/80: what is done collapses to one line; what moves or blocks shows whole
+        done = [x for x in v["steps"] if x.get("state") == "done"]
+        st = Table.grid(padding=(0, 1), expand=True); st.add_column(width=2); st.add_column(ratio=1)
+        if done:
+            st.add_row(Text("✓", MID), Text(f"{len(done)} feito{'s' if len(done) > 1 else ''}", DIM))
+        for x in v["steps"]:
+            if x.get("state") == "done": continue
+            m, sty = MARK.get(x.get("state", "todo"), MARK["todo"])
+            todo = x.get("state", "todo") == "todo"
+            body = Text(x.get("text", ""), DIM if todo else "bold")
+            if x.get("note") and not todo:
+                body.append("\n" + x["note"], style=BORDO if x.get("state") == "blocked" else DIM)
+            st.add_row(Text(m, sty), body)
         parts += [section("passos", "steps" in flash), tag(st, "Steps"), Text()]
-    if v.get("artifacts"):
+    # artifacts that are not images (a domain, a skill, a PR, a card) are lines with their link, never image boxes
+    IMG = (".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp")
+    links = [x for x in v.get("artifacts", []) if x.get("state") != "drawing" and not str(x.get("path", "")).lower().endswith(IMG)]
+    if links:
+        lt = Table.grid(padding=(0, 1)); lt.add_column(width=2); lt.add_column()
+        for x in links:
+            where = str(x.get("url") or x.get("path") or "").replace(os.path.expanduser("~"), "~")
+            lt.add_row(Text("↗", ACC), Text.assemble((x.get("name", ""), "bold"), (f"  {where}", f"{DIM} link {x.get('url') or 'file://' + str(x.get('path', ''))}")))
+        parts += [section("relacionados", "artifacts" in flash), tag(lt, "Related"), Text()]
+    v = dict(v, artifacts=[x for x in v.get("artifacts", []) if x not in links])
+    _keys = {o["label"].split("·")[0].strip() for o in ((v.get("decision") or {}).get("options") or []) if isinstance(o, dict)}
+    if [x for x in v.get("artifacts", []) if x.get("key") and (not _keys or x.get("key") in _keys)]:
         sl = Table.grid(padding=(0, 2))
         for _ in range(4 if (v.get("decision") or {}).get("options") else len(v["artifacts"])): sl.add_column(justify="center")
         cells = []
@@ -100,12 +206,12 @@ def body(v, flash={}):
                 ph = int(time.time() * 6) + 2 * cells.__len__()
                 fill = ("░▒▓█▓▒"[ph % 6] + "░▒▓█▓▒"[(ph + 1) % 6], ACC)
             else:
-                fill = ("▓▓", "green") if a.get("state") == "ready" else ("░░", DIM)
+                fill = ("▓▓", MID) if a.get("state") == "ready" else ("░░", DIM)
             name = a.get("name", "").split(":")[0].split("(")[0].strip()[:12]
             rec = "recomend" in a.get("name", "").lower()
             cells.append(Text.assemble(("┌────┐\n│ ", ACC if rec else DIM), fill, (" │\n└────┘\n", ACC if rec else DIM),
                                        (a.get("key", ""), "bold"), (f" {name}", ACC if rec else DIM), (" ★" if rec else "", ACC),
-                                       (f"\n♛ {a['wins']}×" if a.get("wins") else "", "#e5c07b")))
+                                       (f"\n♛ {a['wins']}×" if a.get("wins") else "", MID)))
         sl.add_row(*cells)
         parts += [section("artefatos", "artifacts" in flash), tag(sl, "Artifacts")]
         if v.get("url"):
@@ -119,13 +225,15 @@ def body(v, flash={}):
         if d.get("cmd"): t.append("\n\n"); t.append(d["cmd"], style=f"bold {ACC}")
         if d.get("options"):
             t.append("\n\n")
-            for i, o in enumerate(d["options"], 1): t.append(f" {i} {label(o)} ", style="black on cyan" if i > 1 else "black on green"); t.append("  ")
+            for i, o in enumerate(d["options"], 1): t.append(f" {i} {label(o)} ", style="reverse " + DIM if i > 1 else "reverse"); t.append("  ")
         parts += [tag(Panel(t, title="◆ com você" + (" · novo" if "decision" in flash else ""), title_align="left", border_style=BORDO, box=box.HEAVY, padding=(0, 1)), "Decision"), Text()]
     if v.get("pulse") and not drawing(v):
-        parts.append(tag(Text.assemble(("◌ ", ACC if "pulse" in flash else DIM), (v["pulse"], ACC if "pulse" in flash else DIM)), "Pulse"))
+        pl = Text.assemble(("◌ ", ACC if "pulse" in flash else DIM), (v["pulse"], ACC if "pulse" in flash else DIM))
+        pl.no_wrap, pl.overflow = True, "ellipsis"
+        parts.append(tag(pl, "Pulse"))
     return Group(*parts)
 
-SECTIONS = {"workers": "agentes", "goal": "título", "steps": "passos", "artifacts": "artefatos", "decision": "decisão", "pulse": "pulse"}
+SECTIONS = {"stage": "estágio", "workers": "agentes", "goal": "título", "steps": "passos", "artifacts": "artefatos", "decision": "decisão", "pulse": "pulse"}
 QFILE = os.path.join(VIEWS, f"{SID}.queue.json")
 BUDGET = 10  # the thread agent's turn must end within this; past it, the answer only counts once logged
 OVERRUN = os.path.join(VIEWS, f"{SID}.overrun.log")
@@ -142,14 +250,14 @@ def line(it):
     if it["state"] == "queued":
         glyph, gs, ticks, ts, timer, txt = "⋯", DIM, "", DIM, ago(now - it["at"]), DIM
     elif it.get("failed"):
-        glyph, gs, ticks, ts, timer, txt = "✗", "red", "falhou", "red", ago(it["done_at"] - it["sent_at"]), DIM
+        glyph, gs, ticks, ts, timer, txt = "✗", ACC, "falhou", ACC, ago(it["done_at"] - it["sent_at"]), DIM
     elif it.get("done_at"):
         ch = it.get("changed")
-        glyph, gs, ticks, ts, timer, txt = "✓", "green", ("↻ " + ", ".join(ch)) if ch else "sem mudança", ACC if ch else DIM, ago(it["done_at"] - it["sent_at"]), DIM
+        glyph, gs, ticks, ts, timer, txt = "✓", MID, ("↻ " + ", ".join(ch)) if ch else "sem mudança", ACC if ch else DIM, ago(it["done_at"] - it["sent_at"]), DIM
         if it.get("over"): glyph, gs, ticks, ts = "⚠", ACC, ticks + " · log", ACC
     else:
         glyph, gs = "◐◓◑◒"[int(now * 3) % 4], ACC
-        ticks, ts = ("✓✓", "green") if it["read"] else ("✓", "green")
+        ticks, ts = ("✓✓", MID) if it["read"] else ("✓", MID)
         timer, txt = ago(now - it["sent_at"]), "bright_white"
         if now - it["sent_at"] > BUDGET: glyph, gs = "◆", "bold " + ACC
     g = Table.grid(expand=True, padding=(0, 1))
@@ -217,7 +325,7 @@ def poll_panel(d, v):
         t.append(name(o).ljust(w), style="bold bright_white" if on else "")
         if isinstance(o, dict) and "pct" in o:
             n = round(o["pct"] / 10)
-            t.append("  " + "█" * n, style=ACC if i == 0 else "grey62"); t.append("░" * (10 - n), style="grey30")
+            t.append("  " + "█" * n, style=ACC if i == 0 else MID); t.append("░" * (10 - n), style="grey30")
             t.append(f" {o['pct']:>3}%", style=f"bold {ACC}" if i == 0 else DIM)
         if i == 0: t.append("  recomendado", style=f"italic {DIM}")
     keys = "j/k mover · ⏎ enviar" + (f" · o {OPEN_LABEL}" if v.get("url") else "") + " · i responder outra coisa"
@@ -242,18 +350,18 @@ def waiting_panel(v):
 def footer(buf, q, v=None):
     if drawing(v) and not buf and not POLL["prefix"]:
         return Group(*([stack(q)] if q else []), tag(waiting_panel(v), "Waiting"),
-                     tag(Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
+                     tag(Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
     PEND["since"] = None if not drawing(v) else PEND["since"]
     d = poll_of(v or {}) if not buf else None
     POLL["live"] = bool(poll_of(v or {}))
     if d:
         return Group(*([stack(q)] if q else []), tag(poll_panel(d, v), "Poll"),
-                     tag(Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
+                     tag(Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
     inp = Panel(Text.assemble(("❯ ", f"bold {ACC}"), (buf, ""), ("" if buf else ("feedback para a próxima rodada" if POLL["prefix"].strip() else ("responder outra coisa" if POLL["prefix"] else "qualquer pedido")), DIM), ("▌", "blink")),
                 box=box.ROUNDED, border_style=DIM, padding=(0, 1))
     hint = Table.grid(expand=True); hint.add_column(); hint.add_column(justify="right")
     hint.add_row(Text("⏎ empilhar · ctrl+l rótulos · ctrl+c sair", style=DIM),
-                 Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM)))
+                 Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM)))
     return Group(*([stack(q)] if q else []), tag(inp, "Input"), tag(hint, "Hints"))
 
 def footer_height(q, v=None, buf=""):
@@ -295,6 +403,15 @@ try:
             if select.select([fd], [], [], 0.25)[0]:
                 data = os.read(fd, 1024).decode(errors="ignore")
                 d = poll_of(v) if not (buf or POLL["prefix"]) else None
+                sgv = v.get("stage") or {}
+                if data == "D" and not buf and not POLL["prefix"] and sgv.get("upstream") == "done" and sgv.get("downstream", "todo") == "todo":
+                    subprocess.run([sys.executable, VIEWPY, SID, "stage", "downstream", "doing", "--by", "owner"], capture_output=True)
+                    card = subprocess.run(["tmux", "list-windows", "-a", "-F", "#{@hsid} #{@card}"], capture_output=True, text=True).stdout
+                    cid = next((l.split()[1] for l in card.splitlines() if l.split()[:1] == [SID] and len(l.split()) > 1), "")
+                    if cid and os.path.exists(KANBAN):
+                        subprocess.run(["bash", KANBAN, "move", cid, "Downstream"], capture_output=True)
+                    q.append({"msg": "movi esta thread para o Downstream: pode construir", "at": time.time(), "state": "queued"}); persist(q)
+                    data = ""
                 if data == "\x1b": buf = ""; POLL["prefix"] = ""; data = ""
                 elif data.startswith("\x1b"): data = ""
                 elif d and data == "o" and v.get("url"): open_url(v["url"]); data = ""
@@ -320,8 +437,9 @@ try:
                     if ch in ("\n", "\r"):
                         if buf.strip():
                             q.append({"msg": (POLL["prefix"].strip() + " " + buf.strip()).strip(), "at": time.time(), "state": "queued"})
-                            if POLL.get("edge"): record(POLL["edge"][0], POLL["edge"][1], buf.strip()); POLL["edge"] = None
-                            if POLL["prefix"] and poll_of(v): POLL["answered"] = json.dumps(v["decision"], sort_keys=True)
+                            if POLL.get("edge"):  # a decision edge (tournament feedback) answers the poll; `i` does not
+                                record(POLL["edge"][0], POLL["edge"][1], buf.strip()); POLL["edge"] = None
+                                if poll_of(v): POLL["answered"] = json.dumps(v["decision"], sort_keys=True)
                             buf = ""; POLL["prefix"] = ""; persist(q)
                     elif ch in ("\x7f", "\b"): buf = buf[:-1]
                     elif ch == "\x0c": LABELS[0] = not LABELS[0]
