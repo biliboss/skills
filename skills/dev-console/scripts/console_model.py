@@ -48,14 +48,27 @@ def _label(s: str) -> str:
     return (s or "").replace('"', "'")
 
 
-def mermaid(slug: str) -> str:
-    """The most important picture of a domain: its entities (≤ MAX) and how they relate."""
-    phase = _rows('select * from "01_overview_diagram" where domain=? order by pos', slug)
+TITLES = {"domain": "Domínio", "architecture": "Arquitetura"}
+SHAPES = {"value": ('(["', '"])'), "aggregate": ('[["', '"]]'), "store": ('[("', '")]'), "actor": ('(("', '"))'),
+          "service": ('[/"', '"/]'), "ui": ('("', '")')}
+
+
+def diagrams(slug: str) -> list[str]:
+    """The diagram types phase 01 holds for this domain, domain first; ['domain'] when the phase is empty."""
+    ds = [r["diagram"] for r in _rows('select distinct diagram from "01_overview_diagram" where domain=?', slug)]
+    return sorted(ds, key=lambda d: (d != "domain", d)) or ["domain"]
+
+
+def mermaid(slug: str, diagram: str = "domain") -> str:
+    """One picture of phase 01 (≤ MAX nodes): the domain's entities, or the architecture's parts, and how they connect."""
+    phase = _rows('select * from "01_overview_diagram" where domain=? and diagram=? order by pos', slug, diagram)
     if phase:  # phase 01 is the curated picture: draw it as written
         ents = [{"name": r["item"], "kind": r["kind"] or "entity", "definition": r["note"], "status": r["status"]}
                 for r in phase if r["row"] == "node"]
         rels = [{"src": r["item"], "verb": r["verb"], "dst": r["target"], "cardinality": r["cardinality"]}
                 for r in phase if r["row"] == "edge"]
+    elif diagram != "domain":
+        return 'flowchart LR\n  empty["diagrama vazio"]'
     else:  # no phase 01 yet: derive it from dm_entity + dm_relation
         ents = _rows("select name, kind, definition, status from dm_entity where domain=?", slug)
         rels = _rows("select src, verb, dst, cardinality from dm_relation where domain=?", slug)
@@ -67,12 +80,12 @@ def mermaid(slug: str) -> str:
             if k in degree:
                 degree[k] += 1
     rank = {"aggregate": 0, "entity": 1, "value": 2}
-    keep = sorted(ents, key=lambda e: (rank.get(e["kind"], 3), -degree[e["name"]], e["name"]))[:MAX]
+    keep = ents[:MAX] if phase else sorted(ents, key=lambda e: (rank.get(e["kind"], 3), -degree[e["name"]], e["name"]))[:MAX]
     names = {e["name"] for e in keep}
     out = ["flowchart LR"]
     for e in keep:
         kind = e["kind"]
-        shape = ('(["', '"])') if kind == "value" else ('[["', '"]]') if kind == "aggregate" else ('["', '"]')
+        shape = SHAPES.get(kind, ('["', '"]'))
         out.append(f'  {_id(e["name"])}{shape[0]}<b>{_label(e["name"])}</b><br/><small>{kind}</small>{shape[1]}')
         out.append(f'  class {_id(e["name"])} {kind}')
         if e["status"] == "draft":
@@ -88,6 +101,11 @@ def mermaid(slug: str) -> str:
         "  classDef aggregate fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111",
         "  classDef entity fill:#dbeafe,stroke:#1d4ed8,color:#111",
         "  classDef value fill:#f3f4f6,stroke:#6b7280,color:#111",
+        "  classDef actor fill:#fce7f3,stroke:#be185d,color:#111",
+        "  classDef ui fill:#dcfce7,stroke:#15803d,color:#111",
+        "  classDef service fill:#e0e7ff,stroke:#4338ca,color:#111",
+        "  classDef code fill:#dbeafe,stroke:#1d4ed8,color:#111",
+        "  classDef store fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111",
         "  classDef draft stroke-dasharray:5 4",
     ]
     return "\n".join(out)
@@ -102,11 +120,11 @@ PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta na
 :root{{--bg:#fafaf9;--fg:#1c1917;--mute:#78716c}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#0c0a09;--fg:#f5f5f4;--mute:#a8a29e}}}}
 body{{margin:0;padding:16px 24px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}}
-h1{{font-size:20px;margin:0}} p{{color:var(--mute);margin:4px 0 16px}} #d svg{{max-width:100%;height:auto}} #d .node .nodeLabel,#d .node .nodeLabel *{{color:#111!important;fill:#111!important}}
+h1{{font-size:20px;margin:0}} p{{color:var(--mute);margin:4px 0 16px}} h2{{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:24px 0 4px}} .d svg{{max-width:100%;height:auto}} .d .node .nodeLabel,.d .node .nodeLabel *{{color:#111!important;fill:#111!important}}
 #v{{font:12px ui-monospace,monospace;color:var(--mute)}} a{{color:inherit}}
 </style></head><body>
-<h1>{name} <span id="v"></span></h1><p>{purpose}</p><div id="d"></div>
-<p>▭ entidade · ⟦⟧ aggregate · ( ) value · tracejado = draft, contínuo = real · máx. {max} itens</p>
+<h1>{name} <span id="v"></span></h1><p>{purpose}</p><div id="all"></div>
+<p>tracejado = draft, contínuo = real · máx. {max} itens por diagrama</p>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
 const dark = matchMedia('(prefers-color-scheme: dark)').matches;
@@ -116,8 +134,10 @@ async function tick(){{
   try {{
     const r = await fetch('{src}', {{cache:'no-store'}}); const j = await r.json();
     if (j.version !== cur) {{
-      cur = j.version; const {{svg}} = await mermaid.render('g' + (n++), j.mermaid);
-      document.getElementById('d').innerHTML = svg; document.getElementById('v').textContent = j.version;
+      cur = j.version; let html = '';
+      for (const d of j.diagrams) {{ const {{svg}} = await mermaid.render('g' + (n++), d.mermaid);
+        html += `<h2>${{d.title}}</h2><div class="d">${{svg}}</div>`; }}
+      document.getElementById('all').innerHTML = html; document.getElementById('v').textContent = j.version;
     }}
   }} catch (e) {{ console.log('[model]', e); }}
 }}
@@ -140,8 +160,9 @@ def register(rt, json_response):
 
     @rt("/model/{slug}.mmd")
     def model_mmd(slug: str):
-        text = mermaid(slug)
-        return json_response({"slug": slug, "version": version(text), "mermaid": text})
+        ds = [{"diagram": d, "title": TITLES.get(d, d), "mermaid": mermaid(slug, d)} for d in diagrams(slug)]
+        return json_response({"slug": slug, "version": version("".join(x["mermaid"] for x in ds)), "diagrams": ds,
+                              "mermaid": ds[0]["mermaid"]})
 
     @rt("/model/{slug}")
     def model_page(slug: str):
@@ -155,4 +176,4 @@ def register(rt, json_response):
 
 
 if __name__ == "__main__":  # console_model.py <slug>: print the Mermaid
-    print(mermaid(sys.argv[1] if len(sys.argv) > 1 else "domain-model"))
+    print(mermaid(sys.argv[1] if len(sys.argv) > 1 else "domain-model", sys.argv[2] if len(sys.argv) > 2 else "domain"))

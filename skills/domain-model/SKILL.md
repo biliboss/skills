@@ -44,7 +44,11 @@ the viewer.
   `cardinality`, pos 10+). Write it first. Choose the 9 that let a newcomer understand everything: the aggregate
   root, the entities a command touches, and the events that change them.
 
-Seed of this skill's own phase 01: `sqlite3 <db> < scripts/seed-01-overview.sql`.
+  One phase holds several diagrams of distinct types, keyed by the `diagram` column: `domain` (kind
+  aggregate|entity|value) and `architecture` (kind actor|ui|service|code|store: who writes, where it lives, how it
+  reaches the screen). Each diagram has its own 9-node cap.
+
+Seeds of this skill's own phase 01: `scripts/seed-01-overview.sql` (domain) and `scripts/seed-01-architecture.sql`.
 
 ## On screen (dev-console)
 

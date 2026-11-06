@@ -101,13 +101,15 @@ class Term(SQLModel, table=True):
 # --- Phases: one table per phase, numbered so they sort in order in any SQLite viewer ---
 
 class OverviewDiagram(SQLModel, table=True):
-    """Phase 01: the one diagram that explains the domain. At most 9 nodes; an edge row joins two of them."""
+    """Phase 01: the overview diagrams, one per type (domain, architecture...). At most 9 nodes per diagram; an edge
+    row joins two of them."""
     __tablename__ = "01_overview_diagram"
     domain: str = Field(primary_key=True, foreign_key="dm_domain.slug")
+    diagram: str = Field(primary_key=True, sa_column_kwargs={"server_default": "domain"})  # domain | architecture
     pos: int = Field(primary_key=True)          # reading order; nodes 1-9 first, then edges
     row: str = Field(sa_column_kwargs={"server_default": "node"})  # node | edge
     item: str                                   # node name, or the edge's source node
-    kind: Optional[str] = None                  # node: aggregate | entity | value
+    kind: Optional[str] = None                  # domain: aggregate|entity|value; architecture: actor|ui|service|code|store
     verb: Optional[str] = None                  # edge: the label
     target: Optional[str] = None                # edge: the destination node
     cardinality: Optional[str] = None           # edge: 1:1 | 1:N | N:1 | N:N
