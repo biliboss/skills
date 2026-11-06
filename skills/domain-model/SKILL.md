@@ -52,7 +52,7 @@ Seeds of this skill's own phase 01: `scripts/seed-01-overview.sql` (domain) and 
 
 ## On screen (dev-console)
 
-The dev-console's `console_model.py` module serves `/model/<slug>`. It reads `01_overview_diagram` (or, before the
+The dev-console's server (`dev-console.ts`, the model section) serves `/model/<slug>`. It reads `01_overview_diagram` (or, before the
 phase exists, derives the map from `dm_entity` + `dm_relation`) and redraws the Mermaid diagram every 1.5 s, but only
 when the rows changed. Draft is a dashed border, real a solid one. `/model` lists the domains.
 

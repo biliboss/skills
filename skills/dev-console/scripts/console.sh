@@ -56,9 +56,9 @@ owner_of() {
 
 # ---------------------------------------------------------------- finding instances
 
-# The listener is often a multiprocessing child of `python dev-console.py`, itself a child of `uv run --script`.
-# Walk up while the ancestors still run dev-console.py; the topmost one is what to kill and what carries the
-# tty, the start time and the herdr env. Prints "<root pid> <python pid>" (python = lowest, has the flags).
+# The listener is the `bun dev-console.ts` process (the project host, a `uv run` child, never listens).
+# Walk up while the ancestors still run dev-console.ts; the topmost one is what to kill and what carries the
+# tty, the start time and the herdr env. Prints "<root pid> <lowest pid>" (the lowest has the flags).
 instance_pids() { # <port>
   local pid root="" py="" cmd
   pid=$(lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)
@@ -66,7 +66,7 @@ instance_pids() { # <port>
     [ -n "$pid" ] && [ "$pid" != 0 ] && [ "$pid" != 1 ] || break
     cmd=$(cmd_of "$pid")
     case "$cmd" in
-      *dev-console.py*) root=$pid; [ -n "$py" ] || py=$pid ;;
+      *dev-console.ts*) root=$pid; [ -n "$py" ] || py=$pid ;;
       *) [ -z "$root" ] || break ;;
     esac
     pid=$(ppid_of "$pid")
@@ -81,7 +81,7 @@ claimed() { # <port>
   while read -r c; do
     if echo "$c" | grep -qE -- "--port[ =]$1( |\$)"; then return 0; fi
     if [ "$1" = 5057 ] && ! echo "$c" | grep -q -- '--port'; then return 0; fi
-  done < <(pgrep -fl 'dev-console\.py' 2>/dev/null | grep -v -- 'console\.sh' || true)
+  done < <(pgrep -fl 'dev-console\.ts' 2>/dev/null | grep -v -- 'console\.sh' || true)
   return 1
 }
 taken() { lsof -ti "tcp:$1" -sTCP:LISTEN >/dev/null 2>&1 || claimed "$1"; }
@@ -126,7 +126,7 @@ where_of() { # <root pid>
 
 # ---------------------------------------------------------------- domains
 
-# slug_of <project file>: the rule dev-console.py uses (SLUG in the file, else the skill folder's name).
+# slug_of <project file>: the rule dev-console.ts uses (SLUG in the file, else the skill folder's name).
 # Only for an instance too old to answer /api/domains; the API is the source of truth when it answers.
 slug_of() {
   local p="$1" s
@@ -244,7 +244,7 @@ cmd_list() {
     cmd=$(cmd_of "$py")
     found=1
     owner=$(owner_of "$p" "$root")
-    script=$(echo "$cmd" | grep -o '[^ ]*dev-console\.py' | head -1)
+    script=$(echo "$cmd" | grep -o '[^ ]*dev-console\.ts' | head -1)
     code=$(git -C "$(dirname "$script")" rev-parse --show-toplevel 2>/dev/null || dirname "$script")
     case "$cmd" in *--no-live*) live=off ;; *) live=on ;; esac
     # every domain it shows (the --project ones and the registry's), flagged when it came from the registry
@@ -322,14 +322,14 @@ cmd_start() {
   if [ "$tab" = 1 ]; then echo "console.sh: not inside herdr; running in the foreground" >&2; fi
   if [ "$dry" = 1 ]; then
     echo "would: record instance.started {port: $port, owner: $owner, from: $from} in $journal"
-    echo "would: exec uv run --script $here/dev-console.py ${projects[*]} --port $port --no-live"
+    echo "would: exec bun --cwd $here/.. $here/dev-console.ts ${projects[*]} --port $port --no-live"
     return 0
   fi
-  # exec keeps this pid, so the journal's pid is the uv process that `list` and `stop` find by port
+  # exec keeps this pid, so the journal pid is the bun process that `list` and `stop` find by port
   record instance.started "$(jq -nc --argjson port "$port" --arg owner "$owner" --argjson pid "$$" --argjson from "$from" \
     '{port: $port, owner: $owner, pid: $pid, from: $from}')" "$owner"
   echo "dev-console (no live reload, owner $owner): http://127.0.0.1:$port/  (domains of :$from)"
-  exec uv run --script "$here/dev-console.py" "${projects[@]}" --port "$port" --no-live
+  exec bun --cwd "$here/.." "$here/dev-console.ts" "${projects[@]}" --port "$port" --no-live
 }
 
 cmd_claim() {
@@ -444,10 +444,10 @@ cmd_actions() {
 
 # playground import [<dados dir>] [--force]: copy canvas.json and componentes/ from the design-playground's data folder
 # into the console's own (DEV_CONSOLE_PLAYGROUND_DIR, default ~/.local/state/dev-console/playground). One-shot; the
-# copy is plain files, so the module does it (it needs no packages: system python3 is enough).
+# copy is plain files, so the server file does it (dev-console.ts playground import).
 cmd_playground() {
   case "${1:-}" in
-    import) shift; python3 "$here/console_playground.py" import "$@" ;;
+    import) shift; bun --cwd "$here/.." "$here/dev-console.ts" playground import "$@" ;;
     *) die "usage: console.sh playground import [<dados dir>] [--force]" ;;
   esac
 }

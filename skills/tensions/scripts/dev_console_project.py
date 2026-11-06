@@ -1,6 +1,6 @@
 """Tensions as a dev-console project: what the console needs to show this project.
 
-Run: uv run --script ../../dev-console/scripts/dev-console.py --project scripts/dev_console_project.py
+Run: bun --cwd ../../dev-console ../../dev-console/scripts/dev-console.ts --project scripts/dev_console_project.py
 The console imports this file; fasthtml comes from the console's own environment.
 """
 from __future__ import annotations
