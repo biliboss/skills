@@ -209,6 +209,28 @@ desired_order() { # session -> window ids, one per line, in the order the rules 
   printf '%s\n' "${d[@]}"
 }
 
+# Motion: a tab that changes place slides there one step at a time (swap-window with its neighbour, $THREAD_ANIM_MS
+# per step, default 45; 0 = jump) and glows burgundy while it moves, fading back ~0.6 s after it lands. The owner's
+# window is never swapped: when it stands in the path, the tab jumps over it in one move.
+slide() { # window target-index active-window current-order...
+  local w="$1" to="$2" active="$3"; shift 3
+  local cur=("$@") j=-1 k ms="${THREAD_ANIM_MS:-45}" blocked=0
+  for ((k = 0; k < ${#cur[@]}; k++)); do [ "${cur[k]}" != "$w" ] || j=$k; done
+  for ((k = to; k < j; k++)); do [ "${cur[k]}" != "$active" ] || blocked=1; done
+  if [ "$ms" = 0 ] || [ "$j" -le "$to" ] || [ "$blocked" = 1 ]; then
+    tm move-window -d -b -s "$w" -t "${cur[to]}" 2>/dev/null || true
+    return 0
+  fi
+  local step; step="$(awk -v m="$ms" 'BEGIN { printf "%.3f", m / 1000 }')"
+  tm set-option -w -t "$w" window-status-style 'fg=#800020,bold' 2>/dev/null || true
+  for ((k = j - 1; k >= to; k--)); do
+    tm swap-window -d -s "$w" -t "${cur[k]}" 2>/dev/null || break
+    sleep "$step"
+  done
+  ( sleep 0.6; tm set-option -w -u -t "$w" window-status-style 2>/dev/null ) </dev/null >/dev/null 2>&1 &
+  return 0
+}
+
 sort_session() { # session: move only what is out of place (move-window -d keeps the focus), then renumber 1..N
   local sess="$1" want=() cur=() i j k line
   while IFS= read -r line; do [ -z "$line" ] || want[${#want[@]}]="$line"; done < <(desired_order "$sess")
@@ -221,7 +243,7 @@ sort_session() { # session: move only what is out of place (move-window -d keeps
       j=-1; for ((k = 0; k < ${#cur[@]}; k++)); do [ "${cur[k]}" != "$active" ] || j=$k; done
       for ((k = j - 1; k >= i; k--)); do tm move-window -d -a -s "${cur[k]}" -t "$active" 2>/dev/null || true; done
     else
-      tm move-window -d -b -s "${want[i]}" -t "${cur[i]}" 2>/dev/null || true
+      slide "${want[i]}" "$i" "$active" "${cur[@]}"
     fi
   done
   # -a/-b shift indexes up and renumber-windows only acts on close: close the gaps now (tabs stay 1..N)
