@@ -111,5 +111,11 @@ before `innerHTML`.
   `randomize: false` from a seed (ring = steps from the Human), so a reload draws the same picture.
 - Constraints: the Human is pinned at (0,0); `INITIAL` starts are aligned horizontally with it, one on each side
   (`relativePlacementConstraint`, gap 160); the `HUB` sits below the Human and its children below the hub.
+- `LAYOUT = "metro"` and `"clock"` (project file) skip fCoSE: `preset` positions computed in `drawGraph`. Metro constants:
+  `STEP` 170 (between stations), `TRACK` 180 (between fanned lines), `RING` (Human to first station, grows with the
+  biggest fan), `LABEL_CHARS` 14 (a label wraps at PascalCase words). Routes are cytoscape `segments` edges
+  (`point = S + w (T - S) + d (-dy, dx) / |T - S|`); the label pass reads `boundingBox({includeNodes: false,
+  includeLabels: true})` and pushes a colliding label outward by `LABEL_PUSH`. Check in the headless browser: every
+  step of a line shares one octilinear angle, and no label box meets another label, a station or a line.
 - Rejected: the hand-made radial (`pos`), dagre left to right (the Human is not in the centre) and breadthfirst
   `circle` (overlaps). Forces that read well: `idealEdgeLength` 130, `nodeRepulsion` 45000, `gravity` 0.4.

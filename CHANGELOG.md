@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.22.0] - 2026-11-05
+
+### Added
+
+- `dev-console` 0.7.0: `LAYOUT = "metro"`, the graph of a big domain drawn as a Tokyo Metro map (octilinear lines from
+  the clock, stations in `EVENTS` order, labels that never overlap); a big domain uses it, the order lives only in `EVENTS`.
+
 ## [0.21.0] - 2026-11-05
 
 ### Added

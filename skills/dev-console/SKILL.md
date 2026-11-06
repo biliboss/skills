@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.6.1
+  version: 0.7.0
 ---
 
 # dev-console
@@ -230,11 +230,14 @@ For a product whose code already records domain events (Domain.Imported):
    This is long work: give it to a subagent with the console contract and the read-only rule.
 2. `EVENTS` follows the code's own kinds, each line traceable (`# kind: ListingShared`), with the Portuguese comment
    taken from the code's docs; the journal returns one placeholder entity when production's journal is unreachable.
-3. A big import drawn at once is "bom mas complexo": set `LAYOUT = "clock"`, keep only the first hand in `EVENTS`
+3. A big import drawn at once is "bom mas complexo": set `LAYOUT = "metro"` (a big domain is always a metro map, see
+   the contract; `"clock"` still works for the plain clock), keep only the first hand in `EVENTS`
    (the north at 12 o'clock is the access to the system by a Human with no role yet; then where the Human takes a
    role) and park the other categories, as imported, in `EVENTS_BACKLOG` in the same file until he orders the next
    hand. The clock order is the order of `EVENTS`: never a list in the project file nor a number in the console.
-4. The Human is twice an event node's size, the graph opens centred on it, and "◎ Centralizar Human" brings it back.
+   The map's order is the order of `EVENTS`: the first category leaves the Human at 12 o'clock, the others follow
+   clockwise, each category is a line and its events are the stations in the order written.
+4. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
 
 ## Design a widget with the user
