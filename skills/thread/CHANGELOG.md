@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-11-06
+
+### Changed
+
+- Every thread is its own tmux session; the thread view section; follow-up rules; one name (`thread()`); `@hsid`; motion in tab sort; "main resource" artifact.
+
 ## [0.10.0] - 2026-11-06
 
 ### Added

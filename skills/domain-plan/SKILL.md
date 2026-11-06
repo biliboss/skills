@@ -7,7 +7,7 @@ description: >-
   service; also run on a card entering Upstream.
 disable-model-invocation: true
 metadata:
-  version: 0.3.0
+  version: 0.4.0
 ---
 
 # domain-plan
@@ -28,7 +28,9 @@ commitment point: the card goes to Downstream and Downstream builds the drift li
    (`git show origin/main:.wiki/<moc>.md` and what it lists; the plan branch may be older than main) and who asked for
    the task. Anything that landed on main after the plan opened (a brief, a design system) is a new candidate: record
    it with `plan.sh add --kind document` before asking, or the question offers stale options. Then ask the owner once,
-   recommendation first: the first question is the outcome ("daqui a 90 dias deu certo, o que mudou?", the plan's
+   **through the `interview` skill** (a form with the recommendation pre-selected; it opens in the dev-console Browser when
+   the console is up), never as an options list typed in chat: the owner rejects that as verbose and wants to click.
+   Recommendation first: the first question is the outcome ("daqui a 90 dias deu certo, o que mudou?", the plan's
    candidates as options), the last compares the scope with the cheapest path this week. With the answer, write the
    high-level request in five fields (por quê, para quem, resultado medido, limites, pronto quando) plus the week's bet,
    on the card (`kanban.sh describe <card> --file <f>` when it exists, else as a plan `document`).
@@ -37,6 +39,16 @@ commitment point: the card goes to Downstream and Downstream builds the drift li
    build the screen, never describe it): `--kind screen --name <n> --event category.event --file <path in the repo>`
    (or `--url`). Names come from the code and the wiki, never invented; few events, `Updated` per element
    (skill `design-taste`).
+   - **Event names come from the wiki's state transitions** (the `De → Para` tables, the real-time and webhook event
+     lists): "premiação definida" becomes `award.confirmed`, "pedido emitido" `order.issued`. A screen that only reads
+     (a dashboard, a profile, a simulator before it proposes) records no event: hang it on the event it leads to, and
+     several screens may sit on one event. Usage of read screens is telemetry, not domain.
+   - Put the screens in `<repo>/.plan/<slug>/telas/`, all linking one shared tokens CSS in that folder (the product's
+     brand tokens), with the product's fictional demo data; check each at 390 px (`scrollWidth == 390`) before adding it.
+   - Draw the **whole version's domain**, not only this week's bet: the bet is a document and an order, the drawing is
+     the desired end state.
+   - **Then the version's LP** (skill `lp-draft`): it tells the version's story and embeds the drawn screens as its
+     showcase; open it with `devc browse`. The owner expects it as part of Upstream, before he approves.
 4. **Keep decisions, sources and questions in the plan**, as a `document`: `--kind document --name <n> --text ...
    --decision "Decidi X porque Y" --source <page> --question "<open question>"`. An open choice of the owner is a
    question, not an event.
@@ -81,5 +93,16 @@ in an iframe) where one sits. `--events-file` stays the real registry: drift rea
 - A drift against an unimported domain is empty noise: import first (step 1).
 - `--events-file` must be the real registry. Pointing it at the console's merged file makes every draft look built.
 - A project constant named `HOME` shadows the console's `HOME` widget tuple and 500s the page: never name a path `HOME`.
+- **An empty domain takes the whole console down.** `plan.sh` refuses an events file with `EVENTS = {}` on one line (the
+  closing brace must be on its own line: `EVENTS = {` then `}`), and a registered project whose SOURCE has no events, or
+  whose `TRANSITIONS` come only from `plan.with_edges({}, ...)`, makes the console's `derive()` raise StopIteration: 5057
+  stopped answering for every domain. Give the project file a base `TRANSITIONS` (the journey) that `with_edges` extends,
+  run the adds before `console.sh domains add`, then curl `-L` the domain and `/domain/kanban` for 200.
 - The plan lives on the repo's branch until its PR merges; the project file points at the checkout that has it.
+  Merge `origin/main` into the plan branch before linking files that landed on main (a brand folder, logos), or the
+  screens load with broken paths.
+- **Drift counts a screen as built as soon as its HTML file exists**, so screens never sit in `a construir`: the work
+  list is the events group; say so in the report instead of reading "construído" as done.
+- **Re-adding a document replaces only the lists you pass** (`--question`, `--decision`, `--source`) and keeps the rest.
+  To close an answered question, re-add the document with `--question "Respondida em <data>: <answer>"`.
 - Tests: `uv run --script scripts/test_plan.py`.

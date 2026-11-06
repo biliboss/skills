@@ -87,6 +87,15 @@ slug is the Hermes session title, the tmux/sesh session and the dev-console doma
 Compaction is the safety net, not the way to work: a very long session resends its whole context on every call
 (slower, costlier) and its summaries lose nuance, so the state lives in the card, the PRs and the `.wiki`.
 
+## Checking the queue ("check queue", "hermes queue")
+
+One pass over every tmux window running a Hermes TUI (`#{pane_current_command}` is `python*`): read the last lines of each pane and report, per tab, its state (`ready`, working, last answer failed) and any `queued (N)` / `[unconfirmed · Alt+K retry]` row, plus `delegate_task action=list` for live subagents. Answer with a table (tab, state, what is queued) and the cause in the first line. A reply of "Your request was not processed" or a subagent failing with HTTP 429 "weekly limit" means the Claude account hit its cap: say when it resets, that Alt+K (Ctrl+K in tmux) will fail again until then, and offer the reserve account; never resend in a loop.
+
+**A stuck queue** (an old `[unconfirmed]` row blocks the ones after it): in that pane, `C-u` to clear the input, `Up`
+selects the first queued row (the footer turns into `editing 1 · Ctrl+X delete · Esc cancel`), `C-x` deletes it; read
+the pane after each key. Delete a stale prompt rather than retrying it, and say which one went; the next row is
+delivered when the current turn ends.
+
 ## Claude Code mods (later)
 
 A Claude Code mod could add a profile panel or a `/hermes` command through `$.process.spawn`. Routing the native

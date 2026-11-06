@@ -11,7 +11,7 @@ description: >-
   designs and critiques any interface; lp-draft runs the whole LP draft and loads impeccable
   for the design part. Not wiki-smith: lp-draft calls it only to link the page.
 metadata:
-  version: 0.2.2
+  version: 0.3.0
   license: MIT
 ---
 
@@ -64,7 +64,9 @@ Details and the token contract: [references/design-system.md](references/design-
 - **File**: `.wiki/resources/<produto>-<versão>-lp.html` (slug in lowercase, version like `0.1.0`).
 - **Fragment**: start with `<meta charset="utf-8">`, the viewport meta and `<title>` (the product name, 1–3 words); no `<!doctype>`, `<html>` or `<body>`, so the same file can be published as an Artifact.
 - **Tokens**: `<link rel="stylesheet" href="<produto>/tokens.css">` (or the absorbed source), and every color from a token. Dark mode under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`, and again under `:root[data-theme="dark"]`.
-- **Libraries** only from a CDN with an exact version; fonts only from Google Fonts.
+- **Libraries** only from a CDN with an exact version; fonts only from Google Fonts in the draft (a published copy self-hosts them: [references/publish.md](references/publish.md)).
+- **The showcase inside the LP**: a section with a tab list (one tab per screen, its question as the label) and one `<iframe>` that loads the real screen file, with a line under it saying what to try. The theme toggle also sets `data-theme` on each iframe's `documentElement` (same origin) and on its `load`, or the screens stay light in a dark page. Keep fixed controls (the theme toggle) in the bottom-right corner, clear of section titles.
+- **In a plan**, the LP lives in `.wiki/resources/` on the plan branch and points at the screens in `.plan/<slug>/telas/` by relative path; serve the repo root (`python -m http.server` from the root) so both resolve.
 - **Layout**: works at 390px with a 16px gutter and no horizontal scroll; `prefers-reduced-motion` respected.
 - **Section spacing**: when a section also carries a layout class (`<section class="wrap">`), the class's `padding` shorthand overrides `section { padding }` and the sections glue together; write `section.wrap { padding-top: … }` (higher specificity), and in a grid of cards make an odd last item span the row (`li:last-child:nth-child(odd) { grid-column: 1 / -1 }`) or a gray empty cell shows.
 - **A family of pages** (a second LP on the same study) reuses the first one's `tokens.css` and copies its CSS patterns; no new design system.
@@ -89,6 +91,10 @@ Load `wiki-smith` and let it do the wiki part: one line in `index.md` and in the
 ## Delegating the page
 
 The page is long work: hand Step 3 to a subagent with a facts file as its ONLY source ("do not invent"), the design-system path, the section list, and "no git, no server". The parent keeps Steps 4–6: serve, screenshot, fix, commit. A subagent that never opened a browser says "not rendered" — treat the layout as unchecked until Step 5. For an LP that compares several things (frameworks, vendors, tools), the research-to-page pipeline is in [references/comparison-lp.md](references/comparison-lp.md).
+
+## Publishing
+
+The draft never deploys by itself. When the owner says the product's domain should show it, follow [references/publish.md](references/publish.md): serve it from the app already on that domain, never migrate the live service without his GO, and self-host the fonts first.
 
 ## Report
 

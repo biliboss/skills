@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.94.0
+
+- Loose edits from other sessions landed: auth, backbrief, choice, delegate-and-review, dev-console, doctor, domain-plan, envless, handoff, hermes, interview, lp-draft, modifier-here, shape, sync, thread, tmux (patch bumps; auth, domain-plan and lp-draft keep the minor they already carried).
+
 ## 0.82.0
 
 - auth 0.1.0: the agent's secure identity. Accounts per provider (Google first, by `gws`), the OAuth client only in envless, one grant per Hermes/Claude profile, a setup the agent guides with the ask tool, the dev-console domain Auth with the Contas widget; `gcal` becomes a thin alias of `auth.sh run`.

@@ -1,6 +1,7 @@
 ---
 name: choice
-description: Use when the owner has to choose between options (a logo, an icon, a screen, a name, a text, a palette): run it as a tournament of 4. Each round shows 4 options with the agent's confidence summing 100, ranked 01-04 (01 is the champion the agent picks, so there is always one), in a full-screen showcase in the dev-console; the owner answers with three fixed keys (⏎ another round: the champion against 3 new challengers, a accept, f feedback that becomes a criterion) until he accepts. scripts/tournament.py is the only writer of its journal and draws each round on the thread screen (skill thread). Use when he says "me dá opções", "4 opções", "outra rodada", "torneio", "desafiantes", "escolher o logo". Not brainstorm (an idea still open) nor backbrief (a task to confirm).
+description: >-
+  Use when the owner has to choose between options (a logo, an icon, a screen, a name, a text, a palette): run it as a tournament of 4. Each round shows 4 options with the agent's confidence summing 100, ranked 01-04 (01 is the champion the agent picks, so there is always one), in a full-screen showcase in the dev-console; the owner answers with three fixed keys (⏎ another round: the champion against 3 new challengers, a accept, f feedback that becomes a criterion) until he accepts. scripts/tournament.py is the only writer of its journal and draws each round on the thread screen (skill thread). Use when he says "me dá opções", "4 opções", "outra rodada", "torneio", "desafiantes", "escolher o logo". Not brainstorm (an idea still open) nor backbrief (a task to confirm).
 metadata:
   version: 0.1.0
   license: MIT
@@ -39,6 +40,11 @@ python3 $T list
 - With `--thread`, each round is drawn on the thread screen through the thread skill's `scripts/view.py`
   (`THREADVIEW_PY` overrides): artifacts 01-04 with their %, the input turned into the three edges, and the
   showcase opened in the dev-console by itself (`devc open`).
+- **Screens (`--kind screen`) go in as PNGs, not HTML:** build each option as an HTML file in the product's look with
+  the same demo data, then screenshot it at the widget's width with 2x scale (`browser_exec` local, `cdp
+  Emulation.setDeviceMetricsOverride width=720 deviceScaleFactor=2`) and pass the PNG. Make the 4 options different
+  ideas of the screen (one decision at a time, a list, a data panel, a two-column split), not 4 colorings of one layout,
+  and rank the one that best fits the product's design premise as champion.
 - The showcase is a full-screen grid in the dev-console's look (dark, monospace): each option large and at 16/32 px,
   the champion marked green with its %. No extra "all side by side" artifact: the grid compares.
 - Refusals (exit 2, nothing written): a round before the previous was answered, a round without the champion,

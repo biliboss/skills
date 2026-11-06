@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-06
+
+### Changed
+
+- Questions through `interview`; event names from the wiki transitions; screens in `.plan/<slug>/telas/`; the version's LP; an empty domain takes the console down; drift counts a screen as built when its file exists.
+
 ## [0.2.0] - 2026-11-06
 
 ### Changed

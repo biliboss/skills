@@ -2183,8 +2183,25 @@ def event_widgets(slug: str, tid: str, event: str, e: str = ""):
 
 @rt("/")
 def index():
-    """The console's home: the module a domain names with CONSOLE_HOME (the Kanban module), when that domain has an
-    entity to open; else the first domain, as before. The status line switches between them."""
+    """The console's home: an empty canvas with the logo (the `</>` tag, tournament logo-devconsole) at the centre, and
+    the status line, so ⌘K / ⌘P open a domain or a module from here."""
+    logo = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="96" height="96" aria-label="dev-console">'
+            '<path d="M4.82 4.25 L1.24 8.00 L4.82 11.75 M6.82 12.35 L9.18 3.65 M11.18 4.25 L14.76 8.00 L11.18 11.75" '
+            'fill="none" stroke="currentColor" stroke-width="1.70" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+    pre = PLAYGROUND_JS.replace("'/playground'", "'/'")
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    payload = json.dumps({"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Home", "domains": domains, "modules": _modules()},
+                         ensure_ascii=False).replace("</", "<\\/")
+    return Title("dev-console"), Link(rel="icon", href="data:,"), Style(CSS), Div(
+        Div(NotStr(logo), id="home-logo", cls="flex-1 min-h-0 flex items-center justify-center text-neutral-800 dark:text-neutral-200"),
+        _status_bar("Home", False, module=False), _switcher(),
+        Script(payload, type="application/json", id="data"), Script(pre, type="module"),
+        cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
+    )
+
+
+def _old_home():
+    """The previous home (the CONSOLE_HOME module, else the first domain); kept unrouted until the new one is approved."""
     for slug, mod in DOMAINS.items():
         home = getattr(mod, "CONSOLE_HOME", None)
         if not home or not use(slug):

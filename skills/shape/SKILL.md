@@ -152,7 +152,22 @@ between the estimate and what it took turns into numbers, so the next choice sta
 
 ## Writing for the owner
 
-Every question and backbrief in short paragraphs with a blank line between them; the recommended option first.
+Every question and backbrief goes to the owner as a form he clicks, never as an options list typed in chat: the ask
+tool when the session has one, else the `interview` skill (it opens in the dev-console Browser). He rejects the chat
+list as verbose. The chat line that goes with it is one sentence ("o backbrief está no console"). Inside the form,
+short paragraphs with a blank line between them, and the recommended option first. A backbrief is one ask call: what was found in the context, the plan in numbered steps, the decisions taken ("Decidi X
+porque Y"), "Pronto quando", then "Bate?" with the choices (approve first, a variant, "Não ficou bom"). A wall of
+text in one paragraph gets sent back for formatting before it is read.
+
+**Shaping a feedback file** ("o último arquivo em Downloads é um feedback, shape it"): read it (`read_file` extracts
+.docx and .pdf), then map it point by point onto the brief and the plan it reviews: what it approves ("ok"), what
+it changes (a rename, a merged or dropped screen, a new metric) and what conflicts with an earlier source (a
+spec's method replaced). The backbrief form opens with an `info` question that lists "what I understood" page by page,
+then the plan question (approve first), then one question per conflict with the recommendation, and last a text
+question for who wrote it when the file does not say. Nothing in the LP, the screens or the wiki changes before the ok.
+
+When the owner gives a principle mid-work ("o sistema deve experimentar", a new rule for the process), it enters the
+open shaping's backbrief, or the next one, as a numbered point; it is not built on the side.
 
 ## Pitfalls
 
@@ -162,3 +177,10 @@ Every question and backbrief in short paragraphs with a blank line between them;
 - One row of the router, not a tour of every piece: the piece is chosen by the request, and a clear request skips
   step 2.
 - A piece is never called on its own by the agent; the owner can, by `/name`.
+- Name the shaping yourself: `request.received` takes `--shaping <slug>` (the thread's topic or the card's slug);
+  `emit` does not print a usable id back, so a shaping started without one cannot be continued by the next emit.
+- A backbrief the owner already approved (a thread brief saying so) still gets its events: emit request.received,
+  piece.routed, understanding.taught_back and understanding.confirmed (actor owner) before delegating, or the shaping
+  is missing from `/domain/shape` and from the learning.
+- Close every shaping with `shaping.closed` and real numbers, and record in `resources.chosen` what actually ran
+  (not what `choose` recommended, when they differ): `learn` moves the estimates of the resources it finds there.

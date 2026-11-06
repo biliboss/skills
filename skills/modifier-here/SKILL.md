@@ -27,5 +27,11 @@ context is already here, so a subagent only adds a cold start and a hand-off. Th
 
 - **`--here` is about who does the work, not about scope.** "merge all --here" still means all; decide what "all"
   covers with the usual care (a client's repo, others' PRs, drafts) and say what was left out and why.
+- **Land it like any change**: a worktree off `origin/main` with only your files copied in (the main clone carries
+  other sessions' loose edits), `gh-app push`, `gh-app pr create`, squash merge, `wt`/worktree removed, main clone
+  pulled with `--autostash`. Run the touched skill's tests first, unless the owner said not to ("sem rodar tests"):
+  then land without them and say in the PR and the report which tests still expect the old behaviour.
+- **The owner corrects mid-turn**: a message that reverses part of the request ("não, da thread atual, não da aba")
+  replaces it at once; ask one line through the ask tool when two readings remain, then build the one he picked.
 - **A blocked step stays blocked.** Branch protection, conflicts or a required review are named in the report with the
   way around (rebase, approve, `--admin` when the owner ordered it), not silently skipped.

@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `envless`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-06
+
+### Changed
+
+- `acha-chave.sh` (find a key by name without a value), receiving a secret from another person via `vigia-copiar.py`, `migrate` for a plain `.env`, GitHub Actions secrets cannot be read back.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added

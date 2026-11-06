@@ -57,8 +57,10 @@ Verify in the headless browser (`browser_exec local=true`: load, read `window.__
 or `curl`. Outside Hermes (Claude Code, pi), use the skill's own `scripts/check.sh <url> [--shot f.png] [--eval '<js>']`
 (the installed Chrome, headless, 1000 px and dark by default; JSON with status, title, errors and the eval value),
 never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page in **his
-DevConsole window** (`window.sh open <url>`), capture that window (`screencapture -x -l<window id>`, the id from Quartz
-`CGWindowListCopyWindowInfo`) and look at the PNG before telling him it is there. Pages outside the console (GitHub, a
+DevConsole window** (`window.sh open <url>`), capture that window (`screencapture -x -o -l<window id>`, the id from Quartz
+`CGWindowListCopyWindowInfo`: the **largest** layer-0 window owned by `DevConsole`, since the app also owns 38 px
+strips and a blank 500×500 window; a full-screen `screencapture` after `open -g` shows whatever app is in front) and
+look at the PNG before telling him it is there. Pages outside the console (GitHub, a
 PR) open in the Mac's default browser (`open <url>`).
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
@@ -159,6 +161,31 @@ can open. A browser handles the same keys in `keydown` (⌘P / Ctrl+P → `preve
   `/domain/<slug>/time/start|stop` route; the app never writes the cost journal. A slow 8 s refresh reads the read-only
   `GET /api/status?domain=<slug>` -> `{domain, cost_center, running, today_brl, budget_brl, module}` (`module` is null
   there: only the page knows its tab). Formatting and decoding are pure code in `ConsoleCore/StatusLine.swift`.
+- **A native widget on the status line** (the clock is the first item): add an `NSTextField(labelWithString:)` to `StatusLineController` and put it first in `bar.setViews([...], in: .leading)`; system font only (`NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)`, `.labelColor`), so it looks like macOS/iOS and digits do not jump. Realtime = a `Timer` (0.5 s for a blinking colon, drawn as an attributed string with the colon `.clear` on the second half of each second) wrapped in `MainActor.assumeIsolated`. There is no Swift hot reload: `app/build-app.sh`, quit the app, `ditto build/DevConsole.app ~/Applications/DevConsole.app`, `open` it, then `window.sh open <console url>` (it comes up blank) and screenshot. The web bar gets the same item (`_status_bar`) for plain browsers.
+- **A mark (logo) on the status line is drawn in code as a template image**: `NSImage(size: 16×16, flipped: true) {
+  NSBezierPath … stroke }` with the chosen SVG's coordinates, `isTemplate = true`, in a 16×16 `NSImageView` placed first
+  in `setViews`. AppKit paints it in the label colour, so light and dark need no code and the bundle needs no resource.
+  **Choose small marks at their real size**: render each candidate with `rsvg-convert -w 16` (and 32), blow it up with
+  `magick … -filter point -resize 800%`, and look before showing; a glyph that reads at 256 px can read as another one
+  at 16 (tall thin braces read as `0`).
+- **Data for a native widget comes from a console route, never from the app itself**: the server owns the fetch and a
+  cache file, the Swift side does one `URLSession` GET on the web view's origin (`webView.url` with the path swapped) on a
+  slow `Timer`, and the web bar reads the same route. Example: the Claude accounts' weekly limit (`claude-usage.sh` →
+  `~/.local/state/dev-console/claude-usage.json`, `GET /api/claude-usage` refreshes it in the background when older than
+  5 min), shown as `mukutu 100% · pessoal 82%`, a spent account in red, reset times in the tooltip.
+- **A bar item about the owner's live context is derived from an event stream, never polled**: the source's own hook
+  appends one JSON line per change to a file in a folder of its own (`O_APPEND`, one short line = atomic, so hooks
+  firing together never lose a line; trim under `flock` past a size), `/live/stream` watches that folder as a new
+  `kind`, a small `/api/<x>` route folds the stream (its last line), and the bar's script refetches only on that kind.
+  Example: the thread in tmux focus (`tmux_focus.py` hooks pass `#{@thread}` → `~/.local/state/dev-console/focus/focus.jsonl`
+  → kind `focus` → `/api/focus` → `#bar-thread`, hidden when the focus is not a thread). Check it by calling the hook
+  command directly (`costs.sh tmux-focus <session> --card= --thread=<topic>`), never by `select-window` on the owner's
+  server; after changing the hook's arguments run `costs.sh tmux-install` so the live hooks pick them up.
+- **Claude account usage**: `GET https://api.anthropic.com/api/oauth/usage` with `anthropic-beta: oauth-2025-04-20`
+  (`seven_day.utilization`, `five_hour`, `resets_at`) needs a token with scope `user:profile`. Setup-tokens (the envless
+  cofre) lack it; Claude Code's own login of each account has it, in the keychain entry
+  `Claude Code-credentials-<first 8 hex of sha256(CLAUDE_CONFIG_DIR path)>` (`security find-generic-password -s … -w`,
+  `.claudeAiOauth.accessToken`). Read it inside the script, never print it, never refresh it (Claude Code owns that).
 - **To read the DOM or take a screenshot, keep using the headless browser on the same URL**; the window is for the
   person to look at and for the agent to move (open a view, dock, hide), and `eval` is for a quick read of one value.
 - **Never write either file by hand.** The id rule (above both the last one sent and the last one applied) and the
@@ -627,7 +654,8 @@ For a product whose code already records domain events (Domain.Imported):
   unrelated pieces that work (a CLI), reinstall the app, screenshot his window; then rebuild the idea with his ok.
 - **"Edit right here" / "implement here" means in this session, not a subagent**: change the main clone the console
   runs (the hot reload shows it at once), check with `devc shot`, then land it as a small PR from a branch of that clone
-  (`git switch -c run/<x>`, stage only your files, `gh-app push`, `gh-app pr create`, `gh pr merge --squash`, back to
+  (`git switch -c run/<x>`, stage only your files (or, when the clone carries other sessions' loose edits, `git worktree add -b run/<x> <dir>
+  origin/main`, copy only your files in, commit there, and never switch the clone), `gh-app push`, `gh-app pr create`, `gh pr merge --squash`, back to
   main). Run the touched skill's tests before the PR: a layout change breaks tests that find text by index (a lane
   named "Outros" matched a card titled "Outro"). Without that phrase, code changes go to a subagent on a fit-for-purpose
   model.
@@ -650,7 +678,8 @@ For a product whose code already records domain events (Domain.Imported):
   **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c <task> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `wt remove <task>`: it deletes the worktree and the branch only when its content is already in main (`⊂`), so it is the "safe to delete" check; never `-D` (an unmerged branch is the owner's call). `wt list` shows what is left.
   Before `git pull` on the clone the console reads (`~/src/skills`), commit what the background review left there
   (skill lessons, version bumps) as its own small PR: a pull over them aborts, and a stash pop conflicts on the
-  `version:` line (resolve to one version above both).
+  `version:` line (resolve to one version above both). A file you added and landed from a worktree stays untracked in
+  the clone and blocks the pull ("would be overwritten"): `diff` it against `origin/main`, delete it if equal, pull again.
 
 ## Money bar
 
@@ -708,8 +737,14 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
 - **After deleting or editing entities by hand, move his window off them**: a page left on a removed card's URL
   (`/t/<id>`) shows "não encontrado" on a black screen; `window.sh open` the module (`/domain/<slug>?tab=<Module>`) via
   an entity that exists, then screenshot.
-- Start it from a stable folder (`cd ~`) with absolute paths: the hot reload spawns a new
-  process that reads the current folder, and a folder that changed under it kills the console.
+- Start it from a stable folder (`cd ~`) with absolute paths, test consoles too: the hot reload spawns a new process
+  that reads the current folder (`os.getcwd()` in multiprocessing spawn), and a folder removed under it (a worktree
+  after `wt remove`) kills that console with `FileNotFoundError`. When 5057 is down, `pgrep -fl dev-console.py`: kill
+  leftover consoles whose paths point into removed worktrees, then `start-console.sh`.
+- **Check a widget by curl through its listing first**: `GET /domain/<slug>/w/<entity id>/<event>` lists the registered
+  widgets under their display names (a function `contas_e_cofre` shows as `ContasECofre`); take the name to put in
+  `.../<event>/<name>` from there and grep a `data-*` marker of the widget. The domain page itself draws widgets
+  client-side, so a `curl` of `/domain/<slug>` never contains them.
 - Test a change on a second console (another port, `DEV_CONSOLE_REGISTRY=<empty file>` so only your `--project`
   shows, temp env overrides for any data files) and read it in the headless browser; never point his native window at
   that port, and if you did, `window.sh open` it back to 5057 before you stop: he takes the test console for his and
@@ -785,5 +820,10 @@ browser.
   http://127.0.0.1:4400/<topic>.html`. A `file://` URL never loads inside the console's frame. After each edit, reload the
   frame and `devc shot` to check before telling him: `devc browse` of the URL already open does not reload it (the shot
   keeps the old page), so run `devc eval "(() => { const f = document.querySelector('iframe'); f.src = f.src })()"`.
+- **An interactive report keeps its state in the URL hash** (`#a3=1&parcial=1&t=2750`), restored on load, plus a
+  "copiar link" control: the console's address line only shows `/browser?url=` (the frame is another origin, its hash
+  never reaches the parent), so the link is the way back to the same scenario. Controls live in one sticky bar on top,
+  and when he asks "tá certo isso?" the page itself explains the difference for the current state (what makes one
+  number smaller, in money, and the fair alternative), not only the chat.
 - Test it with a throwaway page served from scratch (`uv run python -m http.server <port> --directory <dir>`), then
   `devc browse` + `devc shot`, and stop the server.

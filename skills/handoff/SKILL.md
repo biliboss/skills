@@ -17,6 +17,15 @@ metadata:
 relief briefing): who leaves hands the state to who comes in, out loud, before leaving. Here the long session is who
 leaves, the clean session is who comes in, and the branch keeps everything that was said.
 
+## What the owner means by "handoff"
+
+**"Faz o handoff desta sessão" means step 1 only: the log line** (session id, title, context, last message), so the
+session can be found and resumed later. The branch tab and the `/new` are a separate, explicit ask ("limpa a sessão",
+"começa do zero", "abre o branch"). When the words do not say clean or branch, write only the log line (same fields,
+same file) and say the resume command; never launch the full script "to be safe": with `--detach` it runs the moment
+the turn ends, nothing in the same turn can stop it, and it clears the owner's live tab (the desktop chat and the
+Bili's tmux tab are the same session).
+
 ## Use
 
 ```
@@ -47,7 +56,17 @@ target is the caller's own pane. None of them: refused, nothing changed. When th
 
 - Targets are ids (`%N`, `@N`): a session name with a dot (`sygnal 0.2`) in `=name:` is read by tmux as a pane
   separator and once killed the wrong tab.
-- Never run it on the Bili's real session unless the owner asks: it does clear the tab.
+- Never run the full script on the Bili's real session unless the owner asked to clear it: it does clear the tab.
+  The desktop chat's `$HERMES_SESSION_ID` is the session running in the Bili's tmux tab (find it by
+  `pane_start_command` empty + the context number on its bar), so "this session" from the desktop is that tab.
+- The Bili's own tab has no `@hsid` (only threads do): handing it over from outside needs `--from <id>`; take the id
+  from `hermes -p bili sessions list` (the row whose title/last activity matches) and say which one before running.
+- Idle means `ready` in the **last 3 non-blank lines** of the pane, not anywhere on screen: the model name (`opus`,
+  `sonnet`) is on the bar even mid-turn, so the thread skill's looser readiness check would let a busy agent through.
+- Optional JSONL fields go as `if $x=="" then null else $x end`, never `($x|select(.!=""))` inside the object:
+  `select` yielding nothing drops the WHOLE object, and the log line silently never gets written.
+- The thread skill's fake hermes keeps control keys as text (`C-u` lands as `\x15` before `/new`): match the end of
+  the message (`/new$`) in tests, not the whole line.
 - The summary tells the clean session to read the plan; the branch keeps the history, so ask it, not the log.
 
 ## Tests

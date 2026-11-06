@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `sync`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-11-06
+
+### Changed
+
+- Rules for the main clone with loose edits, untracked-file pull abort, `.wiki` from a clean copy, single-file PR, plugin.json conflicts, updating installed plugins.
+
 ## [0.1.5] - 2026-11-06
 
 ### Changed

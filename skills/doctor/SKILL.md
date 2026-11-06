@@ -84,6 +84,14 @@ Start from the generic doctor's warnings: each one is a missing piece to either 
 
 ## Pitfalls
 
+- **The drift you already know is the doctor's acceptance test.** Before writing a doctor, list the real drift seen
+  by hand (live state, read-only) and do not fix it; ship the doctor only when its run on the live system reports
+  exactly those findings. Fixing first leaves the doctor untested against reality.
+- **One exit-code scale across the house** (0 healthy incl. warn · 1 drift/fail · 2 could not run). A wiki page,
+  README or project doctor stating another scale is itself drift: correct it to this one, do not add a variant.
+- **A finding found while listing is still a finding.** When asked to list or report on a system that has a doctor
+  (e.g. "list open threads"), run the doctor too and report drift next to the list.
+
 - A doctor that "fixes" quietly hides the drift it found. Print the action; let the owner or the agent run it.
 - `ok` for something not actually looked at is worse than `warn`. If a check was skipped, say so with `warn`.
 - A missing optional thing (health endpoint in a CLI) is `warn` with the action to add it or to record why not.

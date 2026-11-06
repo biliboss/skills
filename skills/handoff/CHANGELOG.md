@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-06
+
+### Changed
+
+- "Handoff" means the log line only; branch and `/new` are a separate ask; idle check on the last 3 lines; JSONL optional fields.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added

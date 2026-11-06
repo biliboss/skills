@@ -8,7 +8,7 @@ description: >-
   login", "libera a conta pro perfil hacker", "gcal", "setup do Google", "contas". Not envless (that stores one secret;
   this uses it for logins) and not the harness's own /login (that signs in to the model provider).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
@@ -61,6 +61,25 @@ de segredo; `auth.sh` só fala de nomes, e-mails e estados.
 | `remove <apelido> [--yes]` | apaga o token local; sem `--yes` só explica; nunca revoga no provedor |
 
 `gcal <apelido|todas> <args do gws>` é um apelido fino de `auth.sh run <apelido> -- gws …`.
+
+## Cofre de logins (Bitwarden)
+
+Os logins de sites do dono (o que não é chave de API: isso fica no envless) moram no Bitwarden, lido pela CLI oficial
+`bw` através de `scripts/bw.sh`. O dev-console mostra a seção **Cofre** no widget Contas.
+
+| Comando | Faz |
+|---|---|
+| `bw.sh status` | `locked`/`unlocked`, e-mail, última sincronização; nenhum segredo |
+| `bw.sh unlock` | **do dono, no terminal dele** (senha mestra = login): a chave de sessão vai ao Keychain (`bw-session`), nunca a arquivo, log ou chat; já sincroniza |
+| `bw.sh sync` | grava `~/.local/state/auth/bitwarden.json` só com metadados (site, nome, usuário, tem 2FA, senha repetida sim/não) |
+| `bw.sh login <site>` | as contas daquele site (nome, usuário), para o preenchimento |
+| `bw.sh lock` | bloqueia e apaga a sessão do Keychain |
+
+- **Senha nunca sai do `bw`**: o `jq` recebe o cofre por pipe, transforma a senha em hash só para contar repetição e a
+  descarta. O widget lê o JSON de metadados; nunca chame `bw` ao desenhar a página.
+- **Cofre bloqueado = uma linha bordô com o comando exato** (`bw.sh unlock`), e o relato diz que o desbloqueio é dele.
+- O Browser do app (WKWebView) não roda a extensão do Bitwarden: o preenchimento, quando vier, é do app/console, com
+  o valor indo do `bw` direto à página.
 
 ## Regras
 

@@ -109,8 +109,11 @@ shows which kinds of task each model does well and with what quality.
    4. **Não ficou bom**: feedback (step 7).
    The repetition does not only mirror: it ends with a **Sugestão** block, what you would do better than what was
    asked (a simpler path, a missing case, a name from the literature), grounded in the context; none when nothing
-   better stands out. The teach-back text in the ask is never a run-on paragraph: short blocks or a numbered list, then a blank line,
-   and the question alone on the last line ("Bate?"). The tool's own free-text row is an adjustment (step 5). The
+   better stands out. The teach-back text in the ask is never a run-on paragraph: short paragraphs of one or two sentences with a
+   blank line between each (or a numbered list), and the question alone on the last line ("Bate?"); the same goes
+   for any other question sent through the ask tool, because the owner reads it in a narrow box.
+   A premise the request rests on that turns out false on a quick check (a tool's documented limit, a field the
+   API refuses) goes first in the repetition as **Achado**, with the source and the decision taken instead. The tool's own free-text row is an adjustment (step 5). The
    three options of step 7 are asked the same way, one choice per style. Plain text only where the harness has no
    ask tool.
 4. Start only when whoever explained confirms the repetition matches. A message that moves the work forward
@@ -234,6 +237,10 @@ before it starts.
   with the literature's term and its source, and before proposing any name **read what the code already calls it**
   (an imported product's event catalogue and emit sites): proposing a name the code already settled otherwise, or an
   event the code rules out, costs a second round.
+- **A request to obtain access ("X precisa me dar uma chave/acesso") starts by checking the premise, before
+  building anything:** does the owner already have the access (his account on that service, `claude mcp list`, the
+  vault), and does the service even work that way (read its manual: an MCP may log in by OAuth with no key at all)?
+  Ask that in one line when the context does not answer it; a whole handoff kit built on a false premise is thrown away.
 - When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
   repeating back and split the repetition into **what is already done** and **what is missing**: he asked for the
   verification to come inside the teach-back, not after it.
