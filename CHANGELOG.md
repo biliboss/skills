@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.82.0
+
+- auth 0.1.0: the agent's secure identity. Accounts per provider (Google first, by `gws`), the OAuth client only in envless, one grant per Hermes/Claude profile, a setup the agent guides with the ask tool, the dev-console domain Auth with the Contas widget; `gcal` becomes a thin alias of `auth.sh run`.
+
 ## 0.81.0
 
 - thread 0.5.0: closing a thread (`thread.sh close --self --summary`, deferred when the owner is on the tab, one log line in `~/.local/state/threads.log`, never while it waits for him or has subagents running). tmux 0.4.0: `agent-state.sh sub+|sub-`, grey glyph + count of running subagents on the tab, ✓ only at 0.
