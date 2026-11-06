@@ -11,6 +11,9 @@ command -v jq >/dev/null || die "jq is required (brew install jq)"
 
 thread_ok() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "thread must be a short slug (letters, digits, dashes): $1"; }
 moment_ok() { [[ "$1" =~ ^(plano|travou|terminou|irreversivel|ambiguidade)$ ]] || die "--moment must be plano, travou, terminou, irreversivel or ambiguidade"; }
+# the closed list: a free-form slug (codigo/código) would split the history that the PULE rule reads
+KINDS="codigo delegacao operacao-externa ambiguidade debug pesquisa"
+kind_ok() { [[ " $KINDS " == *" $1 "* ]] || die "--task-kind must be one of: $KINDS"; }
 bool_ok() { [[ "$2" =~ ^(true|false)$ ]] || die "$1 must be true or false"; }
 
 # append_decision <jq program> [jq args...]: build the line, check its size, write it with one `>>`, print its id

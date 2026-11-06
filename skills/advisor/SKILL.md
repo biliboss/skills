@@ -14,17 +14,17 @@ O padrão advisor: o agente principal (o Bili no Sonnet: atende o Gabriel, decid
 - `decisions.jsonl`: só recebe linhas novas; o diário de **chamar ou não chamar**, de onde o agente principal aprende quando vale a pena.
 - `thread`: um slug curto por tarefa (`playground-absorver`), igual em todas as linhas dela.
 
-Toda escrita é um script em `scripts/` (jq cuida do escape; montar o JSON à mão é onde o erro aparece). Variáveis: `ADVISOR_ACTOR` (quem escreve, padrão `agente`; ou `--actor`), `ADVISOR_TO` (o endereço do SendMessage, padrão `advisor`), `ADVISOR_DIR`.
+Toda escrita é um script em `scripts/`, o caminho relativo à pasta da skill instalada (a que contém este `SKILL.md`; vale para os dois lados). O jq cuida do escape; montar o JSON à mão é onde o erro aparece. Variáveis: `ADVISOR_ACTOR` (quem escreve, padrão `agente`; ou `--actor`), `ADVISOR_TO` (o endereço do SendMessage, padrão `advisor`), `ADVISOR_DIR`.
 
 ## Antes de começar: chamar ou não
 
-Faça isto em todo pedido, antes do trabalho. Quando a tarefa ou o dono pede o advisor, os pontos de consulta abaixo são obrigatórios e não há o que decidir. Nos outros pedidos, decida lendo o diário:
+Faça isto em todo pedido que tem trabalho ou decisão pela frente. Uma consulta só ou um comando só não passa pelos pontos: responda e siga, sem gravar nada, ou o diário vira ruído. Quando a tarefa ou o dono pede o advisor, os pontos de consulta abaixo são obrigatórios e não há o que decidir. Nos outros pedidos, decida lendo o diário:
 
-1. Dê um `task_kind` ao pedido, um slug curto do tipo de decisão em jogo: `codigo`, `delegacao` (fazer à mão, subagente ou o Bili da VPS), `operacao-externa` (sai para fora ou não se desfaz), `ambiguidade`, `debug`, `pesquisa`. O histórico aprende por tipo.
-2. Leia o que já se aprendeu: `scripts/decisions.sh recent <task_kind>`. Ele resume as últimas decisões daquele tipo e diz **CHAME** quando o conselho já mudou o rumo ou houve um `missed`, e **PULE** quando as últimas chamadas só disseram `segue`. Sem histórico, chame: nada prova que pular é seguro.
+1. Dê um `task_kind` ao pedido, **um destes seis** (a lista é fechada: `codigo` e `código` fragmentariam o histórico): `codigo`, `delegacao` (fazer à mão, subagente ou o Bili da VPS), `operacao-externa` (sai para fora ou não se desfaz), `ambiguidade`, `debug`, `pesquisa`.
+2. Leia o que já se aprendeu, para cada ponto de consulta: `scripts/decisions.sh recent <task_kind> --moment <ponto>`. A chave é (`task_kind`, ponto): o plano costuma ouvir `segue` e é a checagem de entrega que pega as coisas, então as chamadas nunca se misturam entre pontos. Ele diz **CHAME** quando o conselho já mudou o rumo ou houve um `missed`, e **PULE** só com três chamadas avaliadas daquele tipo e ponto, nenhuma mudando o rumo. `irreversivel` nunca dá PULE. Pouco histórico é CHAME. Uma janela só de pulos volta a CHAME de propósito: pular se conquista com chamadas, nunca com mais pulos.
 3. Em cada ponto de consulta, chamando ou não, grave a decisão com o motivo, **antes** de perguntar. Um pedido pode passar por vários pontos (`plano` e depois `irreversivel`): grave um por ponto, na mesma thread. O `decisions.sh` liga tudo pela thread, então `rate.sh` não repete o `task_kind`.
    `scripts/decide.sh <thread> --moment plano|travou|terminou|irreversivel|ambiguidade --called true|false --reason "..." --task-kind <kind>`
-4. Depois da resposta do advisor: `scripts/rate.sh rated <thread> <id da pergunta> --changed-course true|false --useful true|false --note "..."`. O conselho mudou o que você fez? Valeu a chamada? Se você chamou, seguiu o conselho e deu errado, é um `rated` com `--useful false` e a nota do que faltou; o `missed` é só para quando **não** chamou.
+4. Depois da resposta do advisor: `scripts/rate.sh rated <thread> <id da pergunta> --moment <ponto> --changed-course true|false --useful true|false --note "..."`. O conselho mudou o que você fez? Valeu a chamada? Se você chamou, seguiu o conselho e deu errado, é um `rated` com `--useful false` e a nota do que faltou; o `missed` é só para quando **não** chamou.
 5. Se você **não** chamou e depois deu errado (o dono corrigiu, um teste falhou): `scripts/rate.sh missed <thread> --moment .. --what "..."`, com o `--moment` em que a chamada teria ajudado. É o que impede o diário de ensinar a pular para sempre.
 
 ## Lado do agente principal
@@ -63,5 +63,5 @@ Os passos de cada consulta:
 - **Segredo não vai**: o `ask.sh` recusa copiar `.env`, chaves, token e `.sesskey`, e mesmo assim não ponha um segredo no texto de um campo.
 - **Os arquivos só crescem**: um erro numa linha se corrige com outra, nunca reescrevendo o `context.jsonl` nem o `decisions.jsonl`.
 - **Pular sem registrar ensina errado**: grave a decisão também quando não chama, e o `missed` quando dá errado; sem eles o diário só conhece as chamadas.
-- **Testar a skill**: use um `ADVISOR_DIR` temporário e confira só as linhas gravadas. Um subagente de teste que mande SendMessage para `advisor` sai com o endereço da sua sessão e chega ao advisor real como uma pergunta de verdade.
+- **Testar a skill**: `scripts/test.sh` roda tudo num diretório temporário. Para um teste à mão, use um `ADVISOR_DIR` temporário e confira só as linhas gravadas. Um subagente de teste que mande SendMessage para `advisor` sai com o endereço da sua sessão e chega ao advisor real como uma pergunta de verdade.
 - **Pergunta sem contexto escrito não vale**: o advisor responde ao que está no contexto, não ao que você tem na cabeça.

@@ -13,8 +13,11 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
   pedido ambíguo. Fora deles, o agente segue sozinho.
 - A description dispara em todo pedido: antes de começar, decidir se consulta e registrar a decisão.
 - `decisions.jsonl` e os scripts `decide.sh` (`advisor.decided`, chamando ou não), `rate.sh` (`advice.rated` e
-  `advisor.missed`) e `decisions.sh recent <task_kind>` (resume as últimas decisões do tipo e diz CHAME ou PULE): o
-  histórico ensina em quais tipos de decisão vale chamar (`codigo`, `delegacao`, `operacao-externa`, `ambiguidade`...).
+  `advisor.missed`) e `decisions.sh recent <task_kind> --moment <ponto>` (resume as últimas decisões e diz CHAME ou PULE).
+  Seis `task_kind` fechados (`codigo`, `delegacao`, `operacao-externa`, `ambiguidade`, `debug`, `pesquisa`). A regra
+  usa a chave (`task_kind`, ponto): PULE exige três chamadas avaliadas sem mudar o rumo, `irreversivel` nunca pula, e uma
+  janela só de pulos volta a CHAME de propósito.
+- `scripts/test.sh`: 21 casos num diretório temporário (inclui recurso já em `resources/<thread>/`, que fazia o `cp` abortar).
 - `scripts/ask.sh`: `ask` (a pergunta, com os recursos copiados para `resources/<thread>/`), `reply` (o veredito
   `segue|corrige|para`), `note` (um fato) e `thread` (lê a thread). Escreve com `jq`, recusa linhas acima de 3500 bytes
   e recusa copiar `.env`, chaves, token e `.sesskey`. `ADVISOR_DIR`, `ADVISOR_ACTOR` e `ADVISOR_TO` configuram.

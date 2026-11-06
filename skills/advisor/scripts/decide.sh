@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One line per decision point, whether the advisor was called or not (advisor.decided in decisions.jsonl).
 #   decide.sh <thread> --moment plano|travou|terminou|irreversivel|ambiguidade --called true|false --reason "..." --task-kind <kind> [--actor <name>]
-# task-kind is a short slug for the kind of work (skill, dev-console, debug, pesquisa, refactor...): `decisions.sh recent
-# <task-kind>` reads these lines back before the next decision. Skipping is a decision too; record it with its reason.
+# task-kind is one of codigo, delegacao, operacao-externa, ambiguidade, debug, pesquisa (a closed list): `decisions.sh recent
+# <task-kind> --moment <m>` reads these lines back before the next decision. Skipping is a decision too; record it.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib.sh
@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
 done
 moment_ok "$moment"; bool_ok --called "$called"
 [ -n "$reason" ] || die "--reason is required (why call, or why skip)"
-thread_ok "$kind"
+kind_ok "$kind"
 
 append_decision '{id:$id, at:$at, actor:$actor, event:"advisor.decided",
                   value:{thread:$th, moment:$m, called:$called, reason:$r, task_kind:$k}}' \

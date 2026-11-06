@@ -60,7 +60,8 @@ cmd_ask() {
     [ -f "$f" ] || die "resource is not a file: $f"
     if secret_name "$f"; then die "refusing $f: it looks like a secret (.env, key, token, .sesskey)"; fi
     mkdir -p "$dir/resources/$th"
-    cp -- "$f" "$dir/resources/$th/$(basename "$f")"
+    # a file already in resources/<thread>/ stays where it is (cp refuses to copy a file onto itself)
+    if [ "$f" -ef "$dir/resources/$th/$(basename "$f")" ]; then :; else cp -- "$f" "$dir/resources/$th/$(basename "$f")"; fi
     paths+=("resources/$th/$(basename "$f")")
   done
   local resj
