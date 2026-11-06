@@ -115,6 +115,16 @@ check "wait sem --timeout: erro" [ "$rc" -ne 0 ]
 "$WIN" rename blank renomeada >/dev/null
 check "rename troca o nome da janela" [ "$(tm display-message -p -t "$w" '#{window_name}')" = renomeada ]
 
+# 10. alvo TNN (a opcao @tnn do pane, igualdade exata)
+tm set-option -p -t "$w" @tnn T07 >/dev/null
+check "alvo T07 resolve o pane que tem @tnn=T07" [ "$("$PANE" read T07 1 >/dev/null 2>&1; echo $?)" = 0 ]
+check "alvo T07 e o mesmo pane que o %id" [ "$(. "$HERE/lib.sh"; resolve_pane T07)" = "$(tm display-message -p -t "$w" '#{pane_id}')" ]
+"$PANE" read T70 1 >/dev/null 2>&1; rc=$?
+check "alvo TNN que ninguem tem e erro (cai na regra do nome e nao acha)" [ "$rc" -ne 0 ]
+tm set-option -p -t "$(tm display-message -p -t t:first '#{pane_id}')" @tnn T07 >/dev/null
+"$PANE" read T07 1 >/dev/null 2>&1; rc=$?
+check "o mesmo TNN em dois panes e erro, nao adivinha" [ "$rc" -ne 0 ]
+
 rm -rf -- "$WORK"
 printf '\n%d ok, %d FAIL\n' "$pass" "$failn"
 [ "$failn" -eq 0 ]

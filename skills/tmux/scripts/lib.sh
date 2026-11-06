@@ -35,6 +35,16 @@ _count_windows() { awk -F'|' '{print $2 "\034" $3}' | sort -u | wc -l | tr -d ' 
 resolve_pane() {
   local target=$1 rows sel sess rest w p
   [ -n "$target" ] || die "alvo vazio"
+  # T00..T99: o id do pane desta casa (opcao @tnn do pane, ver wiki panes-ids), por igualdade exata. O %N do tmux some
+  # quando o pane fecha; o TNN fica. Sem achar, cai na regra do nome (uma janela pode se chamar T02 de verdade).
+  if [[ $target =~ ^T[0-9][0-9]$ ]]; then
+    sel=$(tm list-panes -a -F '#{pane_id}|#{@tnn}' 2>/dev/null | awk -F'|' -v t="$target" '$2==t {print $1}')
+    case $(printf '%s' "$sel" | grep -c .) in
+      1) printf '%s\n' "$sel"; return 0 ;;
+      0) ;;
+      *) printf 'tmux-skill: o id %s esta em varios panes (%s). Use o %%id.\n' "$target" "$(printf '%s' "$sel" | tr '\n' ' ')" >&2; exit 1 ;;
+    esac
+  fi
   rows=$(tm list-panes -a -F "$PANE_FMT" 2>&1) || die "tmux sem servidor ou com erro: $rows"
   # $1 = condicao awk; valores entram por ENVIRON (sem interpretar barras invertidas)
   _sel() {
