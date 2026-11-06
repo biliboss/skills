@@ -1525,6 +1525,23 @@ MONEY_JS = r"""
 const $ = id => document.getElementById(id);
 const D = JSON.parse($('data').textContent), Q = new URLSearchParams(location.search);
 const box = $('money');
+// Inside DevConsole.app the window draws the status line natively (chrome); the page keeps the content, so its own
+// line is hidden there and pushes the numbers to the app. In a plain browser nothing changes (agents read it headless).
+const APP = !!window.webkit?.messageHandlers?.devconsole && !Q.get('embed');
+let pushed = '';
+const pushStatus = s => {
+  if (!APP) return;
+  const mod = ($('mod-name') || {}).textContent || (D.name === 'Playground' ? 'Playground' : '');
+  const msg = JSON.stringify({type: 'status', domain: D.name, base: D.base, module: mod || null, cost_center: s ? s.name : null,
+    running: !!(s && s.running), today_brl: s ? s.spent : null, budget_brl: s && !s.investment ? s.budget : null});
+  if (msg !== pushed) { pushed = msg; window.webkit.messageHandlers.devconsole.postMessage(JSON.parse(msg)); }
+};
+if (APP) {
+  const hide = document.createElement('style');
+  hide.textContent = '#bar{display:none !important}';
+  document.head.appendChild(hide);
+  if (!(box && D.money)) { pushStatus(null); setInterval(() => pushStatus(null), 2000); }
+}
 const EMB = Q.get('embed') === 'money';  // the CostToolbar widget: it shows the bar and the ▶ works on click, but it never enters, beats or stops by itself
 if (box && D.money && (!Q.get('embed') || EMB)) {
   let mine = false, S = D.money, t0 = performance.now(), last = Date.now(), leaving = false, native = null, popOpen = false;
@@ -1557,7 +1574,10 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
         <span data-act="rate" tabindex="0" title="min · hora · dia" class="tabular-nums ${mute} hover:text-neutral-900">${rateText()}</span>${button()}`;
     }
     if (popOpen) drawPop();
+    pushStatus({name: S.name, running: S.running, spent, budget: S.budget, investment: S.investment});
   }
+  // the native status line's ▶/⏸ does what the web button does (the page keeps the beat and the idle rules)
+  window.devconsoleToggle = () => { if (S.running) stop('pause'); else start(); };
   // the popover: today per cost center and the total (the DayCost numbers); the running stretch counts live
   const pop = document.createElement('div');
   pop.id = 'money-pop';
@@ -1805,6 +1825,21 @@ def time_state(slug: str):
     _settle() if C else None
     state = _money_state(slug)
     return _json(state or {"error": "no cost center"}, 200 if state else 404)
+
+
+@rt("/api/status")
+def api_status(domain: str = ""):
+    """Read-only, for the native status line's slow refresh: {domain, cost_center, running, today_brl, budget_brl, module}.
+    `today_brl` counts the running stretch up to now. `module` is null: only the page knows its tab (it pushes it)."""
+    if not domain or not _known(domain):
+        return _json({"error": "no such domain"}, 404)
+    _settle() if C else None
+    m = _money_state(domain)
+    if not m:
+        return _json({"domain": domain, "cost_center": None, "running": False, "today_brl": None, "budget_brl": None, "module": None})
+    spent = m["closed_money"] + m["elapsed"] * m["rate_hour_running"] / 3600
+    return _json({"domain": domain, "cost_center": m["name"], "running": m["running"], "today_brl": round(spent, 2),
+                  "budget_brl": None if m["investment"] else m["budget"], "module": None})
 
 
 @rt("/domain/{slug}/time/enter", methods=["POST"])
