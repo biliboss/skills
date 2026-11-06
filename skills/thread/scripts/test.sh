@@ -75,6 +75,12 @@ tm list-windows -t =work -F '#{window_name}' | grep -qx preco; ok $? "client mov
 : >"$FAKE_DIR/clients"
 TMUX_BIN="$FAKEBIN/tmux" "$T" open nada --new >/dev/null 2>&1; [ $? -ne 0 ]; ok $? "no tmux, no client: refused"
 
+# 3b. the owner's focus never moves: the active window is the same before and after `open`
+tm select-window -t other:agent0; before="$(tm display-message -p -t =other '#{window_id}')"
+"$T" open foco --session other --new >/dev/null
+[ "$(tm display-message -p -t =other '#{window_id}')" = "$before" ] && [ "$(tm list-windows -t =other -F '#{window_name}' | sed -n 2p)" = foco ]; ok $? "focus: active window unchanged after open (tab created in the background)"
+grep -nE 'select-window|switch-client' "$T" | grep -vE '^[0-9]+: *#' >/dev/null; [ $? -ne 0 ]; ok $? "thread.sh never selects a window or switches the client"
+
 # 4. branch: explicit title, and default when a session titled like the card exists
 printf 'unicred-1\tunicred\n' >>"$FAKE_DIR/sessions.tsv"
 "$T" open ramo --session work --from unicred-1 --brief 'oi branch' >/dev/null

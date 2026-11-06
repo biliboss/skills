@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.3.0
+  version: 0.3.1
 ---
 
 # thread — a topic, in one call
@@ -30,6 +30,7 @@ EOF
 
 ## Rules
 
+- **Never move the owner's focus: tabs open in the background with -d** (`new-window -d -a`; never `select-window`/`switch-client`; a restart is `respawn-window` alone). A thread must not take the owner off the window he is on.
 - Never put a secret in a brief: it lands in the session history.
 - Card, topic and session: no quotes, `$` or backslash (refused). One window per topic per session; a duplicate is refused.
 - The cost clock follows the active window's `@card` first, then the session name (cost-track); that is why the card is set on the window.

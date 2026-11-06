@@ -134,6 +134,7 @@ cmd_open() {
   fi
   [ -n "$after" ] || after="$(tm list-windows -t "=$session" -F '#{window_id}' | head -1)"
   local win
+  # -d: the window opens in the BACKGROUND. Never select-window/switch-client: the owner's focus is not ours to move.
   win="$(tm new-window -a -d -P -F '#{window_id}' -t "$after" -n "$topic" -c "$cwd" "$hcmd")"
   tm set-option -w -t "$win" @thread "$topic"
   [ -z "$kid" ] || tm set-option -w -t "$win" @card "$kid"

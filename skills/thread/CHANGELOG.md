@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-06
+
+### Fixed
+
+- `fork.py` copied the source's `source` label; for a gateway-owned chat that is `local`, which the gateway cannot adopt on resume (`not_found` in the TUI, the brief left queued). The branch now carries an adoptable label (`cli`, as `/branch`).
+
+### Added
+
+- Rule + test: the owner's focus never moves (windows open with `-d`; the active window is unchanged after `open`).
+
 ## [0.3.0] - 2026-11-06
 
 ### Fixed
