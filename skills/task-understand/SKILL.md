@@ -61,7 +61,7 @@ claude-bridge, account chosen by `CLAUDE_CONFIG_DIR=~/.claude-mukutu`), `glm` = 
 process's `ZAI_API_KEY` only — never printed, logged or committed). Flat plans only: per-token providers
 (OpenRouter, `~anthropic/...`) are refused, in config as in `--models`. Override and extend in
 `~/.config/tasks/config.json` (`"models"` and `"default_model"`); the old `"execute"` command override is gone —
-pi is the only executor. `scripts/tasks.sh  models` prints the registry and, per model, whether pi
+pi is the only executor. `scripts/tasks.sh models` prints the registry and, per model, whether pi
 sees it right now (`pi --list-models` with the model's env; cheap, no model call).
 
 To read results per model: every run records its own `task.executed`, so the journal accumulates, task by task,
@@ -82,8 +82,11 @@ shows which kinds of task each model does well and with what quality.
    1. **Implementar <método recomendado>**: confirm and execute at once with the method the context calls for,
       named in the label. A small change whose context is already in this session (a draft in the graph, a design
       edit, a few lines) is done **by hand, here** (`Implementar aqui, à mão`): delegating it costs more than doing it.
-      Long or separable work goes to pi with the best model for it (step 9, e.g. `Implementar com pi · Claude
-      Sonnet (mukutu)`); the registry's default (`sonnet`) when nothing speaks for another one.
+      Long or separable work, **inside a Hermes session**, goes to the harness's own subagents (`delegate_task`,
+      `Implementar com subagente`): the owner wants it kept in the session he is watching, with the agent only
+      splitting, checking and merging. Elsewhere, or when he names pi, it goes to pi with the best model for it
+      (step 9, e.g. `Implementar com pi · Claude Sonnet (mukutu)`; the registry's default `sonnet` when nothing
+      speaks for another one). Either way each delegated task gets its own worktrunk worktree (step 13).
    2. **Pi · <recomendado> + <teste>, em paralelo**: only when the work is delegated: the recommended model plus one
       test model you pick (e.g. `Pi · Claude Sonnet + GLM 5.3, em paralelo`), each in its own worktree (step 9), to
       learn what this kind of task looks like on that model. Leave it out when option 1 is by hand.
