@@ -37,6 +37,17 @@ instance_pids() { # <port>
   [ -n "$root" ] && echo "$root $py"
 }
 
+# A port is also taken when a running dev-console was started for it: while that server reloads, the socket is
+# briefly unbound and lsof alone would let a duplicate start. No --port in the command line means the default 5057.
+claimed() { # <port>
+  local c
+  while read -r c; do
+    if echo "$c" | grep -qE -- "--port[ =]$1( |\$)"; then return 0; fi
+    if [ "$1" = 5057 ] && ! echo "$c" | grep -q -- '--port'; then return 0; fi
+  done < <(pgrep -fl 'dev-console\.py' 2>/dev/null | grep -v -- 'instances\.sh' || true)
+  return 1
+}
+
 listening_ports() {
   lsof -nP -iTCP -sTCP:LISTEN -Fn 2>/dev/null | sed -n 's/^n.*:\([0-9][0-9]*\)$/\1/p' | sort -un
 }
@@ -137,7 +148,7 @@ cmd_start() {
     esac
   done
   [ -n "$owner" ] || die "--owner <name> is required (it is how this instance is told apart in \`list\`)"
-  if lsof -ti "tcp:$port" -sTCP:LISTEN >/dev/null 2>&1; then die "port $port is taken; pass another: instances.sh start 5059 --owner $owner"; fi
+  if lsof -ti "tcp:$port" -sTCP:LISTEN >/dev/null 2>&1 || claimed "$port"; then die "port $port is taken; pass another: instances.sh start 5059 --owner $owner"; fi
 
   if pids=$(instance_pids "$from"); then
     read -r _ py <<<"$pids"
