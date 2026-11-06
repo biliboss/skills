@@ -192,7 +192,8 @@ def main(a):
         if not pct.isdigit() or not 0 <= int(pct) <= 100: die("stage ready <0-100>")
         sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
         sg["ready"] = int(pct)
-        if int(pct) == 100 and sg.get("downstream", "todo") == "todo": sg["upstream"] = "done"
+        if sg.get("downstream", "todo") == "todo":  # in the Upstream the % decides: 100 is ready, below is still in progress
+            sg["upstream"] = "done" if int(pct) == 100 else "doing"
     elif cmd == "stage":
         lane, st = (rest + ["", ""])[:2]
         owner = "--by" in rest and rest[rest.index("--by") + 1:rest.index("--by") + 2] == ["owner"]
