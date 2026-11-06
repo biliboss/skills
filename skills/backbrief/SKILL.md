@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.14.0
+  version: 0.15.0
 ---
 
 # backbrief
@@ -85,9 +85,9 @@ shows which kinds of task each model does well and with what quality.
    1. **Implementar <método recomendado>**: confirm and execute at once with the method the context calls for,
       named in the label. A small change whose context is already in this session (a draft in the graph, a design
       edit, a few lines) is done **by hand, here** (`Implementar aqui, à mão`): delegating it costs more than doing it.
-      Long or separable work, **inside a Hermes session**, goes to the harness's own subagents (`delegate_task`,
-      `Implementar com subagente`): the owner wants it kept in the session he is watching, with the agent only
-      splitting, checking and merging. Elsewhere, or when he names pi, it goes to pi with the best model for it
+      Long or separable work goes to the harness's own subagents, so it stays in the session the owner is watching
+      and the agent only splits, checks and merges: in Claude Code, the Agent tool (`Implementar com subagente ·
+      Sonnet`); inside a Hermes session, `delegate_task`. Elsewhere, or when he names pi, it goes to pi with the best model for it
       (step 9, e.g. `Implementar com pi · Claude Sonnet (mukutu)`; the registry's default `sonnet` when nothing
       speaks for another one). Either way each delegated task gets its own worktrunk worktree (step 13).
    2. **Pi · <recomendado> + <teste>, em paralelo**: only when the work is delegated: the recommended model plus one
@@ -119,12 +119,20 @@ shows which kinds of task each model does well and with what quality.
    (`option.generated` x3). Show the three to the Human, each with its style name.
 8. The Human picks one: `... choose --task <id> --option <option id>` records `option.chosen` (that text becomes
    the repetition to confirm) and scores (+1) its style. Wait for the confirmation as in step 4.
-9. Once the Human confirms (`understanding.confirmed`), execute: `scripts/tasks.sh  execute --task <id>
-   [--models sonnet,glm] [--cwd <repo>]` runs **pi** on each chosen model, in parallel, each in its own git worktree
-   (`<repo>/../<repo>.task-<id8>-<model>`, branch `task/<id8>-<model>`, from the repo's HEAD), and records one
-   `task.executed` per model: the run's answer, model, provider, plan, harness, exit code, duration, worktree, branch
-   and what pi's JSON reports (turns, tokens, cost). No `--models` runs the registry's default. After the runs,
-   review each worktree's diff and open the PR from the one that came out best.
+9. Once the Human confirms (`understanding.confirmed`), execute.
+   - **In Claude Code: a native subagent.** Agent tool, `model: "sonnet"`, `run_in_background: true`, working in a
+     worktree of the right repo (a subagent's `isolation: "worktree"` makes one of the session's repo, so for another
+     repo create it first and name it in the prompt). The prompt carries the confirmed teach-back and the learnings
+     in full: the subagent knows nothing else. When it returns, review its diff and run its tests here, then record
+     `emit task.executed` by hand (value built with `jq -n`): `{text: <its report>, harness: "claude-code", method:
+     "print", model: "sonnet", exit_code: 0, worktree, branch, duration_s}`, `--actor "subagent (sonnet)"`;
+     `exit_code` and `worktree` are what makes the console read it as a run.
+   - **Elsewhere, or to compare models (option 2): pi.** `scripts/tasks.sh  execute --task <id>
+     [--models sonnet,glm] [--cwd <repo>]` runs **pi** on each chosen model, in parallel, each in its own git worktree
+     (`<repo>/../<repo>.task-<id8>-<model>`, branch `task/<id8>-<model>`, from the repo's HEAD), and records one
+     `task.executed` per model: the run's answer, model, provider, plan, harness, exit code, duration, worktree, branch
+     and what pi's JSON reports (turns, tokens, cost). No `--models` runs the registry's default. After the runs,
+     review each worktree's diff and open the PR from the one that came out best.
 10. Verify before delivering, with eyes that did not do the work (independent verification, IV&V): `scripts/tasks.sh
      verify --task <id> [--model sonnet] [--executed <event id>] [--cwd <dir>]`, only after a
     `task.executed`. It runs pi in a **fresh context** (`--no-session`, a flat-plan model from the registry, from the
