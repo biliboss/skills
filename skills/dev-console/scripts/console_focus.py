@@ -71,7 +71,7 @@ def kind(target: str) -> str:
     t = str(target or "").strip()
     if t == KANBAN:
         return "kanban"
-    if t.startswith("//"):  # protocol-relative: another host dressed as a console path
+    if t.startswith("/") and (t[1:2] in ("/", "\\") or any(ch in t for ch in "\\\t\r\n")):  # another host dressed as a console path
         raise ValueError(f"target {t!r}: a console path starts with one /, another site with http(s)://")
     if t.startswith(("http://", "https://", "/")):
         return "url"

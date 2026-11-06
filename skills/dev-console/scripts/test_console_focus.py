@@ -64,7 +64,7 @@ class Journal(Base):
     def test_targets(self):
         self.assertEqual([F.kind(t) for t in ("kanban", "via", "via/listing.shared/Funnel", "/agents", "https://x.dev/a")],
                          ["kanban", "slug", "widget", "url", "url"])
-        for bad in ("", "Via Corretor", "a/b", "//evil.example/x", "javascript:alert(1)"):
+        for bad in ("", "Via Corretor", "a/b", "//evil.example/x", "/\\evil.example/x", "/\t/evil.example/x", "javascript:alert(1)"):
             with self.assertRaises(ValueError):
                 F.kind(bad)
         with self.assertRaises(ValueError):
