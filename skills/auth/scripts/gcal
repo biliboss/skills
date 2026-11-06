@@ -1,0 +1,14 @@
+#!/opt/homebrew/bin/bash
+# gcal <conta|todas> <gws args…> — thin alias of `auth.sh run <conta> -- gws …` (the skill `auth` owns accounts,
+# grants and secrets). Ex.: gcal pessoal +agenda --today · gcal todas +agenda --today
+set -euo pipefail
+AUTH="$(cd -P "$(dirname "$(readlink "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd -P)/auth.sh"
+[ $# -ge 1 ] || { echo "uso: gcal <apelido|todas> <args do gws>   (apelidos: auth.sh list --provider google)"; exit 2; }
+c=$1; shift
+if [ "$c" = todas ]; then
+  while read -r k; do
+    echo "== $k"; "$AUTH" run "$k" -- gws "$@" || echo "($k: falhou — auth.sh check $k)"
+  done < <("$AUTH" aliases google)
+else
+  exec "$AUTH" run "$c" -- gws "$@"
+fi
