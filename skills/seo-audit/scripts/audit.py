@@ -56,7 +56,7 @@ def refuse(url: str):
         return None  # let the fetch report that it did not resolve
     for addr in addrs:
         ip = ipaddress.ip_address(addr.split("%")[0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+        if not ip.is_global:  # private, loopback, link-local, CGNAT, reserved
             return f"{host} resolve para um endereço interno ({ip}); recusado (só um host passado à mão pode ser interno)"
     return None
 
