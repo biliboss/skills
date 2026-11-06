@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0] - 2026-11-05
+
+### Added
+- `LAYOUT = "metro"` (project file): the graph of a big domain reads like a Tokyo Metro map, deterministic (preset positions computed in `drawGraph`, no force layout), octilinear after Nöllenburg & Wolff 2011. Each category of `EVENTS` is a line in its own colour leaving the Human along its clock hour (the first at 12 o'clock, the others clockwise) snapped to one of 8 directions; categories that snap to the same direction are fanned, parallel, one track apart. Stations are small dots, evenly spaced in `EVENTS` order, the first one a ring from the Human. Edges between neighbouring stations are the line itself (6 px, category colour, no arrow, no label); edges that leave a line (`TRANSITIONS`) are 2 px, grey, dashed, octilinear with at most one bend, with their command label. Labels are horizontal, on a fixed side of the line, wrapped at PascalCase words and pushed apart until no label meets another label, a station or a line. The Human stays the biggest node and the centre; filled / outlined still means a record / none yet.
+- `"clock"` keeps working as before.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added

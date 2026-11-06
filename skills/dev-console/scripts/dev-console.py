@@ -640,6 +640,8 @@ function drawGraph() {
   const PAL = dark ? ['#818cf8', '#2dd4bf', '#facc15', '#38bdf8', '#fb7185', '#a3e635']
                    : ['#4338ca', '#0f766e', '#a16207', '#0369a1', '#be123c', '#4d7c0f'];
   Object.keys(M().lifecycle).forEach((c, i) => { PATH[c] ??= PAL[i % PAL.length]; });
+  const METRO = M().layout === 'metro';  // LAYOUT = "metro": see the METRO block below
+  if (METRO) Object.keys(M().lifecycle).forEach((c, i) => { PATH[c] = `hsl(${Math.round(i * 137.5) % 360}, ${dark ? 70 : 65}%, ${dark ? 62 : 38}%)`; });
   const colorOf = id => PATH[id.split('.')[0]];
   // Entity.Event: management happens to the Tension itself; the others to the Value Object of their category.
   const ENT = D.entities || {};
@@ -684,11 +686,80 @@ function drawGraph() {
       M().lifecycle[c].forEach((v, k) => { const r = 230 + k * 140; pos[`${c}.${v}`] = {x: Math.cos(t) * r, y: Math.sin(t) * r}; }); });
     nodes.forEach(n => { n.position = pos[n.data.id] || {x: 0, y: 0}; });
   }
+
+  // LAYOUT = "metro" (project file): a Tokyo Metro map read from the clock, deterministic (preset positions, no force
+  // layout). Octilinear layout, after the metro-map literature (Nöllenburg & Wolff 2011, "Drawing and Labeling
+  // High-Quality Metro Maps by Mixed-Integer Programming"): every segment lies on one of 8 directions (multiples of 45°).
+  // Each category of EVENTS is a line in its own colour; its clock hour (the first category at 12 o'clock, the others
+  // clockwise) snapped to the nearest of the 8 directions says where it leaves the Human. Categories that snap to the
+  // same direction are fanned: each next one runs parallel, one TRACK further to the counter-clockwise side. Stations
+  // are one constant STEP apart, in EVENTS order, the first one RING from the Human. The label sits on the side of its
+  // line that faces away from the Human's middle (right on the right half, left on the left half; below an eastbound
+  // line, above a westbound one), always the same side per direction, horizontal text, never rotated; a fanned line
+  // runs on the opposite side, so the labels fall in the gap between tracks. A colliding label is pushed outward.
+  const STEP = 170, TRACK = 180, HUMAN_R = 56, LABEL_CHARS = 14, LABEL_PUSH = 14;
+  const LINE_POINTS = [];   // thick line polylines (model coordinates), for the label collision test
+  const SHIFT = [0, 1, 0, -1, 0, -1, 0, 1];   // diagonals (NE SE SW NW): the label leaves its own line, down (+1) or up (-1)
+  const metroLabelOf = id => { const [c, v] = id.split('.'), ent = ENT[c] || pascal(c);
+    const parts = pascal(v).match(/[A-Z][a-z0-9]*|[a-z0-9]+/g) || [pascal(v)], lines = [];
+    parts.forEach(p => { const last = lines.length - 1; if (last >= 0 && lines[last].length + p.length <= LABEL_CHARS) lines[last] += p; else lines.push(p); });
+    return [ent, ...lines].join('\n'); };
+  if (METRO) {
+    const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]].map(([x, y]) => { const l = Math.hypot(x, y); return [x / l, y / l]; });
+    const SIDE = ['r', 'r', 'b', 'r', 'l', 'l', 't', 'l'];   // N NE E SE S SW W NW: the label's side, fixed per direction
+    const FAN = [1, 1, 1, -1, 1, 1, 1, -1];                    // which way a fanned track goes: +1 counter-clockwise, -1 clockwise (never the label's side)
+    const cats = Object.keys(M().lifecycle), N = cats.length, dirOf = {}, group = {}, count = {};
+    cats.forEach((c, i) => { const d = Math.round(8 * i / N) % 8; dirOf[c] = d; group[c] = count[d] || 0; count[d] = group[c] + 1; });
+    const BRANCH = HUMAN_R + 4, RING = BRANCH + (Math.max(...Object.values(count)) - 1) * TRACK + 110;   // the fan leaves the Human's rim, then runs straight
+    const at = (c, k) => { const [dx, dy] = DIRS[dirOf[c]], o = FAN[dirOf[c]] * group[c] * TRACK, r = RING + k * STEP;   // ccw side = (dy, -dx)
+      return {x: dy * o + dx * r, y: -dx * o + dy * r}; };
+    const pos = {human: {x: 0, y: 0}}, st = {}, where = {};
+    cats.forEach(c => M().lifecycle[c].forEach((v, k) => { const id = `${c}.${v}`; pos[id] = at(c, k); where[id] = {c, k};
+      st[id] = {side: SIDE[dirOf[c]], dir: dirOf[c]}; }));
+    nodes.forEach(n => { const id = n.data.id; n.position = pos[id] || {x: 0, y: 0};
+      if (id !== 'human') { n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id); n.data.side = st[id].side; n.data.dir = st[id].dir; } });
+    // a segment route: from S through the bends Bs to T; cytoscape wants each bend as a weight and a distance:
+    // point = S + w (T - S) + d (-dy, dx) / |T - S|
+    const route = (S, T, Bs) => { const dx = T.x - S.x, dy = T.y - S.y, L2 = dx * dx + dy * dy;
+      return {w: Bs.map(B => ((B.x - S.x) * dx + (B.y - S.y) * dy) / L2), d: Bs.map(B => ((B.y - S.y) * dx - (B.x - S.x) * dy) / Math.sqrt(L2))}; };
+    const octi = (S, T, skip) => { const dx = T.x - S.x, dy = T.y - S.y, m = Math.min(Math.abs(dx), Math.abs(dy));
+      if (m < 1 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 1) return null;   // already 0 / 45 / 90: straight
+      // one bend, two ways: the diagonal first or the straight run first; keep the one that stays clear of the Human
+      // and of the other stations (a route through them reads as a line through them)
+      const diag = {x: S.x + Math.sign(dx) * m, y: S.y + Math.sign(dy) * m};
+      const run = {x: S.x + (Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) * (Math.abs(dx) - m) : 0),
+                   y: S.y + (Math.abs(dy) > Math.abs(dx) ? Math.sign(dy) * (Math.abs(dy) - m) : 0)};
+      const cost = B => { let c = 0; [[S, B], [B, T]].forEach(([p, q]) => { const len = Math.hypot(q.x - p.x, q.y - p.y);
+        for (let t = 0; t <= len; t += 8) { const x = p.x + (q.x - p.x) * t / len, y = p.y + (q.y - p.y) * t / len;
+          if (Math.hypot(x, y) < HUMAN_R + 16) c += 3;
+          Object.entries(pos).forEach(([id, o]) => { if (id !== 'human' && id !== skip[0] && id !== skip[1] && Math.hypot(x - o.x, y - o.y) < 18) c += 1; }); } }); return c; };
+      return cost(run) < cost(diag) ? run : diag; };
+    const stub = c => { const [dx, dy] = DIRS[dirOf[c]], o = group[c] * TRACK;   // leaves the trunk at the Human's rim, a 45° leg into its track
+      const track = at(c, 0), run = {x: track.x - dx * (RING - BRANCH - o), y: track.y - dy * (RING - BRANCH - o)};   // where the leg meets the track
+      return o ? [{x: dx * BRANCH, y: dy * BRANCH}, run] : null; };
+    const adjacent = (a, b) => where[a] && where[b] && where[a].c === where[b].c && where[b].k === where[a].k + 1;
+    const made = new Set();
+    edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
+      made.add(`${a}>${b}`);
+      const lineEdge = a === 'human' ? where[b] && where[b].k === 0 : adjacent(a, b);
+      if (lineEdge) { e.classes = `${cl} line`; e.data.label = ''; const c = where[b].c;
+        const Bs = a === 'human' ? stub(c) : null;
+        if (Bs) { e.data.route = route(pos[a], pos[b], Bs); LINE_POINTS.push([pos[a], ...Bs, pos[b]]); } else LINE_POINTS.push([pos[a], pos[b]]); }
+      else { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); if (B) e.data.route = route(pos[a], pos[b], [B]); } });
+    // a line is continuous: where the model has no edge between two neighbours (or the Human and the first station)
+    // a faint rail carries the line on, so the category still reads as one track
+    cats.forEach(c => { const ids = M().lifecycle[c].map(v => `${c}.${v}`), c0 = ids[0];
+      const pairs = ids.slice(1).map((id, i) => [ids[i], id]); if (!made.has(`human>${c0}`)) pairs.unshift(['human', c0]);
+      pairs.forEach(([a, b]) => { if (made.has(`${a}>${b}`)) return;
+        const Bs = a === 'human' ? stub(c) : null;
+        edges.push({data: {id: `rail:${a}>${b}`, source: a, target: b, color: PATH[c], label: '', ...(Bs ? {route: route(pos[a], pos[b], Bs)} : {})}, classes: 'rail'});
+        LINE_POINTS.push(Bs ? [pos[a], ...Bs, pos[b]] : [pos[a], pos[b]]); }); });
+  }
   const cy = cytoscape({
     container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
     // fCoSE: force-directed, the Human pinned in the centre; seeded (randomize false + fixed seed positions) so a
     // reload draws the same picture. nodeRepulsion and idealEdgeLength leave room for the edge labels.
-    layout: CLOCK ? {name: 'preset', padding: 24} : {name: 'fcose', quality: 'proof', randomize: false, animate: false, padding: 24,
+    layout: (CLOCK || METRO) ? {name: 'preset', padding: 24} : {name: 'fcose', quality: 'proof', randomize: false, animate: false, padding: 24,
              nodeDimensionsIncludeLabels: true, idealEdgeLength: () => 130, nodeRepulsion: () => 45000,
              edgeElasticity: () => 0.45, gravity: 0.4, gravityRange: 2.5, numIter: 5000, nodeSeparation: 90,
              fixedNodeConstraint: [{nodeId: 'human', position: {x: 0, y: 0}}],
@@ -718,9 +789,71 @@ function drawGraph() {
       {selector: 'edge.walked', style: {width: 3.5, 'line-opacity': 1}},
       // a loop (A -> B and B -> A, from TRANSITIONS): two curved edges, side by side, so neither hides the other
       {selector: 'edge.loop', style: {'curve-style': 'bezier', 'control-point-step-size': 60}},
+      ...(METRO ? [
+        {selector: 'node.station', style: {shape: 'ellipse', width: 16, height: 16, 'background-color': bg, 'border-width': 3,
+          'border-color': 'data(color)', 'border-opacity': 1, label: 'data(mlabel)', 'font-size': 14, 'font-weight': 400,
+          color: dark ? '#a3a3a3' : '#525252', 'text-wrap': 'wrap', 'line-height': 1.15, 'text-valign': 'center', 'text-halign': 'center'}},
+        {selector: 'node.station.used', style: {'background-color': 'data(color)', 'border-width': 0, width: 18, height: 18, color: ink}},
+        {selector: 'node.station[side="r"]', style: {'text-halign': 'right', 'text-valign': 'center', 'text-justification': 'left'}},
+        {selector: 'node.station[side="l"]', style: {'text-halign': 'left', 'text-valign': 'center', 'text-justification': 'right'}},
+        {selector: 'node.station[side="b"]', style: {'text-halign': 'center', 'text-valign': 'bottom', 'text-justification': 'center'}},
+        {selector: 'node.station[side="t"]', style: {'text-halign': 'center', 'text-valign': 'top', 'text-justification': 'center'}},
+        {selector: 'node.human', style: {'text-valign': 'center', color: bg, 'text-margin-y': 0, 'font-size': 20}},
+        {selector: 'edge.line', style: {width: 6, 'line-color': 'data(color)', 'line-opacity': 1, 'target-arrow-shape': 'none', label: '', 'z-index': 3}},
+        {selector: 'edge.rail', style: {width: 6, 'line-color': 'data(color)', 'line-opacity': 0.5, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
+        {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
+          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
+      ] : []),
       {selector: ':selected', style: {'border-width': 4, 'border-color': ink, 'border-opacity': 1}},
     ],
   });
+  if (METRO) {
+    // octilinear routes: a bend point per edge that needs one (computed above as weight and distance)
+    cy.edges().forEach(e => { const r = e.data('route'); if (!r) return;
+      e.style({'curve-style': 'segments', 'segment-weights': r.w, 'segment-distances': r.d, 'edge-distances': 'node-position'}); });
+    // labels: the clockwise side first; a label that touches another label, a station or a line is pushed outward
+    const box = (n, labels) => n.boundingBox({includeNodes: !labels, includeEdges: false, includeLabels: !!labels, includeOverlays: false});
+    const hit = (a, b, m) => a.x1 - m < b.x2 && b.x1 - m < a.x2 && a.y1 - m < b.y2 && b.y1 - m < a.y2;
+    const bodies = cy.nodes().map(n => ({id: n.id(), b: box(n, false)}));
+    const onLine = bx => LINE_POINTS.some(pts => pts.slice(1).some((p, i) => { const q = pts[i], len = Math.hypot(p.x - q.x, p.y - q.y);
+      for (let t = 0; t <= len; t += 4) { const x = q.x + (p.x - q.x) * t / len, y = q.y + (p.y - q.y) * t / len;
+        if (x > bx.x1 - 4 && x < bx.x2 + 4 && y > bx.y1 - 4 && y < bx.y2 + 4) return true; } return false; }));
+    const uni = (a, b) => ({x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1), x2: Math.max(a.x2, b.x2), y2: Math.max(a.y2, b.y2)});
+    const placed = [], unions = [], PUSH = {r: [1, 0], l: [-1, 0], b: [0, 1], t: [0, -1]};
+    cy.nodes('.station').forEach(n => {
+      const side = n.data('side'), dir = n.data('dir'), [px, py] = PUSH[side];
+      const h = box(n, true), lh = h.y2 - h.y1;
+      let mx = px * 9, my = py * 9;
+      // on a diagonal the label centred on the station would sit on its own line: shift it off, to the clockwise side
+      if (SHIFT[dir]) my += SHIFT[dir] * (lh / 2 + 3);
+      let best = [mx, my], bestHits = 1e9;
+      for (let i = 0; i < 10; i++) {
+        n.style({'text-margin-x': mx, 'text-margin-y': my});
+        const lb = box(n, true);   // the label alone (includeNodes false)
+        const ub = uni(lb, box(n, false));
+        const hits = placed.filter(p => hit(p, lb, 4)).length + unions.filter(p => hit(p, ub, 2)).length
+          + bodies.filter(o => o.id !== n.id() && hit(o.b, ub, 3)).length + (onLine(lb) ? 1 : 0);
+        if (hits < bestHits) { bestHits = hits; best = [mx, my]; }
+        if (!hits) break;
+        mx += px * LABEL_PUSH; my += py * LABEL_PUSH;
+      }
+      n.style({'text-margin-x': best[0], 'text-margin-y': best[1]});   // never worse than the least-clashing step
+      placed.push(box(n, true)); unions.push(uni(box(n, true), box(n, false)));
+    });
+    // a dashed edge's label (the command): the midpoint first, then nudged around it until it clears everything
+    const eplaced = [], NUDGE = [];
+    for (let dy = -224; dy <= 224; dy += 16) for (let dx = -224; dx <= 224; dx += 28) NUDGE.push([dx, dy]);   // a grid around the midpoint, nearest first
+    NUDGE.sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
+    cy.edges('.cross').forEach(e => { if (!e.data('label')) return;
+      let best = null, bestHits = 1e9;
+      for (const [nx, ny] of NUDGE) { e.style({'text-margin-x': nx, 'text-margin-y': ny});
+        const lb = e.boundingBox({includeNodes: false, includeEdges: false, includeLabels: true, includeOverlays: false});
+        const hits = placed.filter(p => hit(p, lb, 3)).length + eplaced.filter(p => hit(p, lb, 3)).length
+          + unions.filter(p => hit(p, lb, 3)).length + bodies.filter(o => hit(o.b, lb, 3)).length + (onLine(lb) ? 1 : 0);
+        if (hits < bestHits) { bestHits = hits; best = [nx, ny]; } if (!hits) break; }
+      e.style({'text-margin-x': best[0], 'text-margin-y': best[1]});
+      eplaced.push(e.boundingBox({includeNodes: false, includeEdges: false, includeLabels: true, includeOverlays: false})); });
+  }
   let box = '';
   new ResizeObserver(([e]) => {
     const k = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
