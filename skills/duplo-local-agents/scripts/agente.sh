@@ -33,7 +33,7 @@ herdr_aba() {  # <tema> <pasta> -> pane_id do pane raiz da aba nova
   herdr tab create --label "$1" --cwd "$2" --no-focus | jq -r '.result.root_pane.pane_id'
 }
 herdr_retomar() {  # <pane nativo ou HNN> -> "retomar: <nome> <harness> <id>"
-  nat=$($MUX panes | awk -F'\t' -v p="$1" '$1==p || $3==p {print $3; exit}')
+  nat=$($MUXSH panes | awk -F'\t' -v p="$1" '$1==p || $3==p {print $3; exit}')
   herdr pane list | jq -r --arg p "${nat:-$1}" '.result.panes[] | select(.pane_id == $p) | "retomar: \(.label // .terminal_title_stripped) \(.agent) \(.agent_session.value // "sem-id")"'
 }
 # --- fim do SOMENTE HERDR ------------------------------------------------------------------------
@@ -65,36 +65,36 @@ case "$cmd" in
     esac
     [ -z "$extra" ] || linha="$linha $extra"
     if [ "$aba" = 1 ]; then
-      [ "$($MUX qual)" = herdr ] || { echo "agente: --aba é só do herdr (qual = $($MUX qual))" >&2; exit 1; }
+      [ "$($MUXSH qual)" = herdr ] || { echo "agente: --aba é só do herdr (qual = $($MUXSH qual))" >&2; exit 1; }
       pane=$(herdr_aba "$tema" "$cwd")
       herdr pane run "$pane" "$linha" >/dev/null
-      id=$($MUX nomear "$pane" "$tema")
+      id=$($MUXSH nomear "$pane" "$tema")
     else
-      id=$($MUX abrir "$cwd" "$tema" "$linha") || exit $?
+      id=$($MUXSH abrir "$cwd" "$tema" "$linha") || exit $?
     fi
     if [ "$harness" = claude ] && [ -z "$retoma" ]; then
       sleep 6
-      $MUX barra "$id" "rename $tema"
+      $MUXSH barra "$id" "rename $tema"
     fi
     echo "$id"
     ;;
   manda)
     [ $# -eq 2 ] || uso
     [ -s "$2" ] || { echo "agente: arquivo vazio ou ausente: $2" >&2; exit 1; }
-    $MUX manda "$1" "$2"
+    $MUXSH manda "$1" "$2"
     ;;
   barra)
     [ $# -eq 2 ] || uso
-    $MUX barra "$1" "$2"
+    $MUXSH barra "$1" "$2"
     ;;
   fecha)
     [ $# -eq 1 ] || uso
-    if [ "$($MUX qual)" = herdr ]; then herdr_retomar "$1" || true; fi
-    $MUX fecha "$1"
+    if [ "$($MUXSH qual)" = herdr ]; then herdr_retomar "$1" || true; fi
+    $MUXSH fecha "$1"
     ;;
   foto)
-    $MUX panes
-    if [ "$($MUX qual)" = herdr ]; then
+    $MUXSH panes
+    if [ "$($MUXSH qual)" = herdr ]; then
       herdr pane list | jq -r '.result.panes[] | select(.agent) | [(.label // .terminal_title_stripped), .pane_id, .agent, .agent_status, (.agent_session.value // "-")] | @tsv'
     fi
     ;;
