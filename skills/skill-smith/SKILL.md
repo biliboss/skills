@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.2.0
+  version: 0.3.1
   license: MIT
 ---
 
@@ -49,6 +49,20 @@ Where a lesson belongs:
 | How this repo works, for everyone | the repo's `.wiki/` (or `AGENTS.md`), not a skill |
 | Both a principle and a skill rule | both; write each once |
 
+## Step 1b — Research the open source first (CREATE, ADAPT, any MINOR+ UPDATE)
+
+The owner's rule: no skill is written from a blank page. Before drafting, spend a short, bounded pass (~10 min, a
+subagent when the harness has one) on how others already solved the class of task, and steal the best ideas:
+
+1. **Hermes Agent**, the house's reference: its own loop and skills (`agent/background_review.py`, the bundled and hub
+   skills: `hermes skills search <topic>`; the local install under `~/.hermes/hermes-agent/`).
+2. **GitHub**: `gh search repos "<topic> skill"`, `gh search code "<topic>" --filename SKILL.md`, Claude Code plugins
+   and marketplaces, Anthropic's [skills](https://github.com/anthropics/skills), the [Agent Skills spec](https://agentskills.io/specification).
+3. **The literature's name** for the practice (a paper, a field's term), so the skill uses it instead of inventing one.
+
+Write what you kept in `references/prior-art.md` (one line per source: what it does, the idea taken, the link) and
+credit adapted text in `ATTRIBUTION.md`. A one-line PATCH dictated by the owner skips this step.
+
 ## Step 2 — Find the home: patch before you create
 
 Take the **first** option that fits ([Hermes' preference order](https://github.com/NousResearch/hermes-agent/blob/bf0203a794a07aac3ff764972ab9087baa4e4f4e/agent/background_review.py#L469-L497)):
@@ -79,7 +93,7 @@ Rules for the content ([Hermes `_LESSON_LAYER_BLOCK`](https://github.com/NousRes
 - **One lesson, one rule.** Search the skill for the rule first; strengthen it instead of appending a second copy.
 - **Fix in place.** Edit the sentence that misled; never append "UPDATE: actually…".
 - **Don't restate the environment**: what `AGENTS.md`, `CLAUDE.md` or a tool's own description already teach.
-- **Actions are `.sh` scripts in `scripts/`, not an MCP server** (the user's preference): a script is faster to iterate, runs from any shell or agent, and is read before it is run. Reach for an MCP only when the action needs a long-lived connection or state that a script cannot keep.
+- **Actions are `.sh` scripts in `scripts/`, not an MCP server** (the user's preference): a script is faster to iterate, runs from any shell or agent, and is read before it is run. The `.sh` is the interface every harness calls; heavier logic lives behind it in a `uv` PEP 723 script or `jq`. Reach for an MCP only when the action needs a long-lived connection or state that a script cannot keep.
 - **A skill that ships an app or widget keeps the app a read-only view; the agent is the engine** (the user's design rule): the skill's script is the only writer of a state file (atomic temp + `mv`), the app watches it (kqueue/file events, no polling) and never writes, and the app has no menus, presets or buttons of its own. Options in the UI duplicate what the agent decides and split the state between two writers.
 - **Always-on rules live in SKILL.md** (aim for under ~200 lines). `references/` holds topical depth, one file per topic, never `<date>-<incident>.md`.
 
