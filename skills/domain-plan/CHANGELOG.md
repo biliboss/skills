@@ -12,4 +12,4 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
   (`--mark` turns it real), unplanned, and lost; `--detailed-exitcode` exits 2 on drift.
 - `plan.sh sync` and `--console-source`: the real events file plus the drafts, each commented as a draft, written as the
   dev-console's SOURCE (it reads EVENTS with ast), so a draft shows outlined = not in the code.
-- `dev_console_plan.py`: the drafts' edges for `TRANSITIONS`, and the widgets Plano (the drift) and Tela (the screen above an event).
+- `dev_console_plan.py`: the drafts' edges for `TRANSITIONS`, and the widgets Plano (the drift) and Tela (the screen above an event, in a sandboxed iframe: a file only from inside the repo, a URL only http(s)).
