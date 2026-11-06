@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2026-11-06
+
+### Changed
+
+- `scripts/costs.sh` is the entry point (`uv run` behind it); the docs call it instead of `uv run --script scripts/costs.py`.
+
 ## [0.3.0] - 2026-11-05
 
 ### Added
