@@ -236,16 +236,45 @@ def _card(m: CardMoney, now: datetime):
             "dark:focus-visible:bg-neutral-900")
 
 
-def _column(col: Column, now: datetime):
+def _head(col: Column):
     # count/limit when the stage has a limit; over it the header is bold with a darker rule (grayscale, no red)
     over = col.limit is not None and len(col.cards) > col.limit
     count = f"{len(col.cards)}/{col.limit}" if col.limit else str(len(col.cards))
-    head = Div(Span(col.stage.value), Span(count, cls=f"tabular-nums {'font-bold' if over else DIM}"),
-               data_over="1" if over else None,
-               cls=f"h-9 shrink-0 flex items-center justify-between px-4 {LABEL} border-b {'border-neutral-900 dark:border-neutral-100 font-bold' if over else LINE}")
-    cards = [_card(m, now) for m in col.cards] or [P("nenhum card", cls=f"px-4 py-3 {DIM}")]
-    return Div(head, Div(*cards, cls="flex-1 min-h-0 overflow-y-auto"),
-               data_stage=col.stage.value, cls=f"min-w-0 min-h-0 flex flex-col border-l {LINE} first:border-l-0")
+    return Div(Span(col.stage.value), Span(count, cls=f"tabular-nums {'font-bold' if over else DIM}"),
+               data_over="1" if over else None, data_stage=col.stage.value,
+               cls=f"h-9 flex items-center justify-between px-4 {LABEL} border-b border-l first:border-l-0 "
+                   f"{'border-neutral-900 dark:border-neutral-100 font-bold' if over else LINE}")
+
+
+# Swimlanes: one row per client cost center the owner named, then the rest. A card's lane is its domain's cost center
+# (cost-track's `domains`), so binding a domain to Mukutu moves its cards there; nothing is stored on the card.
+LANES = [("mukutu", "Mukutu")]
+OTHERS = "Outros"
+
+
+def _lane_of(domain: str) -> str:
+    try:
+        import costs  # cost-track's, on the path kanban.py set up
+        cid = costs.center_of(domain)
+    except Exception:  # noqa: BLE001 - no costs journal: one lane
+        cid = None
+    return next((name for c, name in LANES if c == cid), OTHERS)
+
+
+def _lanes(b: Board, now: datetime):
+    """One header row of stages, then each lane: its name, and one cell per stage with that lane's cards."""
+    lanes = [name for _, name in LANES] + [OTHERS]
+    rows = []
+    for lane in lanes:
+        cells = []
+        for col in b.columns:
+            cards = [_card(m, now) for m in col.cards if _lane_of(m.card.domain) == lane]
+            cells.append(Div(*cards, data_stage=col.stage.value, data_lane=lane,
+                             cls=f"min-w-0 border-l {LINE} first:border-l-0"))
+        rows.append(Div(Span(lane, cls=LABEL), cls=f"col-span-4 px-4 pt-3 pb-1 border-b {LINE}", data_lane_head=lane))
+        rows.extend(cells)
+    return Div(*[_head(c) for c in b.columns], *rows, style="grid-template-columns: repeat(4, minmax(0, 1fr))",
+               cls="flex-1 min-h-0 overflow-y-auto grid gap-0 content-start")
 
 
 # --- widgets: each starts with its title; real data only (both journals read now) ----------------------------------
@@ -254,7 +283,7 @@ def board(ctx):
     b: Board = read_board()
     return Div(_title("Quadro"), _band(b.totals),
                # gap-0: Pico's .grid has a column gap of its own
-               Div(*[_column(c, b.at) for c in b.columns], style="grid-template-columns: repeat(4, minmax(0, 1fr))", cls="flex-1 min-h-0 grid gap-0"),
+               _lanes(b, b.at),
                Script(TICK_JS), Script(WATCH_JS % f"{BASE}/w/_/card.created/JournalStamp"),
                # a fresh snapshot every 10 s (a move by an agent, the clock started elsewhere) and at once when the money
                # bar starts, stops or enters on this page (devconsole-money); never while it is hidden
