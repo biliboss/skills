@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.1] - 2026-11-06
+
+### Changed
+
+- Learnings from sessions folded in.
+
 ## 0.30.0
 
 - Hot reload also reads what a project imports: the watcher follows the folders on sys.path, the loaded modules' folders and the project's `WATCH` list (kanban: cost-track's costs.py), and a re-import drops the project folder's cached modules first (`console_reload.py`). The main console no longer serves stale kanban code until a restart.

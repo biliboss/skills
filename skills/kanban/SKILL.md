@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.6.1
+  version: 0.6.2
 ---
 
 # kanban
@@ -24,7 +24,7 @@ upstream the options still being discovered, downstream the work committed to.
 
 | Event | Command | Value object | What happened |
 |---|---|---|---|
-| `card.created` | `create` | `NewCard {title, domain, stage}` | a card entered the board (in Upstream unless told otherwise) |
+| `card.created` | `create` | `NewCard {title, domain, stage}` | a card entered the board (in Todo unless told otherwise) |
 | `card.moved` | `move` | `Move {stage, previous}` | the card changed stage, in any direction (back to Upstream too) |
 | `card.prioritized` | `top`, `rank` | `Prioritize {position, stage}` | the owner ordered the stage's queue: the card sits at `position` (0 = top) |
 | `card.renamed` | `rename` | `Rename {title}` | the card got another title |
@@ -35,6 +35,58 @@ The descriptions for humans are the comments on each command in `EVENTS`.
 
 - **Upstream is planning**: `pull` also runs `domain-plan`'s `plan.sh start <slug> --repo <repo> --domain <domain>` (the JSON has
   `plan`), so the card's plan file exists when the session opens; the drawing and the drift are skill `domain-plan`.
+
+## Cards and the owner's focus
+
+- **Every task he names starts as a card before any work**: in Upstream when it is the new focus (the previous
+  Upstream card goes to Todo, the limit is one), else in Todo. Only the owner moves a card to Downstream (the
+  commitment point is his, usually by approving the backbrief); never move it there on your own, even when a
+  subagent starts preparing work for it.
+- **When a request does not say where it goes, ask** with the harness's ask tool: recommend creating the card in
+  Upstream (title + domain) and leave room for him to choose otherwise.
+- **One card per piece of work he names.** Delegating moves that card (Upstream → Downstream once he approves the
+  backbrief); it never creates cards. The fronts of a work (CI, content, metrics, the subagents running them) live
+  inside its card's history, not as cards beside it: a column full of sub-cards hides the one thing in focus.
+- **An ambiguous instruction about the board is a question, not a design.** "Já vai para o Kanban" can mean the work
+  or every subagent; when two readings would write different things to the journal, ask once before writing.
+- **Upstream holds one card**, so when he puts something new in focus, the previous Upstream card goes to Todo first.
+- **The top of a column is the card in focus.** "Move para o topo" means rank it first; a card that is not the
+  current focus goes to Todo (the backlog before Upstream), not deeper into Upstream.
+- **Titles are short product names** ("Via Blog"), never a sentence describing the change: the board is read at a
+  glance, and the description belongs in the card's history or the task.
+- When he says the board is wrong or a timer did not stop, check the journals first (`costs.sh status`, `kanban.sh
+  list`): if they are right, the screen is stale (an unpushed change or a console serving old imported code), and the
+  fix is in the console, not the data.
+- **The Kanban stays basic.** A request to make it "better" or "awesome" means polishing what exists (bugs, help
+  text, errors, names, `--json` parity, tests, the Quadro's legibility), audited by running each command on a temp
+  `KANBAN_DIR`; add a command or event only when he names that exact need. Feature lists from agent-board tools are
+  out of scope: he wants a perfect small tool, not a bigger one.
+
+## A card's workspace
+
+- **The card's slug is its identity everywhere**: `slug(title)` (`Sygnal 0.2` → `sygnal-0-2`) names the tmux/sesh session,
+  the Hermes session (`hermes -p bili sessions rename <id> <slug>`, resumed with `hermes -p bili --continue <slug>`)
+  and is what cost-track's tmux hook and the Quadro's agent line look up. One name, nothing to memorize.
+- **Starting a task ("vamos trabalhar em X")**: reuse or create the card in Upstream (ask only if Upstream is full:
+  current card back to Todo, or cancel); create the Hermes session in the project's repo (`--in <repo> -z <request +
+  where to read>`, Upstream = discovery, no code yet) and rename it to the slug; open the tmux session `<slug>` with a
+  `hermes` window running `--continue <slug>` in the repo; then `tmux switch-client -c <his tty> -t <slug>`, only when
+  he asked, since it moves his screen.
+- **The opening brief of an Upstream card session** ("leia o wiki e diga o que é a 0.x"): read every page the
+  project's MOC lists, not a sample (hand it to a subagent if it is long), and say how many pages were read; he asks
+  "você consumiu o wiki?" when the summary rests on four of forty. When the local clone lags origin or carries other
+  sessions' edits, read with `git show origin/main:<path>` and `git ls-tree -r --name-only origin/main` instead of
+  pulling. Check the people the wiki names (partner, client, requester) against what he says and flag the page to
+  fix: a wiki that calls a partner a client misreads every request that partner sends. Before asking "qual o
+  objetivo?", find who asked for the version and what they asked (a partner's chat, a Linear doc): the goal is often
+  answering that request inside the current prototype, not choosing among the roadmap's versions.
+- **The clock follows the tmux session he is attached to** (cost-track hooks). A new domain prices nothing until it
+  is bound to a cost center: restate the center's latest `cost_center.updated` value with the domain added to
+  `domains` (`costs.sh emit cost_center.updated '<value>' --cost-center <id>`). A client's project goes to the client's
+  center, never to an investment. Check with `costs.sh status` right after switching; "parado" on a card session
+  means the binding is missing.
+- **The card shows its agent**: a line read from the tmux session's Hermes status bar (pronto / trabalhando, the
+  context, "você está nela"). Read-only; a card without a session shows nothing.
 
 ## The one writer
 
@@ -71,7 +123,14 @@ gets only `decision.requested`, never a close or a delete. Tests override gh wit
 `~/.local/share/kanban/events.jsonl` (override `KANBAN_DIR`), one line per event
 `{"id","event","at","actor","card_id","value"}`, written under a file lock. It refuses an unknown event, a card with no
 title or no domain slug, an unknown stage (any case is accepted: `feito`), a move to the stage the card is already in,
-and an unknown or ambiguous card (it lists the matches). Never edit the real journal by hand while the console reads it.
+and an unknown or ambiguous card (it lists the matches). Do not edit the real journal by hand on your own; when the
+owner asks for a hand fix (it is a projection of plain JSONL), copy it to `events.jsonl.bak` first and change only the
+lines of the named cards with a small uv script, then `kanban.sh list` to confirm.
+
+**Test journals never leak.** Set `KANBAN_DIR`, `COSTS_DIR` and `DEV_CONSOLE_*` inline per command
+(`KANBAN_DIR=$tmp kanban.sh list`), never `export` them: agents share one shell, and an exported test dir makes the next
+real `create` land in a scratch journal the board never shows. If a card "vanished", check `env | grep -E
+'^(KANBAN|COSTS|DEV_CONSOLE)'` before anything else.
 
 ## Pull: start the work
 
@@ -120,10 +179,12 @@ the latest explicit order (`top`, `rank`, replayed from `card.prioritized`); car
 ones, by arrival. Moving a card to another stage clears its rank there. **Todo** is the backlog, what is not being worked
 now: its time is waiting, not discovery, so it never counts as Upstream money (`create` defaults to Todo).
 
-**The Quadro is live.** It counts up in the browser every second from the server's `since` (the time in the stage) and
-`tick-rate` (the cost clock's R$ per hour), without a reload, and redraws by itself within ~2 s of any change to the
-journal (a tiny `JournalStamp` widget answers the journal's mtime; the board is fetched again when it differs). The
-server stays the source of truth at each redraw.
+**The Quadro moves only with his focus.** Money and focus time tick every second only while the clock runs on that
+card (`tick-rate` > 0, i.e. he is attached to the card's tmux session); the time in the stage is static text redrawn by
+the server, because a line counting up while he is elsewhere reads as a timer that did not stop. The board reacts to the
+event that changed it: a change to the Kanban journal or to the Costs journal (a tmux hook starting or stopping the
+clock) must redraw it in under 1 s, pushed by the console's file watch; the 10 s poll is only a fallback. The server
+stays the source of truth at each redraw.
 
 ## The money rule
 

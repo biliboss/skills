@@ -11,13 +11,19 @@ description: >-
   designs and critiques any interface; lp-draft runs the whole LP draft and loads impeccable
   for the design part. Not wiki-smith: lp-draft calls it only to link the page.
 metadata:
-  version: 0.1.0
+  version: 0.2.1
   license: MIT
 ---
 
 # lp-draft — a landing page prototype in `.wiki/resources/`
 
 The draft LP is **one HTML file**, `.wiki/resources/<produto>-<versão>-lp.html`, for seeing and discussing the product's pitch. It is a prototype, not the final landing page: no Markdown version, no deploy, no real form.
+
+## Where the LP sits in planning, and showcase first
+
+In the owner's planning, the LP comes right after the brief: once a version's brief is written in `.wiki/`, the next step is the version's LP, so partners and clients see the same picture before anything is built (it aligns expectations). **When the version has widgets or UI, the showcase comes first:** build the new and changed pieces as real components in the product's UI package and its showcase page (for the Sygnal, `libs/ui` and `sygnal.html`, both themes, with fictional data that matches the brief), then take the LP's images from that showcase (as `scripts/sygnal-shots.mjs` does). The prototype is the start of the final product, not throwaway art; the LP only tells the story around it. A version with no UI goes straight to Step 0.
+
+The brief the LP reads from has a fixed shape: a hub page `<produto>-<versão>.md` (the goal in one line, each front in a paragraph with its link, what stays out, how we will know it worked, "Decidi X porque Y" lines, what waits on the owner, at most 8 questions to the partners), one page per front, and the outside input (a partner's chat, tracker docs) kept in `fontes/`. The LP's facts come only from these pages.
 
 ## Step 0 — Read the repo's rules
 
@@ -46,6 +52,8 @@ Look for one, in this order, and use the first that exists:
 2. **A UI package** (e.g. `@mukutu/ui`): its colors, fonts and components' look.
 3. **The live site or a URL**: read colors, fonts and logo with the browser.
 4. **A Design System artifact**: `Artifact` with `action: "list"`, `scope: "types"`, then list that type's artifacts and read the product's one.
+
+**A designer's brand export beats the theme already in the UI package.** When the product has a newer design system from its designer (a manual plus `tokens.json` and logos), the LP and the showcase use it, never the older theme the package still ships: an LP in the superseded look misaligns exactly the people it is meant to align. A claude.ai artifact shared by link opens only for an account with access: ask the owner once to export it to a local folder, then copy that folder into the repo (next to the product's UI layer, as untouched reference material) right away, because a scratch export is cleaned up; re-list it before copying, since files can still be downloading.
 
 None → **create** it: `.wiki/resources/<produto>/tokens.css` (colors, fonts, radius, spacing, light and dark) and `.wiki/resources/<produto>/design.md` (a few lines: the palette and why, the fonts, the tone). Pick it from the audience and brand, and load the `impeccable` skill for the design choices. The next version of the LP reuses these files.
 

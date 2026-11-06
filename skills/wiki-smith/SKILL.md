@@ -13,7 +13,7 @@ description: >-
   wiki pages. Needs a repo with a `.wiki/` folder; names and language come from
   `.wiki/wiki.config`.
 metadata:
-  version: 0.1.3
+  version: 0.1.4
   license: MIT
 ---
 
@@ -92,6 +92,7 @@ When a public skill covers the subject, do not write a house skill for it: use t
 - **Shared files across sessions.** The day index, `index.md` and the inbox hold every session's uncommitted edits in one checkout. `sync.sh` never carries the day index (it regenerates it in the worktree) and lints before committing, but it cannot tell which hunks of a hand-edited `index.md` or inbox are yours: the carry takes the whole diff. When `git diff` on one of them shows lines that are not yours, skip `sync.sh` and stage only your lines: write `git show HEAD:<file>` plus your lines to a scratch file, `git update-index --cacheinfo 100644,$(git hash-object -w <scratch>),<file>`, `git add` your own new files by path, lint, then `git commit` — the other session's lines stay in the working tree, uncommitted.
 - **A topic page is shared too.** Another session may be editing the same page right now. `git pull` (or fetch) right before you edit a page, and commit right after. In a `sync.sh -W` worktree, apply only your diff (`git diff <file> | git -C <worktree> apply --3way`), never `cp` the whole file from the checkout: the copy erases what the other session already pushed.
 - **Commit as the agent, not the owner.** Before the first commit in a repo, check `git config user.name`/`user.email` against the identity the repo's rules give agents (an AGENTS.md or a wiki page on GitHub identity). If it is the owner's, set it (the repo's config script, or `GIT_AUTHOR_*`/`GIT_COMMITTER_*`) first: a commit that is already pushed keeps the wrong author, because history on `<main>` is never rewritten.
+- **A repo's own date script can touch pages you did not edit.** After running it (or `dates.sh`), `git status` and restore every page outside your change set (`git checkout -- <path>`) before committing, or the commit carries unrelated date churn.
 - **The diary day is UTC.** A note written late in the local evening lands in tomorrow's folder, so it is that day's first note: run `day-index.sh` and add the day to the inbox's "last days", or the lint fails with the day missing from the inbox.
 - **A red lint on `origin/<main>` blocks every sync.** `sync.sh` lints the whole commit tree, so a problem already pushed by someone else (a History out of order, a broken link) refuses your commit too. Fix that page (a small, mechanical fix) and pass its path to the same `sync.sh` call; do not wait for its author.
 - **`note.sh` prints an absolute path.** When the topic page's History links the note, write it relative to the page (`diario/<day>/<HHMM>-<slug>.md` from the wiki root), never paste the printed path: the lint reads an absolute link as broken. Create the note first, then write the page's link from its file name.

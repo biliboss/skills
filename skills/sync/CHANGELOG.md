@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `sync`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-11-06
+
+### Changed
+
+- A learning from sessions.
+
 ## [0.1.3] - 2026-11-03
 
 ### Fixed

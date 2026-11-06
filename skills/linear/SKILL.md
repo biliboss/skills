@@ -3,7 +3,7 @@ name: linear
 description: >-
   Work the owner's Linear (workspace `$CASA_LINEAR_WORKSPACE`, team `$CASA_LINEAR_TIME_CHAVE`) the way he wants it: read a project before touching it, write the project's description and content, create result cards with an owner and a way to check, keep milestones honest, and post project updates that read well (O Alquimista style) with images and links. The main path is the official Linear MCP through mcpc (@linear, the Bili app's voice), wrapped by scripts/linear.sh; the scripts cover what the MCP does not (a project snapshot, image upload, the owner's own inbox). Use when the user says "atualiza o projeto no Linear", "cria os cartões", "posta um update", "o update não apareceu", "revisa o marco", "põe no Linear", "update the Linear project". Not `to-tickets` (turns a plan into tickets anywhere) nor `bili` (asks the Hermes agent to do work): this one edits Linear itself.
 metadata:
-  version: 0.3.1
+  version: 0.3.2
 ---
 
 # linear — o Linear do dono, do jeito dele
@@ -91,6 +91,7 @@ O Linear é o lugar de toda a conversa. Escolha o nível antes de escrever:
 
 - **O limite de complexidade da API é 10000:** ponha `first:N` em toda lista aninhada (`members`, `projectMilestones`, `issues`), ou a query volta "Query too complex".
 - **Várias mudanças vão numa chamada só,** com aliases (`a: issueUpdate(...) b: issueUpdate(...)`) e os textos em variáveis. Dentro da query, um enum vai sem aspas (`health:onTrack`), senão a API recusa.
+- **`project.documents` pode voltar vazio com os docs existindo:** um agente de fora (o ChatGPT com o conector do Linear) cria os Docs e os lista só no corpo de um cartão. Se a lista vem vazia, procure links `/document/` na descrição dos cartões do marco antes de concluir que o projeto não tem docs.
 - **`Project` não tem `links`:** os links de um projeto estão em `externalLinks`.
 - **O `progress` de um marco já vem em porcentagem:** não multiplique por 100.
 - **Ao ler `agentSessions → activities`, pule as marcadas `ephemeral`:** o Linear manda uma cópia provisória de cada ação antes da definitiva, e quem republica as duas mostra cada passo em dobro.

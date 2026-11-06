@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `linear`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-11-06
+
+### Changed
+
+- A learning from sessions.
+
 ## [0.3.1] - 2026-11-06
 
 ### Added

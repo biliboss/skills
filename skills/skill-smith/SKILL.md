@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.4.1
+  version: 0.4.2
   license: MIT
 ---
 
@@ -150,6 +150,11 @@ Don't bump for a typo. Every bump gets a dated entry under `Added / Changed / Fi
      with versions one above both sides; it keeps main's side and puts this branch's notes in a new block on top. It
      lists the code files it left alone: resolve those by hand (two features in one file usually keep both), then
      check that `version:` appears once (a duplicate parses silently), build, run the tests and `diff-review` the branch.
+   - **Check the base before the release commit.** `git fetch`, then `git merge-base --is-ancestor origin/main HEAD`
+     and `git diff origin/main --stat`: `merge --ff-only` on a dirty tree prints `Updating…` and then aborts, and a
+     commit on that stale base shows in the PR as deleting the skill that landed meanwhile (its `plugin.json` entry
+     and CHANGELOG block). Any deletion you did not make means rebase first. Rebuild `plugin.json` and the root
+     CHANGELOG from `git show origin/main:<file>` plus your edit applied by a script, instead of hand-merging.
    - **Two open PRs that both bump `plugin.json`:** give the second the next version from the start (one PR takes 0.N.0, the other 0.N+1.0) and merge them in that order. After the first merges, bring `origin/main` into the second branch with `git merge`, not a rebase — `gh-app` refuses force pushes, so a rebased branch cannot be pushed. Resolve `plugin.json` by keeping main's description (it carries the other skill's mention) and setting the higher version; in the root CHANGELOG put the newer block above the older one; rerun the skill's tests before merging.
 5. **Report**: the learnings, the skills touched with their versions, and anything flagged but skipped. Point out what is still too fuzzy to encode.
 
