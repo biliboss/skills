@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -258,6 +259,70 @@ def cmd_memory(a):
         print(f.read_text() if f.exists() else "(missing)")
 
 
+SESSION_ROW = re.compile(r"^(?P<title>\S.*?)\s{2,}.*?(?P<id>\S+)\s*$")
+
+
+def find_session(profile, name):
+    """The id of the profile's session titled `name` (newest first), or None. `sessions list` has no JSON flag, so the
+    table is read: title first, id last; a title the table truncated (28 columns) still matches by its prefix."""
+    r = run_hermes(profile, "sessions", "list", "--limit", "500")
+    for line in r.stdout.splitlines():
+        m = SESSION_ROW.match(line)
+        if not m or m["title"] == "Title" or set(line.strip()) <= set("─ "):
+            continue
+        t = m["title"].strip()
+        if t == name or (len(t) >= 20 and name.startswith(t) and len(name) > len(t)):
+            return m["id"]
+    return None
+
+
+def tmux_bin():
+    return os.environ.get("TMUX_BIN", "tmux")
+
+
+def cmd_workspace(a):
+    """One workspace per piece of work: a Hermes session and a tmux session, both named `slug`, in the repo."""
+    require_flat(a.profile)
+    repo = Path(a.repo).expanduser()
+    if not repo.is_dir():
+        die(f"--repo {repo} is not a directory", 64)
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", a.slug):
+        die(f"'{a.slug}' is not a slug (a-z, 0-9, -)", 64)
+    context = Path(a.context_file).expanduser().read_text() if a.context_file else a.context
+    context = (context or f"Sessão do cartão \"{a.slug}\". O Gabriel vai trabalhar aqui; aguarde o pedido dele.").strip()
+    sid = find_session(a.profile, a.slug)
+    session = "reused"
+    if not sid:
+        session = "created"
+        with Lock(a.profile):
+            fd, usage_file = tempfile.mkstemp(prefix="hermes-usage-", suffix=".json")
+            os.close(fd)
+            os.unlink(usage_file)
+            r = None
+            try:
+                r = run_hermes(a.profile, "--in", str(repo), "-z", context, "--usage-file", usage_file, cwd=str(repo),
+                               timeout=a.timeout)
+            except subprocess.TimeoutExpired:
+                die("the first context timed out; no session was named", 124)
+            sid = usage_of(usage_file).get("session_id")
+            Path(usage_file).unlink(missing_ok=True)
+        if not sid:
+            die(f"hermes returned no session id (exit {r.returncode if r else '?'}): {(r.stderr if r else '').strip()[-300:]}", 1)
+        rn = run_hermes(a.profile, "sessions", "rename", sid, a.slug)
+        if rn.returncode != 0:
+            die(f"could not rename session {sid} to {a.slug}: {rn.stderr.strip()[-300:]}", rn.returncode)
+    tm = "reused"
+    if subprocess.run([tmux_bin(), "has-session", "-t", f"={a.slug}"], capture_output=True).returncode != 0:
+        tm = "created"
+        cmd = f"{shlex.quote(HERMES)} -p {shlex.quote(a.profile)} --continue {shlex.quote(a.slug)}; exec \"${{SHELL:-zsh}}\""
+        r = subprocess.run([tmux_bin(), "new-session", "-d", "-s", a.slug, "-n", "hermes", "-c", str(repo), cmd],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            die(f"tmux new-session failed: {r.stderr.strip()[-300:]}", r.returncode)
+    print(json.dumps({"slug": a.slug, "profile": a.profile, "repo": str(repo), "session_id": sid, "session": session,
+                      "tmux": tm}, ensure_ascii=False))
+
+
 def cmd_route(a):
     kind = a.kind.strip().lower()
     if kind in ROUTES:
@@ -283,6 +348,10 @@ def main():
     s = sub.add_parser("dm"); s.add_argument("target"); s.add_argument("msg"); s.add_argument("--owner-asked", action="store_true")
     s.set_defaults(f=cmd_dm)
     s = sub.add_parser("memory"); s.add_argument("profile"); s.set_defaults(f=cmd_memory)
+    s = sub.add_parser("workspace"); s.add_argument("slug"); s.add_argument("--repo", required=True)
+    s.add_argument("--profile", default="bili"); s.add_argument("--timeout", type=int, default=900)
+    g = s.add_mutually_exclusive_group(); g.add_argument("--context"); g.add_argument("--context-file")
+    s.set_defaults(f=cmd_workspace)
     s = sub.add_parser("route"); s.add_argument("kind", nargs="+"); s.set_defaults(f=cmd_route)
     a = p.parse_args()
     if a.cmd == "route":

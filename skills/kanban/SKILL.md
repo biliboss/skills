@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.4.2
+  version: 0.5.0
 ---
 
 # kanban
@@ -44,6 +44,7 @@ scripts/kanban.sh move <card> <stage> [--force] [--actor <who>]   # exit 4 if th
 scripts/kanban.sh top <card> [--actor <who>]            # to the top of its stage: the card in focus now
 scripts/kanban.sh rank <card> <position> [--actor <who>]  # to a place in its stage's queue (0 = top)
 scripts/kanban.sh rename <card> <title> [--actor <who>]
+scripts/kanban.sh pull "<title>" [--domain D] [--repo DIR] [--context T|--context-file F] [--center C] [--no-switch] [--swap] [--json]
 scripts/kanban.sh list [--stage <stage>] [--json]       # the cards, per stage, with their Upstream money
 scripts/kanban.sh show <card> [--json]                  # its stays, its Upstream slices of time, the total
 scripts/kanban.sh money [--json]                        # the band (Hoje, Semana, Mês) and each card's total
@@ -68,6 +69,32 @@ gets only `decision.requested`, never a close or a delete. Tests override gh wit
 `{"id","event","at","actor","card_id","value"}`, written under a file lock. It refuses an unknown event, a card with no
 title or no domain slug, an unknown stage (any case is accepted: `feito`), a move to the stage the card is already in,
 and an unknown or ambiguous card (it lists the matches). Never edit the real journal by hand while the console reads it.
+
+## Pull: start the work
+
+Kanban Method: work is pulled, not pushed. When the owner says "vamos trabalhar em X" ("bora X", "começa X"), the Bili runs
+one command and the whole workspace is there:
+
+```sh
+scripts/kanban.sh pull "Sygnal 0.2" --domain sygnal --repo ~/src/mukutu-mono --center mukutu --json
+```
+
+What it does, in order (idempotent: the identity is `slug(title)`, the same slug as cost-track's `tmux_focus.py` and the
+Quadro's agent line):
+
+1. **Card:** reuses the open card with that slug (a Todo card is moved to Upstream); else creates it in Upstream. Events:
+   `card.created` / `card.moved` only. `--domain` defaults to the slug; a reused card keeps its own domain.
+2. **Cost center** (`--center C`): `costs.py bind C <domain>` emits one `cost_center.updated` (the center's last value plus
+   the domain in `domains`), only when missing, so the domain prices in that center. Unknown center: exit 1, naming the known ones.
+3. **Workspace:** `hermes.sh workspace <slug> --repo DIR --context ...` (Hermes session and tmux session named slug, in the
+   repo, the request as first context; both reused when they exist). Without `--context`, a default asks the session to
+   read the repo and ask the goal; Upstream is discovery, no code yet.
+4. **Focus:** `tmux switch-client` of the most recently active client to the slug, unless `--no-switch`; the cost clock
+   follows through the tmux-focus hooks.
+
+**Upstream is full** (stage limit): nothing is written and it exits **5** with `{"full": "<current card title>"}`. The Bili
+asks the owner "o atual volta para o Todo, ou cancelo?"; on "volta", rerun with `--swap` (the current card goes to Todo
+first); on "cancelar", stop. Never `--force` past the limit for a pull.
 
 ## One card per piece of work
 

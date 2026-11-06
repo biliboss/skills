@@ -20,6 +20,8 @@ The journal is a global append-only JSONL, ~/.local/share/kanban/events.jsonl (o
 
     kanban.sh create "<title>" --domain <slug> [--stage Todo|Upstream|Downstream|Feito] [--force] [--actor <who>]
     kanban.sh move <card> <stage> [--force] [--actor <who>]   # exit 4 when the stage is at its limit (Upstream 1)
+    kanban.sh pull "<title>" [--domain D] [--repo DIR] [--context T|--context-file F] [--center C] [--no-switch]
+                    [--swap] [--json]               # exit 5 {"full": title} when Upstream has no room
     kanban.sh list [--stage <stage>] [--json]
     kanban.sh show <card> [--json]
     kanban.sh money [--json]
@@ -40,6 +42,7 @@ import os
 import re
 import subprocess
 import sys
+import unicodedata
 import uuid
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, is_dataclass, replace
@@ -1031,6 +1034,93 @@ def _print_sweep(r: dict) -> None:
     print(f"sweep >{r['hours']:g} h ({'applied' if r['applied'] else 'dry run'}): {len(r['items'])} item(s): {total}")
 
 
+# --- pull: one gesture to start a piece of work (Kanban Method: work is pulled, not pushed) ---------------------------
+PULL_FULL_EXIT = 5  # Upstream is full: the caller asks the owner what happens to the current card
+OPEN_STAGES = (Stage.TODO, Stage.UPSTREAM, Stage.DOWNSTREAM)
+
+
+def slug(text: str) -> str:
+    """The name of a piece of work: the same slug as cost-track's tmux_focus.py (the tmux session, the Hermes session)."""
+    t = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", t).strip("-")
+
+
+def _sibling(skill: str, *parts: str) -> Path:
+    return Path(__file__).resolve().parent.parent.parent / skill / "scripts" / Path(*parts)
+
+
+def default_context(title: str, domain: str) -> str:
+    return (f"Sessão do cartão \"{title}\" (Kanban, Upstream; domínio {domain}). O Gabriel vai trabalhar nisso agora. "
+            "Leia o README e o .wiki do repositório, responda em até 6 linhas o que já existe sobre isso e termine "
+            "perguntando o objetivo. Upstream é descoberta: não escreva código ainda.")
+
+
+def pull(title: str, domain: str | None, repo: str, context: str | None, center: str | None, switch: bool,
+         swap: bool, actor: str) -> dict:
+    """The card (reuse the open one with this slug, else create in Upstream), the cost center binding, the workspace
+    (hermes.sh workspace: Hermes session + tmux session named slug) and the owner's tmux client. StageFull is raised
+    as `PullFull` before anything is written when Upstream has no room and --swap was not given."""
+    name = slug(title)
+    if not name:
+        raise ValueError("the title has no letters or digits to make a slug from")
+    cards = cards_from(events())
+    mine = sorted((c for c in cards if c.stage in OPEN_STAGES and slug(c.title) == name), key=lambda c: c.since, reverse=True)
+    card = mine[0] if mine else None
+    card_state = "reused"
+    limit = stage_limits().get(Stage.UPSTREAM)
+    if card is None or card.stage is not Stage.UPSTREAM:
+        there = [c for c in cards if c.stage is Stage.UPSTREAM]
+        extra = len(there) - limit + 1 if limit else 0
+        if extra > 0:
+            if not swap:
+                raise PullFull(there[0].title)
+            for c in there[:extra]:
+                move(c.id, Stage.TODO, actor)
+        if card is None:
+            card_state = "created"
+            ev_ = create(title, domain or name, Stage.UPSTREAM, actor)
+            card = card_from([e for e in events() if e.get("card_id") == ev_["card_id"]])
+            if card is None:
+                raise ValueError("the new card is not in the journal")
+        else:
+            card_state = f"moved from {card.stage.value}"
+            move(card.id, Stage.UPSTREAM, actor)
+            card = replace(card, stage=Stage.UPSTREAM)
+    domain = card.domain
+    bound = None
+    if center:
+        costs = _costs()
+        if costs is None:
+            raise ValueError("cost-track is not beside this skill: cannot bind the cost center")
+        bound = costs.bind(center, domain, actor) is not None
+    ws = ["bash", os.environ.get("HERMES_SH") or str(_sibling("hermes", "hermes.sh")), "workspace", name, "--repo", repo,
+          "--context", context or default_context(title, domain)]
+    r = subprocess.run(ws, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise ValueError(f"hermes.sh workspace failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()[-400:]}")
+    workspace = json.loads(r.stdout.strip().splitlines()[-1])
+    return {"slug": name, "card": {"id": card.id, "title": card.title, "domain": domain, "stage": "Upstream",
+                                   "state": card_state},
+            "center": {"id": center, "domain": domain, "bound_now": bound} if center else None,
+            "workspace": workspace, "switched": _switch_client(name) if switch else None}
+
+
+class PullFull(Exception):
+    """Upstream is at its limit; carries the title of the card in the way."""
+
+
+def _switch_client(name: str) -> str | None:
+    """Point the owner's most recently active tmux client at the session; its tty, or None when no client is attached."""
+    tmux = os.environ.get("TMUX_BIN", "tmux")
+    r = subprocess.run([tmux, "list-clients", "-F", "#{client_activity} #{client_tty}"], capture_output=True, text=True)
+    rows = sorted((ln.split(None, 1) for ln in r.stdout.splitlines() if len(ln.split(None, 1)) == 2), reverse=True)
+    if r.returncode != 0 or not rows:
+        return None
+    tty = rows[0][1]
+    ok = subprocess.run([tmux, "switch-client", "-c", tty, "-t", f"={name}"], capture_output=True).returncode == 0
+    return tty if ok else None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="kanban.sh", description="The Kanban journal's only writer, and the board read from it.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1067,6 +1157,18 @@ def main(argv: list[str] | None = None) -> int:
     wp = sub.add_parser("wip", help="open PRs of a repo against the WIP limit; exit 3 at or over it")
     wp.add_argument("--repo", help="owner/name (default: the current directory's repo)")
     wp.add_argument("--json", action="store_true")
+    pl = sub.add_parser("pull", help="start a piece of work: its card in Upstream, its Hermes + tmux sessions, the client there")
+    pl.add_argument("title")
+    pl.add_argument("--domain", help="the card's domain (default: the slug of the title; a reused card keeps its own)")
+    pl.add_argument("--repo", default=os.getcwd(), help="the project's directory (default: here)")
+    g = pl.add_mutually_exclusive_group()
+    g.add_argument("--context", help="the first message of the Hermes session")
+    g.add_argument("--context-file", help="the same, read from a file")
+    pl.add_argument("--center", help="bind the card's domain to this cost center (cost_center.updated, once)")
+    pl.add_argument("--no-switch", action="store_true", help="do not move the owner's tmux client")
+    pl.add_argument("--swap", action="store_true", help="when Upstream is full, send its current card back to Todo")
+    pl.add_argument("--json", action="store_true")
+    pl.add_argument("--actor", default="agent")
     sw = sub.add_parser("sweep", help="open PRs and branches older than N hours; --apply closes what is already in main")
     sw.add_argument("--hours", type=float, default=48)
     sw.add_argument("--repos", required=True, help="owner/name,owner/name")
@@ -1079,6 +1181,16 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "move":
             card = find(a.card, cards_from(events()))
             print(json.dumps(move(card.id, a.stage, a.actor, force=a.force), ensure_ascii=False))
+        elif a.cmd == "pull":
+            ctx = Path(a.context_file).expanduser().read_text() if a.context_file else a.context
+            repo = str(Path(a.repo).expanduser())
+            r = pull(a.title, a.domain, repo, ctx, a.center, not a.no_switch, a.swap, a.actor)
+            if a.json:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                w, c = r["workspace"], r["card"]
+                print(f"{c['title']} [{c['stage']}, {c['domain']}] card {c['state']}; Hermes {w['session']}, tmux {w['tmux']} "
+                      f"({r['slug']}); " + (f"client {r['switched']} -> {r['slug']}" if r["switched"] else "client not switched"))
         elif a.cmd in ("top", "rank"):
             card = find(a.card, cards_from(events()))
             print(json.dumps(prioritize(card.id, 0 if a.cmd == "top" else a.position, a.actor), ensure_ascii=False))
@@ -1107,6 +1219,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             b = read_board()
             print(as_json(b)) if a.json else _print_money(b)
+    except PullFull as err:
+        print(json.dumps({"full": str(err)}, ensure_ascii=False))
+        print(f"kanban: Upstream está cheio ({err}); use --swap para o atual voltar ao Todo", file=sys.stderr)
+        return PULL_FULL_EXIT
     except StageFull as err:
         print(f"kanban: {err}", file=sys.stderr)
         return STAGE_FULL_EXIT

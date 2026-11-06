@@ -30,6 +30,17 @@ class CostsTest(unittest.TestCase):
         costs.emit("cost_center.updated", {"name": "Biliboss Skills", "kind": "investment", "domains": ["tasks", "costs"]},
                    "biliboss-skills")
 
+    def test_bind_adds_the_domain_once_and_keeps_the_center(self):
+        e = costs.bind("mukutu", "sygnal")
+        self.assertEqual((e["cost_center"], e["value"]["domains"], e["value"]["pays_month"]), ("mukutu", ["sygnal"], 8000))
+        self.assertEqual(costs.center_of("sygnal"), "mukutu")
+        self.assertIsNone(costs.bind("mukutu", "sygnal"))  # already there: no event
+        costs.bind("biliboss-skills", "sygnal")  # one center per domain: it leaves mukutu
+        self.assertEqual(costs.center_of("sygnal"), "biliboss-skills")
+        self.assertEqual(costs.centers()["mukutu"]["domains"], [])
+        with self.assertRaises(ValueError):
+            costs.bind("nope", "x")
+
     def stop(self, center, seconds, cost, at=None):
         costs.emit("time_entry.stopped", {"domain": "x", "seconds": seconds, "rate_hour": 1, "cost": cost, "ended_by": "pause"},
                    center, at=at)

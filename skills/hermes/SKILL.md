@@ -2,7 +2,7 @@
 name: hermes
 description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
 metadata:
-  version: 0.2.4
+  version: 0.3.0
   license: MIT
 ---
 
@@ -33,6 +33,14 @@ this skill's folder. Rules and routing below; depth in [references/routing.md](r
 5. **Follow up.** `resume <profile> <session> "<msg>"` continues a session; `sessions <profile> [--limit N]` lists;
    `read <profile> <session>` prints a trimmed export.
 6. **Verify with other eyes.** The profile that did the work never verifies it (backbrief step 10 runs a fresh context).
+
+## Workspace
+
+`hermes.sh workspace <slug> --repo DIR [--context TEXT|--context-file F] [--profile bili]` opens the place a piece of work
+lives: a Hermes session titled `<slug>` (created with `hermes -p <profile> --in DIR -z <context>`, its id read from
+`--usage-file`, then `sessions rename`; reused when the title exists) and a tmux session `<slug>` with window `hermes`
+running `hermes -p <profile> --continue <slug>` in DIR (reused when it exists). Prints one JSON line
+(`session_id`, `session`/`tmux`: `created` or `reused`). `kanban.sh pull` calls it: the one writer of these sessions.
 
 ## Rules
 

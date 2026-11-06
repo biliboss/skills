@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] - 2026-11-06
+
+### Added
+
+- `costs.py bind <center> <domain>` (and `costs.bind`): binds a domain to a cost center with one `cost_center.updated` (the center's last value plus the domain in `domains`; none when already bound; the domain leaves any other center).
+
 ## [0.4.0] - 2026-11-06
 
 ### Added
