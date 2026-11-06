@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2026-11-06
+
+### Changed
+
+- The card's tmux tab is named by its title: `pull` names and tags (`@card`) the agent window, `rename` renames it too; the session keeps its slug. Best effort, silent without tmux.
+
 ## [0.6.2] - 2026-11-06
 
 ### Changed
