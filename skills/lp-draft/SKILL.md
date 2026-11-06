@@ -11,13 +11,17 @@ description: >-
   designs and critiques any interface; lp-draft runs the whole LP draft and loads impeccable
   for the design part. Not wiki-smith: lp-draft calls it only to link the page.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
 # lp-draft — a landing page prototype in `.wiki/resources/`
 
 The draft LP is **one HTML file**, `.wiki/resources/<produto>-<versão>-lp.html`, for seeing and discussing the product's pitch. It is a prototype, not the final landing page: no Markdown version, no deploy, no real form.
+
+## Where the LP sits in planning, and showcase first
+
+In the owner's planning, the LP comes right after the brief: once a version's brief is written in `.wiki/`, the next step is the version's LP, so partners and clients see the same picture before anything is built (it aligns expectations). **When the version has widgets or UI, the showcase comes first:** build the new and changed pieces as real components in the product's UI package and its showcase page (for the Sygnal, `libs/ui` and `sygnal.html`, both themes, with fictional data that matches the brief), then take the LP's images from that showcase (as `scripts/sygnal-shots.mjs` does). The prototype is the start of the final product, not throwaway art; the LP only tells the story around it. A version with no UI goes straight to Step 0.
 
 ## Step 0 — Read the repo's rules
 
