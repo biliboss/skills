@@ -1321,7 +1321,10 @@ if (box && D.money && !Q.get('embed')) {
   const idleSeconds = () => native ? native.seconds + (Date.now() - native.at) / 1000 : (Date.now() - last) / 1000;
   addEventListener('pagehide', () => { leaving = true; });  // navigating inside the domain or reloading: the server keeps the stretch
   addEventListener('pageshow', e => { leaving = false; if (e.persisted) post('beat'); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && !leaving) stop('hidden'); });
+  // the native app feeds the Mac's idle (devconsoleIdle): there a covered window or a reload behind the chat is not
+  // leaving, and only 5 min idle stops; a browser tab still stops when hidden
+  const NATIVE = /DevConsole/.test(navigator.userAgent) || !!window.webkit?.messageHandlers?.devconsole;
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !leaving && !NATIVE && !native) stop('hidden'); });
   setInterval(() => {
     const idle = idleSeconds();
     if (S.running && idle > S.idle_minutes * 60) stop('idle', idle);
@@ -1329,7 +1332,7 @@ if (box && D.money && !Q.get('embed')) {
   }, 1000);
   setInterval(() => { if (S.running) post('beat'); }, 10000);
   draw();
-  if (S.running && document.hidden) stop('hidden');  // reloaded in the background: it does not run
+  if (S.running && document.hidden && !NATIVE) stop('hidden');  // a browser tab reloaded in the background: it does not run
 }
 """
 
