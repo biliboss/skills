@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.19.0
+  version: 0.20.0
 ---
 
 # dev-console
@@ -133,6 +133,19 @@ for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsol
 - `cd app && swift build && swift test` runs the `ConsoleCore` tests (command decode, apply once per id, state, frames).
   If `swift` fails on an SDK mismatch, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` (`build-app.sh` does it).
   `DEV_CONSOLE_WINDOW_STATE_DIR` moves both files (tests); `DEV_CONSOLE_URL` sets the app's default page.
+
+## Native chrome
+
+In `DevConsole.app` the **chrome** (the browser's frame around the content) is drawn by Swift and the page keeps the
+content. Native so far: the command palette, one borderless floating `NSPanel` (`PaletteController.swift`, vibrancy, search
+field, list, ↑↓ Enter Esc), opened by ⌘K (domains) and ⌘P (modules) from the Go menu, or by a click on the page's status line
+(the page posts `{palette: 'domains'|'modules'}` through the `devconsole` handler). Its items come from the read-only
+`GET /api/palette[?domain=<slug>]` (`{domains:[{slug,name}], modules:[{id,title,url}]}`) and the fuzzy ranking is
+`fuzzyMatch`/`fuzzyRank` in `ConsoleCore` (subsequence, case and accent insensitive, tested); Enter loads the URL in the web
+view like the web palette's `location.href`, so the new page's first trusted gesture still posts `time/enter` (the cost
+clock claim is unchanged). Everything else stays web: graph, tabs, widgets, the status line and money bar. The page knows it
+is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/⌘P overlay is off, and in a plain browser
+(agents, headless) it works as before.
 
 ## Playground
 

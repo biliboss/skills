@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.38.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.20.0: chrome nativo no DevConsole.app: a paleta de comandos (⌘K domínios, ⌘P módulos) é um painel flutuante do Swift com busca fuzzy; a página guarda o conteúdo e, dentro do app, desliga a própria paleta. `GET /api/palette`.
+
 ## [0.37.1] - 2026-11-06
 
 ### Changed

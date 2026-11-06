@@ -25,6 +25,7 @@ from pathlib import Path
 
 import importlib.util  # noqa: E402
 import os  # noqa: E402
+from urllib.parse import quote  # noqa: E402
 from dataclasses import dataclass  # noqa: E402
 from datetime import datetime  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
@@ -1258,6 +1259,9 @@ function renderSide() {
 const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
 // --- Switcher overlay: fuzzy subsequence match (fzf-style), matched letters in bold. One finder, two lists:
 // ⌘K the domains only (Enter opens /domain/<slug>), ⌘P the modules (D.modules: Domain, TABS, Playground) ---------
+// In DevConsole.app the chrome is native: its palette (⌘K / ⌘P through the menu, a click on the status line) replaces
+// this overlay, which stays off there. A plain browser (and every headless agent) keeps it.
+const IN_APP = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.devconsole);
 let domSel = 0, domHits = [], ovMode = 'domain';
 function fuzzy(q, s) {  // every letter of q, in order, inside s; a lower score is a tighter match
   q = q.toLowerCase(); const low = s.toLowerCase(); let i = -1, last = -1, gaps = 0; const at = [];
@@ -1287,6 +1291,7 @@ const domGo = () => {  // an href navigates; a module with none (a tab of this d
 };
 const domIsOpen = () => !$('dom').classList.contains('hidden');
 function domOpen(mode = 'domain') {
+  if (IN_APP) { window.webkit.messageHandlers.devconsole.postMessage({palette: mode === 'module' ? 'modules' : 'domains'}); return; }  // the native palette
   ovMode = mode; $('dom-q').placeholder = mode === 'module' ? 'módulo…' : 'domínio…';
   $('dom').classList.remove('hidden'); $('dom').classList.add('flex'); $('dom-q').value = ''; domSel = 0; domRender(); $('dom-q').focus();
 }
@@ -1307,6 +1312,7 @@ $('dom-q').onkeydown = e => {
 document.addEventListener('keydown', e => {
   if (!(e.metaKey || e.ctrlKey)) return;
   const k = e.key.toLowerCase();
+  if (IN_APP) { if (k === 'p' || k === 'k') e.preventDefault(); return; }  // the app's menu owns both keys: nothing on the page
   if (k === 'k') { ovToggle('domain'); e.preventDefault(); }
   else if (k === 'p') {
     e.preventDefault();  // never the browser's print panel
@@ -1940,6 +1946,13 @@ def domain(slug: str, req):
     return RedirectResponse(f"/domain/{slug}/t/{_default_entity()}{q}", status_code=303)
 
 
+def _tabs() -> list[str]:
+    """The current domain's modules shown in place: Domain and Task Results are fixed (Task Results when the tasks domain
+    is in the console), then the context's TABS. The current domain must already be set (use(slug))."""
+    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
+    return [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
+
+
 def _page_data(slug: str, tid: str, money=None):
     """What a domain page embeds as <script id="data">, as a dict (None when the entity is unknown). The page and
     GET /domain/<slug>/state.json share it, so an agent reads exactly what the screen is drawn from. The current
@@ -1953,8 +1966,7 @@ def _page_data(slug: str, tid: str, money=None):
     for e in journal.read({"history": True}):
         journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
     # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
-    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
-    tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
+    tabs = _tabs()
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
     return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}
 
@@ -1970,6 +1982,21 @@ def api_domains():
     """Every domain this instance shows, for agents: slug, name, project file, and where it came from."""
     return _json([{"slug": s, "name": m.NAME, "path": str(Path(m.__file__).resolve()), "origin": ORIGIN[s]}
                   for s, m in DOMAINS.items()])
+
+
+@rt("/api/palette")
+def api_palette(domain: str = ""):
+    """What the native command palette (DevConsole.app, ⌘K / ⌘P) lists, read only: `domains` (slug, name) and `modules`
+    (id, title, url). Module urls are paths on this console: the domain's tabs as `/domain/<slug>?tab=<name>` (given
+    `?domain=<slug>`), then Playground and Agents; without a domain, Domain (the first one) and those two."""
+    domains = [{"slug": s, "name": m.NAME} for s, m in DOMAINS.items()]
+    if domain and use(domain):
+        modules = [{"id": t, "title": t, "url": f"/domain/{domain}?tab={quote(t)}"} for t in _tabs()]
+    else:
+        modules = [{"id": "Domain", "title": "Domain", "url": "/"}]
+    modules += [{"id": "playground", "title": "Playground", "url": "/playground"},
+                {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]}]
+    return _json({"domains": domains, "modules": modules})
 
 
 @rt("/api/domains/{slug}/actions")

@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var state = WindowState()
     private var pendingFrameWrite: DispatchWorkItem?
     private var idleTimer: Timer?
+    private var palette: PaletteController!
 
     private let stateDir: URL = {
         if let o = ProcessInfo.processInfo.environment["DEV_CONSOLE_WINDOW_STATE_DIR"], !o.isEmpty {
@@ -48,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         buildMenu()
         buildWindow()
+        palette = PaletteController(parent: { [weak self] in self?.window }, currentURL: { [weak self] in self?.webView.url ?? self?.defaultURL },
+                                    open: { [weak self] in self?.webView.load(URLRequest(url: $0)) })
         watchDirectory()
         webView.load(URLRequest(url: state.url.flatMap(URL.init(string:)) ?? defaultURL))
         window.makeKeyAndOrderFront(nil)
@@ -151,8 +154,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     @objc private func reloadAction() { webView.reload() }
 
     @objc private func openOverlay(_ sender: NSMenuItem) {
+        // The palette is native chrome: the page's own overlays are off inside the app.
         guard let raw = sender.representedObject as? String, let overlay = PageOverlay(rawValue: raw) else { return }
-        webView.evaluateJavaScript(overlay.script, completionHandler: nil)
+        palette.toggle(overlay == .domains ? .domains : .modules)
     }
 
     // MARK: state out (the app is the only writer)
@@ -189,6 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     // MARK: bridge page -> agent
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        // the status line's click on the domain or module asks for the native palette
+        if let body = message.body as? [String: Any], body["palette"] != nil, let mode = (body["palette"] as? String).flatMap(PaletteMode.init(rawValue:)) {
+            palette.show(mode)
+            return
+        }
         state.lastMessage = JSONValue(any: message.body)
         writeState()
     }
