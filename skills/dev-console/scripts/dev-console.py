@@ -35,14 +35,16 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
+CONSOLE_MODULES = ("console_agents", "console_playground", "console_recorder", "console_reload")
 PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
 
 
 def load_project(path: str):
     """Import the project file (it may import its own code from its folder)."""
     folder = Path(path).resolve().parent
-    if "console_reload" in sys.modules:  # a re-import must read the helpers again, not the cached ones
-        sys.modules["console_reload"].purge([folder, *PROJECT_PATHS.get(str(path), ())], keep=("console_reload",))
+    if str(path) in PROJECT_PATHS:  # a RE-load only (never the first import): read the helpers again, not the cached
+        # ones, but never what the console itself imported at start (its siblings): live classes point to them
+        sys.modules["console_reload"].purge([folder, *PROJECT_PATHS[str(path)]], keep=CONSOLE_MODULES)
     spec = importlib.util.spec_from_file_location("dev_console_project", path)
     mod = importlib.util.module_from_spec(spec)
     before = list(sys.path)
@@ -62,7 +64,7 @@ def _sibling(name: str):
     return mod
 
 
-for _name in ("console_agents", "console_playground", "console_recorder", "console_reload"):
+for _name in CONSOLE_MODULES:
     _sibling(_name)
 
 
@@ -120,7 +122,7 @@ class _Live:
 PROJECT = _Live(CURRENT.get)
 from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
-from starlette.responses import RedirectResponse  # noqa: E402
+from starlette.responses import RedirectResponse, Response  # noqa: E402
 
 # live: every open page reloads on save. `--no-live` (or DEV_CONSOLE_LIVE=0) turns it off, for a second instance
 # that one agent drives while another agent saves files: its window never reloads because of someone else's save.
@@ -1741,7 +1743,9 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
     if (kind === 'journal') document.dispatchEvent(new CustomEvent('devconsole-journal'));
     if (kind !== 'costs') return;
     document.dispatchEvent(new CustomEvent('devconsole-money', {detail: {path: 'costs'}}));
-    fetch(`${D.base}/time`, {cache: 'no-store'}).then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); } }).catch(() => {}); }; }
+    const pushMs = Number(ev.data.split(' ')[1]) || 0;
+    fetch(`${D.base}/time`, {cache: 'no-store'}).then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw();
+      fetch('/clock/applied', {method: 'POST', keepalive: true, body: JSON.stringify({push_ms: pushMs})}).catch(() => {}); } }).catch(() => {}); }; }
   draw();
   // a page load never stops the clock (an agent's or a background tab's load is not a person leaving)
 }
@@ -1771,6 +1775,35 @@ async def source_stream(slug: str):
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
+CLOCK_LOG = Path(os.environ.get("CLOCK_LOG", "~/.local/state/clock.log")).expanduser()
+LIVE_CLIENTS = 0
+
+
+def clock_log(hop: str, **fields) -> None:
+    """One JSON line in the clock's log (the same file and shape costs.py writes); never raises."""
+    try:
+        CLOCK_LOG.parent.mkdir(parents=True, exist_ok=True)
+        ms = time.time_ns() // 1_000_000
+        line = json.dumps({"ts": datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S.") + f"{ms % 1000:03d}", "ms": ms,
+                           "hop": hop, **fields})
+        with CLOCK_LOG.open("a", buffering=1) as f:
+            f.write(line + "\n")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@rt("/clock/applied", methods=["POST"])
+async def clock_applied(req):
+    """The page's beacon: it swapped the new clock in (push_ms = the push it reacts to)."""
+    try:
+        body = json.loads((await req.body()) or b"{}")
+        push = int(body.get("push_ms") or 0)
+    except (ValueError, TypeError):
+        push = 0
+    clock_log("page_applied", push_ms=push or None, lag_ms=(time.time_ns() // 1000000 - push) if push else None)
+    return Response(status_code=204)
+
+
 @rt("/live/stream")
 async def live_stream():
     """Server-sent events, one line the instant a journal is written: `costs` (the Costs journal or running.json,
@@ -1788,13 +1821,20 @@ async def live_stream():
     folders = {d: k for d, k in folders.items() if d.is_dir()}
 
     async def gen():
-        yield "data: hello\n\n"
-        if not folders:
-            return
-        async for changes in awatch(*folders, debounce=1, step=1, rust_timeout=1000, yield_on_timeout=True):
-            kinds = {k for _, p in changes for d, k in folders.items() if Path(p).parent == d and Path(p).suffix in (".jsonl", ".json")}
-            for kind in sorted(kinds) or [None]:
-                yield f"data: {kind} {time.time_ns() // 1000000}\n\n" if kind else ": keepalive\n\n"
+        global LIVE_CLIENTS
+        LIVE_CLIENTS += 1
+        try:
+            yield "data: hello\n\n"
+            if not folders:
+                return
+            async for changes in awatch(*folders, debounce=1, step=1, rust_timeout=1000, yield_on_timeout=True):
+                kinds = {k for _, p in changes for d, k in folders.items() if Path(p).parent == d and Path(p).suffix in (".jsonl", ".json")}
+                for kind in sorted(kinds) or [None]:
+                    if kind:
+                        clock_log("console_pushed", kind=kind, clients=LIVE_CLIENTS)
+                    yield f"data: {kind} {time.time_ns() // 1000000}\n\n" if kind else ": keepalive\n\n"
+        finally:
+            LIVE_CLIENTS -= 1
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 

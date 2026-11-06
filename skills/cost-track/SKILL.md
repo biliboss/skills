@@ -55,6 +55,17 @@ puts them in `~/.tmux.conf`; `tmux-uninstall` removes; `costs.sh status` shows t
 sesh to) a session named like an open Kanban card (Upstream/Downstream; slug of its title or its domain) starts an entry in that
 card's domain (card id in the value); any other session or a detach stops it. Closing a session = losing focus. Idempotent, silent.
 
+### The clock log: `~/.local/state/clock.log`
+
+Every hop of "sesh change -> timer -> screen" appends one JSON line (`ts`, `ms`, `hop`, ...) to ONE file (`CLOCK_LOG` overrides):
+`hook` {session, source tmux|simulate} -> `decision` {session, card, domain, action start|stop|noop, reason, running} ->
+`running_written` / `running_removed` -> `console_pushed` {kind, clients} -> `page_applied` {push_ms, lag_ms} (the page POSTs a
+beacon to the console). Subtract the `ms` of two lines to get a hop's latency.
+
+- `costs.sh simulate <session|->` runs exactly what the hook runs, with no tmux switch (`source: simulate`).
+- `costs.sh trace [n]` the last n lines (bash, `tail`, no uv, ~9 ms: most of it is the shell starting).
+- `costs.sh check [session|--tmux]` running.json vs the owner session (the newest `hook` line, ~10 ms; `--tmux` asks tmux, ~20 ms); exit 0 consistent, 1 not (bash, no uv).
+
 ## Widgets
 
 On the journal's real data, each starting with its title: **Worth** (the hour now and at the goal, per min and month),

@@ -103,5 +103,55 @@ class TmuxFocusTest(unittest.TestCase):
         self.assertEqual(conf.read_text().strip(), "set -g mouse on")
 
 
+class ClockLogTest(TmuxFocusTest):
+    """The log chain: hook -> decision -> running written/removed, and the bash trace/check/simulate."""
+
+    def setUp(self):
+        super().setUp()
+        self.log = Path(self.tmp.name) / "clock.log"
+        os.environ["CLOCK_LOG"] = str(self.log)
+        self.addCleanup(os.environ.pop, "CLOCK_LOG", None)
+        self.sh = str(HERE / "costs.sh")
+
+    def lines(self):
+        import json
+        return [json.loads(l) for l in self.log.read_text().splitlines()]
+
+    def bash(self, *args):
+        import subprocess
+        return subprocess.run([self.sh, *args], capture_output=True, text=True, env=dict(os.environ, TMUX_BIN="/usr/bin/false"))
+
+    def test_start_then_stop_log_every_hop(self):
+        tf.main(["tmux-focus", "via-blog"])
+        tf.main(["tmux-focus", "bili"])
+        hops = [(l["hop"], l.get("action")) for l in self.lines()]
+        self.assertEqual(hops, [("hook", None), ("running_written", None), ("decision", "start"),
+                                ("hook", None), ("running_removed", None), ("decision", "stop")])
+        dec = [l for l in self.lines() if l["hop"] == "decision"][0]
+        self.assertEqual((dec["session"], dec["domain"], dec["card"]), ("via-blog", "via-blog", self.card))
+
+    def test_noop_when_already_running(self):
+        tf.focus("via-blog")
+        tf.focus("via-blog")
+        self.assertEqual([l["action"] for l in self.lines() if l["hop"] == "decision"], ["start", "noop"])
+
+    def test_trace_prints_last_lines_and_check_compares(self):
+        tf.main(["tmux-focus", "via-blog"])
+        self.assertEqual(len(self.bash("trace", "2").stdout.splitlines()), 2)
+        self.assertEqual(self.bash("check", "via-blog").returncode, 0)
+        self.assertEqual(self.bash("check", "bili").returncode, 1)  # running for another session
+        tf.main(["tmux-focus", "bili"])
+        self.assertEqual(self.bash("check", "bili").returncode, 0)  # stopped is right for a non-card session
+        tf.focus("via-blog")
+        (costs.costs_dir() / "running.json").unlink()  # the log says it started, the file is gone
+        self.assertEqual(self.bash("check", "via-blog").returncode, 1)
+
+    def test_simulate_runs_the_hook_path(self):
+        r = self.bash("simulate", "via-blog")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.lines()[0]["source"], "simulate")
+        self.assertIsNotNone(costs.running())
+
+
 if __name__ == "__main__":
     unittest.main()

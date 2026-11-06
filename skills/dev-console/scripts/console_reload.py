@@ -32,7 +32,9 @@ def purge(folders, keep=()) -> list[str]:
     dropped = []
     for name, mod in list(sys.modules.items()):
         file = getattr(mod, "__file__", None)
-        if name in keep or not file:
+        # the console itself (__main__ / dev-console.py) shares a folder with the dev-console project: dropping it breaks
+        # every class defined after (dataclasses read sys.modules[cls.__module__].__dict__)
+        if not file or name in keep or name in ("__main__", "__mp_main__") or file.endswith("dev-console.py"):
             continue
         p = Path(file).resolve()
         if not _foreign(p) and _inside(p, folders):

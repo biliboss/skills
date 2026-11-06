@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -245,13 +246,32 @@ def running() -> dict | None:
         return None
 
 
+def clog(hop: str, **fields) -> None:
+    """One JSON line in the ONE clock log (CLOCK_LOG, default ~/.local/state/clock.log), append, one write per line.
+    Every hop of tmux hook -> decision -> running.json -> console push -> page writes here; costs.sh trace reads it.
+    Never raises, never carries a secret (session names, card ids, times only)."""
+    try:
+        path = Path(os.environ.get("CLOCK_LOG", "~/.local/state/clock.log")).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        ms = time.time_ns() // 1_000_000
+        line = json.dumps({"ts": datetime.fromtimestamp(ms / 1000).strftime("%H:%M:%S.") + f"{ms % 1000:03d}", "ms": ms,
+                           "hop": hop, **fields}, ensure_ascii=False)
+        with path.open("a", buffering=1) as f:
+            f.write(line + "\n")
+    except Exception:  # noqa: BLE001 - logging never breaks the clock
+        pass
+
+
 def set_running(state: dict | None) -> None:
     path = costs_dir() / "running.json"
     if state is None:
+        existed = path.exists()
         path.unlink(missing_ok=True)
+        clog("running_removed", existed=existed)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
+    clog("running_written", domain=state.get("domain"), card=state.get("card"), session=state.get("session"))
 
 
 # --- the sentences a person reads in the journal --------------------------------------------------------------------

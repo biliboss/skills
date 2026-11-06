@@ -8,6 +8,9 @@
     costs.sh tmux-install                  hooks in ~/.tmux.conf (marked block) and live in the running tmux
     costs.sh tmux-uninstall                the opposite
     costs.sh status                        the running entry, one line
+    costs.sh simulate <session|->          exactly what the hook runs, with no tmux switch (logged source=simulate)
+    costs.sh trace [n]                     the last n lines of ~/.local/state/clock.log (bash, no uv)
+    costs.sh check [session|--tmux]        running.json vs the owner's session; exit 0 if consistent (bash, no uv)
 
 A session named like an open Kanban card (Upstream or Downstream; the slug of its title, or its domain) runs the
 clock in that card's domain, counting for the domain's cost center. Any other session, or '-' (detach), stops it.
@@ -103,7 +106,7 @@ def stop(ended_by: str = "tmux") -> bool:
     return True
 
 
-def start(card) -> bool:
+def start(card, session: str = "") -> bool:
     center = declared_center(card.domain)
     rate = C.rate_hour(center) if center else None
     if not rate:
@@ -112,7 +115,7 @@ def start(card) -> bool:
     C.emit("time_entry.started", {"text": C.started_text(center, card.domain), "domain": card.domain, "card": card.id},
            cost_center=center, actor=ACTOR)
     C.set_running({"center": center, "domain": card.domain, "card": card.id, "started_at": now, "last_seen": now,
-                   "rate_hour": rate, "driver": "tmux"})
+                   "rate_hour": rate, "driver": "tmux", "session": session})
     return True
 
 
@@ -127,11 +130,16 @@ def focus(session: str) -> None:
 def _focus(session: str) -> None:
     card = open_card(session) if session and session != "-" else None
     run = C.running()
+    who = {"session": session, "card": card.id if card else None, "domain": card.domain if card else None}
     if card and run and run.get("card") == card.id and run.get("domain") == card.domain:
+        C.clog("decision", **who, action="noop", reason="already running for this card", running=True)
         return  # already the running entry
-    stop()
-    if card:
-        start(card)
+    stopped = stop()
+    started = start(card, session) if card else False
+    action = "start" if started else "stop" if stopped else "noop"
+    reason = ("session is an open card" if started else "card has no cost center" if card else
+              "detached" if session in ("", "-") else "session is not an open card")
+    C.clog("decision", **who, action=action, reason=reason, running=started)
 
 
 def status() -> str:
@@ -178,6 +186,7 @@ def main(argv: list[str]) -> int:
     conf = Path(os.environ.get("TMUX_CONF", "~/.tmux.conf")).expanduser()
     sh = os.environ.get("COSTS_SH") or str(HERE / "costs.sh")
     if cmd == "tmux-focus":
+        C.clog("hook", session=rest[0] if rest else "-", source=os.environ.get("CLOCK_SOURCE", "tmux"))
         try:
             focus(rest[0] if rest else "-")
         except Exception as err:  # noqa: BLE001 - a hook never fails; the message carries no values
