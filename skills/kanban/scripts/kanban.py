@@ -838,15 +838,14 @@ DEFAULT_STAGE_LIMITS = {"Upstream": 1}
 
 def stage_limits() -> dict[Stage, int]:
     """The WIP limit per stage: Upstream 1 by default; config `stage_limits` {"Stage": n} overrides it (0 = unlimited)."""
-    out: dict[Stage, int] = {}
     cfg = config().get("stage_limits")
-    for name, n in {**DEFAULT_STAGE_LIMITS, **(cfg if isinstance(cfg, dict) else {})}.items():
+    merged: dict[Stage, Any] = {}
+    for name, n in [*DEFAULT_STAGE_LIMITS.items(), *(cfg.items() if isinstance(cfg, dict) else [])]:
         try:
-            if int(n) > 0:
-                out[stage_of(name)] = int(n)
+            merged[stage_of(name)] = int(n)  # any case; the config comes after the defaults
         except (TypeError, ValueError):
             continue
-    return out
+    return {st: n for st, n in merged.items() if n > 0}
 
 
 def wip_limit(repo: str | None = None) -> int:
