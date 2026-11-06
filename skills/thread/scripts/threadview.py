@@ -35,6 +35,7 @@ Você é o agente normal desta thread e pode fazer qualquer coisa, mas a priorid
 - O seu turno tem que acabar em até 10 segundos. Atualize a tela primeiro.
 - Trabalho que passa de 10 s (gerar, codar, buildar) vai para um worker: registre com `worker add <id> "<o que faz>"`, rode em background desacoplado (nohup … &) e faça o comando terminar chamando `worker done <id> "<resultado>"` (ou `worker fail`). Ele aparece na fila Agentes, no topo da tela.
 - No texto, fale das opções pelo NOME (nunca letra nem número: a numeração muda pelo ranking). Sem artefato "comparativo": a galeria já compara.
+- Downstream em progresso = trabalho rodando: quem trabalha aparece em Agentes (`worker add <id> "<o que faz>"`, inclusive outra thread ou um subagente que faz o trabalho; `worker done` quando acaba). Esperar uma escolha do dono não é progresso: a tela mostra "esperando você" sozinha.
 - Estágio da thread: nasce em progresso no Upstream; `stage upstream done` quando o Upstream conclui (ela passa ao Downstream), `stage downstream done` no fim.
 - Escolher entre opções (logo, tela, nome, texto) é um torneio: siga a skill choice (rode python3 {tourn} …, com --thread {sid}). Mensagem "torneio <slug>: …" é a resposta do dono a uma rodada, já registrada pela tela: não rode answer de novo; desenhe a próxima rodada (worker) e chame round.
 - Opção da decisão = "<key do artefato> · <nome>". O view.py renumera tudo por ranking: 01 é sempre a mais recomendada, e os artefatos seguem o mesmo número.
@@ -63,10 +64,29 @@ def section(name, on=False): return Text.assemble(("● " if on else "", ACC), (
 
 MARK = {"done": ("✓", "green"), "doing": ("◐", ACC), "blocked": ("■", f"bold {BORDO}"), "todo": ("○", DIM)}
 
+SUBAGENTS = {"n": 0, "since": time.time(), "checked": 0}
+
+def read_subagents():
+    """The Hermes subagents running for this thread: @subagents on the tab whose @hsid is this session."""
+    if time.time() - SUBAGENTS["checked"] < 2: return
+    SUBAGENTS["checked"] = time.time()
+    try:
+        out = subprocess.run(["tmux", "list-windows", "-a", "-F", "#{@hsid} #{@subagents}"], capture_output=True, text=True, timeout=2).stdout
+        n = next((int(l.split()[1]) for l in out.splitlines() if l.split()[:1] == [SID] and len(l.split()) > 1 and l.split()[1].isdigit()), 0)
+    except Exception:
+        n = 0
+    if n and not SUBAGENTS["n"]: SUBAGENTS["since"] = time.time()
+    SUBAGENTS["n"] = n
+
 def body(v, flash={}):
+    read_subagents()
     fl = lambda k: ("● ", ACC) if k in flash else ("", "")
     parts = []
     ws = [w for w in v.get("workers", []) if w.get("state") == "running" or time.time() - (w.get("ended_at") or 0) < 15]
+    subs = SUBAGENTS["n"]
+    if subs:
+        ws = ws + [{"id": "sub", "what": f"{subs} subagente{'s' if subs > 1 else ''} do Hermes", "state": "running",
+                    "started_at": SUBAGENTS["since"]}]
     if ws:
         wt = Table.grid(expand=True, padding=(0, 1)); wt.add_column(width=1); wt.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
         wt.add_column(justify="right"); wt.add_column(width=5, justify="right")
@@ -87,8 +107,17 @@ def body(v, flash={}):
             if st == "doing":
                 return [("◐◓◑◒"[int(time.time() * 3) % 4] + " ", ACC), (name, f"bold {ACC}"), ("  em progresso", ACC)]
             return [("○ ", DIM), (name, DIM)]
-        parts += [tag(Text.assemble(*lane("UPSTREAM", sg.get("upstream", "todo")), ("   ──▶   ", DIM),
-                                    *lane("DOWNSTREAM", sg.get("downstream", "todo"))), "Stage"), Text()]
+        # the lane's state comes from the screen, not only from what was declared: an open decision means the
+        # thread waits for the owner, whatever the lane says
+        waiting = bool(poll_of(v)) or bool((v.get("decision") or {}).get("text"))
+        cur = "downstream" if sg.get("downstream") in ("doing", "done") else "upstream"
+        def lane2(name, key):
+            st = sg.get(key, "todo")
+            if key == cur and st == "doing" and waiting:
+                return [("◆ ", f"bold {BORDO}"), (name, f"bold {BORDO}"), ("  esperando você", BORDO)]
+            return lane(name, st)
+        parts += [tag(Text.assemble(*lane2("UPSTREAM", "upstream"), ("   ──▶   ", DIM),
+                                    *lane2("DOWNSTREAM", "downstream")), "Stage"), Text()]
     g = v.get("goal") or {}
     title = Text.assemble(fl("goal"), ("▍", ACC), (" " + (g.get("title") or ""), "bold bright_white"))
     if g.get("subtitle"): title.append("\n  " + g["subtitle"], style=f"italic {DIM}")

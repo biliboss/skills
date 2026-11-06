@@ -11,6 +11,8 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 - Stage (Upstream → Downstream): every thread is born from the template in progress in the Upstream; `view.py stage upstream done` checks it and starts the Downstream; `stage downstream done` ends it. Drawn as one strip at the top.
 - 20/80 screen: done steps collapse to one line, the step that moves or blocks shows whole with its note; an empty section is not drawn; the pulse is one line; the view draws at most 88 columns (a third of the screen, `THREADVIEW_WIDTH`).
 
+- The lane's state comes from the screen: with a decision open it reads `◆ esperando você` (bordô), never "em progresso"; Agentes shows the Hermes subagents of the thread's tab (`@subagents`) besides the workers, and the prompt says that Downstream in progress means someone working, registered there.
+
 ### Fixed
 
 - `i` (answer something else) no longer hides the open decision; only a decision edge answers it.
