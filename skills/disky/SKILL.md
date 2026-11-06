@@ -2,7 +2,7 @@
 name: disky
 description: "Diagnostique o disco cheio do Mac com o disky (o nosso analisador de disco, open source) e proponha a limpeza sem apagar nada por conta própria. `scan` tira uma foto do disco; `dirs`, `top`, `ext` e `query` (SQL) com `--physical` mostram onde mora o espaço; `cleanup` sem `--apply` lista node_modules, target, .venv e builds; `diff`, `growth` e `predict` dizem o que cresceu e quando enche. Apagar, só com a tabela (caminho, tamanho, o que é, se se regenera) aprovada pelo dono. Use quando disserem \"o disco está cheio\", \"libera espaço\", \"o que está ocupando o disco\", \"roda o disky\", \"limpa os node_modules\", \"quanto livre tem\", \"o que cresceu no disco\", \"quando o disco enche\". Não é a `sync` (git) nem o `docker system prune` (nunca)."
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # disky — onde mora o espaço, e o que se pode apagar
@@ -46,6 +46,36 @@ O [disky](https://github.com/biliboss/disky) varre uma pasta, guarda a foto (sna
    Separe em três grupos: **regenerável** (build, dependência, cache: some e volta sozinho ou com um `install`), **pergunte** (o que não se regenera, ou que você não sabe o que é) e **do dono** (só o tamanho: Lixeira, snapshots locais do Time Machine (`tmutil listlocalsnapshots /`), backups, arquivos pessoais grandes, apps grandes para desinstalar, fórmulas grandes do Homebrew, o disco da VM de um app como o Claude Desktop, worktrees com commit fora do origin, e o reinício do Mac, que devolve o volume de swap e VM). Apague só o que ele aprovar.
    - **Quando o seguro não basta para a meta, pare e pergunte** com a tabela, somando quanto falta e sugerindo a combinação que chega lá. Pela skill `askuser` se a tela dela estiver aberta; senão, na conversa.
 6. **Apague o aprovado e meça de novo.** `rm -rf` caminho a caminho do que foi aprovado, ou `disky cleanup -t <categoria> --apply` quando o dono aprovou a lista inteira do cleanup. O `--reversible` manda para a Lixeira, que só libera espaço quando o dono a esvazia: use-o quando ele quiser poder desfazer, e diga que o ganho fica para depois. Depois, o `df` do passo 1 de novo, `disky scan ~` e `disky diff @latest~1 @latest` (o que sumiu). Relate o livre antes e depois e o que se apagou.
+
+## Organizar o `~/src` (código parado)
+
+A regra do dono: **projeto sem mexer há 7 dias ou mais e 100% no remoto sai do Mac; o resto parado vai para o SSD.**
+
+1. **Levantamento num script só** (somente leitura, uma linha por pasta numa TSV): tipo (dir, link, arquivo), dias
+   desde o arquivo mais novo (pulando `node_modules`, `.venv`, `target`, `dist`), tamanho, e no git: remote, arquivos
+   sem commit, commits sem push (`git log --branches --not --remotes`), stash, se é worktree. Veredito por linha:
+   `remove` (parado e sincronizado), `keep-local-work` (parado com trabalho só aqui), `no-git`, `keep-recent`.
+2. **Pergunte uma vez, pelo ask tool,** com a lista do `remove` e o tamanho, e o destino do resto. Arquivos sensíveis
+   soltos na raiz (extrato, dump `.sql.gz`, bundle, chave) entram na mesma pergunta.
+3. **Apague reconferindo cada repo na hora** (`status --porcelain`, unpushed e stash zerados); o que mudou desde o
+   levantamento fica.
+4. **Arquive o parado com trabalho local no SSD** (`/Volumes/<ssd>/src-archive/<nome>`), pulando a pasta que um
+   processo usa (`lsof -d cwd`), depois `git worktree repair` nos repos e worktrees movidos, e deixe **um link só**,
+   `~/src/archive`, nunca um link por projeto.
+5. **Sensíveis:** chave vai para um cofre do envless (base64, conferindo o tamanho devolvido) e a cópia em texto para
+   `~/Private/` (700) até o dono confirmar; o resto sensível também para `~/Private/`.
+
+- **Cheque a seleção antes do passo destrutivo seguinte:** se a lista a mover saiu vazia, pare. Um filtro na coluna
+  errada selecionou zero e a remoção dos links por projeto rodou mesmo assim.
+- **Antes de mover para o SSD, meça o livre dele** (`df -h /Volumes/<ssd>`): cheio, o que cabe é decisão do dono
+  (backups velhos, modelos baixados, cópias de jogos), com a tabela do passo 5 acima.
+- **Na tabela do SSD, recomende apagar o que é de dev e volta sozinho:** backup de VM de dev (colima), cache de
+  modelos (`hf-cache`, `ollama-models`), cópia de jogo ou app (`Steam` dentro de um offload). O dono trata isso como
+  descartável e aprova de uma vez. Pergunte de verdade só por backup de dado (de cliente, de banco, `*-backup` de
+  produto) e por sessões de agente. Abra antes o que é um balaio (`offloaded-*`, `downloads`): liste um nível abaixo
+  com `du -sh` e a data, e decida por subpasta.
+- **Caches no SSD: esvazie o conteúdo e mantenha a pasta** (`find <pasta> -mindepth 1 -maxdepth 1 -exec rm -rf {} +`),
+  porque links do Mac apontam para ela. O cache de módulos do Go é só leitura: `chmod -R u+w` antes de apagar.
 
 ## O que pega
 

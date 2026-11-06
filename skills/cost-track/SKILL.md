@@ -7,7 +7,7 @@ description: >-
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
   backbrief (tasks).
 metadata:
-  version: 0.5.0
+  version: 0.5.1
 ---
 
 # cost-track
@@ -46,7 +46,22 @@ slug, else `None`), `rate_hour(center)` (a client at `value_month`, an investmen
 `today(center)` (seconds and cost of today's `time_entry.stopped`). Tests: `uv run --script scripts/test_costs.py`.
 
 A domain joins a center with `COST_CENTER = "<id>"` in its project file, or by being in the center's `domains` list in
-`cost_center.updated`. The Costs domain itself declares `biliboss-skills`.
+`cost_center.updated` (`costs.sh bind <center> <domain>`, which also restates the rest of the center's value). The Costs
+domain itself declares `biliboss-skills`.
+
+- **A client counts time in its own days.** `hours_day` on the center (Mukutu: 8) makes CostCenters show the total as
+  "1 dia e 2h10"; without it, plain hours. Restate the whole latest value with the field added, never a partial value.
+- **Time he spent before the clock ran is a manual pair of events**, not an edit: import `costs` in a uv script and call
+  `emit("time_entry.started", ..., at=start)` then `emit("time_entry.stopped", {seconds, rate_hour, cost, ended_by:
+  "manual", manual: true, domain, card}, ..., at=end)`; the CLI has no `--at`. Place the stretch where no clock entry
+  of that domain runs (no double count). A Kanban card only sums time inside its Upstream stays, so time placed before
+  the card entered Upstream shows in the client's center but not on the card: say so when reporting.
+
+## A client contract: tax, costs and the split
+
+When he asks what a contract leaves (Simples Nacional on a client's entry, fator R, costs, how the remainder is
+divided), build the interactive HTML report in his dev-console, conservative annex by default, one toggle per
+scenario: [references/company-finance.md](references/company-finance.md).
 
 ## The clock follows tmux
 

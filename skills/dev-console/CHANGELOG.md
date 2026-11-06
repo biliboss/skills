@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.4] - 2026-11-06
+
+### Changed
+
+- "Edit right here" means in the session; anything local he must see (landing, interview, HTML report) goes through `devc browse`.
+
 ## [0.30.3] - 2026-11-06
 
 ### Fixed

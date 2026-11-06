@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.3
+  version: 0.30.4
 ---
 
 # dev-console
@@ -623,6 +623,12 @@ For a product whose code already records domain events (Domain.Imported):
 - **When he says it got worse, restore first, redesign later**: revert the skill folder to the last state he liked in
   one PR (`git checkout <good sha> -- skills/dev-console`, delete files added since, bump versions above main), keep
   unrelated pieces that work (a CLI), reinstall the app, screenshot his window; then rebuild the idea with his ok.
+- **"Edit right here" / "implement here" means in this session, not a subagent**: change the main clone the console
+  runs (the hot reload shows it at once), check with `devc shot`, then land it as a small PR from a branch of that clone
+  (`git switch -c run/<x>`, stage only your files, `gh-app push`, `gh-app pr create`, `gh pr merge --squash`, back to
+  main). Run the touched skill's tests before the PR: a layout change breaks tests that find text by index (a lane
+  named "Outros" matched a card titled "Outro"). Without that phrase, code changes go to a subagent on a fit-for-purpose
+  model.
 - **UI work goes to Opus at max effort**: screens, widgets, layout, the console's look and the Swift chrome are a
   focused job that needs taste; delegate them on the `ui-opus-max` route (Hermes delegation `model_map`), never the
   default Sonnet route, which shipped native pieces that compiled and passed tests but did not work by hand.
@@ -767,3 +773,15 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
 frame, above the status line. Use it to show the owner what an agent is running (a landing's dev server, a preview) so
 he validates without leaving the console. Pages that forbid frames (X-Frame-Options) stay blank: ↗ opens them in the Mac's
 browser.
+
+- **Anything local he must look at or answer goes through it**: a card agent's landing (`devc browse localhost:<port>`)
+  and a waiting interview form (`devc browse 127.0.0.1:8398`, the interview queue) open in his console window instead of
+  a separate browser window. When a card agent starts a dev server or asks him questions, tell it to use `devc browse`.
+- **An HTML report for him (finances, a study, an analysis) is shown here too**, not in a separate window: write it to
+  `~/.local/share/bili-reports/<topic>.html`, serve that folder once with `uv run python -m http.server 4400 --bind
+  127.0.0.1 --directory ~/.local/share/bili-reports` (a persistent background process), and `devc browse
+  http://127.0.0.1:4400/<topic>.html`. A `file://` URL never loads inside the console's frame. After each edit, reload the
+  frame and `devc shot` to check before telling him: `devc browse` of the URL already open does not reload it (the shot
+  keeps the old page), so run `devc eval "(() => { const f = document.querySelector('iframe'); f.src = f.src })()"`.
+- Test it with a throwaway page served from scratch (`uv run python -m http.server <port> --directory <dir>`), then
+  `devc browse` + `devc shot`, and stop the server.

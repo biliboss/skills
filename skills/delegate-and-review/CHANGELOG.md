@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). Versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-11-06
+
+### Changed
+
+- Code changes go to a subagent sized to the step (the owner's "edit here" is the exception); a mid-task simplification is a full replacing steer; the merge script stops on a red test.
+
 ## [0.3.2] - 2026-11-04
 
 ### Changed

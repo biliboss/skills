@@ -2,7 +2,7 @@
 name: delegate-and-review
 description: Passa uma tarefa de código a um subagente desta sessão (Sonnet, pela ferramenta Agent, em segundo plano), que trabalha numa worktree nova do repo certo e abre um PR sem fazer merge; quando ele termina, você revisa o PR e corrige o que a revisão achar, no mesmo ramo. Use quando o dono disser "delega para um subagente", "subagente numa worktree e abre PR", "manda um Sonnet fazer e depois revisa", "delega e revisa", "deixa um agente construir e você corrige", "subagent in a worktree, PR, then review". Não é a `duplo-local-agents`, que abre outra sessão numa aba do herdr; este roda dentro desta sessão, e quem revisa e corrige é você.
 metadata:
-  version: 0.3.2
+  version: 0.3.3
 ---
 
 # delegate-and-review — delegar a um subagente, revisar o PR e corrigir
@@ -85,6 +85,8 @@ Agent(description="<3 a 5 palavras>", model="sonnet", prompt=<briefing>)
 - **Acompanhar o trabalho de um agente remoto** (o Bili da VPS num cartão): um subagente por cartão, que só lê, sem escrever código. Ele lê o estado, as atividades da sessão de agente, os comentários e o PR. Se o cartão está parado há mais de 15 min, ele posta UM comentário com o próximo passo concreto, por quem abre a sessão do agente. Para esperar, usa um evento (`nats sub … --count 1` com `timeout`), nunca `sleep`. Devolve duas linhas: o estado e o próximo passo, e a linha do dono só nos quatro casos, com o comando exato. Diga no briefing que um bloqueio técnico (ruleset que exige code owner, permissão de app) não é linha do dono: o subagente nomeia a trava e propõe tirá-la, senão ele devolve "👤 aprovar o PR" e o cartão para.
 - **Benchmark ou medição:** despache o texto exato que o dono deu, sem contexto extra, e não ajude nem revise. Qualquer acréscimo seu contamina a comparação.
 - **Mudança grande de desenho no meio da tarefa:** é melhor parar e despachar de novo do que empilhar steers. Vários steers seguidos deixam a entrega meio de um jeito, meio de outro.
+- **Mudança de código vai a subagente, com o modelo do tamanho do passo, até no dev-console** (o mecânico ao Haiku, o código ao Sonnet, a UI ao Opus); o agente principal só divide, confere e responde. A exceção é o dono dizer "edita aqui" / "right here": aí o agente principal edita na sessão, mostra na tela dele e junta na hora, com as mesmas portas (a suíte da skill antes do PR). Dois remendos à mão que não resolvem são o sinal para despachar.
+- **Quando o dono simplifica no meio ("talvez já resolva abrindo no browser"), mande ao subagente vivo um steer com a regra final inteira,** dizendo que ela substitui as anteriores e o que sai: steers que só somam deixam a entrega com as duas versões.
 - **Trabalho de UI vai ao Opus com esforço máximo, sempre** (telas, widgets, layout, a aparência do console, views Swift, CSS): é trabalho focado que pede gosto, e o Sonnet entrega a UI que "compila" mas quebra no uso (atalho que não dispara, layout cortado). No Hermes, com o plugin advanced-delegation, `delegation.backend: model_map` tem a rota `ui-opus-max` (Opus, `reasoning_effort: max`) ao lado da `sonnet` padrão; o backend novo só vale depois de `/new`. No Claude Code, `model: "opus"` na ferramenta Agent.
 - **No Hermes** a ferramenta é a `delegate_task`, em segundo plano: `action=list` para ver quem vive, `steer` para corrigir e `stop` para parar. O resultado só chega depois que o seu turno termina, então feche o turno com uma linha de status em vez de esperar.
 
@@ -111,6 +113,7 @@ Agent(description="<3 a 5 palavras>", model="sonnet", prompt=<briefing>)
 ## 6. Corrija os achados
 
 - No mesmo ramo e na mesma worktree, um commit por achado ou um commit de revisão, com a sua atribuição. Rode os testes de novo e `git push`.
+- **O script que junta para no teste vermelho:** `out=$(<teste> 2>&1 | tail -1); [ "$out" = "OK" ] || exit 1` antes do push. Um `| tail` engole o código de saída, e o PR entra com a suíte quebrada.
 - **Merge só com a permissão escrita do dono no pedido.** Com ela: corrija os blockers e as decisões que a revisão levantou (decida pela recomendação e escreva a decisão no README ou no PR), rode os testes uma vez, faça o merge squash pelo app (`gh pr merge <n> --squash --delete-branch`, com o token do app) e comente no PR "revisado por agente: …" com o resumo. Sem a permissão, ou com um achado grave que não dá para corrigir agora, não faça o merge e diga o quê. Deploy continua com o dono.
 - **Dois PRs abertos que sobem a versão do mesmo plugin** (`plugin.json` e o CHANGELOG da raiz): junte primeiro o de versão menor; no outro, faça `git merge origin/main` no ramo (não rebase: o `gh-app` recusa push com force, até `--force-with-lease`), resolva o CHANGELOG pondo o bloco novo acima do já juntado e o `plugin.json` com a descrição do main e a versão do ramo, rode os testes e só então o merge.
 - Relate: o PR, os achados e como cada um foi corrigido, o que ficou para ele decidir e o que ainda falta (deploy, teste ao vivo).

@@ -13,7 +13,7 @@ description: >-
   wiki pages. Needs a repo with a `.wiki/` folder; names and language come from
   `.wiki/wiki.config`.
 metadata:
-  version: 0.1.4
+  version: 0.1.5
   license: MIT
 ---
 
@@ -82,7 +82,7 @@ When a public skill covers the subject, do not write a house skill for it: use t
 
 ## Consulting the wiki
 
-`rg -n -i '<keyword>' .wiki` (or skim the index), then read **only** the matching page or section, never the whole wiki. For what happened: the inbox (short), then only the days that matter; one day = its index and the notes it lists. If the repo has specs, they say what the system promises: `rg -n -i '<keyword>' <specs dir>`.
+`rg -n -i '<keyword>' .wiki` (or skim the index), then read **only** the matching page or section, never the whole wiki. **Check the checkout first** (`git status -sb`): a checkout behind `origin/<main>` (or on an old branch) can lack the wiki or the pages you want, so read them with `git show origin/<main>:.wiki/<page>.md` (list with `git ls-tree -r --name-only origin/<main> .wiki`) instead of concluding they do not exist; do not pull over another session's local changes just to read. For what happened: the inbox (short), then only the days that matter; one day = its index and the notes it lists. If the repo has specs, they say what the system promises: `rg -n -i '<keyword>' <specs dir>`.
 
 ## Pitfalls
 
@@ -99,6 +99,15 @@ When a public skill covers the subject, do not write a house skill for it: use t
 - **A `sync.sh` without `-p` leaves a local `wiki-sync/*` branch.** If you then rerun with `-p`, delete your own leftover branch (`git branch -D wiki-sync/<stamp>`); never the ones from other sessions.
 - **A new page needs an index line and the footer** (`Mapa: … · Relacionadas: …`) in the same commit; the lint fails without them.
 - **Never wait on stdin.** `note.sh` reads the body only with `-b`; in an agent shell a bare read blocks forever. The same applies to any script you add.
+- **A dictated conversation (speech-to-text of a meeting) becomes a topic page, not a transcript**: the rules and
+  numbers as they hold, each estimate marked as such, and an "Em aberto" list for what the transcript garbled or left
+  ambiguous, with your reading of it ("R$ 1.00" read as R$ 550 + R$ 1.100), never silently fixed. When he then gives
+  the real figure or corrects a person's role (a PJ, not a partner), edit the page in place in the same session.
+- **A checkout with other sessions' changes (or local commits ahead of origin) is never pulled or stashed by hand to
+  publish a page**: a path-limited `git stash push` fails on a new untracked page, the pull aborts over their edits, and
+  `gh-app` refuses a push that carries their non-wiki commits. Use `sync.sh` (it carries your paths into a worktree of
+  `origin/<main>`); for a later edit of the same page, apply it in a fresh detached worktree of `origin/<main>`, push
+  `HEAD:<main>`, and copy the result back to the checkout.
 - **Do not record the transient**: a command that failed once and worked on retry, an environment glitch, a one-off task. Capture the working fix on the topic page, never "X is broken" (it hardens into a refusal after the cause is gone).
 - **Links:** relative, first mention per section only; an anchor is GitHub's slug of the heading (lowercase, no punctuation, accents kept, space becomes hyphen). Renaming a heading breaks its anchors; the lint says so. Put a link example inside backticks so the lint does not read it.
 - **Rename or delete a page:** `rg -l 'old-name' .wiki` and fix every link, anchors included; delete only after the content moved.

@@ -6,7 +6,7 @@ description: >-
   real screen), mark each element draft or real, and detect drift between the drawing and the code; the drift list is
   what Downstream builds. Not backbrief (the task taught back) nor brainstorm (the idea still open).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # domain-plan
@@ -23,6 +23,14 @@ commitment point: the card goes to Downstream and Downstream builds the drift li
    (`console.sh domains add <file>`) and adjust it. Never draw a plan over a domain nobody imported.
 2. **Open the plan**: `scripts/plan.sh start <slug> --repo <repo> --domain <domain> --events-file <path to the
    <name>_events.py> --console-source <the SOURCE the console reads>`. `kanban.sh pull` already does the first half (slug, repo, domain) when it puts a card in Upstream.
+   **Then pin the outcome before drawing anything.** Read the plan's documents, the product's wiki on `origin/main`
+   (`git show origin/main:.wiki/<moc>.md` and what it lists; the plan branch may be older than main) and who asked for
+   the task. Anything that landed on main after the plan opened (a brief, a design system) is a new candidate: record
+   it with `plan.sh add --kind document` before asking, or the question offers stale options. Then ask the owner once,
+   recommendation first: the first question is the outcome ("daqui a 90 dias deu certo, o que mudou?", the plan's
+   candidates as options), the last compares the scope with the cheapest path this week. With the answer, write the
+   high-level request in five fields (por quê, para quem, resultado medido, limites, pronto quando) plus the week's bet,
+   on the card (`kanban.sh describe <card> --file <f>` when it exists, else as a plan `document`).
 3. **Draw the desired state as drafts**: `plan.sh add <slug> --kind event --name category.event [--command C] [--after
    other.event]`, and **above each event a person sees, its real screen as HTML in the product's look** (cheap UI now:
    build the screen, never describe it): `--kind screen --name <n> --event category.event --file <path in the repo>`
@@ -40,7 +48,8 @@ commitment point: the card goes to Downstream and Downstream builds the drift li
    | construído | draft the code already has; `--mark` turns it real |
    | fora do plano | in the code, not in the drawing |
 
-6. **The owner approves** -> `plan.sh confirm <slug>`, then `kanban.sh move <card> Downstream`. Downstream builds the
+6. **Stop after the drift; the owner approves** -> `plan.sh confirm <slug>`, then `kanban.sh move <card> Downstream`.
+   Upstream writes no product code: small choices are decided and logged as "Decidi X porque Y" in the plan. Downstream builds the
    `a construir` list and runs `drift --mark` as it lands; a drift that empties is the task done.
 
 ## The plan file
