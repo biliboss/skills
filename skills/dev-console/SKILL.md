@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.20.0
+  version: 0.21.0
 ---
 
 # dev-console
@@ -121,6 +121,14 @@ for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsol
 `devconsoleDomains`) in the page, and no print panel can open. A browser handles the same keys in `keydown`
 (⌘P / Ctrl+P → `preventDefault`, overlay).
 
+- **Native chrome: status line.** The window draws its bottom status line itself (`StatusLineController`, under the web
+  view): ▶/⏸, cost center, `R$ today de R$ budget`, `domain · module`. The page keeps the content: when
+  `window.webkit.messageHandlers.devconsole` exists it hides its own `#bar` and pushes `postMessage({type:"status", ...})`
+  on every change (not logged as `last_message`); a plain browser at 5057 keeps the web line unchanged. ▶/⏸ calls the
+  page's `devconsoleToggle()` (the web button's action, so beat and idle rules stay), or posts to the same
+  `/domain/<slug>/time/start|stop` route; the app never writes the cost journal. A slow 8 s refresh reads the read-only
+  `GET /api/status?domain=<slug>` -> `{domain, cost_center, running, today_brl, budget_brl, module}` (`module` is null
+  there: only the page knows its tab). Formatting and decoding are pure code in `ConsoleCore/StatusLine.swift`.
 - **To read the DOM or take a screenshot, keep using the headless browser on the same URL**; the window is for the
   person to look at and for the agent to move (open a view, dock, hide), and `eval` is for a quick read of one value.
 - **Never write either file by hand.** The id rule (above both the last one sent and the last one applied) and the

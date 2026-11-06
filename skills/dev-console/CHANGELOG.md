@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.0] - 2026-11-06
+
+### Added
+
+- **Native status line** in DevConsole.app (chrome drawn by the window, content kept by the page): ▶/⏸, cost center, R$ today with budget, domain and module, live. The page pushes `postMessage({type:"status"})` and hides its own bar only inside the app; `window.devconsoleToggle()`; read-only `GET /api/status?domain=<slug>`; 8 s fallback refresh. `ConsoleCore/StatusLine.swift` (`formatBRL`, `StatusInfo.decode`) with tests.
+
 ## [0.20.0] - 2026-11-06
 
 ### Added

@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var pendingFrameWrite: DispatchWorkItem?
     private var idleTimer: Timer?
     private var palette: PaletteController!
+    private let statusLine = StatusLineController()
 
     private let stateDir: URL = {
         if let o = ProcessInfo.processInfo.environment["DEV_CONSOLE_WINDOW_STATE_DIR"], !o.isEmpty {
@@ -51,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         buildWindow()
         palette = PaletteController(parent: { [weak self] in self?.window }, currentURL: { [weak self] in self?.webView.url ?? self?.defaultURL },
                                     open: { [weak self] in self?.webView.load(URLRequest(url: $0)) })
+        statusLine.onPalette = { [weak self] in self?.palette.show($0) }
         watchDirectory()
         webView.load(URLRequest(url: state.url.flatMap(URL.init(string:)) ?? defaultURL))
         window.makeKeyAndOrderFront(nil)
@@ -89,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                           backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.title = "Dev Console"
-        window.contentView = webView
+        window.contentView = statusLine.install(webView: webView)  // the chrome: the web view above, the status line under it
         // First launch only (no saved frame): two thirds of the screen, docked to the right.
         if !window.setFrameUsingName(autosaveName) {
             applyDock(.right)
@@ -198,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             palette.show(mode)
             return
         }
+        if statusLine.handle(message: message.body) { return }  // a status push is not an agent message
         state.lastMessage = JSONValue(any: message.body)
         writeState()
     }
