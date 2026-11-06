@@ -1,8 +1,8 @@
 ---
 name: hermes
-description: Drive the owner's local Hermes profiles (researcher, designer, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the designer/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
+description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
 metadata:
-  version: 0.2.0
+  version: 0.2.1
   license: MIT
 ---
 
@@ -46,7 +46,7 @@ this skill's folder. Rules and routing below; depth in [references/routing.md](r
   filtered of key-like fields.
 - **Proposals stay proposals.** `sre` and `via-ads` read, measure and propose; production, DNS, budget and indexing
   changes need the owner's go-ahead, so say so in the prompt.
-- **Check the profile's SOUL before routing to it.** A profile whose SOUL.md is a stub or a copy of another's (designer
+- **Check the profile's SOUL before routing to it.** A profile whose SOUL.md is a stub or a copy of another's (hipster
   once matched bili's; mantainer has no scope) does not own the subject yet: tell the owner, then spawn.
 - Whether a `-z` run writes the profile's memory is **unverified**; try it on a throwaway profile before promising it.
 

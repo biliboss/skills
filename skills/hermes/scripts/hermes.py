@@ -30,8 +30,8 @@ FLAT_PREFIXES = ("claude-subscription", "zai", "openai-codex")
 ROUTES = {
     "code": "hacker", "build": "hacker", "feature": "hacker", "fix": "hacker", "pr": "hacker",
     "research": "researcher",
-    "ui": "designer", "screen": "designer", "widget": "designer", "layout": "designer", "css": "designer",
-    "swift": "designer",
+    "ui": "hipster", "screen": "hipster", "widget": "hipster", "layout": "hipster", "css": "hipster",
+    "swift": "hipster",
     "infra": "sre", "architecture": "sre", "hosting": "sre", "costs": "sre",
     "search": "via-ads", "ads": "via-ads", "seo": "via-ads",
     "disk": "mantainer", "mac": "mantainer", "upkeep": "mantainer",

@@ -34,10 +34,20 @@ Events: `session.started|finished`, `problem.classified {domain}`, `question.ask
 
 1. **Ask first, one question at a time**, through the harness's ask tool (Hermes `clarify`, Claude Code
    `AskUserQuestion`); short, pt-BR, with 2-4 choices when the answers can be named. Read what the owner already
-   gave (files, the conversation) before asking; never ask what it answers.
+   gave (files, the conversation) before asking; never ask what it answers. A scope question (which part, which
+   kind of content) carries a "Tudo, completo" choice: he usually wants the whole map, and narrowing choices alone
+   cost a round.
 2. **Propose 2-3 approaches** with their trade-offs and a recommendation, in a message of their own.
 3. **Approve the design in sections**, each short, one confirmation per section.
-4. Emit as you go (`session.started` with the owner's words first). A clear task is not a brainstorm: route to backbrief.
+4. Emit as you go (`session.started` with the owner's words first). Every emit needs `--session`, including the first:
+   pick the id yourself (`bs-$(date +%s)`) and keep it in a scratch file for the later emits; batch the emits of one
+   step (variables, links, loops, approaches) in one small `.sh`. A clear task is not a brainstorm: route to backbrief.
+5. **A product brainstorm in this house maps the domain's events, all of them** (setup, triggers from the product's
+   existing events, creation, the owner's decision, publishing, result back to the product's own events), as a table
+   by stage: the owner thinks in event catalogues and asks for completeness, not a short list. Name each with the
+   product's existing vocabulary, and tie the result to an event the product already emits (the lead, the visit).
+6. Say legal and outward-facing limits inside the question, not after: an option that would be misleading advertising
+   or publish without the owner's approval is named as such in the choice text.
 
 ## The frame: Double Diamond (diverge, converge, twice)
 

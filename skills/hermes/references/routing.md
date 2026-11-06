@@ -6,7 +6,7 @@ profile's SOUL.md, not by its model.
 | Task kind | Profile | Notes |
 |---|---|---|
 | research (compare, read docs/web, remember what was researched) | `researcher` | |
-| ui (screens, widgets, layout, CSS, Swift views) | `designer` | its SOUL.md must be its own, not a copy of bili's |
+| ui (screens, widgets, layout, CSS, Swift views) | `hipster` | its SOUL.md must be its own, not a copy of bili's |
 | infra (architecture, hosting, costs) | `sre` | proposes only; applying needs the owner's go-ahead |
 | search, ads, seo | `via-ads` | read only (Search Console today); changes are the owner's |
 | disk, Mac upkeep | `mantainer` | write its scope in SOUL.md before depending on it |
@@ -25,3 +25,6 @@ profile's SOUL.md, not by its model.
 - Kanban (`hermes kanban create --assignee <profile>` plus `dispatch`) is the asynchronous path for long work; not wrapped yet.
 - Mods: Claude Code 2.1.287+ plugin mods (`hooks/hooks.json` with `modules`) expose `$.process.spawn`; `agent.spawn`
   can rewrite a spawned agent, and replacing it with Hermes is not confirmed in the docs.
+
+
+The names come from the startup triad hacker, hustler, hipster (the builder, the seller, the designer): `hacker` builds, `hipster` designs in general (service, product, interface). Both read the skill `design-taste`.

@@ -39,6 +39,14 @@ herdr pane read <pane> --source recent --lines 30          # responda o prompt d
 ```
 
 - **"Hermes na conta mukutu" = `hermes -p bili`**: o perfil já fixa o `claude_config_dir` na `~/.claude-mukutu`. O alias `claude-mukutu` do zsh abre o **Claude Code**, não o Hermes; na dúvida entre os dois, o pedido do dono que diz "hermes" vence.
+- **Os Bots do Hermes no terminal** ("abre os bots no CLI", um por aba): cada Bot é um perfil e tem um Bot Chat
+  canônico; o id sai do `state.db` do perfil (`sqlite3 -readonly "file:<perfil>/state.db?mode=ro" "select id from
+  sessions where title='Bot Chat' order by coalesce(last_activity_at,started_at) desc limit 1"`; o perfil padrão é
+  `~/.hermes/state.db`) e abre com `env CLAUDE_CONFIG_DIR=~/.claude-mukutu hermes -p <bot> --resume <id>`. O
+  `--resume` recusa `-m`/`--provider` diferentes dos da sessão: troque depois com `/model <modelo>` (só o nome; o
+  `provedor:modelo` falha). A sala de grupo não abre no CLI: só a sessão `Group: …` de cada membro. Dentro de uma
+  sessão do perfil bili, `hermes config set` sem `-p` grava no bili: passe sempre `-p`. A interface (TUI ou CLI
+  clássico) é `display.interface` de cada perfil; o dono prefere `tui`.
 - **Leia o pane depois de abrir:** o Claude Code numa pasta nova para na pergunta de confiança (Esc sai sem criar sessão), e o Hermes pode abrir com uma pergunta (ex.: auto-prune; Enter adia). Só diga "pronto" quando aparecer o prompt.
 
 - **Sem instrução**, quando o dono pedir "só com o nome": abra e pare aí.
@@ -65,6 +73,9 @@ herdr-events esperar <pane> --until idle,done,blocked --timeout 1800   # só com
 - **Depois de `/reload` no pi**, espere uns segundos antes da próxima mensagem: uma mensagem durante o reload se perde.
 - **`done`/`idle` não quer dizer que parou:** um pi ou um Claude Code que só espera um subagente aparece como `done`/`idle` no herdr. Leia o rodapé do pane (`N running agent`, `live agents`, um `Agents` com spinner) antes de tratar como terminado, puxar o próximo ou avisar o dono.
 - **Layout por script:** no `herdr pane split|move --ratio r`, o `r` é a fração que fica com o pane **original** (ou o alvo), e o novo vai à direita ou embaixo. O `pane resize` não encolhe um pane abaixo de umas 6 linhas: um pane curto (uma barra de 1 linha) tem de nascer curto. Crie o pane e mova o vizinho para baixo dele com `--split down --target-pane <curto> --ratio 0.02`. Depois de um `move`, renomeie o pane, porque o rótulo se perde. Confira sempre com `herdr pane layout --pane <p>` (os `rect`).
+- **Pane que o dono abriu é dele:** uma janela que você criou vira do dono quando ele entra nela (a TUI pode ser
+  esta mesma conversa). Leia antes de mandar tecla e nunca mande `/quit`, `C-c` ou um comando de shell para um
+  agente vivo: entra na fila dele e fecha a sessão dele. Para reabrir, abra uma janela nova.
 - **Pergunta da sessão (`blocked`)** é do dono. Você só responde por ele quando ele mandar.
 - **Mover:** `herdr pane move <pane> --new-tab --no-focus` e `herdr tab rename <tab> <tema>`; para o foco, `herdr pane move <pane> --tab <tab> --split right --target-pane $HERDR_PANE_ID --no-focus`.
 

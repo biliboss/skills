@@ -125,12 +125,13 @@ class T(unittest.TestCase):
         self.assertEqual(self.sh("sessions", "cheap").returncode, 4)
 
     def test_route_table(self):
-        for kind, profile in (("research", "researcher"), ("ui", "designer"), ("css", "designer"), ("infra", "sre"),
+        for kind, profile in (("research", "researcher"), ("ui", "hipster"), ("css", "hipster"), ("infra", "sre"),
                               ("ads", "via-ads"), ("search", "via-ads"), ("disk", "mantainer"), ("coordination", "bili")):
             self.assertEqual(self.sh("route", kind).stdout.strip(), profile, kind)
-        r = self.sh("route", "code")
+        self.assertEqual(self.sh("route", "code").stdout.strip(), "hacker")
+        r = self.sh("route", "poetry")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("worktree", r.stderr)
+        self.assertIn("subagent", r.stderr)
 
     def test_exit_code_mapping(self):
         for code in (1, 2, 130):

@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.43.2] - 2026-11-06
+
+### Changed
+
+- `hermes` 0.2.1 e `backbrief` 0.16.3: o perfil de design se chama `hipster` (hacker, hustler, hipster); UI vai a ele, no Opus com esforço máximo.
+- Lições da revisão automática em brainstorm, delegate-and-review, dev-console, diff-review, herdr-agentes e skill-smith.
+
 ## [0.43.1] - 2026-11-06
 
 ### Changed
