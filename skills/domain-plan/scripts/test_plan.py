@@ -144,7 +144,7 @@ class ConsoleSideTest(unittest.TestCase):
     def test_a_hand_edited_name_cannot_inject_into_the_source(self):
         with tempfile.TemporaryDirectory() as t:
             self.plan(t)
-            self.assertEqual(self.cli(t, "add", "d", "--kind", "event", "--name", "req.ok", "--command", 'x": "y", #')[0], 1)
+            self.assertEqual(self.cli(t, "add", "d", "--kind", "event", "--name", "req.ok", "--command", 'x": "y", #'), 1)
             f = Path(t) / ".plan" / "d.jsonl"
             P.append(f, "element.updated", {"kind": "event", "name": 'req.a"b', "state": "draft"})
             with self.assertRaises(ValueError):
