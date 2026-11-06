@@ -74,11 +74,13 @@ The agent of a thread follows this shape on every turn; `threadview.py` restates
 
 | Part | What the agent sets (`view.py <sid> …`) | Rule |
 |---|---|---|
-| Stage | `stage upstream|downstream doing|done` | born in progress in the Upstream (the template); a check moves it to the Downstream |
+| Stage | `stage ready <0-100>`, `stage upstream done` | born in progress in the Upstream (the template), whose goal is to be ready for the Downstream: the agent keeps its % ready; only the owner moves it (D) |
+| Agents | `worker add|done|fail` + Hermes subagents (read by the screen) | N in parallel, one line each; the input never blocks: ⏎ always queues, "thinking" lives in the queue line |
 | Goal | `goal "<title>" "<subtitle>"` | one goal; the subtitle is the constraint that matters |
 | Steps | `steps '<json>'`, `step <n> done|doing|blocked|todo "<note>"` | 3-6 steps, the lifecycle in order |
-| Artifacts | `artifacts '<json>'` (`key`, `name`, `state`, `path`, `pct`, `wins`) | a path gets the showcase (HTML) and its URL |
-| Decision | `decision "<text>" --option "<name>" <pct>`… or a tournament | only when the owner must act; confidence sums 100, best first |
+| Related | `artifacts '<json>'` with a `path` or `url` that is not an image | part of every thread's template: the skill, the dev-console domain, the PR, the card it touches; drawn as link lines |
+| Artifacts | `artifacts '<json>'` (`key`, `name`, `state`, `path`, `pct`, `wins`) | images become boxes and the showcase (HTML) |
+| Decision | `decision "<text>" --option "<name>" <pct>`… or a tournament | the screen's ask tool: only when THIS thread is blocked on the owner; never to offer the next topic or ask leave to go on (that is a step or the pulse); confidence sums 100, best first |
 | Pulse | `pulse "<one line>"` | what is happening now; set at the start and at the end of the turn |
 | Workers | `worker add|done|fail <id> "<what>"` | work longer than the turn (10 s) |
 

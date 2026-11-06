@@ -12,7 +12,9 @@ The human never reads the agent's chat text; they read this screen.
         view.py renumbers by rank: 01 is always the most recommended, artifacts follow the same numbers
   view.py <sid> decision --clear
   view.py <sid> pulse "<one line of life>"
-  view.py <sid> stage upstream|downstream doing|done   the thread's lane (Upstream, then Downstream); done upstream starts downstream
+  view.py <sid> stage upstream|downstream doing|done   the thread's lane: the agent marks the Upstream done (ready);
+        only the owner moves it to the Downstream (the screen's D key: stage downstream doing --by owner)
+  view.py <sid> stage ready <0-100>           how ready for the Downstream the agent thinks the thread is (100 = Upstream done)
   view.py <sid> worker add <id> "<what it does>" [--pid PID]   register background work (Agentes queue)
   view.py <sid> worker done <id> ["<result>"]  |  worker fail <id> "<why>"
 
@@ -36,7 +38,7 @@ def load(sid):
 
 def template():
     """Every thread is born from this template: in progress in the Upstream, the Downstream still ahead."""
-    return {"goal": {"title": "", "subtitle": ""}, "stage": {"upstream": "doing", "downstream": "todo"},
+    return {"goal": {"title": "", "subtitle": ""}, "stage": {"upstream": "doing", "downstream": "todo", "ready": 0},
             "steps": [], "artifacts": [], "decision": None, "pulse": ""}
 
 
@@ -184,14 +186,23 @@ def main(a):
             if not w: die(f"no worker {wid}")
             w.update(state=sub, ended_at=time.time(), note=rest[2] if len(rest) > 2 else "")
         else: die("worker add|done|fail")
+    elif cmd == "stage" and rest[:1] == ["ready"]:
+        # the Upstream's goal is to be ready for the Downstream: the agent's own estimate, 0-100
+        pct = (rest + ["", ""])[1].rstrip("%")
+        if not pct.isdigit() or not 0 <= int(pct) <= 100: die("stage ready <0-100>")
+        sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        sg["ready"] = int(pct)
+        if int(pct) == 100 and sg.get("downstream", "todo") == "todo": sg["upstream"] = "done"
     elif cmd == "stage":
         lane, st = (rest + ["", ""])[:2]
+        owner = "--by" in rest and rest[rest.index("--by") + 1:rest.index("--by") + 2] == ["owner"]
         if lane not in ("upstream", "downstream") or st not in ("doing", "done"):
-            die("stage upstream|downstream doing|done")
+            die("stage upstream|downstream doing|done [--by owner]")
         sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        if lane == "downstream" and sg.get("downstream", "todo") == "todo" and not owner:
+            # only the owner moves a thread to the Downstream (the kanban rule); the agent marks the Upstream ready
+            die("only the owner moves a thread to the Downstream: mark `stage upstream done` (ready) and wait for him")
         sg[lane] = st
-        if lane == "upstream" and st == "done" and sg.get("downstream", "todo") == "todo":
-            sg["downstream"] = "doing"  # upstream checked: the thread moves to the Downstream
         if lane == "downstream":
             sg["upstream"] = "done"
     elif cmd == "pulse":

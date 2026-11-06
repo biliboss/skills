@@ -13,6 +13,11 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - The lane's state comes from the screen: with a decision open it reads `◆ esperando você` (bordô), never "em progresso"; Agentes shows the Hermes subagents of the thread's tab (`@subagents`) besides the workers, and the prompt says that Downstream in progress means someone working, registered there.
 
+- The Upstream's goal is to be ready for the Downstream: `view.py stage ready <0-100>` (in the template, 0 at birth), drawn as `UPSTREAM 70% pronto ▰▰▰▰▰▰▰▱▱▱`; 100 marks it ready and the owner moves it (D). Only the owner moves a thread to the Downstream (`--by owner`); the agent is refused.
+- Agentes shows N subagents in parallel, one line each, read from Hermes's `async_delegations` of the thread's session (a batch "N parallel subagents: a; b" becomes N lines; done ones stay 15 s). `THREADVIEW_DB` points it at another database (tests).
+- Related (part of the template): artifacts that are not images (the skill, the domain, the PR, the card) are link lines.
+- The stage line is the first line; the subtitle keeps its indent; a decision is only for when the thread waits for the owner.
+
 ### Fixed
 
 - `i` (answer something else) no longer hides the open decision; only a decision edge answers it.
