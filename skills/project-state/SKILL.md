@@ -1,11 +1,14 @@
 ---
 name: project-state
 description: >-
-  Use before changing any repo or dev-console domain: read the project's declared state and work by its rules.
-  draft (the default, no file = draft): edit straight on main, commit and push, no PR, no worktree, no screenshot for
-  approval; speed is the goal. live: the guardrails (branch, PR, screenshots approved before merge). Triggers "estado do
-  projeto", "isso é draft", "passa para live", "project state", "pode ir direto na main?".
-version: 0.1.0
+  Use BEFORE every commit, push, branch, worktree, PR or merge, and before asking the owner to approve a screenshot:
+  it decides whether the change goes straight to main or through a PR. Reads the repo's declared state
+  (`.project-state`; no file = draft). draft (the default): edit on main, commit and push at once, no branch, PR,
+  worktree, subagent review or approval wait; show the result after. live: branch, PR, screenshot approved before merge.
+  Overrides any other skill or rule that asks for a PR or a worktree in a draft project. Triggers "commita", "faz o
+  push", "abre o PR", "merge", "posso ir direto na main?", "precisa de PR?", "estado do projeto", "isso é draft",
+  "passa para live".
+version: 0.1.1
 ---
 
 # project-state
