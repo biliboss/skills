@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.21.0
+  version: 0.21.1
 ---
 
 # dev-console
@@ -154,6 +154,9 @@ view like the web palette's `location.href`, so the new page's first trusted ges
 clock claim is unchanged). Everything else stays web: graph, tabs, widgets, the status line and money bar. The page knows it
 is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/⌘P overlay is off, and in a plain browser
 (agents, headless) it works as before.
+
+- **⌘K/⌘P are read by the app before the web view** (a local key monitor, `PaletteMode.forShortcut`): a WKWebView reports those keys as handled, so the menu's key equivalents never fired and only a menu click opened the palette.
+- **Testing real keys:** synthetic keystrokes (`osascript ... keystroke`) go to whatever app is in front, and the owner may be working in another one. Send them only when the Mac is idle (HIDIdleTime over 60 s), bring DevConsole to the front with `set frontmost of process "DevConsole" to true`, check that it is still in front before every key, and stop at the first key that lands elsewhere; never type text or Enter blind.
 
 ## Playground
 

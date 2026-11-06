@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1] - 2026-11-06
+
+### Fixed
+
+- ⌘K/⌘P in DevConsole.app open the native palette: the app reads them before the web view, which swallowed them (only the Go menu worked). Test: `ShortcutTests`.
+- Rule for testing real keys without typing into the owner's front app.
+
 ## [0.21.0] - 2026-11-06
 
 ### Added
