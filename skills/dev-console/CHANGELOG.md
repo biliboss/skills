@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.0] - 2026-11-06
+
+### Added
+
+- Native chrome: DevConsole.app has its own command palette (`PaletteController`), a floating vibrancy panel over the window; ⌘K lists domains, ⌘P modules, Enter loads the URL in the web view (the page's first gesture still posts `time/enter`). Fuzzy ranking (`fuzzyMatch`, `fuzzyRank`) and the palette model live in `ConsoleCore`, with tests.
+- `GET /api/palette[?domain=<slug>]`, read only: `{domains:[{slug,name}], modules:[{id,title,url}]}`.
+
+### Changed
+
+- Inside the app the page's own ⌘K/⌘P overlay is off (a click on the status line asks the native palette); a plain browser keeps it unchanged.
+
 ## [0.19.0] - 2026-11-06
 
 ### Added
