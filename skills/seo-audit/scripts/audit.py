@@ -199,6 +199,13 @@ def norm(u: str) -> str:
     return urllib.parse.urlunsplit((p.scheme.lower(), p.netloc.lower(), path.rstrip("/") or "/", p.query, ""))
 
 
+def said(status, chain) -> str:
+    """'respondeu 404', or why it did not open (refused, did not resolve), for the finding texts."""
+    if status is not None:
+        return f"respondeu {status}"
+    return f"não abriu ({chain[-1].get('error')})" if chain and chain[-1].get("error") else "não abriu"
+
+
 def audit_page(url: str) -> dict:
     status, final, headers, body, chain = fetch(url)
     out = {"url": url, "final_url": final, "status": status, "redirects": chain, "source": "html-sem-js"}
@@ -265,7 +272,7 @@ def audit_page(url: str) -> dict:
                               "o Google recebe dois sinais contrários sobre qual é a URL oficial"})
         elif c_status != 200:
             f.append({"level": "erro", "code": "canonical-broken",
-                      "text": f"o canonical aponta para {canonical}, que responde {c_status}"})
+                      "text": f"o canonical aponta para {canonical}, que {said(c_status, c_chain)}"})
         else:
             f.append({"level": "aviso", "code": "canonical-other",
                       "text": f"o canonical aponta para outra URL ({canonical}); esta não é a versão indexada"})
@@ -314,6 +321,8 @@ def read_sitemap(url: str, out: dict, depth: int = 0):
     out["_seen"].add(url)
     status, final, headers, body, chain = fetch(url)
     entry = {"url": url, "final_url": final, "status": status}
+    if status is None:
+        entry["said"] = said(status, chain)
     out["sitemaps"].append(entry)
     if status != 200:
         return
@@ -363,7 +372,7 @@ def audit_sitemap(target: str, check: bool, max_urls: int) -> dict:
     other_hosts = set()
     for sm in out["sitemaps"]:
         if sm["status"] != 200:
-            f.append({"level": "erro", "code": "sitemap-status", "text": f"{sm['url']} respondeu {sm['status']}"})
+            f.append({"level": "erro", "code": "sitemap-status", "text": f"{sm['url']} {sm.get('said') or 'respondeu ' + str(sm['status'])}"})
         elif sm.get("error"):
             f.append({"level": "erro", "code": "sitemap-xml", "text": f"{sm['url']}: {sm['error']}"})
         host = urllib.parse.urlsplit(sm["final_url"]).netloc
@@ -383,7 +392,7 @@ def audit_sitemap(target: str, check: bool, max_urls: int) -> dict:
             u.update({"status": status, "final_url": final, "x_robots_tag": headers.get("X-Robots-Tag") if headers else None})
             checked.append(u)
             if status != 200:
-                f.append({"level": "erro", "code": "url-status", "text": f"{u['loc']} respondeu {status}"})
+                f.append({"level": "erro", "code": "url-status", "text": f"{u['loc']} {said(status, chain)}"})
             elif chain:
                 redirected.append(u)
             if u["x_robots_tag"] and "noindex" in u["x_robots_tag"].lower():
