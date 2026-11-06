@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.52.0] - 2026-11-06
+
+### Added
+
+- `wiki-smith` 0.1.3: a seção "Absorbing a public skill" (avaliar, ler inteira, trazer só o novo com a origem e o id de instalação) e a linha de roteamento (reaplica o PR #15).
+
 ## [0.51.0] - 2026-11-06
 
 ### Added
