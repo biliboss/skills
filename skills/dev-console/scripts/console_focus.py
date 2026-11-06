@@ -11,8 +11,8 @@ only writer (`focus.sh set|back|show`), and only the owner's conversation with t
 `bili`, anything else is refused. Subagents and profiles never call `focus set`.
 
 The default focus, with nothing set (or after `back` empties the stack), is the Kanban board (target `kanban`).
-The home (`/`, and `g h` from any page) is the Kanban card in Doing with the current focus inside; with the Kanban as
-the focus, or without a card in Doing, the home is the Kanban board. The screen never jumps by itself: the focus
+The home (`/`, and `g h` from any page) is the Kanban card in focus (top of Downstream, else of Upstream) with the current focus inside; with the Kanban as
+the focus, or without a card in focus, the home is the Kanban board. The screen never jumps by itself: the focus
 changes behind, and `g h` takes the window there.
 
 A target is one of: `kanban` (the board), a domain slug (`via`: its graph), a widget `<slug>/<event>/<Widget>`, or a
@@ -40,7 +40,7 @@ from urllib.parse import quote, urlencode, urlsplit
 SCRIPTS = Path(__file__).resolve().parent
 BY = ("gabriel", "bili")  # only the owner's conversation with the Bili moves the focus
 KANBAN = "kanban"  # the default focus: the Kanban board (the kanban domain's Quadro module)
-DOING = ("Doing", "Downstream")  # the board's Doing: a stage named Doing when the Kanban has one, else Downstream
+FOCUS_STAGES = ("Downstream", "Upstream")  # the focus card: top of Downstream, else top of Upstream (never Todo or Feito)
 HISTORY = 5
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 WIDGET_RE = re.compile(r"^([a-z0-9][a-z0-9_-]*)/([A-Za-z0-9_.-]+)/([A-Za-z0-9_]+)$")
@@ -243,7 +243,7 @@ def back(by: str) -> dict:
     return _append("focus.back", {"by": by}, by, check=not_empty)
 
 
-# --- the Kanban card in Doing and its cost clock ----------------------------------------------------------------------
+# --- the Kanban card in focus (top of Downstream, else of Upstream) and its cost clock ----------------------------------------------------------------------
 _KANBAN: list = []  # loaded once per process (a change to kanban.py restarts the console: its folder is watched)
 
 
@@ -265,62 +265,43 @@ def kanban():
     return mod
 
 
-def doing_stage(stage_values: list[str]) -> str:
-    """The stage that is the board's Doing: `Doing` when the Kanban has it, else Downstream (committed work)."""
-    return next((s for s in DOING if s in stage_values), DOING[-1])
+def focus_card(columns: list, stages: tuple = FOCUS_STAGES):
+    """The card in focus, by the Kanban's own rule (the top of a column is the card in focus): the top card of
+    Downstream when it has cards, else the top of Upstream; None when both are empty. `columns` is the Kanban's
+    `board(...).columns`, whose order is the owner's (card.prioritized). Returns the Kanban's CardMoney, so the cost
+    is the Kanban's own money for the card."""
+    by_stage = {str(c.stage.value): c.cards for c in columns}
+    return next((by_stage[st][0] for st in stages if by_stage.get(st)), None)
 
 
-def doing_card(cards: list, ref: str | None, stage: str):
-    """The card in Doing: the focus's card when it is there, else the one that entered Doing last; None without one."""
-    doing = [c for c in cards if str(c.stage) == stage]
-    if not doing:
-        return None
-    mine = [c for c in doing if ref and c.id == ref]
-    return mine[0] if mine else max(enumerate(doing), key=lambda ic: (ic[1].since, ic[0]))[1]  # a tie: the later line
-
-
-def doing_money(card, stage: str, entries: list, rates: dict, now: datetime, since: datetime | None = None) -> dict:
-    """What the card's time in Doing cost: the time entries of its domain clipped to its Doing stays (and after
-    `since`), each at its cost center's hour rate; `live_rate_hour` while the card is in Doing and the clock runs on its
-    domain (the screen ticks from here, the money bar's way)."""
-    spans = [(s.start, s.end or now) for s in card.stays if str(s.stage) == stage and (s.end or now) > s.start]
-    seconds = brl = 0.0
-    for t in entries:
-        if t.domain != card.domain:
-            continue
-        rate = rates.get(t.center) or 0.0
-        for a0, b0 in spans:
-            a, b = max(t.start, a0, since or a0), min(t.end, b0)
-            if b > a:
-                sec = (b - a).total_seconds()
-                seconds += sec
-                brl += sec * rate / 3600
-    live = next((t for t in entries if t.running and t.domain == card.domain), None) if str(card.stage) == stage else None
-    return {"seconds": round(seconds, 1), "brl": round(brl, 2), "live_rate_hour": (rates.get(live.center) or 0.0) if live else 0.0}
+def card_cost(m, now: datetime) -> dict:
+    """{seconds, brl, live_rate_hour}: the Kanban's money for the card (`card_money`); and `today`, its slices since midnight."""
+    day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today = [(min(x.end, now) - max(x.start, day)).total_seconds() * x.rate_hour / 3600 for x in m.slices if x.end > day]
+    secs = sum(max((min(x.end, now) - max(x.start, day)).total_seconds(), 0) for x in m.slices if x.end > day)
+    return {"seconds": round(m.total.seconds, 1), "brl": round(m.total.brl, 2), "live_rate_hour": m.live_rate_hour,
+            "today": {"seconds": round(secs, 1), "brl": round(sum(today), 2)}}
 
 
 # --- the snapshot: what the home, GET /agent/focus and focus.sh show draw ----------------------------------------------
 def snapshot(board: str = "/domain/kanban?tab=Quadro", now: datetime | None = None, evs: list[dict] | None = None) -> dict:
-    """{focus, card, history, cost_today, home, depth}: the current focus, the Kanban card in Doing (None without one),
-    the last focuses, what the card's Doing cost today, and where `g h` goes (`/home`, or the board)."""
+    """{focus, card, history, cost_today, home, depth}: the current focus, the Kanban card in focus (top of Downstream, else of Upstream) (None without one),
+    the last focuses, what the card cost today (the Kanban's money), and where `g h` goes (`/home`, or the board)."""
     now = now or datetime.now().astimezone()
     evs = events() if evs is None else evs
     f = current(evs)
     K = kanban()
-    card = money = today = None
+    card = today = None
     if K is not None:
         try:
-            cards = K.cards_from(K.events())
-            stage = doing_stage([s.value for s in K.Stage])
-            c = doing_card(cards, f.card, stage)
-            if c is not None:
-                entries, rates = K.cost_inputs(now)
-                money = doing_money(c, stage, entries, rates, now)
-                day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                t = doing_money(c, stage, entries, rates, now, since=day)
-                today = {"seconds": t["seconds"], "brl": t["brl"]}
-                card = {"id": c.id, "title": c.title, "domain": c.domain, "stage": str(c.stage), "since": c.since.isoformat(),
-                        "seconds_in_stage": round((now - c.since).total_seconds()), "cost": money, "at": now.isoformat()}
+            entries, rates = K.cost_inputs(now)
+            m = focus_card(K.board(K.cards_from(K.events()), entries, rates, now).columns)
+            if m is not None:
+                c = m.card
+                cost = card_cost(m, now)
+                today = cost.pop("today")
+                card = {"id": c.id, "title": c.title, "domain": c.domain, "stage": str(c.stage.value), "since": c.since.isoformat(),
+                        "seconds_in_stage": round((now - c.since).total_seconds()), "cost": cost, "at": now.isoformat()}
         except Exception:  # noqa: BLE001 - a journal that does not parse must not take the home down
             card = today = None
     home = "/home" if (f.kind != "kanban" and card) else board
@@ -435,7 +416,7 @@ def register(app, rt, json_response, ui) -> None:
             Div(Div(Span("", data_brl=str(cost["brl"]), data_rate=str(cost["live_rate_hour"]), data_at=str(_ms(c["at"])),
                          cls="tabular-nums"),
                     cls="font-sans text-xl text-neutral-900 dark:text-neutral-100 text-right"),
-                Div(f"o tempo em {c['stage']} até agora" + (" · correndo" if cost["live_rate_hour"] else ""),
+                Div("o que custou até agora" + (" · correndo" if cost["live_rate_hour"] else ""),
                     cls=f"mt-1 text-right {dim}"),
                 cls="shrink-0"),
             id="card", data_card=c["id"], cls=f"shrink-0 flex items-start justify-between gap-6 px-5 pt-4 pb-3 border-b {line}")
@@ -478,10 +459,10 @@ def _print(s: dict) -> None:
     f, c = s["focus"], s["card"]
     print(f"foco: {f['text']}  [{f['target']}]" + ("  (o padrão)" if f["default"] else f"  por {f['by']}"))
     if c:
-        print(f"card em Doing: {c['title']} · {c['domain']} · em {c['stage']} · R$ {c['cost']['brl']:.2f}"
+        print(f"card em foco: {c['title']} · {c['domain']} · em {c['stage']} · R$ {c['cost']['brl']:.2f}"
               + (f" (hoje R$ {s['cost_today']['brl']:.2f})" if s["cost_today"] else ""))
     else:
-        print("card em Doing: nenhum")
+        print("card em foco: nenhum")
     print(f"home (g h): {s['home']}   pilha: {s['depth']}")
     for h in s["history"]:
         print(f"  antes: {h['text']}  [{h['target']}]  {h['at']}")

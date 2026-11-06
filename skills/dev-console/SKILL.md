@@ -61,8 +61,8 @@ adding a domain needs no restart: `console.sh domains add <path>` (it appends th
 `~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`, `ent`), so a reload or a shared link reopens the same view.
-**`/` is the console's home, the focus** (below, "The focus home"): the Kanban card in Doing with the current focus
-inside (`/home`); with the Kanban as the focus or no card in Doing, the board: the module a domain names with
+**`/` is the console's home, the focus** (below, "The focus home"): the Kanban card in focus with the current focus
+inside (`/home`); with the Kanban as the focus or no card in focus, the board: the module a domain names with
 `CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when that domain's journal has an entity; else the first domain, as
 before (a domain page with an empty journal is a dead end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
 `/api/palette` without a domain) point at the first domain by its URL.
@@ -208,17 +208,19 @@ anything else is refused (exit 3). **Subagents and profiles never call `focus.sh
 F=<skill>/scripts/focus.sh
 $F set "<a sentence>" --target <kanban | slug | slug/event/Widget | url> [--card <card id, start, or title>] --by bili
 $F back --by gabriel          # pop; refused when the stack is already empty (the Kanban board)
-$F show [--json]              # the focus, the card in Doing, where g h goes, the last 5 (devc focus reads the route)
+$F show [--json]              # the focus, the card in focus, where g h goes, the last 5 (devc focus reads the route)
 ```
 
 - **The Kanban board is the default focus** (target `kanban`): with nothing set, or after `back` empties the stack.
-- **The home** (`/`; `g h` from any page) is **the Kanban card in Doing with the current focus inside** (`/home`): the
-  card (title, domain, how long in Doing, what its time in Doing cost so far, ticking while the clock runs on its
+- **The home** (`/`; `g h` from any page) is **the Kanban card in focus with the current focus inside** (`/home`): the
+  card (title, domain, how long in its stage, what it cost so far (the Kanban's money), ticking while the clock runs on its
   domain), the focus embedded through the existing embed modes (a slug: its graph, `?embed=graph`; a widget: its own
   route; a console URL: `embed=1`; any other URL: the flight recorder's last shot of it), and the last 5 focuses (a click
-  goes there: navigation, never a focus change). **With the Kanban as the focus, or no card in Doing, the home is the
-  board.** Doing is the Kanban's `Downstream` (a stage named `Doing` wins if the board gets one: `DOING` in
-  `console_focus.py`); the focus's own card wins among several in Doing, else the last one in.
+  goes there: navigation, never a focus change). **With the Kanban as the focus, or no card in focus, the home is the
+  board.** The card in focus is the Kanban's own rule (the top of a column is the card in focus, the order
+  of `card.prioritized`): the top card of `Downstream` when it has cards, else the top card of `Upstream`, never `Todo`
+  or `Feito` (`FOCUS_STAGES` in `console_focus.py`). The focus's `--card` does not pick it. Its cost is the Kanban's
+  own money for the card (`card_money`), not a rule of the console.
 - **The screen never jumps by itself**: the focus changes behind; only `g h` (g then h within 1 s, vim-style; every full
   page gets it through FastHTML's `app.hdrs`, capture phase, never while typing, from an embed it moves the top window)
   or a reload takes the window there. `h` is never a module's goto key.
