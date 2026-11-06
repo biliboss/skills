@@ -141,6 +141,15 @@ class ConsoleSideTest(unittest.TestCase):
             self.assertEqual(src.read_text(), self.REAL)
             self.assertEqual(P.registry(Path(t) / "events.py"), ["req.sent"])   # drift reads the real file, not the merged one
 
+    def test_a_hand_edited_name_cannot_inject_into_the_source(self):
+        with tempfile.TemporaryDirectory() as t:
+            self.plan(t)
+            self.assertEqual(self.cli(t, "add", "d", "--kind", "event", "--name", "req.ok", "--command", 'x": "y", #')[0], 1)
+            f = Path(t) / ".plan" / "d.jsonl"
+            P.append(f, "element.updated", {"kind": "event", "name": 'req.a"b', "state": "draft"})
+            with self.assertRaises(ValueError):
+                P.render_source((Path(t) / "events.py").read_text(), P.project(P.read_events(f)))
+
     def test_edges(self):
         import dev_console_plan as C
         with tempfile.TemporaryDirectory() as t:
