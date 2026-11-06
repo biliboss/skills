@@ -32,7 +32,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BEGIN, END = "# >>> cost-track tmux-focus >>>", "# <<< cost-track tmux-focus <<<"
-WIN = "#{session_name} --card=#{@card}"
+WIN = "#{session_name} --card=#{@card} --thread=#{@thread}"
 HOOKS = {"client-session-changed": WIN, "client-attached": WIN, "session-window-changed": WIN, "client-detached": "-"}
 HOOK_INDEX = 90  # an indexed hook never clobbers the owner's own set-hook
 OPEN_STAGES = ("Upstream", "Downstream")
@@ -158,6 +158,26 @@ def status() -> str:
     return f"rodando: domínio {run['domain']} · centro {run['center']} · card {run.get('card', '-')} · desde {run['started_at']}"
 
 
+FOCUS_LOG = Path(os.environ.get("FOCUS_LOG", "~/.local/state/dev-console/focus/focus.jsonl")).expanduser()
+
+
+def focus_event(session: str, thread: str) -> None:
+    """One line per focus change (the stream the dev-console derives the focused thread from). An O_APPEND write of one
+    short line is atomic, so two hooks firing together never lose or mix a line; past 400 lines it keeps the last 200."""
+    import time
+    try:
+        FOCUS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with FOCUS_LOG.open("a") as f:
+            f.write(json.dumps({"ms": time.time_ns() // 1_000_000, "session": session, "thread": thread}) + "\n")
+        if FOCUS_LOG.stat().st_size > 400 * 70:
+            with FOCUS_LOG.open("r+") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                lines = f.read().splitlines()[-200:]
+                f.seek(0); f.truncate(); f.write("\n".join(lines) + "\n")
+    except OSError:
+        pass  # a hook never fails
+
+
 # --- tmux hooks -------------------------------------------------------------------------------------------------
 def _tmux(*args: str) -> bool:
     try:
@@ -196,8 +216,10 @@ def main(argv: list[str]) -> int:
     sh = os.environ.get("COSTS_SH") or str(HERE / "costs.sh")
     if cmd == "tmux-focus":
         card_id = next((a.split("=", 1)[1] for a in rest if a.startswith("--card=")), "")
-        pos = [a for a in rest if not a.startswith("--card=")]
+        thread = next((a.split("=", 1)[1] for a in rest if a.startswith("--thread=")), "")
+        pos = [a for a in rest if not a.startswith(("--card=", "--thread="))]
         sess = pos[0] if pos else "-"
+        focus_event(sess, thread)
         C.clog("hook", session=sess, source=os.environ.get("CLOCK_SOURCE", "tmux"), **({"window_card": card_id} if card_id else {}))
         try:
             focus(sess, card_id)

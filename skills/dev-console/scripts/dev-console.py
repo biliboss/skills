@@ -1824,6 +1824,19 @@ async def clock_applied(req):
     return Response(status_code=204)
 
 
+FOCUS_LOG = Path(os.environ.get("FOCUS_LOG", "~/.local/state/dev-console/focus/focus.jsonl")).expanduser()
+
+
+@rt("/api/focus")
+def api_focus():
+    """The focused thread, folded from the tmux focus stream (its last event): {"thread": topic | "", "session", "ms"}."""
+    try:
+        last = FOCUS_LOG.read_text().strip().splitlines()[-1]
+        return Response(last, media_type="application/json")
+    except (OSError, IndexError):
+        return Response('{"thread": ""}', media_type="application/json")
+
+
 @rt("/live/stream")
 async def live_stream():
     """Server-sent events, one line the instant a journal is written: `costs` (the Costs journal or running.json,
@@ -1834,7 +1847,7 @@ async def live_stream():
     from watchfiles import awatch
 
     costs = Path(os.environ.get("COSTS_DIR", "~/.local/share/costs")).expanduser()
-    folders = {costs: "costs"}
+    folders = {costs: "costs", FOCUS_LOG.parent: "focus"}
     for mod in DOMAINS.values():
         for d in getattr(mod, "LIVE_DIRS", lambda: [])():
             folders.setdefault(Path(d).expanduser(), "journal")
@@ -2447,6 +2460,13 @@ def _status_bar(name: str, money: bool, module: bool = True):
         Span(id="bar-clock", title="hora", cls=f"shrink-0 h-full flex items-center px-3 tabular-nums font-semibold "
                                                f"text-neutral-800 dark:text-neutral-200 border-r {line}"),
         Script(clock_js),
+        # the thread in focus in tmux (from the focus event stream); empty when the focus is not a thread
+        Span(id="bar-thread", title="thread em foco no tmux",
+             cls=f"shrink-0 h-full items-center px-3 font-semibold text-[#800020] dark:text-[#d0506e] border-r {line} hidden"),
+        Script("(()=>{const e=document.getElementById('bar-thread');if(!e)return;const f=()=>fetch('/api/focus',{cache:'no-store'})"
+               ".then(r=>r.json()).then(d=>{const t=d.thread||'';e.textContent=t?'⑂ '+t:'';e.classList.toggle('hidden',!t);"
+               "e.classList.toggle('flex',!!t)}).catch(()=>{});f();if(window.EventSource){new EventSource('/live/stream')"
+               ".onmessage=ev=>{if(ev.data.split(' ')[0]==='focus')f()}}})()"),
         Span(name, id="dom-open", data_ov="domain", title="trocar de domínio (⌘K)",
              cls="shrink-0 pl-3 pr-1 max-w-[16rem] truncate font-semibold text-neutral-800 dark:text-neutral-200"),
         *([Span(Span("·", cls="mr-1 text-neutral-400"), Span(id="mod-name"),
