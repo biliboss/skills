@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.2.0
+  version: 0.3.0
   license: MIT
 ---
 
@@ -48,6 +48,20 @@ Where a lesson belongs:
 | Who the user is, or the current state of things | memory / `CLAUDE.md` |
 | How this repo works, for everyone | the repo's `.wiki/` (or `AGENTS.md`), not a skill |
 | Both a principle and a skill rule | both; write each once |
+
+## Step 1b — Research the open source first (CREATE, ADAPT, any MINOR+ UPDATE)
+
+The owner's rule: no skill is written from a blank page. Before drafting, spend a short, bounded pass (~10 min, a
+subagent when the harness has one) on how others already solved the class of task, and steal the best ideas:
+
+1. **Hermes Agent**, the house's reference: its own loop and skills (`agent/background_review.py`, the bundled and hub
+   skills: `hermes skills search <topic>`; the local install under `~/.hermes/hermes-agent/`).
+2. **GitHub**: `gh search repos "<topic> skill"`, `gh search code "<topic>" --filename SKILL.md`, Claude Code plugins
+   and marketplaces, Anthropic's [skills](https://github.com/anthropics/skills), the [Agent Skills spec](https://agentskills.io/specification).
+3. **The literature's name** for the practice (a paper, a field's term), so the skill uses it instead of inventing one.
+
+Write what you kept in `references/prior-art.md` (one line per source: what it does, the idea taken, the link) and
+credit adapted text in `ATTRIBUTION.md`. A one-line PATCH dictated by the owner skips this step.
 
 ## Step 2 — Find the home: patch before you create
 
