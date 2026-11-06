@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.67.0
+
+- kanban 0.5.0: `kanban.sh pull`, one gesture to start a task (card, Hermes + tmux session named slug, client switched, cost center bound); hermes 0.3.0: `workspace`; cost-track 0.4.1: `costs.py bind`.
+
 ## 0.66.0
 
 - tmux 0.2.0: `run.sh`, processo longo (servidor, watcher, suite de testes) numa sessão tmux presa à worktree do dono, com log, `--low --slot` (tampa global de suites), `reap` e um reaper launchd; seção "Processos longos" no SKILL.md.

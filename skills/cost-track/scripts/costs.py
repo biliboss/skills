@@ -13,6 +13,7 @@ Prototype: the journal is a global append-only JSONL, ~/.local/share/costs/event
 easy to edit by hand. This file is the only writer of it:
 
     uv run --script costs.py emit <event> '<json value>' [--cost-center <id>] [--actor <who>]
+    uv run --script costs.py bind <center> <domain>   # the domain prices in that center (idempotent)
 
 and the module API the dev-console imports: worth(), centers(), center_of(), rate_hour(), budget_day(), today().
 Stdlib only.
@@ -176,6 +177,22 @@ def center_of(slug: str, declared: str | None = None) -> str | None:
     return next((cid for cid, v in known.items() if slug in v.get("domains", [])), None)
 
 
+def bind(center: str, domain: str, actor: str = "agent") -> dict | None:
+    """Bind a domain to a cost center: a `cost_center.updated` with the center's last value plus the domain in
+    `domains`. None (no event) when it is already bound there; ValueError when the center is unknown. A domain has one
+    center: it leaves any other center's `domains` first (same rule, one event each)."""
+    known = centers()
+    if center not in known:
+        raise ValueError(f"unknown cost center {center!r}; known: {', '.join(sorted(known)) or '(none)'}")
+    for cid, v in known.items():
+        if cid != center and domain in v.get("domains", []):
+            emit("cost_center.updated", {**v, "domains": [d for d in v["domains"] if d != domain]}, cid, actor)
+    v = known[center]
+    if domain in v.get("domains", []):
+        return None
+    return emit("cost_center.updated", {**v, "domains": [*v.get("domains", []), domain]}, center, actor)
+
+
 def _hours_month(w: dict) -> float:
     return w.get("paid_hours_day", DEFAULT_PAID_HOURS_DAY) * w.get("work_days_month", DEFAULT_WORK_DAYS_MONTH)
 
@@ -269,7 +286,19 @@ def main(argv: list[str] | None = None) -> int:
     em.add_argument("value", help="the event's value, a JSON object")
     em.add_argument("--cost-center", default=None)
     em.add_argument("--actor", default="agent")
+    bd = sub.add_parser("bind", help="bind a domain to a cost center (cost_center.updated with the domain in `domains`)")
+    bd.add_argument("center")
+    bd.add_argument("domain")
+    bd.add_argument("--actor", default="agent")
     args = ap.parse_args(argv)
+    if args.cmd == "bind":
+        try:
+            e = bind(args.center, args.domain, args.actor)
+        except ValueError as err:
+            print(f"costs: {err}", file=sys.stderr)
+            return 1
+        print(json.dumps(e, ensure_ascii=False) if e else f"{args.domain} already in {args.center}")
+        return 0
     try:
         value = json.loads(args.value)
         e = emit(args.event, value, args.cost_center, args.actor)

@@ -7,7 +7,7 @@ description: >-
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
   backbrief (tasks).
 metadata:
-  version: 0.4.0
+  version: 0.4.1
 ---
 
 # cost-track

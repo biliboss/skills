@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-06
+
+### Added
+
+- `hermes.sh workspace <slug> --repo DIR [--context|--context-file]`: a Hermes session and a tmux session named slug in the repo, each reused when it exists; the new session's id comes from `--usage-file`, not from the table.
+
 ## [0.2.4] - 2026-11-06
 
 ### Removed

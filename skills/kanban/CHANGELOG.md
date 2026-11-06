@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-06
+
+### Added
+
+- `kanban.sh pull "<title>" [--domain] [--repo] [--context|--context-file] [--center] [--no-switch] [--swap] [--json]`: one gesture to start a piece of work: the card (reuse the open one with that slug, else create in Upstream; exit 5 `{"full": title}` when Upstream has no room, `--swap` sends the current card to Todo), the cost center binding, `hermes.sh workspace`, and the owner's tmux client switched. Identity is `slug(title)`. No new event.
+
 ## [0.4.2] - 2026-11-06
 
 ### Fixed

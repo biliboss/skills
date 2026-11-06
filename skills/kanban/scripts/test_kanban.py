@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "cost-track" / "scripts"))
 import kanban as K  # noqa: E402
 
 BRT = timezone(timedelta(hours=-3))
@@ -582,6 +583,96 @@ class SweepTest(GhCase):
         self.assertIn("decision.requested", K.KNOWN_EVENTS)
         K.create("A card", "kanban")
         self.assertEqual(len(K.read_board().columns[0].cards), 1)  # cardless events never become cards
+
+
+STUB_HERMES_SH = '''#!/usr/bin/env bash
+echo "$*" >> "$STUB_DIR/hermes.log"
+printf '{"slug":"%s","session_id":"local-x","session":"created","tmux":"created"}\\n' "$2"
+'''
+STUB_TMUX = '''#!/usr/bin/env bash
+echo "$*" >> "$STUB_DIR/tmux.log"
+[ "$1" = "list-clients" ] && printf '100 /dev/ttys001\\n200 /dev/ttys009\\n'
+exit 0
+'''
+
+
+class PullTest(JournalTest):
+    """pull: the card (reused or created in Upstream), the cost center binding, the workspace and the client; the
+    hermes.sh and tmux it calls are stubs, so no real session is made and no real client is switched."""
+
+    def setUp(self):
+        super().setUp()
+        d = Path(self.tmp.name)
+        for name, body in (("hermes.sh", STUB_HERMES_SH), ("tmux", STUB_TMUX)):
+            (d / name).write_text(body)
+            (d / name).chmod(0o755)
+        for k, v in (("HERMES_SH", d / "hermes.sh"), ("TMUX_BIN", d / "tmux"), ("STUB_DIR", d)):
+            os.environ[k] = str(v)
+            self.addCleanup(os.environ.pop, k, None)
+        self.d = d
+        K._costs.cache_clear()
+        self.addCleanup(K._costs.cache_clear)
+
+    def pull(self, *args):
+        code, out, err = self.cli("pull", "Sygnal 0.2", "--repo", self.tmp.name, "--json", *args)
+        return code, (json.loads(out.strip().splitlines()[-1]) if out.strip() else None), err
+
+    def test_slug_is_the_same_as_tmux_focus(self):
+        self.assertEqual(K.slug("Sygnal 0.2"), "sygnal-0-2")
+        self.assertEqual(K.slug("Ação rápida!"), "acao-rapida")
+
+    def test_creates_in_upstream_then_is_idempotent(self):
+        code, r, _ = self.pull("--domain", "sygnal", "--no-switch")
+        self.assertEqual(code, 0)
+        self.assertEqual((r["slug"], r["card"]["state"], r["card"]["stage"], r["switched"]), ("sygnal-0-2", "created", "Upstream", None))
+        self.assertEqual(r["workspace"]["session_id"], "local-x")
+        code, again, _ = self.pull("--domain", "sygnal", "--no-switch")
+        self.assertEqual((code, again["card"]["state"], again["card"]["id"]), (0, "reused", r["card"]["id"]))
+        self.assertEqual(len(K.cards_from(K.events())), 1)
+        self.assertEqual([json.loads(x)["event"] for x in K.journal_path().read_text().splitlines()], ["card.created"])
+        self.assertIn("workspace sygnal-0-2 --repo", (self.d / "hermes.log").read_text())
+
+    def test_a_todo_card_is_pulled_to_upstream(self):
+        c = K.create("Sygnal 0.2", "sygnal")
+        code, r, _ = self.pull()
+        self.assertEqual((code, r["card"]["id"], r["card"]["state"]), (0, c["card_id"], "moved from Todo"))
+        self.assertEqual(str(K.cards_from(K.events())[0].stage), "Upstream")
+
+    def test_full_upstream_exits_5_and_swap_sends_the_current_back(self):
+        cur = K.create("Via Blog", "via-blog", "Upstream")
+        code, out, err = self.cli("pull", "Sygnal 0.2", "--repo", self.tmp.name, "--no-switch")
+        self.assertEqual((code, json.loads(out)), (5, {"full": "Via Blog"}))
+        self.assertEqual(len(K.events()), 1)  # nothing written, no session made
+        self.assertFalse((self.d / "hermes.log").exists())
+        code, r, _ = self.pull("--domain", "sygnal", "--no-switch", "--swap")
+        self.assertEqual(code, 0)
+        stages = {c.title: str(c.stage) for c in K.cards_from(K.events())}
+        self.assertEqual(stages, {"Via Blog": "Todo", "Sygnal 0.2": "Upstream"})
+        self.assertEqual(K.cards_from(K.events())[0].id, cur["card_id"])
+
+    def test_center_binds_the_domain_once(self):
+        import costs  # noqa: PLC0415 - cost-track's, found through the sibling skill
+        costs.emit("cost_center.updated", {"name": "Mukutu", "kind": "client", "pays_month": 8000}, "mukutu")
+        costs.emit("cost_center.updated", {"name": "Skills", "kind": "investment", "domains": ["sygnal", "kanban"]}, "skills")
+        code, r, _ = self.pull("--domain", "sygnal", "--no-switch", "--center", "mukutu")
+        self.assertEqual((code, r["center"]), (0, {"id": "mukutu", "domain": "sygnal", "bound_now": True}))
+        self.assertEqual(costs.center_of("sygnal"), "mukutu")
+        self.assertEqual(costs.centers()["mukutu"]["pays_month"], 8000)  # the center's last value, kept
+        self.assertEqual(costs.centers()["skills"]["domains"], ["kanban"])  # a domain has one center
+        n = len(costs.events())
+        code, r, _ = self.pull("--domain", "sygnal", "--no-switch", "--center", "mukutu")
+        self.assertEqual((r["center"]["bound_now"], len(costs.events())), (False, n))
+        code, _, err = self.pull("--no-switch", "--center", "nope")
+        self.assertEqual(code, 1)
+        self.assertIn("mukutu", err)
+
+    def test_switches_the_most_recent_client_unless_told_not_to(self):
+        code, r, _ = self.pull("--domain", "sygnal")
+        self.assertEqual((code, r["switched"]), (0, "/dev/ttys009"))
+        self.assertIn("switch-client -c /dev/ttys009 -t =sygnal-0-2", (self.d / "tmux.log").read_text())
+        (self.d / "tmux.log").unlink()
+        self.pull("--no-switch")
+        self.assertFalse((self.d / "tmux.log").exists())
 
 
 if __name__ == "__main__":

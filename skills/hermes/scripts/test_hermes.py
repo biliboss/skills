@@ -177,5 +177,83 @@ class T(unittest.TestCase):
         self.assertIn("peer says hi", self.sh("dm", "researcher", "hi", "--owner-asked").stdout)
 
 
+FAKE_WS = r'''#!/usr/bin/env bash
+# fake hermes for workspace: sessions live in $WS/sessions (tab: title, workspace, id), calls logged in $WS/log
+args=("$@")
+echo "$*" >> "$WS/log"
+if [ "${args[0]}" = "profile" ]; then
+  printf ' Profile Model Gateway Alias Distribution\n ◆bili   m   running  —  —\n'; exit 0
+fi
+shift 2
+if [ "$1" = "sessions" ] && [ "$2" = "list" ]; then
+  echo "Title                        Workspace          Last Active   ID"
+  echo "──────────────────────────────────────────────────────────────"
+  while IFS=$'\t' read -r t w i; do printf '%-28s %-18s %-13s %s\n' "$t" "$w" "just now" "$i"; done < "$WS/sessions"
+  exit 0
+fi
+if [ "$1" = "sessions" ] && [ "$2" = "rename" ]; then printf '%s\t%s\t%s\n' "$4" repo "$3" >> "$WS/sessions"; exit 0; fi
+usage=""
+while [ $# -gt 0 ]; do case "$1" in --usage-file) usage="$2"; shift 2;; *) shift;; esac; done
+[ -n "$usage" ] && echo '{"session_id":"local-new1"}' > "$usage"
+echo answer
+'''
+
+FAKE_TMUX = r'''#!/usr/bin/env bash
+echo "$*" >> "$WS/tmuxlog"
+case "$1" in
+  has-session) grep -qx "${3#=}" "$WS/tmux.sessions" 2>/dev/null;;
+  new-session) echo "$4" >> "$WS/tmux.sessions";;
+esac
+'''
+
+
+class WorkspaceTest(unittest.TestCase):
+    """workspace: the Hermes session and the tmux session named slug; reused when they exist, never duplicated."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        t = Path(self.tmp.name)
+        for name, body in (("hermes", FAKE_WS), ("tmux", FAKE_TMUX)):
+            (t / name).write_text(body)
+            (t / name).chmod(0o755)
+        (t / "repo").mkdir()
+        (t / "sessions").write_text("")
+        root = t / "root" / "profiles" / "bili"
+        root.mkdir(parents=True)
+        (root / "config.yaml").write_text("model:\n  default: m\n  provider: zai-coding-plan\n")
+        self.t = t
+        self.env = {**os.environ, "HERMES_BIN": str(t / "hermes"), "TMUX_BIN": str(t / "tmux"), "WS": str(t),
+                    "HERMES_ROOT": str(t / "root"), "HERMES_SKILL_STATE": str(t / "state")}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def ws(self, *extra):
+        r = subprocess.run(["bash", str(SH), "workspace", "sygnal-0-2", "--repo", str(self.t / "repo"), *extra],
+                           capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout.strip().splitlines()[-1])
+
+    def test_creates_then_reuses(self):
+        first = self.ws("--context", "start here")
+        self.assertEqual((first["session"], first["tmux"], first["session_id"]), ("created", "created", "local-new1"))
+        log = (self.t / "log").read_text()
+        self.assertIn("-p bili --in", log)
+        self.assertIn("start here", log)
+        self.assertIn("sessions rename local-new1 sygnal-0-2", log)
+        self.assertIn("sygnal-0-2", (self.t / "tmuxlog").read_text())
+        again = self.ws("--context", "start here")
+        self.assertEqual((again["session"], again["tmux"], again["session_id"]), ("reused", "reused", "local-new1"))
+        self.assertEqual(log.count("-z"), (self.t / "log").read_text().count("-z"))  # no second first-context run
+
+    def test_context_file_and_bad_slug(self):
+        (self.t / "ctx.md").write_text("from a file\n")
+        self.ws("--context-file", str(self.t / "ctx.md"))
+        self.assertIn("from a file", (self.t / "log").read_text())
+        r = subprocess.run(["bash", str(SH), "workspace", "Bad Slug", "--repo", str(self.t / "repo")], capture_output=True,
+                           text=True, env=self.env)
+        self.assertEqual(r.returncode, 64)
+
+
 if __name__ == "__main__":
     unittest.main()
