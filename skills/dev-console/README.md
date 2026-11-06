@@ -10,7 +10,7 @@ uv run --script scripts/dev-console.py --project scripts/dev_console_project.py 
 ```
 
 It listens on 127.0.0.1 only. One `--project` per domain. ⌘K switches the domain, ⌘P the module. `/` opens the home:
-the Kanban's Quadro (skill `kanban`) when that domain is loaded and has a card, else the first domain.
+the Kanban module (skill `kanban`) when that domain is loaded and has a card, else the first domain.
 
 ## Modules
 

@@ -2,9 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
-## 0.77.0
+## 0.78.0
 
 - hustler 0.1.0: market vision for an idea (customer job, alternatives with sources, positioning map and the upper quadrant, business models incl. open-core, re-check list), with `render-map.sh`; first use on Zelito.
+
+## 0.77.0
+
+- dev-console 0.30.5, kanban 0.7.3: the home module is named `Kanban` in ⌘P and the domain tab (was `Quadro`); `?tab=Quadro` still opens the board (`MODULE_ALIASES`).
 
 ## 0.76.0
 
