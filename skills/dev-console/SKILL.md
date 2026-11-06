@@ -120,6 +120,8 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
+  A piece of the toolbar that belongs to a domain (the money bar) is also that domain's widget (CostToolbar on
+  `time_entry.started`): an `Iframe` of `?embed=money`, an embed mode that shows only that piece of the bar.
 - **Tabs per domain.** Domain is the one fixed tab; a project lists the rest in `TABS` (absent =
   Domain only). Tension-shaped tabs live only in the tensions project's `TABS`.
 - **A list row opens on click, Enter or Space** (tabindex 0, aria-label, the button stays), with the
@@ -295,6 +297,9 @@ For a product whose code already records domain events (Domain.Imported):
   old branch conflicts, and `gh-app` refuses force push (a PR already CONFLICTING: commit, then `git checkout -B
   <branch>-2 origin/main && git cherry-pick <sha>`, push, close the old PR, open the new one). Stage only `skills/dev-console` (and the
   project files you touched); other sessions leave changes in the same repo.
+  Before `git pull` on the clone the console reads (`~/src/skills`), commit what the background review left there
+  (skill lessons, version bumps) as its own small PR: a pull over them aborts, and a stash pop conflicts on the
+  `version:` line (resolve to one version above both).
 
 ## Money bar
 
@@ -357,6 +362,8 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   exactly that name; check `D.home` / the route after adding one, a typo fails silently.
 - Per-event model data the sidebar reads (`coverage`, `descriptions`) lives on `M()` (the model payload),
   not on `D`: reading `D.x` silently shows the empty fallback.
+- An event that belongs to no entity (`worth.updated` has no `cost_center`) must still render its widgets: read the
+  entity key with `focus.get(...)` and keep the page's id, or `_ctx` raises `KeyError` and the widget 500s.
 - Read an entity's optional fields with `.get` in console code (`status`, `updated_at`, `event_count`):
   a new domain's projector does not have them and the page 500s. Read the server log in the services pane
   (`~/.local/state/dev-console.log`) on any 500 before guessing.
