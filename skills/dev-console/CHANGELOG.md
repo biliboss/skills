@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0] - 2026-11-06
+
+### Added
+- `LAYOUT = "branch"` (project file): the graph as a git graph read left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane, top to bottom in `EVENTS` order; a line follows `TRANSITIONS` (trunk = the longest path, a fork is a 45° spur inside its lane, a back edge a dashed arrow). A lane starts one column right of the station whose transition leads into it, joined by a 45° connector (a vertical gutter between two 45° legs when the lane is far below); a lane nothing leads into hangs from the Human on a grey spine; an edge into another lane later on is a merge (thin, grey, dashed, one bend, with its command). Labels are horizontal, below or above the station, and never overlap.
+- `STAGES = {"cat.event": "stage"}`, `STAGE_ORDER = [...]` and `STAGE_LABELS = {...}` (project file, optional): columns are funnel stages, each a band with a faint header at the top; a station sits in its stage's band, ordered by the path; an edge back to an earlier stage is drawn as a loop. Without `STAGES`, columns are the step count from the Human. The three travel in the model payload like `layout`.
+- `L` (focus not in an input) and a small text button in the graph's top-right corner (`ramos` / `raios`) toggle the drawing between branch and metro on any domain, remembered per domain in localStorage; the project's `LAYOUT`, else metro, stays the default.
+- The branch drawing opens with the Human at the top left with a margin and the zoom fitting the height; "Centralizar Human" puts it back there.
+- `cy.scratch('branch')`: the lanes' y bands and the stages' x bands, for headless checks.
+
+### Changed
+- A redraw destroys the previous cytoscape instance and disconnects its resize observer (the toggle redraws).
+- The metro's station labels also avoid dashed edges' routes in the branch drawing, and may take the other side when the first is crowded (branch only).
+
+## [0.8.0] - 2026-11-06
+
+### Changed
+- Metro is every domain's default, drawn as the sun's rays (see SKILL.md); `0.7.1`: a metro line follows `TRANSITIONS`, a fork is a 45° branch, a back edge stays dashed.
+
 ## [0.7.0] - 2026-11-05
 
 ### Added

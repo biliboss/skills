@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.8.3
+  version: 0.9.0
 ---
 
 # dev-console
@@ -277,6 +277,21 @@ For a product whose code already records domain events (Domain.Imported):
    both so he compares on the real domain. When he asks "sugira algo" about layout, sketch it in ASCII first.
 5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
+6. **The branch layout** (`LAYOUT = "branch"`, or `L` on any domain): the same domain as a git graph (`git log --graph`) read
+   left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane (a branch), top to
+   bottom in `EVENTS` order; a line follows `TRANSITIONS` as the metro does, but its fork is a 45° spur inside the lane. A lane is
+   born where its transition comes from (its first station sits one column right of the station that leads into it, joined
+   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine; any other edge into a lane is a
+   merge (thin, grey, dashed, with its command). **Columns are funnel stages** when the project declares them: `STAGES =
+   {"cat.event": "stage"}`, `STAGE_ORDER = [...]` (and `STAGE_LABELS = {stage: text}` for the header); a stage is a band of
+   columns with a faint header at the top, and an edge that would go back to an earlier stage is drawn as a loop (dashed),
+   never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
+   input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
+   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
+   until zoomed: scroll or zoom right to read on). Check in the headless browser (`window.__cy`, `cy.scratch('branch')` has the lanes'
+   y bands and the stages' x bands): every lane's stations inside one y band, no station left of an earlier stage's band, no two
+   rendered label boxes overlapping, the toggle switching and persisting after a reload. Serve the check from a folder the
+   console does not watch for screenshots (it watches the registry's folder and the project folders: a file written there reloads it).
 
 ## Design a widget with the user
 
