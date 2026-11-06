@@ -1005,7 +1005,8 @@ function drawGraph() {
         LINE_POINTS.push(Bs ? [pos[a], ...Bs, pos[b]] : [pos[a], pos[b]]); }); });
   }
   const cy = cytoscape({
-    container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
+    // the wheel is ours (below the layout): two fingers pan, a pinch or ⌘ + scroll zooms, as in Figma and Maps
+    container: $('cy'), elements: {nodes, edges}, userZoomingEnabled: false,
     // fCoSE: force-directed, the Human pinned in the centre; seeded (randomize false + fixed seed positions) so a
     // reload draws the same picture. nodeRepulsion and idealEdgeLength leave room for the edge labels.
     layout: (CLOCK || METRO) ? {name: 'preset', padding: 24} : {name: 'fcose', quality: 'proof', randomize: false, animate: false, padding: 24,
@@ -1057,7 +1058,7 @@ function drawGraph() {
         {selector: 'edge.parallel', style: {'source-endpoint': 'data(sep)'}},
         {selector: 'edge.backloop', style: {'curve-style': 'unbundled-bezier', 'control-point-distances': 'data(cpd)', 'control-point-weights': 0.5, 'z-index': 1}},
         {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
-          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
+          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 14, 'text-rotation': 'none', 'z-index': 2}},
       ] : []),
       {selector: ':selected', style: {'border-width': 4, 'border-color': ink, 'border-opacity': 1}},
     ],
@@ -1113,6 +1114,30 @@ function drawGraph() {
       e.style({'text-margin-x': best[0], 'text-margin-y': best[1]});
       eplaced.push(e.boundingBox({includeNodes: false, includeEdges: false, includeLabels: true, includeOverlays: false})); });
   }
+  // Legible at his window: no label renders below 14 px on screen. Font sizes are in model units, so the zoom has a
+  // floor (14 / the smallest label's font); fit, the home view and a pinch stop there, and a big domain opens larger
+  // than the window, read by panning. Nothing is hidden or resized: every label keeps the room the layout gave it.
+  const LEGIBLE = 14, fonts = cy.elements().filter(e => e.style('label')).map(e => parseFloat(e.style('font-size')));
+  if (fonts.length) cy.minZoom(Math.min(cy.maxZoom(), LEGIBLE / Math.min(...fonts)));
+  // The wheel, as in Figma and Maps: two fingers (or a mouse wheel) pan; a pinch zooms around the pointer (Chrome and
+  // Firefox send it as wheel + ctrlKey; WebKit, the native window, as gesture events), and so does ⌘ + scroll.
+  const pane = $('cy'), at = e => { const r = pane.getBoundingClientRect();
+    return Number.isFinite(e.clientX) ? {x: e.clientX - r.left, y: e.clientY - r.top} : {x: r.width / 2, y: r.height / 2}; };
+  const zoomTo = (z, e) => cy.zoom({level: Math.min(cy.maxZoom(), Math.max(cy.minZoom(), z)), renderedPosition: at(e)});
+  let pinch = 0;   // the zoom when a WebKit pinch began; 0 = none
+  pane.addEventListener('wheel', e => {
+    e.preventDefault();   // the page never scrolls under the graph
+    const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? cy.height() : 1;   // lines, pages or pixels
+    let dx = e.deltaX * k, dy = e.deltaY * k;
+    if (e.ctrlKey || e.metaKey) {   // a pinch is small steps; a ctrl or ⌘ mouse notch is capped at about a quarter
+      if (!pinch) zoomTo(cy.zoom() * Math.exp(-Math.max(-0.3, Math.min(0.3, dy * (e.ctrlKey ? 0.01 : 0.002)))), e);
+      return; }
+    if (e.shiftKey && !dx) [dx, dy] = [dy, 0];   // shift + mouse wheel goes sideways
+    cy.panBy({x: -dx, y: -dy});
+  }, {passive: false});
+  pane.addEventListener('gesturestart', e => { e.preventDefault(); pinch = cy.zoom(); });
+  pane.addEventListener('gesturechange', e => { e.preventDefault(); if (pinch && e.scale) zoomTo(pinch * e.scale, e); });
+  pane.addEventListener('gestureend', e => { e.preventDefault(); pinch = 0; });
   let box = '';
   graphRO = new ResizeObserver(([e]) => {
     const k = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
@@ -1121,10 +1146,10 @@ function drawGraph() {
   });
   graphRO.observe($('cy'));
   // open centred on the Human (fit keeps the zoom, then the Human goes to the middle); off centre, a button brings it back
-  // branch: the Human at the top left with a margin, the zoom fitting the height (scroll or zoom right to read on)
+  // branch: the Human at the top left with a margin, the zoom fitting the height down to the legible floor (pan to read on)
   function homeView() {
     const bb = cy.elements().boundingBox({includeLabels: true, includeOverlays: false}), m = 40;
-    const zoom = Math.min(1, (cy.height() - 2 * m) / Math.max(bb.y2 - bb.y1, 1));
+    const zoom = Math.max(cy.minZoom(), Math.min(1, (cy.height() - 2 * m) / Math.max(bb.y2 - bb.y1, 1)));   // the legible floor
     return {zoom, pan: {x: m - bb.x1 * zoom, y: m - bb.y1 * zoom}};
   }
   function centreHuman() {
