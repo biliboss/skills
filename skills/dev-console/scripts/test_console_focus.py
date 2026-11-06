@@ -42,7 +42,7 @@ class Base(unittest.TestCase):
         self.tmp.cleanup()
 
     def card(self, title, domain="via", stage="Downstream"):
-        return self.K.create(title, domain, stage, actor="gabriel")["card_id"]
+        return self.K.create(title, domain, stage, actor="gabriel", force=True)["card_id"]
 
 
 class Journal(Base):
