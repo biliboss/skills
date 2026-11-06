@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.104.0
+
+- trace 0.1.0: the trace of the last response, OpenTelemetry style, listing only the owner's resources (CLAUDE.md, AGENTS.md, .wiki, skills, hooks, memory, settings) with `observed` apart from `inferred`; `--otlp` exports OTLP/JSON.
+
 ## 0.102.0
 
 - handoff 0.2.0: the guard, a Hermes plugin (`handoff-guard`) that, in folders with `HANDOFF_AT=<percent>`, injects the handoff order at the threshold and blocks the turn at +15. setup-biliboss 0.2.0: fourth choice, the guard (off by default).
