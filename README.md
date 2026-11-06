@@ -15,6 +15,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
+| `thread` | o tópico de um card numa chamada só: janela tmux + sessão Hermes (branch ou nova) `<card> · <tópico>`, brief inline sem arquivo |
 | `skill-smith` | cria, atualiza e porta skills |
 | `sync` | deixa cada repo que a sessão tocou igual ao remoto e sem sujeira, à mão |
 | `postmortem` | do problema relatado até a decisão que o causou, reconstruída dos eventos do NATS, e a mudança aplicada |
