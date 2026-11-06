@@ -8,6 +8,12 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - A thread opens **the thread agent** by default: the same offline branch (fork.py), run headless, with the tab running the thread view (`threadview.py <new id>`) and the brief as the first message of its queue (no paste, no waiting for the Hermes TUI). `--cli` (or `THREAD_UI=cli`) keeps the Hermes CLI; `--new` always uses it.
 - SKILL.md: the thread shape (goal, steps, artifacts, decision, pulse, workers) written as the model's contract.
+- Stage (Upstream → Downstream): every thread is born from the template in progress in the Upstream; `view.py stage upstream done` checks it and starts the Downstream; `stage downstream done` ends it. Drawn as one strip at the top.
+- 20/80 screen: done steps collapse to one line, the step that moves or blocks shows whole with its note; an empty section is not drawn; the pulse is one line; the view draws at most 88 columns (a third of the screen, `THREADVIEW_WIDTH`).
+
+### Fixed
+
+- `i` (answer something else) no longer hides the open decision; only a decision edge answers it.
 
 ## [0.8.0] - 2026-11-06
 

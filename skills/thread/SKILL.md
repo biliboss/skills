@@ -74,6 +74,7 @@ The agent of a thread follows this shape on every turn; `threadview.py` restates
 
 | Part | What the agent sets (`view.py <sid> …`) | Rule |
 |---|---|---|
+| Stage | `stage upstream|downstream doing|done` | born in progress in the Upstream (the template); a check moves it to the Downstream |
 | Goal | `goal "<title>" "<subtitle>"` | one goal; the subtitle is the constraint that matters |
 | Steps | `steps '<json>'`, `step <n> done|doing|blocked|todo "<note>"` | 3-6 steps, the lifecycle in order |
 | Artifacts | `artifacts '<json>'` (`key`, `name`, `state`, `path`, `pct`, `wins`) | a path gets the showcase (HTML) and its URL |

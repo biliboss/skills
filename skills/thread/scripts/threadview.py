@@ -24,7 +24,8 @@ VIEW = os.path.join(VIEWS, f"{SID}.json")
 VIEWPY = os.path.join(HERE, "view.py")
 LOG = os.path.join(VIEWS, f"{SID}.hermes.log")
 BORDO, DIM, ACC = "#800020", "grey50", "#d7875f"
-c = Console()
+# the thread view is designed for a third of the screen: it draws at most THREADVIEW_WIDTH columns (default 88)
+c = Console(width=min(shutil.get_terminal_size((88, 40)).columns, int(os.environ.get("THREADVIEW_WIDTH", "88"))))
 LABELS = [False]
 
 WRAP = """[thread view] Gabriel digitou na thread view: «{msg}»
@@ -34,6 +35,7 @@ Você é o agente normal desta thread e pode fazer qualquer coisa, mas a priorid
 - O seu turno tem que acabar em até 10 segundos. Atualize a tela primeiro.
 - Trabalho que passa de 10 s (gerar, codar, buildar) vai para um worker: registre com `worker add <id> "<o que faz>"`, rode em background desacoplado (nohup … &) e faça o comando terminar chamando `worker done <id> "<resultado>"` (ou `worker fail`). Ele aparece na fila Agentes, no topo da tela.
 - No texto, fale das opções pelo NOME (nunca letra nem número: a numeração muda pelo ranking). Sem artefato "comparativo": a galeria já compara.
+- Estágio da thread: nasce em progresso no Upstream; `stage upstream done` quando o Upstream conclui (ela passa ao Downstream), `stage downstream done` no fim.
 - Escolher entre opções (logo, tela, nome, texto) é um torneio: siga a skill choice (rode python3 {tourn} …, com --thread {sid}). Mensagem "torneio <slug>: …" é a resposta do dono a uma rodada, já registrada pela tela: não rode answer de novo; desenhe a próxima rodada (worker) e chame round.
 - Opção da decisão = "<key do artefato> · <nome>". O view.py renumera tudo por ranking: 01 é sempre a mais recomendada, e os artefatos seguem o mesmo número.
 - Decisão com opções: cada opção leva o seu % de certeza, somando 100 (--option "<rótulo>" <pct>); a primeira é sempre a recomendada.
@@ -78,19 +80,35 @@ def body(v, flash={}):
             wt.add_row(Text(*glyph), Text(w.get("what", w["id"]), "" if st == "running" else DIM),
                        Text(w.get("note", "") if st != "lost" else "sumiu", DIM), Text(ago(end - w["started_at"]), DIM))
         parts += [section("agentes", "workers" in flash), tag(wt, "Agents"), Text()]
+    sg = v.get("stage")
+    if sg:  # the thread's lane: Upstream, then Downstream (an optional component, on by the thread template)
+        def lane(name, st):
+            if st == "done": return [("✓ ", "green"), (name, "bold green")]
+            if st == "doing":
+                return [("◐◓◑◒"[int(time.time() * 3) % 4] + " ", ACC), (name, f"bold {ACC}"), ("  em progresso", ACC)]
+            return [("○ ", DIM), (name, DIM)]
+        parts += [tag(Text.assemble(*lane("UPSTREAM", sg.get("upstream", "todo")), ("   ──▶   ", DIM),
+                                    *lane("DOWNSTREAM", sg.get("downstream", "todo"))), "Stage"), Text()]
     g = v.get("goal") or {}
     title = Text.assemble(fl("goal"), ("▍", ACC), (" " + (g.get("title") or ""), "bold bright_white"))
     if g.get("subtitle"): title.append("\n  " + g["subtitle"], style=f"italic {DIM}")
     parts += [tag(title, "Goal"), Text()]
-    if v.get("steps"):
-        st = Table.grid(padding=(0, 1), expand=True); st.add_column(width=2); st.add_column(no_wrap=True); st.add_column(justify="right", ratio=1, no_wrap=True, overflow="ellipsis")
-        for s in v["steps"]:
-            m, sty = MARK.get(s.get("state", "todo"), MARK["todo"])
-            todo = s.get("state", "todo") == "todo"
-            st.add_row(Text(m, sty), Text(s.get("text", ""), DIM if todo else ("bold" if s.get("state") in ("doing", "blocked") else "")),
-                       Text(s.get("note", ""), BORDO if s.get("state") == "blocked" else DIM))
+    if v.get("steps"):  # 20/80: what is done collapses to one line; what moves or blocks shows whole
+        done = [x for x in v["steps"] if x.get("state") == "done"]
+        st = Table.grid(padding=(0, 1), expand=True); st.add_column(width=2); st.add_column(ratio=1)
+        if done:
+            st.add_row(Text("✓", "green"), Text(f"{len(done)} feito{'s' if len(done) > 1 else ''}", DIM))
+        for x in v["steps"]:
+            if x.get("state") == "done": continue
+            m, sty = MARK.get(x.get("state", "todo"), MARK["todo"])
+            todo = x.get("state", "todo") == "todo"
+            body = Text(x.get("text", ""), DIM if todo else "bold")
+            if x.get("note") and not todo:
+                body.append("\n" + x["note"], style=BORDO if x.get("state") == "blocked" else DIM)
+            st.add_row(Text(m, sty), body)
         parts += [section("passos", "steps" in flash), tag(st, "Steps"), Text()]
-    if v.get("artifacts"):
+    _keys = {o["label"].split("·")[0].strip() for o in ((v.get("decision") or {}).get("options") or []) if isinstance(o, dict)}
+    if [x for x in v.get("artifacts", []) if x.get("key") and (not _keys or x.get("key") in _keys)]:
         sl = Table.grid(padding=(0, 2))
         for _ in range(4 if (v.get("decision") or {}).get("options") else len(v["artifacts"])): sl.add_column(justify="center")
         cells = []
@@ -122,10 +140,12 @@ def body(v, flash={}):
             for i, o in enumerate(d["options"], 1): t.append(f" {i} {label(o)} ", style="black on cyan" if i > 1 else "black on green"); t.append("  ")
         parts += [tag(Panel(t, title="◆ com você" + (" · novo" if "decision" in flash else ""), title_align="left", border_style=BORDO, box=box.HEAVY, padding=(0, 1)), "Decision"), Text()]
     if v.get("pulse") and not drawing(v):
-        parts.append(tag(Text.assemble(("◌ ", ACC if "pulse" in flash else DIM), (v["pulse"], ACC if "pulse" in flash else DIM)), "Pulse"))
+        pl = Text.assemble(("◌ ", ACC if "pulse" in flash else DIM), (v["pulse"], ACC if "pulse" in flash else DIM))
+        pl.no_wrap, pl.overflow = True, "ellipsis"
+        parts.append(tag(pl, "Pulse"))
     return Group(*parts)
 
-SECTIONS = {"workers": "agentes", "goal": "título", "steps": "passos", "artifacts": "artefatos", "decision": "decisão", "pulse": "pulse"}
+SECTIONS = {"stage": "estágio", "workers": "agentes", "goal": "título", "steps": "passos", "artifacts": "artefatos", "decision": "decisão", "pulse": "pulse"}
 QFILE = os.path.join(VIEWS, f"{SID}.queue.json")
 BUDGET = 10  # the thread agent's turn must end within this; past it, the answer only counts once logged
 OVERRUN = os.path.join(VIEWS, f"{SID}.overrun.log")
@@ -320,8 +340,9 @@ try:
                     if ch in ("\n", "\r"):
                         if buf.strip():
                             q.append({"msg": (POLL["prefix"].strip() + " " + buf.strip()).strip(), "at": time.time(), "state": "queued"})
-                            if POLL.get("edge"): record(POLL["edge"][0], POLL["edge"][1], buf.strip()); POLL["edge"] = None
-                            if POLL["prefix"] and poll_of(v): POLL["answered"] = json.dumps(v["decision"], sort_keys=True)
+                            if POLL.get("edge"):  # a decision edge (tournament feedback) answers the poll; `i` does not
+                                record(POLL["edge"][0], POLL["edge"][1], buf.strip()); POLL["edge"] = None
+                                if poll_of(v): POLL["answered"] = json.dumps(v["decision"], sort_keys=True)
                             buf = ""; POLL["prefix"] = ""; persist(q)
                     elif ch in ("\x7f", "\b"): buf = buf[:-1]
                     elif ch == "\x0c": LABELS[0] = not LABELS[0]

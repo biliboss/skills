@@ -12,6 +12,7 @@ The human never reads the agent's chat text; they read this screen.
         view.py renumbers by rank: 01 is always the most recommended, artifacts follow the same numbers
   view.py <sid> decision --clear
   view.py <sid> pulse "<one line of life>"
+  view.py <sid> stage upstream|downstream doing|done   the thread's lane (Upstream, then Downstream); done upstream starts downstream
   view.py <sid> worker add <id> "<what it does>" [--pid PID]   register background work (Agentes queue)
   view.py <sid> worker done <id> ["<result>"]  |  worker fail <id> "<why>"
 
@@ -31,7 +32,13 @@ def load(sid):
     try:
         with open(path(sid)) as f: return json.load(f)
     except FileNotFoundError:
-        return {"goal": {"title": "", "subtitle": ""}, "steps": [], "artifacts": [], "decision": None, "pulse": ""}
+        return template()
+
+def template():
+    """Every thread is born from this template: in progress in the Upstream, the Downstream still ahead."""
+    return {"goal": {"title": "", "subtitle": ""}, "stage": {"upstream": "doing", "downstream": "todo"},
+            "steps": [], "artifacts": [], "decision": None, "pulse": ""}
+
 
 def save(sid, v):
     os.makedirs(ROOT, exist_ok=True)
@@ -177,6 +184,16 @@ def main(a):
             if not w: die(f"no worker {wid}")
             w.update(state=sub, ended_at=time.time(), note=rest[2] if len(rest) > 2 else "")
         else: die("worker add|done|fail")
+    elif cmd == "stage":
+        lane, st = (rest + ["", ""])[:2]
+        if lane not in ("upstream", "downstream") or st not in ("doing", "done"):
+            die("stage upstream|downstream doing|done")
+        sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        sg[lane] = st
+        if lane == "upstream" and st == "done" and sg.get("downstream", "todo") == "todo":
+            sg["downstream"] = "doing"  # upstream checked: the thread moves to the Downstream
+        if lane == "downstream":
+            sg["upstream"] = "done"
     elif cmd == "pulse":
         v["pulse"] = rest[0] if rest else ""
     elif cmd == "put":
