@@ -2351,6 +2351,42 @@ def _known(slug: str) -> bool:
 
 
 AGENTS_MODULE = {"name": "Agents", "href": "/agents"}  # listed by ⌘P beside Domain and Playground
+BROWSER_MODULE = {"name": "Browser", "href": "/browser"}  # a page an agent is running (a landing, a dev server), inside
+
+
+@rt("/browser")
+def browser_page(url: str = ""):
+    """The Browser module: an address line and the page in a frame filling the console, above the status line. An agent
+    opens it with `devc browse <url>` (a local dev server, a landing to validate); the owner types another address in the
+    line. Pages that forbid frames (X-Frame-Options) show blank: open those in the Mac's browser."""
+    from html import escape
+    line = "border-neutral-200 dark:border-neutral-800"
+    js = """
+    const f = document.getElementById('bframe'), a = document.getElementById('baddr');
+    const go = u => { if (!u) return; if (!/^[a-z]+:\\/\\//i.test(u)) u = 'http://' + u;
+      f.src = u; a.value = u; history.replaceState(null, '', '/browser?url=' + encodeURIComponent(u)); };
+    a.addEventListener('keydown', e => { if (e.key === 'Enter') go(a.value.trim()); });
+    document.getElementById('breload').addEventListener('click', () => { f.src = f.src; });
+    document.getElementById('bout').addEventListener('click', () => window.open(f.src, '_blank'));
+    """
+    btn = "px-2 cursor-pointer text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+    pre = PLAYGROUND_JS.replace("'/playground'", "'/browser'")
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    payload = json.dumps({"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Browser", "domains": domains, "modules": _modules()},
+                         ensure_ascii=False).replace("</", "<\\/")
+    return Title("dev-console · Browser"), Link(rel="icon", href="data:,"), Style(CSS), Div(
+        Div(Span("↻", id="breload", title="recarregar", tabindex="0", cls=btn),
+            NotStr(f'<input id="baddr" spellcheck="false" placeholder="endereço (localhost:4321)" value="{escape(url)}" '
+                   f'class="flex-1 h-6 bg-transparent border {line} rounded px-2 text-neutral-800 dark:text-neutral-200">'),
+            Span("↗", id="bout", title="abrir no navegador do Mac", tabindex="0", cls=btn),
+            cls=f"h-9 shrink-0 flex items-center gap-2 px-3 border-b {line}"),
+        NotStr(f'<iframe id="bframe" src="{escape(url)}" class="flex-1 min-h-0 w-full bg-white" '
+               'allow="clipboard-read; clipboard-write; fullscreen"></iframe>' if url else
+               '<iframe id="bframe" class="flex-1 min-h-0 w-full bg-white"></iframe>'),
+        _status_bar("Browser", False, module=False), _switcher(),
+        Script(payload, type="application/json", id="data"), Script(pre, type="module"), Script(js),
+        cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
+    )
 
 
 def _modules(tabs: list[str] | None = None) -> list[dict]:
@@ -2358,8 +2394,8 @@ def _modules(tabs: list[str] | None = None) -> list[dict]:
     project's TABS (href null: shown in place), then Playground (href: navigates). On the Playground: Domain (the first
     domain, where "/" used to go; "/" is the home now) and Playground. ⌘K never lists these: it lists domains only."""
     if tabs is None:
-        return [{"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
-    return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
+        return [{"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
+    return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
 
 
 def _status_bar(name: str, money: bool, module: bool = True):
