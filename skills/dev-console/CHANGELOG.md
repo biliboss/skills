@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0] - 2026-11-06
+
+### Added
+
+- **The focus home (`g h`)**: the focus is one pointer, a stack in `~/.local/share/dev-console/focus/events.jsonl`
+  (`focus.set {text, target, card, by}`, `focus.back`), written only by `scripts/focus.sh set|back|show` and moved only by
+  the owner's conversation with the Bili (`by` gabriel or bili; anything else refused). The Kanban board is the default
+  focus. `/` (and `g h` on every page) opens `/home`: the Kanban card in Doing (title, domain, time in Doing, its cost
+  clock) with the focus embedded (a domain's graph, a widget, a console page or the recorder's last shot) and the last 5
+  focuses; with the Kanban as focus or no card in Doing, the board. `GET /agent/focus` (`devc focus`). Code in
+  `console_focus.py`, tests in `test_console_focus.py`.
+- DevConsole.app opens the home at launch (`launchURL` in `ConsoleCore`), not the last URL it saved.
+
 ## [0.25.0] - 2026-11-06
 
 ### Added
