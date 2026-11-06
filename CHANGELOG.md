@@ -2,6 +2,46 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.31.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.17.0: o módulo Agents (`/agents`, no ⌘P): os prompts digitados no Claude Code e o log das sessões em tempo real (watcher + SSE), inclusive os que entram no meio de um turno; `TrustedHostMiddleware` (400 para outro Host), sem CORS.
+
+## [0.30.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.13.0 a 0.16.0: segunda instância sem live reload; `console.sh`, a porta dos agentes (instâncias num journal, domínios, estado em JSON, url, actions, janela por dono); o Playground passa a ser do próprio console (sem iframe e sem chat; o servidor do design-playground portado para Python, dados em `~/.local/state/dev-console/playground/`).
+
+## [0.29.0] - 2026-11-06
+
+### Added
+
+- `tmux` 0.1.0: scripts para ler, listar, mandar texto com segurança (inclusive `/comando` numa TUI), abrir e esperar em panes e janelas; `skill-smith` 0.4.0: toda skill tem `README.md` e `CHANGELOG.md` próprios.
+
+## [0.28.0] - 2026-11-06
+
+### Added
+
+- `advisor` 0.1.0: o agente principal (o Bili no Sonnet) consulta uma segunda opinião (Opus) nos pontos em que o julgamento pesa; contexto compartilhado em `~/.local/share/advisor/` e um diário de decisões que ensina quando vale chamar.
+
+## [0.27.0] - 2026-11-06
+
+### Added
+
+- `retro` 0.1.1, `cost-track` 0.3.1, `task-understand` 0.13.3: `scripts/retro.sh`, `costs.sh` and `tasks.sh` as the entry point of each CLI (the uv Python script stays the implementation).
+
+### Changed
+
+- `skill-smith` 0.3.1: Step 3 says the `.sh` is the interface every harness calls.
+
+## [0.26.0] - 2026-11-06
+
+### Added
+
+- `retro` 0.1.0: the `/retro` skill, an after-action review of the session that turns the owner's corrections into rules for the right skills (he picks, one PR applies); `retro.py` CLI with `emit`, `lessons`, `rejected-rules` and `scan`.
+
 ## [0.25.0] - 2026-11-06
 
 ### Added

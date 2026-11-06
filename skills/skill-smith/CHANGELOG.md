@@ -3,6 +3,25 @@
 All notable changes to skill-smith are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-06
+
+### Added
+- Every skill has its own `README.md` and `CHANGELOG.md`: step 3 says what each holds (SKILL.md = the agent's rules, README = the human page that points to it, CHANGELOG = the history), step 4 creates the README when an updated skill lacks one, and step 6's lint checks both files and that the CHANGELOG's top entry matches `metadata.version`.
+- `README.md` for skill-smith itself.
+
+## [0.3.1] - 2026-11-06
+
+### Changed
+
+- Step 3: the `.sh` is the interface every harness calls; heavier logic lives behind it in a `uv` PEP 723 script or `jq`.
+
+## [0.3.0] - 2026-11-06
+
+### Added
+
+- Step 1b: research the open source first (Hermes, GitHub, the literature's name) before CREATE, ADAPT or a
+  MINOR+ UPDATE; findings in `references/prior-art.md`.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added

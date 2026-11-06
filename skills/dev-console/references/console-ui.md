@@ -26,7 +26,7 @@ why and the numbers, read when changing a part of the screen.
   opens upward) · a faint `⌘K domínio · ⌘P módulo` on the right. The work area (`#work`) takes the rest of the height.
   The entity's title lives in the rail, not in a header.
 - One overlay (`#dom`), two lists: ⌘K the domains only, ⌘P `D.modules` (`{name, href}`: Domain, `TABS` with `href: null` shown in place, and
-  Playground, which navigates). The Playground page ships the same status line and overlay. Open it with `domOpen('domain' | 'module')`; `window.devconsoleModules()` /
+  Playground, which navigates). The Playground page ships the same status line and overlay (the canvas web is same-origin, `scripts/playground/`; the key handlers use the capture phase, so a focused canvas does not eat ⌘K / ⌘P). Open it with `domOpen('domain' | 'module')`; `window.devconsoleModules()` /
   `devconsoleDomains()` toggle it for the native menu (⌘P is Print in AppKit). In the browser `keydown` ⌘P / Ctrl+P
   `preventDefault`s the print panel; inside the finder Ctrl+P is "up".
 - Goto keys: `g`, then the module's letter (shown in the ⌘P overlay), a `g…` hint in the status line while
@@ -61,6 +61,11 @@ why and the numbers, read when changing a part of the screen.
 `?tab=&ev=&side=&w=&e=` via `history.replaceState`; restore on load in order: tab,
 sidebar (`ev`), the widget popup (`w`). Switching tab or closing the
 sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
+
+Read-only JSON for agents (`scripts/console.sh` wraps them): `GET /api/domains` (`slug, name, path, origin`),
+`GET /api/domains/<slug>/actions` (names in `PROJECT.ACTIONS`) and `GET /domain/<slug>/state.json?task=<entity id>`
+(what the page embeds as `<script id="data">`, same builder, `money` left out). A view's URL is
+`/domain/<slug>[/t/<entity id>]?tab=&ev=&side=&w=&e=`; without `/t/…` the server redirects to the entity it opens.
 
 ## Sidebar and widgets
 

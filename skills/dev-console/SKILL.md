@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.12.0
+  version: 0.17.0
 ---
 
 # dev-console
@@ -34,10 +34,45 @@ driving or capturing it on every change was rejected ("pare de usar o Safari").
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
-adding a domain needs no restart: append its `dev_console_project.py` path to
-`~/.local/state/dev-console/domains.txt` and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
+adding a domain needs no restart: `console.sh domains add <path>` (it appends the `dev_console_project.py` path to
+`~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`), so a reload or a shared link reopens the same view.
+
+## Agents: console.sh
+
+One door, `scripts/console.sh`, so an agent never scrapes the HTML, builds a URL by hand or edits `domains.txt`.
+
+```sh
+C=<skill>/scripts/console.sh
+$C list                                              # every instance: owner, code, ALL domains, live, start
+$C start [port] --owner <name> [--from 5057] [--no-tab] [--dry-run]   # no port = next free from 5058
+$C stop <port> [--force]                             # 5057 needs --force
+$C claim <port> --owner <name>                       # an instance console.sh did not start (the owner runs it for 5057)
+$C domains [port]                                    # slug, origin (--project | registry), path
+$C domains add <path> | remove <path|slug>           # edit the registry; a running console sees an add by itself
+$C state <slug> [--port N] [--task <id>] | jq keys   # the JSON the page is drawn from
+$C url <slug> [--port N] [--task <id>] [--tab X] [--ev X] [--side X] [--w X] [--e X]   # | xargs open
+$C actions [<slug>] [--port N]                       # PROJECT.ACTIONS names per domain
+```
+
+- **Owners are a journal**, `~/.local/state/dev-console/instances.jsonl` (`DEV_CONSOLE_STATE` moves it): append-only,
+  `{"id","event","at","actor","value"}` with `instance.started {port, owner, pid, from}`, `instance.claimed {port, owner,
+  pid}`, `instance.stopped {port}`. `list` projects the owner per port (the last started/claimed whose pid is still that
+  port's process; stopped or dead pid = none, shown as where it runs instead: herdr pane, tmux, tty). Never edit the file.
+- **`start` opens a herdr tab** `dev-console:<port>` in the current workspace (`HERDR_WORKSPACE_ID`) and runs the server
+  there (never an agent's background process); `--no-tab`, or no herdr, runs in the foreground. It copies the
+  `--project` flags of `--from`, reads the same registry, has no live reload (`--no-live`: another agent's save does not
+  reload this window) and refuses a taken port. `--dry-run` prints the plan and writes nothing.
+- **`list` and `domains` show every domain**, registry ones too. Slugs come from the server's `GET /api/domains`
+  (`slug, name, path, origin`); an instance on older code has no such route, so they are derived from its command line
+  and the registry with the same rule (`SLUG` in the file, else the skill folder's name).
+- **Read routes** (GET, JSON): `/api/domains`, `/api/domains/<slug>/actions`, `/domain/<slug>/state.json?task=<entity id>`
+  (the payload of the page's `<script id="data">`, built by the same function, without the money bar so reading never
+  touches the clock). Writing stays `PROJECT.ACTIONS` at `/domain/<slug>/do/<eid>/<name>`.
+- `instances.sh` and `second.sh` are wrappers (`console.sh "$@"` / `console.sh start "$@"`).
+- One instance per agent: the first keeps 5057; each other agent starts its own, opens it in its own browser window
+  (`console.sh url <slug> --port N | xargs open`) or its own native window (below).
 
 ## A native window
 
@@ -65,6 +100,19 @@ $W status                                       # prints state.json
 $W install                                      # builds app/build-app.sh, copies to ~/Applications, opens it; $W quit stops it
 ```
 
+**One window per agent.** The app already reads its state directory (`DEV_CONSOLE_WINDOW_STATE_DIR`) and start page
+(`DEV_CONSOLE_URL`) from the environment, and keeps its saved frame per state directory, so a second window is a second
+process, no rewrite:
+
+```sh
+$W --owner <name> launch http://127.0.0.1:5058/domain/tasks   # open -n: a window of its own, state in .../dev-console-window/<name>/
+$W --owner <name> open <url>      # any command with --owner drives that window; without it, the original one
+$W --owner <name> quit            # stops only that window (install/quit without --owner touch only the original)
+```
+
+`launch` needs the app installed (`$W install` once). It was written against `open -n --env`, which this guide could
+not exercise without putting a window on the owner's screen: the first `launch` is the check.
+
 A page button talks back with `window.webkit.messageHandlers.devconsole.postMessage({...})`: the object is written to
 `state.json` as `last_message`. The other native feature is the **Go menu**: ⌘P is Print in AppKit, so the app takes it
 for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsoleModules && devconsoleModules()` (or
@@ -86,14 +134,21 @@ for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsol
 
 ## Playground
 
-`/playground` (no slug) is a **mode** beside Domain, tied to no domain: the console's top bar and, filling the rest,
-the design-playground's web (a tldraw canvas, `~/biliboss/dev/design-playground`) in an `iframe`. The canvas is composed,
-never copied, and the console adds nothing to that project. **Its web has no canvas-only mode, so its chat shows on the
-right as it is**; hiding it is a change in the design-playground, the owner's call.
+`/playground` (no slug) is a **mode** beside Domain, tied to no domain: a tldraw canvas filling the page above the status
+line, with the component palette. It is **the console's own now** (the design-playground, a Bun server, was absorbed):
+same origin, no iframe, no chat, so ⌘K and ⌘P work even with the canvas focused (the old cross-origin iframe turned ⌘P
+into the browser's Print). The two key handlers listen in the capture phase so tldraw cannot swallow them.
 
-- `DEV_CONSOLE_PLAYGROUND_URL` (default `http://127.0.0.1:5317`) is the web. When it does not answer the page says so in
-  one line with the command that starts it (`scripts/motor.sh http --servidor`, skill `design`), looks again every 3 s
-  through `GET /playground/up` and opens the canvas as soon as it answers; never a broken frame.
+- **Code.** `scripts/playground/` is the canvas web (`canvas.js`, `widgets.js`, `paleta.js`, `app.css` from the
+  design-playground; `eventos.js` is the small SSE relay the chat used to be), served at `/playground/web/*`.
+  `scripts/console_playground.py` is the server side, a sibling module the script imports: the canvas mirror, the
+  component definitions (validation, wrapper folder reader, versions), the operations on the open page, and the routes
+  `/playground/api/{canvas,canvas/diff,canvas/resposta,componentes,eventos}` (same JSON as the TS). Each operation is a
+  function or method (`Canvas.aplicar`, `Componentes.definir/definir_da_pasta/listar/conferir`, `Operacoes.executar`),
+  never code inside a route, so `console.sh` commands can call them. There is no `/api/estado` or `/api/mensagens`: they were the chat's.
+- **Data** lives in `~/.local/state/dev-console/playground/` (`DEV_CONSOLE_PLAYGROUND_DIR` moves it): `canvas.json` and
+  `componentes/<produto>/<peça>.json`, the design-playground's format. `console.sh playground import [<dados dir>]
+  [--force]` copies them once from `~/biliboss/dev/design-playground/dados` and refuses to overwrite without `--force`.
 - **The money bar**: no domain, so `PLAYGROUND_COST_CENTER` (env `DEV_CONSOLE_PLAYGROUND_COST_CENTER`, default
   `biliboss-skills`) names the cost center; the same bar and the same records (`domain: playground`), through
   `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
@@ -107,9 +162,8 @@ right as it is**; hiding it is a change in the design-playground, the owner's ca
   same floating fuzzy overlay; the tab bar goes away and a thin **status line at the bottom** carries `domain · module ·
   money bar` (a click on each opens its switcher), so the graph or canvas gets the full height. In the native app ⌘P
   is Print: the app menu takes it for the page.
-- Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`), pointing the env at a
-  closed port for the "not running" line and at a design-playground started on another port (`PORT=5318 ABRIR_WEB=0
-  DADOS_DIR=<temp> bun run src/main.ts --servidor`) for the canvas; never at the owner's 5317. Keep the registry
+- Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`) with
+  `DEV_CONSOLE_PLAYGROUND_DIR=<temp>` after a `playground import` into it; never write the design-playground's `dados`. Keep the registry
   in a folder of its own: the watcher restarts the console on any write beside it (the money clock writes `running.json`).
 
 ## Agents
@@ -194,14 +248,21 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   for create, change and delete; every start leads to one hub (`HUB`); a configuration value (the
   home widget) rides in an event's value, never as its own event; keep out of the domain what
   belongs to a widget (Action was cut). Fix a prototype fact by editing the JSONL, not with code.
+- **An event's first widget is the real screen where it happens** (Event Modeling: the screen above the event), the
+  numbers come after. `render_screens(steps, title)` (set on every project module like `render_widget_list`) takes
+  `{name, url, event, note}` steps, each an iframe of the product's own URL (a Storybook story's
+  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → and dots, the event each screen
+  leads to beside its name; mark the widget `fake = True`. Never redraw a product's screen. For an imported product,
+  serve its Storybook from the detached read-only worktree (`pnpm install`, the design system's `storybook dev`),
+  check which port answers with **its** stories (another project's Storybook may already hold 6006), and list the
+  screens per step with the event they lead to (a subagent's job: find the stories, screenshot at 390×844).
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
   A piece of the status line that belongs to a domain (the money bar) is also that domain's widget (CostToolbar on
   `time_entry.started`): an `Iframe` of `?embed=money`, an embed mode that shows only that piece of the line.
 - **Playground is a mode, not a tab** (a module of ⌘P, beside Domain, when its route exists). Free sketching with the agent (screens, dashboards, comparisons) lives in a
-  dev-console mode beside Domain, not tied to any domain: the agent operates a canvas (the design-playground's,
-  composed without its own chat, since the Hermes chat sits beside the window) and a sketch is promoted to a domain
+  dev-console mode beside Domain, not tied to any domain: the agent operates a canvas (the design-playground's, absorbed into the console without its chat) and a sketch is promoted to a domain
   widget or a real component only when he says so. Proposing it as a per-domain "Esboço" tab was the misread.
 - **Modules per domain.** Domain is the one fixed module; a project lists the rest in `TABS` (absent =
   Domain only); they appear in the ⌘P overlay, never as a tab strip. Tension-shaped tabs live only in the tensions project's `TABS`.
@@ -349,8 +410,12 @@ For a product whose code already records domain events (Domain.Imported):
    clock hour per category or one direction each. Ask before changing the spread rule.
    **For a big imported domain he leans to a linear reading, like `git log --graph`**: the Human at the top left,
    one horizontal lane per category in `EVENTS` order, a lane branching off the event that leads into it, edges into
-   another lane as dashed merges, and columns by funnel stage (AARRR: acquisition, onboarding, aha, usage, retention)
-   taken from the product's catalogue as `STAGES`. Rays stay for small domains (Tasks, Costs); offer a key to toggle
+   another lane as dashed merges, and columns by funnel stage taken **whole** from the product's own stage list
+   (Via: `STAGES = [acquisition, onboarding, aha, usage, retention, revenue]` in `events/core.ts`), never a subset:
+   dropping revenue hid the stage he cares most about ("o pagamento, o fechamento"). Revenue is the goal stage
+   (`STAGE_GOAL`): the destination every lane is read against; a lane that never reaches it is an open question.
+   Portuguese headers via `STAGE_LABELS`. Pick each event's stage so its lane reads left to right (a broker's
+   first share is his onboarding; questions after the first collection are usage). Rays stay for small domains (Tasks, Costs); offer a key to toggle
    both so he compares on the real domain. When he asks "sugira algo" about layout, sketch it in ASCII first.
 5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
@@ -365,9 +430,14 @@ For a product whose code already records domain events (Domain.Imported):
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
    input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
    domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
-   until zoomed: scroll or zoom right to read on). Check in the headless browser (`window.__cy`, `cy.scratch('branch')` has the lanes'
+   until zoomed: scroll or zoom right to read on). **No two lines share a segment**: lines leaving one station down the
+   same 45° slope are an interchange, ranked by leg length, each next one leaving a step lower-left
+   (`source-endpoint`) and turning earlier, so the legs run parallel; a back edge (loop, stage regress) is an
+   `unbundled-bezier` arc above the rows, never routed along a line. Cytoscape's segment weights are relative to the
+   endpoints, so compute every route from the shifted start. Check in the headless browser (`window.__cy`, `cy.scratch('branch')` has the lanes'
    y bands and the stages' x bands): every lane's stations inside one y band, no station left of an earlier stage's band, no two
-   rendered label boxes overlapping, the toggle switching and persisting after a reload. Serve the check from a folder the
+   rendered label boxes overlapping, the toggle switching and persisting after a reload, and **zoom in (≈1.1) on every
+   fork** (the first station, activation, the lane ends) and look: label-box counts never catch a line on a line. Serve the check from a folder the
    console does not watch for screenshots (it watches the registry's folder and the project folders: a file written there reloads it).
 
 ## Design a widget with the user
@@ -448,15 +518,18 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   (through `costs.py`). The rate in force is stored on each entry, so a price change never rewrites the past. The
   running stretch sits in `running.json` in the costs folder (`COSTS_DIR`), so a hot reload keeps it; the page pings
   `time/beat` every 10 s and a stretch silent for 45 s is closed (`close`). `GET /domain/<slug>/time` reads the numbers.
-- **What stops the clock:** Pause, switching domain, 5 min idle on the Mac, and, in a browser tab only, the page
-  hidden (`visibilitychange`). In the native app a hidden page never stops it: a window covered by the chat or hot-
+- **What stops the clock:** Pause, switching domain (a person's first trusted gesture on another domain's page), 5 min
+  idle on the Mac, and, in a browser tab only and only on a page a person used or started the clock on, the page
+  hidden (`visibilitychange`). **A page load never stops it** (an agent's headless read, a curl, a background tab,
+  the Playground opening): the clock stopped five times in one session from such loads. In the native app a hidden page never stops it: a window covered by the chat or hot-
   reloaded behind it reports `document.hidden` while he is still working (detect the app by
   `window.webkit.messageHandlers.devconsole`). **Never** window blur and never `document.hasFocus()`.
   When he says to leave the clock running, re-check it after every console edit and restart it if it shows ▶. In the native app, every 5 s it calls
   `window.devconsoleIdle(seconds)` with the Mac's idle time (`systemIdleSeconds()` in `ConsoleCore`: the any-input event
   type `~0`, because `.null` answers with the time since boot); a normal browser falls back to its own input idle.
-  Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never shows the bar, runs the
-  clock or ends another domain's stretch.
+  Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never runs the clock on load nor
+  ends another domain's stretch; `?embed=money` shows the bar (CostToolbar) and acts only for a stretch its own click
+  started.
 - **Testing it:** a second console on another port with `COSTS_DIR=<temp copy of events.jsonl>` and
   `DEV_CONSOLE_REGISTRY=<empty file>`, never the real journal.
 
@@ -510,6 +583,9 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   (a dict entry followed by `**derive(...)`): it swallows the rest of the line. After every patch to
   `dev-console.py` run `uv run --with python-fasthtml python -m py_compile <file>`: the hot reload restarts on save,
   and a syntax error kills the console for every domain, his native window included.
+- Generate Python for a project file with `repr`/`pprint`, never `json.dumps` (`null` is a `NameError`), and
+  `py_compile` the project file after writing it: a registered project file that fails to import kills every console
+  that watches it, the test one included.
 - A domain change is a person's gesture, never a page load: loading another domain's page (curl, an agent, a headless
   browser) must not close the running stretch; the page's first trusted input (`e.isTrusted` on keydown/click/pointer)
   posts `time/enter`, which ends a stretch running elsewhere (`domain_change`). Agents' synthetic clicks are not

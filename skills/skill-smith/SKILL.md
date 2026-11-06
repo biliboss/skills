@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.2.0
+  version: 0.4.0
   license: MIT
 ---
 
@@ -49,6 +49,20 @@ Where a lesson belongs:
 | How this repo works, for everyone | the repo's `.wiki/` (or `AGENTS.md`), not a skill |
 | Both a principle and a skill rule | both; write each once |
 
+## Step 1b — Research the open source first (CREATE, ADAPT, any MINOR+ UPDATE)
+
+The owner's rule: no skill is written from a blank page. Before drafting, spend a short, bounded pass (~10 min, a
+subagent when the harness has one) on how others already solved the class of task, and steal the best ideas:
+
+1. **Hermes Agent**, the house's reference: its own loop and skills (`agent/background_review.py`, the bundled and hub
+   skills: `hermes skills search <topic>`; the local install under `~/.hermes/hermes-agent/`).
+2. **GitHub**: `gh search repos "<topic> skill"`, `gh search code "<topic>" --filename SKILL.md`, Claude Code plugins
+   and marketplaces, Anthropic's [skills](https://github.com/anthropics/skills), the [Agent Skills spec](https://agentskills.io/specification).
+3. **The literature's name** for the practice (a paper, a field's term), so the skill uses it instead of inventing one.
+
+Write what you kept in `references/prior-art.md` (one line per source: what it does, the idea taken, the link) and
+credit adapted text in `ATTRIBUTION.md`. A one-line PATCH dictated by the owner skips this step.
+
 ## Step 2 — Find the home: patch before you create
 
 Take the **first** option that fits ([Hermes' preference order](https://github.com/NousResearch/hermes-agent/blob/bf0203a794a07aac3ff764972ab9087baa4e4f4e/agent/background_review.py#L469-L497)):
@@ -79,7 +93,7 @@ Rules for the content ([Hermes `_LESSON_LAYER_BLOCK`](https://github.com/NousRes
 - **One lesson, one rule.** Search the skill for the rule first; strengthen it instead of appending a second copy.
 - **Fix in place.** Edit the sentence that misled; never append "UPDATE: actually…".
 - **Don't restate the environment**: what `AGENTS.md`, `CLAUDE.md` or a tool's own description already teach.
-- **Actions are `.sh` scripts in `scripts/`, not an MCP server** (the user's preference): a script is faster to iterate, runs from any shell or agent, and is read before it is run. Reach for an MCP only when the action needs a long-lived connection or state that a script cannot keep.
+- **Actions are `.sh` scripts in `scripts/`, not an MCP server** (the user's preference): a script is faster to iterate, runs from any shell or agent, and is read before it is run. The `.sh` is the interface every harness calls; heavier logic lives behind it in a `uv` PEP 723 script or `jq`. Reach for an MCP only when the action needs a long-lived connection or state that a script cannot keep.
 - **A skill that ships an app or widget keeps the app a read-only view; the agent is the engine** (the user's design rule): the skill's script is the only writer of a state file (atomic temp + `mv`), the app watches it (kqueue/file events, no polling) and never writes, and the app has no menus, presets or buttons of its own. Options in the UI duplicate what the agent decides and split the state between two writers.
 - **Always-on rules live in SKILL.md** (aim for under ~200 lines). `references/` holds topical depth, one file per topic, never `<date>-<incident>.md`.
 
@@ -96,7 +110,13 @@ metadata:
 
 The description is what routes the skill. Lead with the task, list the phrases a user actually says, and name the neighbour it should *not* be confused with. Keep it under 1024 characters and free of a bare `: ` (write `;` or quote the whole value) — pi rejects both as invalid frontmatter, while Claude Code silently accepts them.
 
-Every skill skill-smith creates gets a `CHANGELOG.md` ([Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)) starting at `## [0.1.0] - <today>`. Ship a minimal v0.1.0: SKILL.md and at most one or two references. Iterate after real use.
+Every skill skill-smith creates has its own `README.md` and `CHANGELOG.md`, side by side with `SKILL.md`:
+
+- **`SKILL.md`** is the agent's instructions and the only place a rule is written.
+- **`README.md`** is the human page: what the skill is, how it works in a few steps, the scripts or commands in a table with one example each, how to run its tests, and a link to the CHANGELOG. It points to SKILL.md for the rules and does not restate them, so the two never diverge.
+- **`CHANGELOG.md`** ([Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)) is the history, starting at `## [0.1.0] - <today>`.
+
+Ship a minimal v0.1.0: SKILL.md, the README, the CHANGELOG, and at most one or two references. Iterate after real use. A skill you update (step 4) gets the README too when it lacks one; do not backfill the skills you are not touching.
 
 ## Step 4 — UPDATE: one lesson, every skill it touches
 
@@ -105,7 +125,7 @@ Every skill skill-smith creates gets a `CHANGELOG.md` ([Keep a Changelog 1.1.0](
 1. **List the learnings**, one change each. Signals: corrections ("stop doing X"), validations ("yes, do that again" — lock it in), a new pattern, a style or format preference, a tool switch, a gap the skill should have covered.
 2. **Find every affected skill**: keyword `rg` over all skill dirs, then a judgment pass. Sort by confidence: **high** (propose the change), **medium** (ask explicitly), **low** (mention only).
 3. **Show a diff per file**: before, after, a one-line why, and the version bump. Get approval per file, not as one bundle.
-4. **Apply**, bump `metadata.version` once per skill, and add a CHANGELOG entry.
+4. **Apply**, bump `metadata.version` once per skill, add a CHANGELOG entry, and create the skill's `README.md` if it has none (step 3 says what goes in it).
 
 ## Step 5 — Version and changelog
 
@@ -121,7 +141,7 @@ Don't bump for a typo. Every bump gets a dated entry under `Added / Changed / Fi
 
 ## Step 6 — Check, then hand over
 
-1. **Lint by eye**: frontmatter parses; `name` matches the folder; links resolve; no incident narration; SKILL.md has no rule written twice.
+1. **Lint by eye**: frontmatter parses; `name` matches the folder; links resolve; no incident narration; SKILL.md has no rule written twice. The skill folder has a `README.md` and a `CHANGELOG.md`, the CHANGELOG's top entry matches `metadata.version`, and the README links to the CHANGELOG and does not restate SKILL.md's rules.
 2. **Test when it matters** (a new skill, or a MINOR+ change): run 2–3 realistic prompts as a fresh subagent with only the skill, and see if it does the task right. For deeper evals and description tuning, use Anthropic's [skill-creator](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md) (`anthropic-skills:skill-creator`).
 3. **Commit only your own files, by path**, never `git add -A`. Don't push or open a PR unless the user asks. Adding a whole skill folder also picks up whatever a run left there: read `git diff --cached --stat` before committing and unstage secrets (FastHTML's `.sesskey`, `.env`) and files another session created; gitignore the secret. When another session also edited a file you touched (shared checkout), stage only your hunks: build the blob from `git show HEAD:<file>` plus your edits and `git update-index --cacheinfo 100644,$(git hash-object -w <blob>),<file>`; the other session's lines stay uncommitted in the working tree.
 4. **Install it where it runs** (after the push, for a plugin skill): bump `version` in `.claude-plugin/plugin.json` (and the root CHANGELOG) whenever a skill is added or renamed — `claude plugin update` compares that version and answers "already at the latest" otherwise; then `claude plugin marketplace update <marketplace>` and `claude plugin update <plugin>@<marketplace>`; Hermes reads the clone through `skills.external_dirs`, so keep the clone on `main` (a stale branch hides new skills) and verify with `hermes -p <profile> skills list`; for pi, the `pi` skill's `ligar-skills.sh` links every plugin skill into `~/.pi/agent/skills`. Sessions already open keep the old copy: tell the user to run `/reload-plugins` (Claude Code) or `/reload` (pi).

@@ -63,11 +63,13 @@ if not os.environ.get("DEV_CONSOLE_PROJECT"):
 from contextvars import ContextVar  # noqa: E402
 
 DOMAINS: dict = {}
+ORIGIN: dict = {}  # slug -> "--project" (a flag of this instance) or "registry" (domains.txt); GET /api/domains says it
 for _path in os.environ["DEV_CONSOLE_PROJECT"].split(os.pathsep):
     _mod = load_project(_path)
     _slug = getattr(_mod, "SLUG", None) or Path(_path).resolve().parent.parent.name
     _mod.SLUG, _mod.BASE = _slug, f"/domain/{_slug}"  # BASE: the domain's URL prefix (actions build links with it)
     DOMAINS[_slug] = _mod
+    ORIGIN[_slug] = "--project" if _path in _all else "registry"
 CURRENT: ContextVar = ContextVar("domain", default=next(iter(DOMAINS.values())))
 
 
@@ -90,11 +92,14 @@ class _Live:
 
 
 PROJECT = _Live(CURRENT.get)
-from fasthtml.common import H2, A, Button, Div, Iframe, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
-app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=True)  # live: the browser reloads on save
+# live: every open page reloads on save. `--no-live` (or DEV_CONSOLE_LIVE=0) turns it off, for a second instance
+# that one agent drives while another agent saves files: its window never reloads because of someone else's save.
+LIVE = "--no-live" not in sys.argv and os.environ.get("DEV_CONSOLE_LIVE", "1") != "0"
+app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=LIVE)
 # DNS rebinding: a page on another domain pointed at 127.0.0.1 would otherwise read /agents/api/prompts. Any other Host
 # gets a 400. No CORS is configured anywhere, on purpose: the console is read by its own pages only.
 from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
@@ -1294,7 +1299,7 @@ document.addEventListener('keydown', e => {
     if (e.ctrlKey && !e.metaKey && e.target === $('dom-q')) return;  // inside the finder Ctrl+P is "up"
     if (!Q.get('embed')) ovToggle('module');
   }
-});
+}, true);  // capture: a canvas (tldraw) that stops the key in its own handlers must not eat ⌘K and ⌘P
 function wireRows(el, ev) {  // a WidgetList row opens its widget: click anywhere on it, or Enter / Space when focused
   el.querySelectorAll('.w-row').forEach(r => {
     const go = () => openWidget(ev || r.dataset.ev, r.dataset.w, ev ? D.base : r.dataset.base);
@@ -1668,7 +1673,7 @@ def agents_page():
         Span("", id="pause", role="button", cls="ml-auto px-2 cursor-pointer"), Span("", id="live"),
         cls="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500")
     # the module's own script reuses the Playground's preamble + the one switcher script, with ⌘P's current module set
-    pre = PLAYGROUND_JS[:PLAYGROUND_JS.index("if ($('down'))")].replace("'/playground'", "'/agents'")
+    pre = PLAYGROUND_JS.replace("'/playground'", "'/agents'")  # the Playground's script is exactly preamble + switcher
     return Title("dev-console · Agents"), Style(CSS), Div(
         tools, Div(id="warn", cls="px-3 text-amber-600 empty:hidden"), Div(id="aglist", cls="flex-1 min-h-0 overflow-y-auto"),
         _status_bar("Agents", False, module=False), _switcher(),
@@ -1917,9 +1922,57 @@ def domain(slug: str, req):
     entities = journal.read()
     if not entities:
         return Title(PROJECT.NAME), Div(f"Nenhum(a) {PROJECT.ENTITY} no diário.", cls="p-8 font-mono text-sm")
-    pick = next((t for t in reversed(entities) if t.get("status") == "open"), entities[-1])
     q = f"?{req.url.query}" if req.url.query else ""  # keep the view (?tab=…&ev=…) across the redirect
-    return RedirectResponse(f"/domain/{slug}/t/{pick['id']}{q}", status_code=303)
+    return RedirectResponse(f"/domain/{slug}/t/{_default_entity()}{q}", status_code=303)
+
+
+def _page_data(slug: str, tid: str, money=None):
+    """What a domain page embeds as <script id="data">, as a dict (None when the entity is unknown). The page and
+    GET /domain/<slug>/state.json share it, so an agent reads exactly what the screen is drawn from. The current
+    domain must already be set (use(slug)); `money` is the page's own bar and is left out of the API."""
+    base = PROJECT.BASE
+    state = journal.read({"id": tid})
+    if not state:
+        return None
+    history = journal.read({"id": tid, "history": True})
+    journal_types: dict[str, int] = {}
+    for e in journal.read({"history": True}):
+        journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
+    # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
+    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
+    tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}
+
+
+def _default_entity() -> str | None:
+    """The entity the domain's own page opens: the newest open one, else the last."""
+    entities = journal.read()
+    return next((t["id"] for t in reversed(entities) if t.get("status") == "open"), entities[-1]["id"]) if entities else None
+
+
+@rt("/api/domains")
+def api_domains():
+    """Every domain this instance shows, for agents: slug, name, project file, and where it came from."""
+    return _json([{"slug": s, "name": m.NAME, "path": str(Path(m.__file__).resolve()), "origin": ORIGIN[s]}
+                  for s, m in DOMAINS.items()])
+
+
+@rt("/api/domains/{slug}/actions")
+def api_actions(slug: str):
+    """The names in PROJECT.ACTIONS (the write path, /domain/<slug>/do/<eid>/<name>) of one domain."""
+    if not use(slug):
+        return _json({"error": f"domain {slug} does not exist"}, 404)
+    return _json(sorted(getattr(PROJECT, "ACTIONS", {})))
+
+
+@rt("/domain/{slug}/state.json")
+def state_json(slug: str, task: str = ""):
+    """The page's data as JSON (?task=<entity id>, default the entity the page opens)."""
+    if not use(slug):
+        return _json({"error": f"domain {slug} does not exist", "domains": list(DOMAINS)}, 404)
+    data = _page_data(slug, task or _default_entity() or "")
+    return _json(data if data else {"error": "no such entity (or an empty journal)"}, 200 if data else 404)
 
 
 @rt("/domain/{slug}/t/{tid}")
@@ -1933,10 +1986,10 @@ def tension(slug: str, tid: str, embed: str = ""):
         except Exception:
             money = None
     base = PROJECT.BASE
-    state = journal.read({"id": tid})
-    if not state:
+    data = _page_data(slug, tid, money)
+    if not data:
         return Title("não encontrado"), Div(f"{PROJECT.ENTITY} não encontrado(a).", cls="p-8 font-mono text-sm")
-    history = journal.read({"id": tid, "history": True})
+    state, history = data["state"], data["events"]
     title = title_of(history, state)
     ctx = state.get("context") or {}
 
@@ -1954,14 +2007,7 @@ def tension(slug: str, tid: str, embed: str = ""):
                 else "border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-900"),
         ))
 
-    journal_types: dict[str, int] = {}
-    for e in journal.read({"history": True}):
-        journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
-    # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
-    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
-    tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
-    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
-    payload = json.dumps({"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
@@ -2005,12 +2051,11 @@ def tension(slug: str, tid: str, embed: str = ""):
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )
 
-# --- the Playground: a mode beside Domain, not tied to any domain. The design-playground's canvas is composed (an
-# iframe on its web), never copied; its chat comes with it (the web has no canvas-only mode) ------------------------
+# --- the Playground: a mode beside Domain, not tied to any domain. The design-playground's canvas lives here now:
+# its web is in playground/ (served same-origin, no iframe, so ⌘K and ⌘P reach this page even with the canvas focused)
+# and its data and API are console_playground.py. No chat: the agent works the canvas through console.sh -----------
 PLAYGROUND_SLUG = "playground"
-PLAYGROUND_URL = os.environ.get("DEV_CONSOLE_PLAYGROUND_URL", "http://127.0.0.1:5317").rstrip("/")
 PLAYGROUND_COST_CENTER = os.environ.get("DEV_CONSOLE_PLAYGROUND_COST_CENTER", "biliboss-skills")  # its time is counted too
-PLAYGROUND_START = "scripts/motor.sh http --servidor"  # in the design skill; starts the design-playground's server
 
 
 def _known(slug: str) -> bool:
@@ -2070,31 +2115,19 @@ D.module = '/playground';  // the current module, for ⌘P's "· atual"
 let tab = '';
 const COUNT = {}, KEYS = {};  // the switcher's tags exist on a domain page only
 const show = () => {};  // a module with no href is a tab: the Playground has none
-""" + SWITCHER_JS + r"""
-if ($('down')) {  // the canvas is not up yet: look again every 3 s and open it as soon as it answers
-  setInterval(() => fetch('/playground/up').then(r => r.json()).then(j => { if (j.up) location.reload(); }).catch(() => {}), 3000);
-}
-""")
+""" + SWITCHER_JS)
 
 
-def _playground_up() -> bool:
-    import urllib.request
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import console_playground as PG  # noqa: E402  (a sibling file: this script's folder is on sys.path)
 
-    try:
-        with urllib.request.urlopen(PLAYGROUND_URL + "/", timeout=1.5) as r:
-            return r.status < 500
-    except Exception:
-        return False
-
-
-@rt("/playground/up")
-def playground_up():
-    return _json({"up": _playground_up(), "url": PLAYGROUND_URL})
+PLAYGROUND = PG.Playground()
+PG.mount(app, PLAYGROUND)  # /playground/api/*, /playground/web/*: in front of FastHTML's static route
 
 
 @rt("/playground")
 def playground():
-    """The Playground: the console's bar and the design-playground's canvas filling the rest."""
+    """The Playground: the canvas (same origin) filling the page above the console's status line."""
     money = None
     if C:
         try:  # the money bar is a bonus: it never breaks the page
@@ -2103,22 +2136,18 @@ def playground():
             money = None
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
     payload = json.dumps({"money": money, "base": f"/domain/{PLAYGROUND_SLUG}", "name": "Playground", "domains": domains,
-                          "modules": _modules(), "url": PLAYGROUND_URL}, ensure_ascii=False).replace("</", "<\\/")
-    if _playground_up():
-        body = NotStr(f'<iframe id="canvas" src="{PLAYGROUND_URL}/" title="design-playground" '
-                      'class="flex-1 w-full min-h-0 border-0 bg-white"></iframe>')
-    else:
-        body = Div(Div(f"O design-playground não responde em {PLAYGROUND_URL}.", cls="text-neutral-800 dark:text-neutral-200"),
-                   Div(Span("Suba com ", cls="text-neutral-500"), Span(PLAYGROUND_START, cls="text-neutral-800 dark:text-neutral-200"),
-                       Span(" (skill design); esta página abre sozinha quando ele responder.", cls="text-neutral-500")),
-                   id="down", cls="flex-1 min-h-0 p-8 font-mono text-sm space-y-1")
-    return Title("dev-console · Playground"), Style(CSS), Div(
-        body,
+                          "modules": _modules()}, ensure_ascii=False).replace("</", "<\\/")
+    return Title("dev-console · Playground"), Style(CSS), \
+        Link(rel="icon", href="data:,"), Link(rel="stylesheet", href="https://unpkg.com/tldraw@3.15.4/tldraw.css"), \
+        Link(rel="stylesheet", href=f"{PG.PREFIX}/web/app.css"), Div(
+        Div(id="canvas", cls="flex-1 min-h-0"),
         _status_bar("Playground", bool(money), module=False),
         _switcher(),
         Script(payload, type="application/json", id="data"),
         Script(PLAYGROUND_JS, type="module"),
         Script(MONEY_JS, type="module"),
+        Script(src=f"{PG.PREFIX}/web/canvas.js", type="module"),
+        Script(src=f"{PG.PREFIX}/web/eventos.js", type="module"),
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )
 
@@ -2133,6 +2162,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="dev-console for an event-sourced project")
     parser.add_argument("--project", action="append", help="path to a dev_console_project.py (repeat: one domain each)")
     parser.add_argument("--port", type=int, default=5057)
+    parser.add_argument("--no-live", action="store_true", help="never reload the open pages on a save (second instance)")
     args = parser.parse_args()
     projects = [Path(p).resolve() for p in dict.fromkeys((args.project or []) + os.environ.get("DEV_CONSOLE_PROJECT", "").split(os.pathsep)) if p]
     if not projects:

@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.0] - 2026-11-06
+## [0.17.0] - 2026-11-06
 
 ### Added
 - The **Agents** module, `/agents` (⌘P lists it): the prompts the owner typed to Claude Code (allow-list: `origin.kind == "human"` with `promptSource` `typed` or `queued` (marked `queued`); peer = `cross`, task-notification = `notification`, anything unknown = `other`) and the agents' session logs, in real time. Prompts and Log views, filter by session, chips, pause, click to expand. Routes `/agents/api/prompts|log|entry` and SSE `/agents/events` (`Last-Event-ID`, `retry`, keep-alive). `DEV_CONSOLE_AGENTS_DIRS` sets the roots (default `~/.claude/projects`, deduplicated by realpath).
@@ -9,6 +9,42 @@
 - Security: `TrustedHostMiddleware` on the whole app (400 for any `Host` but `127.0.0.1`, `localhost` and `DEV_CONSOLE_ALLOWED_HOSTS`; DNS rebinding); no CORS.
 - SSE without polling: one `asyncio.Queue` per client fed by the watcher thread; the watcher thread stops on shutdown. `DEV_CONSOLE_AGENTS_BACKFILL_FILES` sets how many files the backfill reads (default 150).
 - `scripts/console_agents.py` (source, normalizer, hub, SSE, page script; pi and Hermes plug in as another source class) and `scripts/test_console_agents.py` (synthetic lines only). A `README.md` for humans.
+
+## [0.16.0] - 2026-11-06
+
+### Added
+- The Playground is served by the console itself: the design-playground's canvas web (`scripts/playground/`: `canvas.js`, `widgets.js`, `paleta.js`, `app.css`, plus `eventos.js`) same-origin, no iframe, no chat. ⌘K and ⌘P now work with the canvas focused (the key handlers listen in the capture phase).
+- `scripts/console_playground.py`: the Python port of the design-playground's server (canvas mirror, component validation and wrapper-folder reader, operations on the open page, SSE) and its routes `/playground/api/{canvas,canvas/diff,canvas/resposta,componentes,eventos}`, with the TS's JSON.
+- Data in `~/.local/state/dev-console/playground/` (`DEV_CONSOLE_PLAYGROUND_DIR`), same format as before; `console.sh playground import [<dados dir>] [--force]` copies it from the design-playground once.
+
+### Removed
+- The iframe, `DEV_CONSOLE_PLAYGROUND_URL`, `GET /playground/up` and the "design-playground não responde" page.
+
+## [0.15.0] - 2026-11-06
+
+### Added
+- `scripts/console.sh`, the agent's one door: `list`, `start` (a herdr tab `dev-console:<port>` by default, `--no-tab` for the foreground, `--dry-run`, next free port when none is given), `stop`, `claim`, `domains [port]` / `domains add|remove`, `state`, `url`, `actions`.
+- One append-only journal of instance owners, `~/.local/state/dev-console/instances.jsonl` (`instance.started`, `instance.claimed`, `instance.stopped`); `list` projects the owner from it.
+- Read-only JSON routes: `GET /api/domains`, `GET /api/domains/<slug>/actions`, `GET /domain/<slug>/state.json[?task=<id>]`. The page and `state.json` share `_page_data`.
+- `window.sh --owner <name>` (a state directory per owner) and `window.sh --owner <name> launch [url]` (a second native window); the app saves its frame per state directory.
+
+### Changed
+- `list` shows every domain of an instance, the registry's too (they were hidden).
+- `instances.sh` and `second.sh` are thin wrappers over `console.sh`; the per-port owner files are gone (the journal replaces them).
+
+## [0.14.0] - 2026-11-06
+
+### Added
+- `scripts/instances.sh`: `list` (every running instance: port, owner, where its code comes from, domains, live reload, start time and pid), `start [port] [--from 5057] --owner <name>` (the second instance's logic, now requiring an owner, which it records in `~/.local/state/dev-console/instances/<port>.json`) and `stop <port> [--force]` (kills the process tree; 5057 needs `--force`). Without an owner file, `list` shows the herdr pane, the tmux pane or the tty.
+
+### Changed
+- `scripts/second.sh` is a thin wrapper that runs `instances.sh start`; it now needs `--owner`.
+
+## [0.13.0] - 2026-11-06
+
+### Added
+- `--no-live` (and `DEV_CONSOLE_LIVE=0`): the server does not reload open pages on a save.
+- `scripts/second.sh [port]`: a second independent instance on its own port (default 5058), without live reload, one per agent; it copies the `--project` flags of the instance on `--from` (default 5057), so both show the same domains.
 
 ## [0.11.0] - 2026-11-06
 
