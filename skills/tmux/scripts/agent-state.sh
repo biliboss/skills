@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # agent-state.sh: a tab shows when its agent finishes a turn (✓ on bordô) and clears when the owner enters it.
-#   agent-state.sh working|done|clear|sub+|sub- [target]   target: pane/window (default: the window of $TMUX_PANE)
+#   agent-state.sh working|done|clear|sub+|sub-|ask|answered [target]   target: pane/window (default: the window of $TMUX_PANE)
+#   ask/answered: an open question to the owner (◆ on bordô, @ask) and its answer; Hermes on_human_input_request/resolved
 #   agent-state.sh install | uninstall          the tmux cleanup hooks (live + marked block in ~/.tmux.conf)
 # Driven by Hermes shell hooks (pre_llm_call -> working, post_llm_call -> done). A hook script must print nothing on
 # stdout (Hermes reads it as a directive) and exit fast; working/done/clear are silent and always exit 0.
@@ -16,7 +17,7 @@ HOOK_CMD="if -F \"#{@done}\" \"$CLEAR\""
 BEGIN='# >>> tmux agent-state >>>'; END='# <<< tmux agent-state <<<'
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THREAD_SH="$HERE/../../thread/scripts/thread.sh"
-touch_tab() { [ -x "$THREAD_SH" ] && "$THREAD_SH" touch "$1" >/dev/null 2>&1; return 0; }   # a thread jumps to tab 2
+touch_tab() { [ -x "$THREAD_SH" ] && "$THREAD_SH" sort "$1" </dev/null >/dev/null 2>&1; return 0; }   # most recent now; tabs re-sorted (MRU, debounced)
 
 # Hermes shell hooks run in the shared gateway (no $TMUX_PANE) and get JSON on stdin with session_id.
 # Window = the one whose @hsid is that id (thread.sh open sets it); else a pane whose process tree mentions the id.
@@ -61,17 +62,24 @@ mark_done() { # window: ✓ bordô when the owner is not on it, else nothing to 
 
 cmd=${1:-}; shift || true
 case $cmd in
-  working|done|clear|sub+|sub-)
+  working|done|clear|sub+|sub-|ask|answered)
     t=${1:-${TMUX_PANE:-}}
     [ -n "$t" ] || t=$(window_of_hook)    # gateway hook: no $TMUX_PANE, find the window by the session id on stdin
     [ -n "$t" ] || exit 0                 # not inside tmux / no window for it: nothing to mark
     case $cmd in
+      ask) tm set-option -w -t "$t" @ask 1 \; set-option -w -t "$t" window-status-style 'fg=#ffffff,bg=#800020,bold' \; \
+             set-option -w -t "$t" window-status-format ' ◆ #W ' >/dev/null 2>&1 ;;
+      answered) tm set-option -w -u -t "$t" @ask >/dev/null 2>&1
+                if [ -z "$(tm display-message -p -t "$t" '#{@done}' 2>/dev/null)" ]; then
+                  tm set-option -w -u -t "$t" window-status-style >/dev/null 2>&1; tm set-option -w -u -t "$t" window-status-format >/dev/null 2>&1
+                fi ;;
       working) tm set-option -w -t "$t" @agent working >/dev/null 2>&1
                tm set-option -w -u -t "$t" @turnended >/dev/null 2>&1 ;;
       clear) tm set-option -w -u -t "$t" @agent >/dev/null 2>&1
              tm set-option -w -u -t "$t" window-status-style >/dev/null 2>&1
              tm set-option -w -u -t "$t" window-status-format >/dev/null 2>&1
              tm set-option -w -u -t "$t" @done >/dev/null 2>&1
+             tm set-option -w -u -t "$t" @ask >/dev/null 2>&1
              tm set-option -w -u -t "$t" @turnended >/dev/null 2>&1 ;;
       done)
         w=$(tm display-message -p -t "$t" '#{window_id}' 2>/dev/null) || exit 0; [ -n "$w" ] || exit 0
@@ -117,11 +125,15 @@ hooks:
     - command: "$HERE/agent-state.sh sub+"
   subagent_stop:
     - command: "$HERE/agent-state.sh sub-"
+  on_human_input_request:
+    - command: "$HERE/agent-state.sh ask"
+  on_human_input_resolved:
+    - command: "$HERE/agent-state.sh answered"
 EOF
     else
       [ ! -f "$conf" ] || { printf '%s\n' "$body" > "$conf.tmp" && mv "$conf.tmp" "$conf"; }
       for h in $HOOKS; do tm set-hook -gu "${h}[$SLOT]" 2>/dev/null; done
       echo "hooks removed"
     fi ;;
-  *) echo "usage: agent-state.sh working|done|clear|sub+|sub- [target] | install | uninstall" >&2; exit 2 ;;
+  *) echo "usage: agent-state.sh working|done|clear|sub+|sub-|ask|answered [target] | install | uninstall" >&2; exit 2 ;;
 esac

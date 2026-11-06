@@ -5,7 +5,8 @@
 #   thread.sh close <topic> [--session S] [--summary TEXT] [--by owner|bili]   |   close --self [--summary TEXT]
 #   (the owner is on that tab: it closes when he leaves; each close writes a line to $THREAD_LOG, default ~/.local/state/threads.log)
 #   thread.sh sweep            closes the tabs marked done-and-closing that the owner left
-#   thread.sh touch <tab>      a thread becomes tab 2 (Bili = first window stays 1, non-threads stay last); never moves the owner's focus
+#   thread.sh sort [<tab>] [--now]   stamp <tab> as most recent, re-sort its session's tabs (MRU with an attention band;
+#                              debounced ~2 s, THREAD_SORT_DEBOUNCE); the owner's tab never moves. touch <tab> = sort <tab> --now
 # A thread is a /branch of the Hermes session that invoked the skill ($HERMES_SESSION_ID; --from overrides; --new only when asked).
 # The tab opens right after the invoking agent's window (tab 2 for a desktop caller: right after the session's first window).
 # The tab opens in the caller's tmux session ($TMUX_PANE's); outside tmux, in the session of the owner's most recently active client; --session overrides. Never a session per card.
@@ -173,26 +174,80 @@ cmd_list() { # session<TAB>topic<TAB>window id<TAB>card, every window marked @th
   tm list-windows -a -F "#{?@thread,$f,}" 2>/dev/null | awk -F'\t' 'NF>1' || true
 }
 
-cmd_touch() { # <tab>: a thread becomes tab 2, right after the session's first window (the Bili). Never moves the owner's focus.
-  [ $# -eq 1 ] || usage
-  local info sess wid isthread active cur i pos=-1 ids=()
-  info="$(tm display-message -p -t "$1" '#{session_name}|#{window_id}|#{window_active}|#{@thread}' 2>/dev/null)" || return 0
-  sess="${info%%|*}"; info="${info#*|}"; wid="${info%%|*}"; info="${info#*|}"; active="${info%%|*}"; isthread="${info#*|}"
-  [ -n "$isthread" ] || return 0                      # only threads move; zsh and friends keep their place
-  i=0
-  while IFS= read -r cur; do                          # one list, in tab order
-    ids[i]="$cur"; [ "$cur" != "$wid" ] || pos=$i; i=$((i + 1))
-  done < <(tm list-windows -t "=$sess" -F '#{window_id}' 2>/dev/null)
-  [ "$pos" -ge 2 ] || return 0                        # not found, the Bili (tab 1) or already tab 2
-  # Focus: tmux keeps the current window while others move (move-window -d), but moving the CURRENT window itself
-  # sends the focus elsewhere. So when the owner is on this very tab, move the tabs between it and slot 2 behind it.
-  if [ "$active" = 1 ]; then
-    for ((i = pos - 1; i >= 1; i--)); do tm move-window -d -a -s "${ids[i]}" -t "$wid" 2>/dev/null || return 0; done
-  else
-    tm move-window -d -b -s "$wid" -t "${ids[1]}" 2>/dev/null || true
-  fi
+# --- tab order: an MRU list (most recently used first, like macOS's ⌘Tab) with an attention band in front ---
+# Tab 1 = the session's first window (the Bili); windows without @thread (zsh…) last, in their own order. Threads between,
+# by band then MRU: 0 = needs the owner (@ask ◆ open question, @done ✓ finished and not seen), 1 = working (@agent or
+# @subagents), 2 = idle and seen; inside a band the highest @touched (ms) first, ties keep the current order.
+# The window the owner is on never moves (it keeps its index; the others are arranged around it) and keeps the focus.
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time()*1000' 2>/dev/null || printf '%s000' "$(date +%s)"; }
+
+desired_order() { # session -> window ids, one per line, in the order the rules want (active window pinned in place)
+  local sess="$1" line id act th ask done ag subs tch pos=0 first="" active="" apos=0 band others="" keys="" d=() out=() i
+  while IFS='|' read -r id act th ask done ag subs tch; do
+    [ -n "$id" ] || continue
+    [ "$act" = 1 ] && { active="$id"; apos=$pos; }
+    if [ "$pos" = 0 ]; then first="$id"
+    elif [ -n "$th" ]; then
+      band=2
+      case "$subs" in ''|0|*[!0-9]*) ;; *) band=1 ;; esac
+      [ "$ag" != working ] || band=1
+      [ -z "$ask$done" ] || band=0
+      case "$tch" in ''|*[!0-9]*) tch=0 ;; esac
+      keys="$keys$(printf '%d %015d %04d %s' "$band" "$((999999999999999 - tch))" "$pos" "$id")"$'\n'
+    else others="$others$id"$'\n'; fi
+    pos=$((pos + 1))
+  done < <(tm list-windows -t "=$sess" -F '#{window_id}|#{window_active}|#{@thread}|#{@ask}|#{@done}|#{@agent}|#{@subagents}|#{@touched}' 2>/dev/null)
+  [ -n "$first" ] || return 0
+  while IFS= read -r line; do [ -z "$line" ] || d[${#d[@]}]="$line"; done \
+    < <(printf '%s\n' "$first"; printf '%s' "$keys" | sort | awk 'NF {print $4}'; printf '%s' "$others")
+  # pin the owner's window at its current index
+  for ((i = 0; i < ${#d[@]}; i++)); do [ "${d[i]}" = "$active" ] || out[${#out[@]}]="${d[i]}"; done
+  if [ -n "$active" ]; then
+    d=(); for ((i = 0; i < ${#out[@]}; i++)); do [ "$i" != "$apos" ] || d[${#d[@]}]="$active"; d[${#d[@]}]="${out[i]}"; done
+    [ "$apos" -lt "${#out[@]}" ] || d[${#d[@]}]="$active"
+  else d=("${out[@]}"); fi
+  printf '%s\n' "${d[@]}"
+}
+
+sort_session() { # session: move only what is out of place (move-window -d keeps the focus), then renumber 1..N
+  local sess="$1" want=() cur=() i j k line
+  while IFS= read -r line; do [ -z "$line" ] || want[${#want[@]}]="$line"; done < <(desired_order "$sess")
+  [ "${#want[@]}" -gt 0 ] || return 0
+  local active; active="$(tm list-windows -t "=$sess" -F '#{window_active} #{window_id}' 2>/dev/null | awk '$1==1 {print $2}')"
+  for ((i = 0; i < ${#want[@]}; i++)); do
+    cur=(); while IFS= read -r line; do cur[${#cur[@]}]="$line"; done < <(tm list-windows -t "=$sess" -F '#{window_id}' 2>/dev/null)
+    [ "${cur[i]:-}" != "${want[i]}" ] || continue
+    if [ "${want[i]}" = "$active" ]; then   # never move the owner's window: the ones before it go behind it
+      j=-1; for ((k = 0; k < ${#cur[@]}; k++)); do [ "${cur[k]}" != "$active" ] || j=$k; done
+      for ((k = j - 1; k >= i; k--)); do tm move-window -d -a -s "${cur[k]}" -t "$active" 2>/dev/null || true; done
+    else
+      tm move-window -d -b -s "${want[i]}" -t "${cur[i]}" 2>/dev/null || true
+    fi
+  done
   # -a/-b shift indexes up and renumber-windows only acts on close: close the gaps now (tabs stay 1..N)
   tm move-window -r -t "=$sess" 2>/dev/null || true
+}
+
+cmd_sort() { # [<target>] [--now]: stamp the target thread's @touched, then re-sort its session (debounced ~2 s)
+  local target="" now=0 info sess th wid token deb="${THREAD_SORT_DEBOUNCE:-2}"
+  while [ $# -gt 0 ]; do case "$1" in --now) now=1 ;; *) target="$1" ;; esac; shift; done
+  if [ -n "$target" ]; then
+    info="$(tm display-message -p -t "$target" '#{session_name}|#{window_id}|#{@thread}' 2>/dev/null)" || return 0
+    sess="${info%%|*}"; info="${info#*|}"; wid="${info%%|*}"; th="${info#*|}"
+    [ -z "$th" ] || tm set-option -w -t "$wid" @touched "$(now_ms)" 2>/dev/null || true
+  else sess="$(target_session "")"; fi
+  if [ "$now" = 1 ] || [ "$deb" = 0 ]; then sort_session "$sess"; return 0; fi
+  # debounce: the last request in a quiet window of $deb seconds wins, so tabs do not jump on every event
+  token="$(now_ms)$$"; tm set-option -t "=$sess:" @sortreq "$token" 2>/dev/null || true
+  ( sleep "$deb"
+    if [ "$(tm show-options -qv -t "=$sess:" @sortreq 2>/dev/null)" = "$token" ]; then sort_session "$sess"; cmd_sweep; fi
+  ) </dev/null >/dev/null 2>&1 &
+  return 0
+}
+
+cmd_touch() { # <tab>: compatibility name: stamp it and sort now
+  [ $# -eq 1 ] || usage
+  cmd_sort "$1" --now
 }
 
 THREAD_LOG="${THREAD_LOG:-$HOME/.local/state/threads.log}"
@@ -272,6 +327,7 @@ case "$1" in
   list) shift; cmd_list "$@" ;;
   close) shift; cmd_close "$@" ;;
   touch) shift; cmd_touch "$@"; cmd_sweep ;;
+  sort) shift; cmd_sort "$@"; cmd_sweep ;;
   sweep) shift; cmd_sweep ;;
   -h|--help|help) usage 0 ;;
   *) usage ;;

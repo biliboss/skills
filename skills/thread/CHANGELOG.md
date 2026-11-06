@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-06
+
+### Added
+
+- `thread.sh sort [<tab>] [--now]`: tab order as an MRU list with an attention band (◆/✓ first, then working, then idle; MRU by `@touched` inside each band); the owner's tab is pinned; debounced ~2 s; numbers 1..N. `scripts/test-sort.sh`.
+
+### Changed
+
+- `thread.sh touch <tab>` is now `sort <tab> --now` (the thread no longer always jumps to tab 2: it goes to its band).
+
 ## [0.5.0] - 2026-11-06
 
 ### Added

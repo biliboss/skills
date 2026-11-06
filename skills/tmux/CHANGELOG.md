@@ -2,6 +2,16 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-06
+
+### Added
+
+- `agent-state.sh ask|answered` (◆ on bordô, `@ask`) for the Hermes `on_human_input_request/resolved` hooks.
+
+### Changed
+
+- The hooks call `thread.sh sort <pane>` (MRU tab order, debounced) instead of `touch`.
+
 ## [0.4.0] - 2026-11-06
 
 ### Added
