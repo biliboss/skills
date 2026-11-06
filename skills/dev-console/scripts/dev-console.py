@@ -109,7 +109,7 @@ class _Live:
 
 
 PROJECT = _Live(CURRENT.get)
-from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, Ol, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
@@ -445,35 +445,95 @@ def render_widget_list(slug: str, event: str, eid: str | None = None):
         CURRENT.reset(token)
 
 
-def render_screens(steps: list[dict], title: str = "", width: int = 390, height: int = 844, scale: float = 0.62):
+# render_screens' behaviour: one copy, run by each screens widget on its own root (inject re-creates the script)
+SCREENS_JS = r"""
+(function (root) {
+  if (!root || root.dataset.wired) return; root.dataset.wired = '1';
+  const S = JSON.parse(root.dataset.screens), stage = root.querySelector('[data-stage]'), box = root.querySelector('[data-box]'),
+        fr = box.querySelector('iframe'), n = root.querySelector('[data-n]'), rows = [...root.querySelectorAll('[data-step]')],
+        arrows = [...root.querySelectorAll('[data-go]')], cap = +root.dataset.cap || 1;
+  let i = 0, seen = '';
+  // only the box the product draws (its own device frame) shows: the page is cropped to s.frame and scaled to fit
+  function fit() {
+    const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return;
+    const s = S[i], [x, y, w, h] = s.frame, k = Math.min(cap, W / w, H / h);
+    box.style.width = Math.floor(w * k) + 'px'; box.style.height = Math.floor(h * k) + 'px';
+    box.style.borderRadius = (s.radius || 0) * k + 'px';
+    fr.style.width = s.viewport[0] + 'px'; fr.style.height = s.viewport[1] + 'px';
+    fr.style.transform = 'scale(' + k + ') translate(' + -x + 'px,' + -y + 'px)';
+  }
+  function go(j, user) {
+    i = Math.max(0, Math.min(S.length - 1, j)); root.dataset.i = i; const s = S[i];
+    if (fr.getAttribute('src') !== s.url) { fr.setAttribute('src', s.url); fr.title = s.name || ''; }
+    if (n) n.textContent = (i + 1) + '/' + S.length;
+    rows.forEach((r, k) => { r.classList.toggle('on', k === i); k === i ? r.setAttribute('aria-current', 'step') : r.removeAttribute('aria-current'); });
+    arrows.forEach(a => { const off = +a.dataset.go < 0 ? i === 0 : i === S.length - 1; a.classList.toggle('off', off); a.setAttribute('aria-disabled', off); });
+    if (user && rows[i]) rows[i].scrollIntoView({block: 'nearest'});
+    fit();
+  }
+  const act = (el, f) => { el.onclick = f; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); f(); } }; };
+  arrows.forEach(a => act(a, () => go(i + +a.dataset.go, true)));
+  if (S.length > 1) rows.forEach((r, k) => act(r, () => go(k, true)));
+  // ← → step the screens while the popup is open (not inside a field; the story's own keys stay in its iframe)
+  const key = e => {
+    if (!root.isConnected) { document.removeEventListener('keydown', key); ro.disconnect(); return; }
+    const pop = root.closest('#pop'); if (pop && pop.classList.contains('hidden')) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
+    if (e.key === 'ArrowRight') { go(i + 1, true); e.preventDefault(); } else if (e.key === 'ArrowLeft') { go(i - 1, true); e.preventDefault(); }
+  };
+  if (S.length > 1) document.addEventListener('keydown', key);
+  const ro = new ResizeObserver(([e]) => {  // guarded by size: a tick that changes nothing does nothing
+    const k = Math.round(e.contentRect.width) + 'x' + Math.round(e.contentRect.height); if (k === seen) return; seen = k; fit(); });
+  ro.observe(stage);
+  go(0);
+})(document.currentScript && document.currentScript.closest('[data-screens]'));
+"""
+
+
+def render_screens(steps: list[dict], title: str = "", width: int = 390, height: int = 844, scale: float = 1.0):
     """The product's real screens, composed (never redrawn): each step {name, url, event?, note?} is an iframe of the
-    product's own URL (a Storybook story, a prototype, the app) in a phone frame, stepped with ← → and the dots; the
-    step's event (the one the screen leads to) shows beside its name. A widget of an event passes the steps around it."""
+    product's own URL (a Storybook story, a prototype, the app), stepped with ← → (the keys too) or a click on its row
+    in the list beside it, which names the event the screen leads to and shows the current step's note.
+
+    The product draws its own device frame, so the widget draws none: a step says where that frame sits in its page
+    (`frame: [x, y, w, h]` inside `viewport: [w, h]`, its corner `radius`), and only that box shows, scaled to fit the
+    popup (never above `scale`); without them the whole width x height page shows. The root asks the popup for its
+    stage size (data-pop=stage) and is data-real-only: real screens have nothing to simulate."""
     if not steps:
         return _empty("nenhuma tela")
-    data = json.dumps([{k: st.get(k) for k in ("name", "url", "event", "note")} for st in steps], ensure_ascii=False)
-    w, h = round(width * scale), round(height * scale)
-    go = ("(function(b,d){var r=b.closest('[data-screens]'),S=JSON.parse(r.dataset.screens),"
-          "i=Math.max(0,Math.min(S.length-1,(d==null?+b.dataset.i:+r.dataset.i+d)));r.dataset.i=i;var s=S[i];"
-          "r.querySelector('iframe').src=s.url;r.querySelector('[data-n]').textContent=(i+1)+'/'+S.length+' · '+s.name;"
-          "r.querySelector('[data-e]').textContent=s.event||'';r.querySelector('[data-note]').textContent=s.note||'';"
-          "r.querySelectorAll('[data-dot]').forEach(function(x,j){x.style.opacity=j===i?1:.35});})")
-    btn = "px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
-    first = steps[0]
+
+    def geo(st: dict) -> dict:
+        vw, vh = st.get("viewport") or (width, height)
+        return {"viewport": [vw, vh], "frame": list(st.get("frame") or (0, 0, vw, vh)), "radius": st.get("radius", 0)}
+
+    data = json.dumps([{**{k: st.get(k) for k in ("name", "url", "event", "note")}, **geo(st)} for st in steps], ensure_ascii=False)
+    first, many = steps[0], len(steps) > 1
+    # text controls, never <button>: Pico/MonsterUI paints a button as a blue filled square (the arrow sank in it)
+    arrow = "inline-flex items-center justify-center w-8 h-8 rounded font-sans text-lg leading-none select-none cursor-pointer"  # look: CSS .sc
+    nav = Div(Span("←", data_go="-1", tabindex="0", aria_label="tela anterior", title="tela anterior (←)", cls=arrow),
+              Span(f"1/{len(steps)}", data_n="1", cls="min-w-[3.25rem] text-center tabular-nums text-neutral-500"),
+              Span("→", data_go="1", tabindex="0", aria_label="próxima tela", title="próxima tela (→)", cls=arrow),
+              cls="shrink-0 flex items-center gap-1") if many else ""
+    row = "sc-row flex gap-3 px-3 py-2.5 rounded"  # hover, focus and the current one: CSS .sc-row (a row opens on click, Enter, Space)
+    rows = [Li(Span(str(i + 1), cls="w-4 shrink-0 pt-px text-right tabular-nums text-neutral-500"),
+               Div(Div(st.get("name", ""), cls="sc-name font-sans text-sm leading-snug text-neutral-600 dark:text-neutral-400"),
+                   Div(st["event"], cls="mt-0.5 font-mono text-xs text-amber-600 dark:text-amber-400") if st.get("event") else "",
+                   P(st["note"], cls="sc-note mt-1.5 font-sans text-[13px] leading-snug text-neutral-500") if st.get("note") else "",
+                   cls="min-w-0"),
+               data_step=str(i), tabindex="0" if many else None, aria_label=f"tela {i + 1}: {st.get('name', '')}" if many else None,
+               cls=row)
+            for i, st in enumerate(steps)]
     return Div(
-        H2(title, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else "",
-        Div(Button("←", type="button", cls=btn, onclick=f"{go}(this,-1)"),
-            Span(f"1/{len(steps)} · {first.get('name', '')}", data_n="1", cls="flex-1 min-w-0 truncate text-neutral-700 dark:text-neutral-300"),
-            Span(first.get("event") or "", data_e="1", cls="shrink-0 font-mono text-xs text-amber-600 dark:text-amber-400"),
-            Button("→", type="button", cls=btn, onclick=f"{go}(this,1)"), cls="flex items-center gap-2"),
-        Div(Iframe(src=first.get("url", ""), style=f"width:{width}px;height:{height}px;border:0;transform:scale({scale});transform-origin:0 0"),
-            style=f"width:{w}px;height:{h}px;overflow:hidden",
-            cls="mt-3"),  # the product draws its own device frame (a Storybook story does)
-        Div(*[Span(cls="inline-block w-2 h-2 rounded-full bg-neutral-500 cursor-pointer", data_dot="1", data_i=str(i),
-                   style=f"opacity:{1 if i == 0 else .35}", onclick=f"{go}(this)") for i in range(len(steps))],
-            cls="mt-2 flex gap-1.5"),
-        P(first.get("note") or "", data_note="1", cls="mt-2 text-sm text-neutral-500"),
-        data_screens=data, data_i="0",
+        Div(H2(title, cls="font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else Span(),
+            nav, cls="shrink-0 mb-4 flex items-center justify-between gap-4"),
+        Div(Div(Div(Iframe(src=first.get("url", ""), title=first.get("name", ""),
+                           style="position:absolute;left:0;top:0;border:0;transform-origin:0 0;background:transparent"),
+                    data_box="1", cls="relative shrink-0 overflow-hidden"),
+                data_stage="1", cls="flex-1 min-w-0 min-h-0 flex items-center justify-center"),
+            Ol(*rows, cls="w-72 shrink-0 overflow-y-auto space-y-0.5"),
+            cls="flex-1 min-h-0 flex gap-6"),
+        Script(SCREENS_JS),
+        data_screens=data, data_i="0", data_cap=str(scale), data_real_only="1", data_pop="stage", cls="sc flex flex-col",
     )
 
 
@@ -592,6 +652,21 @@ def entity_key() -> str:
 CSS = """
 #pop-body.sim { background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(127,127,127,.06) 14px 15px); }
 #pop-body.sim::before { content: "SIMULADO · os botões funcionam, nada é gravado nem enviado"; display: block; margin-bottom: 14px; font-size: 11px; letter-spacing: .12em; color: #8a8a8a; }
+/* a widget whose root says data-pop=stage (render_screens) gets the big popup, and its stage takes the height left */
+#pop-box.stage { width: min(1180px, 94vw); height: min(1000px, 92vh); max-height: none; }
+#pop-box.stage #pop-body { display: flex; flex-direction: column; overflow: hidden; }
+#pop-box.stage #pop-body > [data-pop=stage] { flex: 1 1 auto; min-height: 0; }
+.sc [data-stage] { min-height: 16rem; }
+.sc [data-go] { color: rgb(115 115 115); }
+.sc [data-go]:hover, .sc [data-go]:focus-visible { color: rgb(23 23 23); background: rgb(229 229 229); outline: none; }
+.dark .sc [data-go]:hover, .dark .sc [data-go]:focus-visible { color: rgb(245 245 245); background: rgb(38 38 38); }
+.sc [data-go].off { opacity: .3; cursor: default; pointer-events: none; }
+.sc-row .sc-note { display: none; } .sc-row.on .sc-note { display: block; }
+.sc-row[tabindex] { cursor: pointer; }
+.sc-row[tabindex]:hover, .sc-row[tabindex]:focus-visible { background: rgb(250 250 250); outline: none; }
+.dark .sc-row[tabindex]:hover, .dark .sc-row[tabindex]:focus-visible { background: rgb(20 20 20); }
+.sc-row.sc-row.on { background: rgb(240 240 240); } .dark .sc-row.sc-row.on { background: rgb(30 30 30); }
+.sc-row.on .sc-name { font-weight: 600; color: rgb(23 23 23); } .dark .sc-row.on .sc-name { color: rgb(245 245 245); }
 
 html,body{height:100%;overflow:hidden}
 /* Nerd Font symbols (Font Awesome range): one small icon before each tab label */
@@ -1365,11 +1440,14 @@ function openWidget(id, name, base = D.base) {
   $('pop-name').textContent = name;
   $('pop-sub').textContent = Q.get('e') ? `${id} · evento ${Q.get('e').slice(0, 8)}` : `${id} · primeiro evento real do diário`;
   $('pop-body').innerHTML = '<p class="text-neutral-400">carregando…</p>';
+  $('pop-box').classList.remove('stage');
   $('pop').classList.remove('hidden'); $('pop').classList.add('flex');
   frag(`${base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${base === D.base ? Q.get('e') || '' : ''}&mode=${MODE()}`).then(h => {
+    // a stage widget (render_screens: the product's real screens) gets the big popup before its script measures it
+    $('pop-box').classList.toggle('stage', /data-pop="stage"/.test(h));
     inject($('pop-body'), h);
     // a widget generated from a real source (data-real-only: a SKILL.md, the code) has nothing to simulate: no REAL | SIMULADO
-    if ($('pop-body').querySelector('[data-real-only]')) { setQ('mode', ''); $('pop-mode').classList.add('hidden'); }
+    if ($('pop-body').querySelector('[data-real-only]')) { setQ('mode', ''); $('pop-mode').classList.add('hidden'); paintMode(); }
     // a composed WidgetList inside the popup: its abrir opens that widget here (in its own domain)
     wireRows($('pop-body'));
   });
@@ -2201,6 +2279,7 @@ def tension(slug: str, tid: str, embed: str = ""):
                     Div("✕", id="pop-close", title="Esc", cls="shrink-0 px-2 cursor-pointer text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"),
                     cls="shrink-0 flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-neutral-200 dark:border-neutral-800"),
                 Div(id="pop-body", cls="flex-1 min-h-0 overflow-y-auto px-6 py-5"),
+                id="pop-box",
                 cls="w-[min(860px,92vw)] max-h-[82vh] flex flex-col rounded-lg border border-neutral-300 dark:border-neutral-700 "
                     "bg-white dark:bg-neutral-950 shadow-2xl",
             ),

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.25.0] - 2026-11-06
+
+### Fixed
+
+- **`render_screens` shows the product's screen with its own frame only, scaled to fit.** A step may say where the
+  product draws its device frame in its page (`frame: [x, y, w, h]` inside `viewport: [w, h]`, its `radius`): only that
+  box shows, so Storybook's padding and the catalogue's margin no longer read as a second, white frame. The box scales
+  to the stage (never above `scale`, now 1), so a 406 x 860 phone or an 808-wide board fits the popup at any window size;
+  the fixed 390 x 844 iframe cut every Via story on the right and the bottom.
+- The ← → were `<button>`s that Pico paints as blue squares (the arrow sank to the bottom): now grey text controls,
+  focusable, dimmed at the ends, and the ← → keys step too. One step shows no arrows.
+- The popup no longer cuts the screen: a widget whose root says `data-pop="stage"` gets a popup of `min(1180px, 94vw)`
+  by `min(1000px, 92vh)` and its stage takes the height left, with nothing to scroll.
+- A `data-real-only` widget opened with `?mode=sim` kept the SIMULADO stripes and banner: the mode is cleared and
+  repainted. Real screens are `data-real-only` (nothing to simulate).
+
+### Changed
+
+- The dots are a list of the steps beside the screen: number, name, the event the screen leads to, and the current
+  step's note; a click, Enter or Space on a row opens it.
+
 ## [0.24.0] - 2026-11-06
 
 ### Added

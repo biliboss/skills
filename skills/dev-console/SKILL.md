@@ -350,14 +350,21 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **An event's first widget is the real screen where it happens** (Event Modeling: the screen above the event), the
   numbers come after. `render_screens(steps, title)` (set on every project module like `render_widget_list`) takes
   `{name, url, event, note}` steps, each an iframe of the product's own URL (a Storybook story's
-  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → and dots, the event each screen
-  leads to beside its name; mark the widget `fake = True`. Never redraw a product's screen. For an imported product,
+  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → (keys too) and a list of the
+  steps beside the screen, the event each screen leads to under its name; mark the widget `fake = True`. Never redraw
+  a product's screen. **Show only the frame the product draws**: a story sits inside Storybook's padding and the
+  catalogue's margin, which read as a second, white frame (rejected twice); give each step its box, measured in the
+  story's page with the headless browser (`viewport: [w, h]`, `frame: [x, y, w, h]`, `radius`), and the widget crops to
+  it and scales it to the popup's stage. A fixed 390×844 iframe cut every Via story (their phones are 406 wide, a v12
+  board 808 and it wraps below 848). For an imported product,
   serve its Storybook from a detached read-only worktree in a durable folder (`~/src/<product>`, `pnpm install`, the
-  design system's `storybook dev`, log to `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
+  design system's `storybook dev --disable-telemetry`, in a herdr tab of its own, log to
+  `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
   folder: scratch prunes idle entries after 24 h, the server keeps running on deleted `node_modules` and every
-  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this),
-  check which port answers with **its** stories (another project's Storybook may already hold 6006), and list the
-  screens per step with the event they lead to (a subagent's job: find the stories, screenshot at 390×844).
+  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this,
+  000 = the server is down: start it again), check which port answers with **its** stories (another project's
+  Storybook may already hold 6006), and list the screens per step with the event they lead to (a subagent's job: find
+  the stories, screenshot them, measure each one's frame).
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
