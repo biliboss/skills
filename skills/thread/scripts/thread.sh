@@ -77,10 +77,12 @@ target_session() { # explicit -> caller's session -> session of the most recentl
 }
 
 # The Value Object `thread`: ONE name for a thread, used as is everywhere (tmux session, its tab, @thread, the Hermes
-# session title). Lowercase ASCII; spaces, dots and - stay: "Sygnal 0.2" -> "sygnal 0.2", "Ação Já!" -> "acao ja". (tmux itself shows a dot in a SESSION name as _.)
+# session title). Lowercase ASCII; spaces and - stay, a dot becomes -: "Sygnal 0.2" -> "sygnal 0-2", "Ação Já!" -> "acao ja".
+# NEVER a dot: tmux reads "a.b" in a target as window.pane, so has-session/switch-client (sesh, the owner's shortcuts) cannot reach it.
+# Spaces are safe: `tmux has-session -t 'a b'` works (checked on a private server).
 thread() { # raw text -> the thread name (empty when nothing is left)
   printf '%s' "$1" | perl -CS -MUnicode::Normalize -pe '$_ = lc NFD($_); s/\pM//g' |
-    sed -E 's/[^a-z0-9 .-]+/ /g; s/ +/ /g; s/^ //; s/ $//'
+    sed -E 's/\./-/g; s/[^a-z0-9 -]+/ /g; s/ +/ /g; s/^ //; s/ $//'
 }
 
 cmd_open() {
@@ -447,6 +449,19 @@ cmd_doctor() {
     finding drift architecture card-not-a-session "$s" "$wid" "session carries @card but no @thread" "make it a thread (thread.sh open '$s' --card <card> --from <id>) or a tab: tmux move-window -s $wid -t <parent session>:"
   done < <(tm list-windows -a -F '#{session_name}|#{window_id}|#{@thread}|#{@card}' 2>/dev/null |
     awk -F'|' '{ if ($3 != "") th[$1]=1; else if ($4 != "" && !($1 in first)) first[$1]=$2 } END { for (s in first) if (!(s in th)) print s "|" first[s] }' | sort)
+  # name-targetable: a dot in a session/window name is read by tmux as window.pane, so no target (sesh, switch-client) reaches it.
+  local sid wn fix seen=" "
+  while IFS='|' read -r s sid wid wn; do
+    case "$s" in
+      *.*) case "$seen" in *" $sid "*) ;; *) seen="$seen$sid "
+        fix="$(thread "$s")"; [ -n "$fix" ] || fix="renamed"
+        finding drift environment name-targetable "$s" "$wid" "name '$s' has a dot; tmux reads it as window.pane, so sesh/switch-client cannot reach it" "tmux rename-session -t '$sid' '$fix'" ;; esac ;;
+    esac
+    case "$wn" in
+      *.*) fix="$(thread "$wn")"; [ -n "$fix" ] || fix="renamed"
+        finding drift environment name-targetable "$s" "$wid" "name '$wn' has a dot; tmux reads it as window.pane, so sesh/switch-client cannot reach it" "tmux rename-window -t '$wid' '$fix'" ;;
+    esac
+  done < <(tm list-windows -a -F '#{session_name}|#{session_id}|#{window_id}|#{window_name}' 2>/dev/null)
   if [ "$json" = 0 ]; then
     if [ "$bad" -eq 0 ]; then echo "ok $n threads"; else echo "drift $bad of $n"; fi
   fi

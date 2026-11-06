@@ -24,6 +24,14 @@ mk() { # session thread hsid cmd
 }
 tm new-session -d -s anchor "sleep 600"
 mk ok-thread ok-thread live1 "echo hermes -p bili --resume live1" >/dev/null
+# the Value Object thread(): never a dot (tmux reads it as window.pane)
+eval "$(sed -n '/^thread() {/,/^}/p' "$HERE/thread.sh")"
+t "thread(): dot folds to -" "$(thread 'Sygnal 0.2')" "sygnal 0-2"
+t "thread(): no dot ever" "$(thread 'a.b.c: v1.2!' | grep -c '\.')" 0
+t "thread(): accents and punctuation" "$(thread 'Ação Já!')" "acao ja"
+t "thread(): a name tmux can target" "$(tm new-session -d -P -F '#{session_name}' -s "$(thread 'Sygnal 0.2')" 'sleep 60' && tm has-session -t "=sygnal 0-2" && echo reach)" "sygnal 0-2
+reach"
+
 out="$("$T" doctor)"; rc=$?
 t "healthy: exit 0" "$rc" 0
 t "healthy: summary" "$out" "ok 1 threads"
@@ -58,6 +66,13 @@ t "json: fields" "$(printf '%s\n' "$j" | grep -c "\"dimension\":\"behavior\",\"c
 v="$("$T" doctor --verbose | grep -c "^ok ")"
 t "verbose prints ok findings" "$([ "$v" -gt 0 ] && echo yes || echo no)" yes
 t "default hides ok findings" "$("$T" doctor | grep -c "^ok [a-z]")" 0
+
+# a dot in a name: tmux reads window.pane, nothing can target it
+wdot="$(tm new-window -d -P -F "#{window_id}" -t anchor -n "v1.2" "sleep 600")"
+out="$("$T" doctor)"
+t "dot window: drift finding with rename action" "$(printf "%s\n" "$out" | grep -c "^drift environment name-targetable anchor/$wdot: name 'v1.2' has a dot; tmux reads it as window.pane, so sesh/switch-client cannot reach it -> tmux rename-window -t '$wdot' 'v1-2'$")" 1
+t "healthy names are not flagged" "$(printf "%s\n" "$out" | grep -c "name-targetable ok-thread")" 0
+tm kill-window -t "$wdot"
 
 mv "$THREAD_STATE_DB" "$WORK/gone.db"
 out="$("$T" doctor)"

@@ -52,6 +52,9 @@ Invariant, per window with `@thread`:
 - `resume-hsid` (environment): the pane's start command is `--resume <hsid>`, never `--continue` (that makes a second client of someone else's chat).
 - `card-not-a-session` (architecture): a session whose windows carry `@card` but no `@thread`: a card is a thread or a tab, never a session of its own.
 - `viewer-path` (environment, warn): the pane runs `threadview.py` from another checkout.
+- `name-targetable` (environment): no session or window name has a dot (any session, thread or not). tmux reads `a.b` in a target as `window.pane`, so `has-session`, `switch-client` and `sesh connect` fail with "can't find pane". The action is `tmux rename-session -t '$N' '<thread() value>'`.
+
+**Naming rule (the Value Object `thread()`):** lowercase ASCII; spaces and `-` stay; accents are stripped; any other character becomes a space; **a dot becomes `-`, so a thread name never has a dot**: tmux reads the dot as the window.pane separator, so a session called `sygnal 0.2` cannot be reached by `has-session`/`switch-client`/`sesh connect` (the owner's cmd+o and cmd+l). `Sygnal 0.2` -> `sygnal 0-2`. Spaces are fine (`has-session -t 'a b'` works).
 
 Text line: `<status> <dimension> <check> <session>/<window-id>: <evidence> -> <action>`, then `ok N threads` or `drift K of N`. `--json`: one object per finding (`dimension, check, status, session, window, evidence, action`). `ok` findings only with `--verbose`. Exit 0 healthy, 1 drift/fail, 2 the doctor could not run (no tmux server). Tests: `scripts/test-doctor.sh` (private tmux server, fake state.db).
 
