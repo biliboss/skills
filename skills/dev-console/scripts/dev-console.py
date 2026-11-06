@@ -2420,7 +2420,14 @@ def _status_bar(name: str, money: bool, module: bool = True):
     """The status line at the bottom of both pages (VS Code, vim): the name (click = ⌘K), · module (click = ⌘P; the page's JS
     fills #mod-name), the money bar, a faint hint on the right. One markup, so the two pages cannot drift."""
     line = "border-neutral-200 dark:border-neutral-800"
+    # the hour, first on the bar (the owner's ask); the page's clock, redrawn on the minute
+    clock_js = ("(()=>{const e=document.getElementById('bar-clock');if(!e)return;const t=()=>{e.textContent="
+                "new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})};t();"
+                "setTimeout(()=>{t();setInterval(t,60000)},60000-Date.now()%60000)})()")
     return Div(
+        Span(id="bar-clock", title="hora", cls=f"shrink-0 h-full flex items-center px-3 tabular-nums font-semibold "
+                                               f"text-neutral-800 dark:text-neutral-200 border-r {line}"),
+        Script(clock_js),
         Span(name, id="dom-open", data_ov="domain", title="trocar de domínio (⌘K)",
              cls="shrink-0 pl-3 pr-1 max-w-[16rem] truncate font-semibold text-neutral-800 dark:text-neutral-200"),
         *([Span(Span("·", cls="mr-1 text-neutral-400"), Span(id="mod-name"),
