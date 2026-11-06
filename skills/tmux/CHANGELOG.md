@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-11-06
+
+### Changed
+
+- `agent-state.sh` publishes the window's state on every write (thread-state.sh, in the background), so `thread.sh watch` sees ●◆✓ live.
+
 ## [0.6.0] - 2026-11-06
 
 ### Added

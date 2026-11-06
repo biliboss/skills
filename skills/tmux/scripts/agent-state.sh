@@ -103,6 +103,8 @@ case $cmd in
               fi
             fi ;;
     esac
+    # the state just changed: publish it now (event on write, < 50 ms), in the background so the hook stays fast
+    [ -x "$HERE/../../thread/scripts/thread-state.sh" ] && ( "$HERE/../../thread/scripts/thread-state.sh" pub "$t" </dev/null >/dev/null 2>&1 & )
     [ "$cmd" = clear ] || touch_tab "$t"   # prompt arrived / turn ended: this thread is now the most recent
     exit 0 ;;
   install|uninstall)

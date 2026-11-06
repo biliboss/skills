@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-11-06
+
+### Added
+
+- `thread.sh state [<tab>]` and `thread.sh watch`: the threads' state as JSON lines, live from the local NATS (`mesa.thread.state.changed`); `scripts/thread-state.sh` publishes on write (bash `/dev/tcp`, no process); `scripts/test-state.sh`.
+- Fixed: the tab slide used `swap-window -d`, which on tmux 3.7 made the moved tab current (stole the owner's focus); now without `-d`.
+
 ## [0.7.0] - 2026-11-06
 
 ### Added
