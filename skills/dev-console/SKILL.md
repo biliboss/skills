@@ -679,9 +679,17 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
 
 - **A registry line is the `dev_console_project.py` file, never its folder**: `console.sh domains add <file>`, not an
   `echo >> domains.txt`. A folder path makes `spec_from_file_location` return None and the main console dies for every
-  domain on its next reload. If 5057 is down, read the tail of `~/.local/state/dev-console.log`, fix the line, and start
-  it again as a tracked long-lived process (`uv run --script dev-console.py --project <its own
-  dev_console_project.py>`, background, persisting past the session), never with `nohup`.
+  domain on its next reload. If 5057 is down, read the tail of `~/.local/state/dev-console.log`, fix the cause, and start
+  it again with `~/.local/state/start-console.sh` (detached, so it survives the agent's session), then curl 200 on `/`.
+- **After any merge that touches the console's code, pull the clone 5057 runs (`~/src/skills`) and curl `/`, the
+  touched domain and `/domain/kanban`.** A clone that cannot pull (loose edits from other sessions) serves a mix: a
+  module imported by new code is missing (`ModuleNotFoundError`) and the console dies for every domain. Back up
+  `git diff` to scratch, `git pull --rebase --autostash`, resolve a conflict keeping both sides, then land the loose
+  edits as their own PR so the next pull is clean.
+- **The hot reload purges imported modules only on a re-load caused by a saved file, never on the first import, and
+  never the console's own modules** (`__main__`, `dev-console.py`, its `console_*` siblings): the dev-console's own
+  project shares their folder, and purging them makes every later `@dataclass` fail (`sys.modules[cls.__module__]`
+  is None) so the console cannot start. Test a reload change from a clean process start, not only by touching a file.
 - **Headless screenshot of a console page: wait for the widgets.** Chrome's `--screenshot` fires at load, before the
   htmx fragments arrive ("carregando…"), and `--virtual-time-budget` never ends on a page that polls. Use a small uv
   Playwright script with the installed Chrome (`chromium.launch(channel="chrome")`, viewport 1128×1074, dark), `goto`
@@ -750,3 +758,10 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   rejected).
 - The Tension-shaped tabs (Proposed Actions, Observations, …) are still console code; only the
   tensions project lists them in `TABS`. Moving their markup into the project file is next.
+
+## Browser: a page an agent runs, inside the console
+
+`devc browse <url>` opens the console's Browser module (`/browser?url=…`, also in ⌘P): an address line and the page in a
+frame, above the status line. Use it to show the owner what an agent is running (a landing's dev server, a preview) so
+he validates without leaving the console. Pages that forbid frames (X-Frame-Options) stay blank: ↗ opens them in the Mac's
+browser.

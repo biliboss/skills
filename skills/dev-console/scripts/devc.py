@@ -503,7 +503,18 @@ def cmd_board(a: dict) -> int:
     return run_kanban(args, passthrough=True).returncode
 
 
+def cmd_browse(a: dict) -> int:
+    """devc browse <url>: the page an agent runs (a landing, a dev server) inside the console's Browser module."""
+    target = next((x for x in a["args"] if not x.startswith("-")), None)
+    if not target:
+        raise DevcError("usage: devc browse <url>", 2)
+    if "://" not in target:
+        target = "http://" + target
+    return cmd_open({**a, "args": [f"http://127.0.0.1:{a['port']}/browser?url={urllib.parse.quote(target, safe='')}"]})
+
+
 COMMANDS = {
+    "browse": cmd_browse,
     "domains": cmd_domains, "show": cmd_show, "events": cmd_events, "focus": cmd_focus, "open": cmd_open,
     "shot": cmd_shot, "now": cmd_now, "history": cmd_history, "eval": cmd_eval, "start": cmd_start,
     "stop": cmd_stop, "list": cmd_list, "check": cmd_check, "install": cmd_install,
