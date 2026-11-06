@@ -140,8 +140,14 @@ cmd_open() {
   fi
   [ -n "$after" ] || after="$(tm list-windows -t "=$session" -F '#{window_id}' | head -1)"
   local win
-  # -d: the window opens in the BACKGROUND. Never select-window/switch-client: the owner's focus is not ours to move.
-  win="$(tm new-window -a -d -P -F '#{window_id}' -t "$after" -n "$topic" -c "$cwd" "$hcmd")"
+  # -d: the thread opens in the BACKGROUND. Never select-window/switch-client: the owner's focus is not ours to move.
+  if [ "${THREAD_TAB:-0}" = 1 ]; then  # legacy: a tab right after the invoking agent's window
+    win="$(tm new-window -a -d -P -F '#{window_id}' -t "$after" -n "$topic" -c "$cwd" "$hcmd")"
+  else  # the owner's rule: every thread is its own tmux session, the thread as its 1st tab
+    tm has-session -t "=$topic" 2>/dev/null && die "a tmux session '$topic' already exists (pick another topic)"
+    win="$(tm new-session -d -P -F '#{window_id}' -s "$topic" -n "$topic" -c "$cwd" "$hcmd")"
+    tm set-option -t "=$topic:" @parent "$session" 2>/dev/null || true
+  fi
   tm set-option -w -t "$win" @thread "$topic"
   [ -z "$kid" ] || tm set-option -w -t "$win" @card "$kid"
   [ -z "$newid" ] || tm set-option -w -t "$win" @hsid "$newid"   # agent-state.sh finds the window by it (hooks have no $TMUX_PANE)
