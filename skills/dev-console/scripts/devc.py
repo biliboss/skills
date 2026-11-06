@@ -44,6 +44,9 @@ USAGE = """usage: devc [--port N] [--json] <command>
   list [port]                      running instances (console.sh list)
   check <url> [--shot f.png ...]   headless check of a page (check.sh)
   board [kanban args...]           the Kanban: passthrough to kanban.sh (devc board list, devc board move ...)
+  home list | rm <id> | clear      the home's live widgets (the Dynamic View)
+  home show <id> (--html H | --html-file F | --url U | --widget slug/event/name [--task T])
+       [--title T] [--span 1-3] [--height PX]   put or replace a widget on the home, live
   install                          symlink devc into ~/.local/bin"""
 
 
@@ -513,12 +516,88 @@ def cmd_browse(a: dict) -> int:
     return cmd_open({**a, "args": [f"http://127.0.0.1:{a['port']}/browser?url={urllib.parse.quote(target, safe='')}"]})
 
 
+def http_post(port: int, path: str, body: dict) -> tuple[int, object]:
+    req = urllib.request.Request(base(port) + path, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Devc-Actor": os.environ.get("DEVC_ACTOR", "agent")})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            status, raw = r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        status, raw = e.code, e.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, TimeoutError):
+        return 0, f"nothing answers on port {port}"
+    try:
+        return status, json.loads(raw)
+    except ValueError:
+        return status, raw
+
+
+def cmd_home(a: dict) -> int:
+    """devc home list | show | rm | clear: the home's live widgets (the Dynamic View). The server writes the journal."""
+    args = list(a["args"])
+    sub = args.pop(0) if args else "list"
+    opts, pos, i = {}, [], 0
+    while i < len(args):
+        if args[i].startswith("--") and i + 1 < len(args):
+            opts[args[i][2:]] = args[i + 1]; i += 2
+        else:
+            pos.append(args[i]); i += 1
+    port = a["port"]
+    if sub == "list":
+        status, body = http_get(port, "/api/home")
+        if status != 200:
+            raise DevcError(f"/api/home answered {status}: {body}")
+        if a["json"]:
+            print(json.dumps(body, ensure_ascii=False, indent=2))
+        else:
+            for w in body["widgets"]:
+                print(f"{w['id']}\t{w['kind']}\t{w.get('title', '')}\t{w.get('actor', '')}")
+            if not body["widgets"]:
+                print("home vazia (só o logo)")
+        return 0
+    if sub == "show":
+        if not pos:
+            raise DevcError("usage: devc home show <id> --html H | --html-file F | --url U | --widget slug/event/name", 2)
+        if "html-file" in opts:
+            kind, content = "html", Path(opts["html-file"]).expanduser().read_text(encoding="utf-8")
+        elif "html" in opts:
+            kind, content = "html", opts["html"]
+        elif "url" in opts:
+            kind, content = "url", opts["url"] if "://" in opts["url"] or opts["url"].startswith("/") else "http://" + opts["url"]
+        elif "widget" in opts:
+            parts = opts["widget"].split("/")
+            if len(parts) != 3:
+                raise DevcError("--widget needs slug/event/name", 2)
+            slug, event, name = (urllib.parse.quote(x, safe="") for x in parts)
+            task = opts.get("task", "")
+            kind, content = "widget", f"/domain/{slug}/w/{urllib.parse.quote(task or '_', safe='')}/{event}/{name}" + (f"?task={urllib.parse.quote(task)}" if task else "")
+        else:
+            raise DevcError("show needs --html, --html-file, --url or --widget", 2)
+        body = {"id": pos[0], "kind": kind, "content": content, "title": opts.get("title", pos[0])}
+        for k in ("span", "height"):
+            if k in opts:
+                body[k] = int(opts[k])
+        status, out = http_post(port, "/api/home/show", body)
+    elif sub == "rm":
+        if not pos:
+            raise DevcError("usage: devc home rm <id>", 2)
+        status, out = http_post(port, "/api/home/rm", {"id": pos[0]})
+    elif sub == "clear":
+        status, out = http_post(port, "/api/home/clear", {})
+    else:
+        raise DevcError("usage: devc home list | show | rm | clear", 2)
+    if status != 200:
+        raise DevcError(f"{sub} answered {status}: {out}")
+    print(json.dumps(out, ensure_ascii=False) if a["json"] else f"ok: home {sub} {pos[0] if pos else ''}".rstrip())
+    return 0
+
+
 COMMANDS = {
     "browse": cmd_browse,
     "domains": cmd_domains, "show": cmd_show, "events": cmd_events, "focus": cmd_focus, "open": cmd_open,
     "shot": cmd_shot, "now": cmd_now, "history": cmd_history, "eval": cmd_eval, "start": cmd_start,
     "stop": cmd_stop, "list": cmd_list, "check": cmd_check, "install": cmd_install,
-    "board": cmd_board,
+    "board": cmd_board, "home": cmd_home,
 }
 
 

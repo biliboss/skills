@@ -827,3 +827,19 @@ browser.
   number smaller, in money, and the fair alternative), not only the chat.
 - Test it with a throwaway page served from scratch (`uv run python -m http.server <port> --directory <dir>`), then
   `devc browse` + `devc shot`, and stop the server.
+
+## Home: the Dynamic View
+
+`/` is an empty canvas with the `</>` logo in the centre (tournament `logo-devconsole`, option T-tag) until an agent
+puts widgets on it; they appear live (SSE, `/api/home/stream`), with no reload, in a grid. `g h` goes home from any page.
+Agents manage it only through `devc home` (never the journal by hand):
+
+```sh
+devc home show <id> --html '<h2>…</h2>' | --html-file f.html | --url localhost:4321 | --widget <slug>/<event>/<Name> [--task T]
+     [--title T] [--span 1-3] [--height PX]      # same id = replace in place
+devc home list [--json] | rm <id> | clear        # clear = back to the logo
+```
+
+The journal is `~/.local/share/dev-console/home/events.jsonl` (`DEV_CONSOLE_HOME_DIR`; outside the registry's folder,
+which restarts the console on a write), written only by the server (`console_home.py`) through `POST /api/home/show|rm|clear`;
+`DEVC_ACTOR` names the actor. `html` is drawn in a sandboxed frame (scripts allowed, no same origin).

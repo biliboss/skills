@@ -35,7 +35,7 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
-CONSOLE_MODULES = ("console_agents", "console_playground", "console_recorder", "console_reload")
+CONSOLE_MODULES = ("console_agents", "console_home", "console_playground", "console_recorder", "console_reload")
 PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
 
 
@@ -2192,12 +2192,72 @@ def index():
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
     payload = json.dumps({"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Home", "domains": domains, "modules": _modules()},
                          ensure_ascii=False).replace("</", "<\\/")
+    import console_home as HM
+    grid_style = "grid-template-columns:repeat(auto-fill,minmax(420px,1fr));grid-auto-flow:dense;align-content:start"
     return Title("dev-console"), Link(rel="icon", href="data:,"), Style(CSS), Div(
         Div(NotStr(logo), id="home-logo", cls="flex-1 min-h-0 flex items-center justify-center text-neutral-800 dark:text-neutral-200"),
+        Div(id="home-grid", style=f"display:none;{grid_style}", cls="flex-1 min-h-0 overflow-auto grid gap-3 p-3"),
         _status_bar("Home", False, module=False), _switcher(),
-        Script(payload, type="application/json", id="data"), Script(pre, type="module"),
+        Script(payload, type="application/json", id="data"), Script(pre, type="module"), Script(HM.HOME_JS),
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )
+
+
+from starlette.responses import JSONResponse  # noqa: E402  (the home routes below)
+
+
+@rt("/api/home")
+def home_list():
+    """The widgets on the home now (read only)."""
+    import console_home as HM
+    return JSONResponse({"widgets": HM.widgets()})
+
+
+@rt("/api/home/show", methods=["POST"])
+async def home_show(req):
+    """Put (or replace, same id) a widget on the home. Body: {id, kind: html|url|widget, content, title?, span?, height?}."""
+    import console_home as HM
+    try:
+        body = json.loads((await req.body()) or b"{}")
+        rec = HM.show(body, req.headers.get("x-devc-actor") or "agent")
+    except (ValueError, TypeError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(rec)
+
+
+@rt("/api/home/rm", methods=["POST"])
+async def home_rm(req):
+    import console_home as HM
+    body = json.loads((await req.body()) or b"{}")
+    ok = HM.remove(str(body.get("id") or ""), req.headers.get("x-devc-actor") or "agent")
+    return JSONResponse({"removed": ok}, status_code=200 if ok else 404)
+
+
+@rt("/api/home/clear", methods=["POST"])
+async def home_clear(req):
+    import console_home as HM
+    HM.clear(req.headers.get("x-devc-actor") or "agent")
+    return JSONResponse({"cleared": True})
+
+
+@rt("/api/home/stream")
+async def home_stream():
+    """Server-sent events: the home's widgets again whenever its journal changes."""
+    import asyncio
+
+    import console_home as HM
+    from starlette.responses import StreamingResponse
+
+    async def gen():
+        last = None
+        while True:
+            m = HM.mtime()
+            if m != last:
+                last = m
+                yield f"data: {json.dumps({'widgets': HM.widgets()}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.3)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 def _old_home():
@@ -2514,7 +2574,20 @@ def _switcher():
             Div("↑↓ escolher · Enter abrir · Esc fechar", cls="px-4 h-8 leading-8 border-t border-neutral-200 dark:border-neutral-800 text-neutral-400"),
             cls="w-[min(560px,92vw)] rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl"),
         id="dom", cls="hidden fixed inset-0 z-[10001] items-start justify-center pt-[16vh] bg-black/40 backdrop-blur-[1px]",
-    )
+    ), Script(GOTO_HOME_JS)
+
+
+# `g h` goes home on every page that has the switcher (vim-style goto, beside the domain page's own `g <tab>`).
+GOTO_HOME_JS = """
+(() => { let g = 0;
+  document.addEventListener('keydown', e => {
+    const a = document.activeElement;
+    if (e.metaKey || e.ctrlKey || e.altKey || (a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable))) return;
+    if (g && e.key === 'h' && Date.now() - g < 1200) { g = 0; e.preventDefault(); if (location.pathname !== '/') location.href = '/'; return; }
+    g = e.key === 'g' ? Date.now() : 0;
+  }, true);
+})();
+"""
 
 
 # the switcher script is the main page's own, cut out of JS (one copy), plus the three names it needs
