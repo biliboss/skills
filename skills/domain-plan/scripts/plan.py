@@ -45,6 +45,7 @@ from pathlib import Path
 KINDS = ("event", "screen", "document")
 STATES = ("draft", "real")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+WORD = re.compile(r"^[a-z][a-z0-9_]*$")  # a category, a command or an event: it is written into Python source
 
 
 def plan_path(repo: str | Path, slug: str) -> Path:
@@ -106,7 +107,7 @@ def registry(path: Path) -> list[str]:
 def _reachable(el: dict, repo: Path) -> bool:
     if el.get("file"):
         return (repo / el["file"]).expanduser().exists()
-    if el.get("url"):
+    if str(el.get("url", "")).startswith(("http://", "https://")):
         try:
             req = urllib.request.Request(el["url"], method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as r:
@@ -166,8 +167,11 @@ def render_source(real: str, state: dict) -> str:
     drafts: dict[str, list[tuple[str, str]]] = {}
     for (kind, name), el in sorted(state["elements"].items()):
         if kind == "event" and el.get("state", "draft") == "draft" and name not in have:
-            cat, ev = name.split(".")
-            drafts.setdefault(cat, []).append((el.get("command") or ev, ev))
+            cat, _, ev = name.partition(".")
+            cmd = el.get("command") or ev
+            if not all(WORD.match(w or "") for w in (cat, ev, cmd)):
+                raise ValueError(f"event {name!r} (command {cmd!r}): category, event and command are lowercase words with underscores")
+            drafts.setdefault(cat, []).append((cmd, ev))
     lines = real.splitlines()
     inserts: dict[int, list[str]] = {}  # index of the closing-brace line -> lines to put before it
     def block(items, indent):
@@ -304,8 +308,10 @@ def main(argv: list[str] | None = None) -> int:
                 for k, val in (("sources", n.source), ("questions", n.question), ("decisions", n.decision)):
                     if val:
                         v[k] = val
-                if n.kind == "event" and not re.match(r"^[a-z_]+\.[a-z_]+$", n.name):
+                if n.kind == "event" and not re.match(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$", n.name):
                     raise ValueError("an event is named category.event (lowercase, underscores)")
+                if n.command and not WORD.match(n.command):
+                    raise ValueError("a command is a lowercase word with underscores")
             print(json.dumps(append(path, "element.updated", v, n.actor), ensure_ascii=False))
             sync(n.repo, project(read_events(path)))
         elif n.cmd == "show":
