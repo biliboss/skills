@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # thread.sh: open/list/close a topic thread (a tmux window running a Hermes session) in the session where you are, in one call.
-#   thread.sh open <topic> [--card C] [--session S] [--from SESSION_ID | --new] [--cli] [--profile P] [--cwd DIR] [--brief TEXT | --brief - | --brief-gz B64]
+#   thread.sh open <topic> [--card C] [--session S] [--from SESSION_ID | --new] [--cli] [--profile P] [--cwd DIR] [--brief TEXT | --brief - | --brief-gz B64] [--no-shape]
 #   thread.sh list
 #   thread.sh close <topic> [--session S] [--summary TEXT] [--by owner|bili]   |   close --self [--summary TEXT]
 #   (the owner is on that tab: it closes when he leaves; each close writes a line to $THREAD_LOG, default ~/.local/state/threads.log)
@@ -78,7 +78,7 @@ target_session() { # explicit -> caller's session -> session of the most recentl
 cmd_open() {
   [ $# -ge 1 ] || usage
   local topic="$1"; shift
-  local mode="" from="" card="" session="" PROFILE="bili" cwd="$PWD" brief="" have_brief=0 ui="${THREAD_UI:-view}"
+  local mode="" from="" card="" session="" PROFILE="bili" cwd="$PWD" brief="" have_brief=0 shape=1 ui="${THREAD_UI:-view}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --from) mode=branch; from="${2:?--from needs a Hermes session id}"; shift ;;
@@ -91,6 +91,7 @@ cmd_open() {
       --brief) have_brief=1
         if [ "${2:-}" = "-" ]; then brief="$(cat)"; else brief="${2:?}"; fi; shift ;;
       --brief-gz) have_brief=1; brief="$(printf '%s' "${2:?}" | base64 -d | gunzip)"; shift ;;
+      --no-shape) shape=0 ;;
       *) die "unknown option: $1" ;;
     esac
     shift
@@ -119,6 +120,12 @@ cmd_open() {
     die "HERMES_SESSION_ID is empty: a thread is a /branch of the session that invoked it. Pass --from <session id>, or --new to start a fresh session"
   fi
   ids_before="$(session_ids)"
+
+  # a thread starts in shape (the owner's rule: the system must experiment); skipped when the brief already mentions
+  # shape or --no-shape. Applied here, before either path takes the brief (the thread view's queue or the CLI paste).
+  if [ "$have_brief" = 1 ] && [ -n "$brief" ] && [ "$shape" = 1 ] && ! printf '%s' "$brief" | grep -qi shape; then
+    brief="Comece pela skill shape (skill_view shape): abrir esta thread já é começar um shape deste contexto; registre com shape.sh emit request.received --shaping $topic."$'\n'"$brief"
+  fi
 
   # branch OFFLINE first: the window then resumes the new copy, so it is never a second client of a live source
   local hcmd newid=""

@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running the thread agent (a /branch of the Hermes session that invoked the skill, run headless; the tab is the thread view, the screen the agent builds; --cli for the Hermes CLI instead), titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.9.0
+  version: 0.10.0
 ---
 
 # thread — a topic, in one call
@@ -30,6 +30,7 @@ EOF
 
 ## Rules
 
+- **Uma thread começa em shape.** O brief colado em toda thread nova leva na frente uma linha mandando carregar a skill `shape` e registrar com `shape.sh emit request.received --shaping <topic>`. Por quê: regra do dono, o sistema TEM de experimentar; abrir uma thread já é começar um shape daquele contexto, e o domínio shape registra o shaping de cada thread. A linha some se o brief já cita shape ou com `--no-shape`.
 - **Never move the owner's focus: tabs open in the background with -d** (`new-window -d -a`; never `select-window`/`switch-client`; a restart is `respawn-window` alone). A thread must not take the owner off the window he is on.
 - Never put a secret in a brief: it lands in the session history.
 - Card, topic and session: no quotes, `$` or backslash (refused). One window per topic per session; a duplicate is refused.
@@ -74,7 +75,7 @@ The agent of a thread follows this shape on every turn; `threadview.py` restates
 
 | Part | What the agent sets (`view.py <sid> …`) | Rule |
 |---|---|---|
-| Ready | `stage check add "<item>"`, `stage check <n> done` | the Definition of Ready (Scrum): 3-6 concrete things that must be true to start the Downstream; the % ready is items done / total; drawn under the stage line while in the Upstream |
+| Ready | `stage check add "<item>"`, `stage check <n> done` | the Definition of Ready (Scrum): 3-6 concrete things that must be true to start the Downstream; every thread is born with the house's (`view_state.DEFAULT_READY`: the domain drawn in the dev-console, the widgets of each event, the backbrief confirmed) and the agent adapts it; the % ready is items done / total; drawn under the stage line while in the Upstream |
 | Stage | `stage ready <0-100>`, `stage upstream done` | born in progress in the Upstream (the template), whose goal is to be ready for the Downstream: the agent keeps its % ready; only the owner moves it (D) |
 | Agents | `worker add|done|fail` + Hermes subagents (read by the screen) | N in parallel, one line each; the input never blocks: ⏎ always queues, "thinking" lives in the queue line |
 | Goal | `goal "<title>" "<subtitle>"` | one goal; the subtitle is the constraint that matters |

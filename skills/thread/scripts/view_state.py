@@ -113,9 +113,20 @@ class ViewState:
     workers: List[Worker] = field(default_factory=list)
 
 
+# The house's Definition of Ready: what is usually true before any Downstream starts. The agent drops what does not
+# apply to its thread and adds what is specific to it.
+DEFAULT_READY = (
+    "domínio desenhado no dev-console (eventos e transições)",
+    "widgets de cada evento desenhados",
+    "backbrief confirmado pelo dono",
+)
+
+
 def template() -> dict:
-    """What every thread is born with."""
-    return {"goal": {"title": "", "subtitle": ""}, "stage": {"upstream": "doing", "downstream": "todo", "ready": 0},
+    """What every thread is born with: in progress in the Upstream, with the house's Definition of Ready."""
+    return {"goal": {"title": "", "subtitle": ""},
+            "stage": {"upstream": "doing", "downstream": "todo", "ready": 0,
+                      "checklist": [{"text": t, "done": False} for t in DEFAULT_READY]},
             "steps": [], "artifacts": [], "decision": None, "pulse": ""}
 
 

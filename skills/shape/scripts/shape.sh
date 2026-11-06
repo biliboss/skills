@@ -2,6 +2,8 @@
 # Entry point of the shape skill's journal: the logic is shape.py (uv, PEP 723).
 #   shape.sh emit <event> '<json>' --shaping <id> --actor <who>
 #   shape.sh list [--status <s>]
+#   shape.sh choose '<request kind>' [--shaping <id>]   least-cost combination from references/resources.json
+#   shape.sh learn [--no-pr]                            the --learn modifier: rewrite the catalog from real numbers
 set -euo pipefail
 
 SOURCE="${BASH_SOURCE[0]}"

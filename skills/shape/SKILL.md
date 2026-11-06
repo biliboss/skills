@@ -8,7 +8,7 @@ description: >-
   "plan", "vamos fazer", "quero", "faz", "nova tarefa", "brainstorm", "backbrief". Questions and one-line commands skip
   it.
 metadata:
-  version: 0.2.0
+  version: 0.3.1
   license: MIT
 ---
 
@@ -43,8 +43,11 @@ a piece by name (`skill_view`) or by its file (`../<piece>/SKILL.md`).
    | taste and quality (business, product, interface, software, writing) | `design-taste`, the facet that fits |
    | clear and small | straight to step 3 |
 
-3. **Backbrief, always** (`backbrief`): the teach-back the owner confirms. Nothing is built before the ok.
-4. **Delegate** by the size: a subagent with a fit-for-purpose model (minutes), a `thread` (a topic that lives on),
+3. **Backbrief, always** (`backbrief`): the teach-back the owner confirms. Nothing is built before the ok. It has a
+   ceiling: on the owner's 2nd adjustment the shaping opens a line of understanding instead of guessing a 3rd time
+   (see *O melhor caminho*).
+4. **Choose the resources** (`shape.sh choose '<kind>'`): the least-cost combination, "Decidi X porque Y".
+5. **Delegate** by the size: a subagent with a fit-for-purpose model (minutes), a `thread` (a topic that lives on),
    or a card in Upstream (`kanban`, one card per piece of work). Decisions the agent takes itself go as "Decidi X
    porque Y"; only money, login, publishing outward and deleting wait for the owner.
 
@@ -98,7 +101,7 @@ The cheapest path was not a new site: the blog that already gets people.
 
 ## In the dev-console
 
-The domain `shape` (`/domain/shape`) lists every shaping, one line each: request · piece · state; burgundy only for
+The domain `shape` (`/domain/shape`) lists every shaping, one line each: request · piece · attempts (1/3, 2/3, ⇡ line) · est vs real cost · state; burgundy only for
 what waits for the owner (a backbrief not yet confirmed). The agent writes it through `scripts/shape.sh`:
 
 ```
@@ -107,11 +110,45 @@ shape.sh emit piece.routed '{"piece":"brainstorm"}' --shaping <id> --actor <who>
 shape.sh emit understanding.taught_back '{"text":"..."}' --shaping <id> --actor <who>
 shape.sh emit understanding.confirmed '{"text":"ok"}' --shaping <id> --actor <who>
 shape.sh emit work.delegated '{"to":"subagent"}' --shaping <id> --actor <who>
+shape.sh emit backbrief.attempted '{"n":1}' --shaping <id> --actor <who>
+shape.sh emit understanding.line_opened '{"tool":"clarify"}' --shaping <id> --actor <who>
+shape.sh choose code-change --shaping <id>
+shape.sh emit shaping.closed '{"real_minutes":12,"real_cost_brl":3.5}' --shaping <id> --actor <who>
+shape.sh learn
 shape.sh list [--status taught_back]
 ```
 
 Pieces: brainstorm, pelo-resultado, interview, domain-plan, design-taste, direct. Delegations: subagent, thread, card.
 Journal: `~/.local/share/shape/events.jsonl` (override `SHAPE_DIR`).
+
+## O melhor caminho
+
+Shape picks the cheapest path to a good result, and learns what each path really costs.
+
+**1. The backbrief loop.** `understanding.taught_back` stays valid (one per teach-back); `backbrief.attempted {n}` counts
+them (n = 1, 2). The owner adjusts the first time: teach back again (`n=2`). He adjusts a 2nd time: attempt 3 does
+not exist (`shape.sh` refuses `n=3`); emit `understanding.line_opened {tool: clarify|interview}` and ask there
+(`clarify` for one or two open points, `interview` for many) instead of guessing again. The line needs 2 attempts in
+the journal first. The HOME line shows `1/3`, `2/3` or `⇡ clarify`.
+
+**2. The catalog.** One file, `references/resources.json` (fields in `references/resources.md`): every house skill,
+the Hermes profiles (hacker, hipster, sre, hustler, via-ads, mantainer), the models (haiku, sonnet, opus) and the
+forms (subagent, thread, card, `--here`), each with `what_for`, `est_minutes`, `est_tokens`, `est_cost_brl` (owner
+time at R$ 190,48/h when he is involved) and a `source`: `journal:<path> n=<k>` when computed from a real journal
+(`scripts/catalog_seed.py` reads costs, tasks, brainstorm and the Hermes delegation transcripts), else `estimate`.
+Unknown is `estimate`, marked; never invented as measured.
+
+**3. The choice.** `shape.sh choose '<request kind>'` (code-change, small-edit, idea-open, interface, ops, later)
+prints the least-cost combination, one option per slot (planning, form, profile, model), as "Decidi X porque Y". With
+`--shaping <id>` it also emits `resources.chosen {resources, est_minutes, est_cost_brl, why}`.
+
+**4. The learning.** When the work ends, `shaping.closed {real_minutes, real_cost_brl}`. `shape.sh learn` (the
+`--learn` modifier, and automatic once 10 shapings closed since the last learn) compares estimated vs real for each
+resource of every newly closed shaping, moves the estimate by a moving average (`alpha` 0.3 in the catalog),
+rewrites `resources.json` with the source updated, prints the diff and opens a PR with it (gh-app; `--no-pr` skips).
+
+**Origin.** It is the `retro` loop applied to cost: retro turns the owner's corrections into rules; here the gap
+between the estimate and what it took turns into numbers, so the next choice starts closer to the truth.
 
 ## Writing for the owner
 

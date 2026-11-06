@@ -1,0 +1,692 @@
+{
+ "version": 1,
+ "owner_rate_brl_h": 190.48,
+ "meta": {
+  "machine_brl_per_token": 4e-05,
+  "owner_minutes_by_cost_center_domain": {
+   "journal": "~/.local/share/costs/events.jsonl",
+   "sygnal": {
+    "n": 39,
+    "avg_min": 9.0
+   },
+   "viacorretor": {
+    "n": 9,
+    "avg_min": 29.4
+   },
+   "via-blog": {
+    "n": 3,
+    "avg_min": 0.0
+   }
+  }
+ },
+ "learn": {
+  "alpha": 0.3,
+  "closed_seen": 2,
+  "every": 10
+ },
+ "request_kinds": {
+  "code-change": {
+   "what": "build or fix code and ship a PR",
+   "slots": {
+    "planning": [
+     "skill:shape"
+    ],
+    "form": [
+     "form:subagent",
+     "form:here",
+     "form:thread"
+    ],
+    "profile": [
+     "profile:hacker"
+    ],
+    "model": [
+     "model:sonnet",
+     "model:opus"
+    ]
+   }
+  },
+  "small-edit": {
+   "what": "a clear one-file change or mechanical edit",
+   "slots": {
+    "planning": [
+     "skill:modifier-here"
+    ],
+    "form": [
+     "form:here",
+     "form:subagent"
+    ],
+    "profile": [
+     "profile:hacker"
+    ],
+    "model": [
+     "model:haiku",
+     "model:sonnet"
+    ]
+   }
+  },
+  "idea-open": {
+   "what": "the idea is still open: think first",
+   "slots": {
+    "planning": [
+     "skill:brainstorm",
+     "skill:interview"
+    ],
+    "form": [
+     "form:here"
+    ],
+    "profile": [
+     "profile:hustler",
+     "profile:hacker"
+    ],
+    "model": [
+     "model:sonnet",
+     "model:opus"
+    ]
+   }
+  },
+  "interface": {
+   "what": "a screen, widget or CLI output someone sees",
+   "slots": {
+    "planning": [
+     "skill:shape",
+     "skill:design"
+    ],
+    "form": [
+     "form:subagent",
+     "form:thread"
+    ],
+    "profile": [
+     "profile:hipster"
+    ],
+    "model": [
+     "model:sonnet",
+     "model:opus"
+    ]
+   }
+  },
+  "ops": {
+   "what": "server, deploy, incident",
+   "slots": {
+    "planning": [
+     "skill:shape"
+    ],
+    "form": [
+     "form:subagent",
+     "form:here"
+    ],
+    "profile": [
+     "profile:sre"
+    ],
+    "model": [
+     "model:sonnet",
+     "model:opus"
+    ]
+   }
+  },
+  "later": {
+   "what": "worth doing, not now",
+   "slots": {
+    "planning": [
+     "skill:shape"
+    ],
+    "form": [
+     "form:card"
+    ],
+    "profile": [],
+    "model": []
+   }
+  }
+ },
+ "resources": {
+  "skill:advisor": {
+   "kind": "skill",
+   "what_for": "second opinion (Opus) at the points where judgment weighs",
+   "est_minutes": 2,
+   "est_tokens": 15000,
+   "est_cost_brl": 0.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:auth": {
+   "kind": "skill",
+   "what_for": "act as the owner on a provider account (Google first)",
+   "est_minutes": 3,
+   "est_tokens": 8000,
+   "est_cost_brl": 0.32,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:backbrief": {
+   "kind": "skill",
+   "what_for": "repeat the request back in own words; the owner confirms or adjusts",
+   "est_minutes": 2.4,
+   "est_tokens": 6000,
+   "est_cost_brl": 7.62,
+   "owner_involved": true,
+   "source": "journal:~/.local/share/tasks/events.jsonl n=41",
+   "learned_n": 0
+  },
+  "skill:bili": {
+   "kind": "skill",
+   "what_for": "hand a request to Bili, the owner's Hermes agent",
+   "est_minutes": 1,
+   "est_tokens": 3000,
+   "est_cost_brl": 0.12,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:brainstorm": {
+   "kind": "skill",
+   "what_for": "the idea is still open: Double Diamond, systems thinking",
+   "est_minutes": 6.1,
+   "est_tokens": 30000,
+   "est_cost_brl": 19.37,
+   "owner_involved": true,
+   "source": "journal:~/.local/share/brainstorm/events.jsonl n=6",
+   "learned_n": 0
+  },
+  "skill:choice": {
+   "kind": "skill",
+   "what_for": "owner picks between options as a tournament of 4",
+   "est_minutes": 4,
+   "est_tokens": 12000,
+   "est_cost_brl": 12.7,
+   "owner_involved": true,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:copywriting": {
+   "kind": "skill",
+   "what_for": "write or review text by Gabriel that sells an idea",
+   "est_minutes": 5,
+   "est_tokens": 15000,
+   "est_cost_brl": 0.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:cost-track": {
+   "kind": "skill",
+   "what_for": "price where the owner's time goes",
+   "est_minutes": 2,
+   "est_tokens": 5000,
+   "est_cost_brl": 0.2,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:delegate-and-review": {
+   "kind": "skill",
+   "what_for": "pass a code task to a subagent with PR and review",
+   "est_minutes": 6,
+   "est_tokens": 60000,
+   "est_cost_brl": 2.4,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:design": {
+   "kind": "skill",
+   "what_for": "draw screens with the product's real widgets",
+   "est_minutes": 10,
+   "est_tokens": 50000,
+   "est_cost_brl": 2.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:dev-console": {
+   "kind": "skill",
+   "what_for": "open or evolve the project's dev-console",
+   "est_minutes": 8,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:diff-review": {
+   "kind": "skill",
+   "what_for": "code review of a local diff before delivery",
+   "est_minutes": 3,
+   "est_tokens": 25000,
+   "est_cost_brl": 1.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:disky": {
+   "kind": "skill",
+   "what_for": "diagnose the full Mac disk, propose cleanup",
+   "est_minutes": 3,
+   "est_tokens": 8000,
+   "est_cost_brl": 0.32,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:domain-plan": {
+   "kind": "skill",
+   "what_for": "draw the task's domain (events, screens) and detect drift",
+   "est_minutes": 8,
+   "est_tokens": 35000,
+   "est_cost_brl": 25.4,
+   "owner_involved": true,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:duplo-local-agents": {
+   "kind": "skill",
+   "what_for": "open, drive, close and resume local agent sessions",
+   "est_minutes": 2,
+   "est_tokens": 5000,
+   "est_cost_brl": 0.2,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:envless": {
+   "kind": "skill",
+   "what_for": "use a secret in a command without it touching the chat",
+   "est_minutes": 1,
+   "est_tokens": 2000,
+   "est_cost_brl": 0.08,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:estudo-html": {
+   "kind": "skill",
+   "what_for": "study a tool or idea and deliver it as a local HTML page",
+   "est_minutes": 12,
+   "est_tokens": 60000,
+   "est_cost_brl": 2.4,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:faceless-art": {
+   "kind": "skill",
+   "what_for": "generate or redo a post's faceless art",
+   "est_minutes": 6,
+   "est_tokens": 20000,
+   "est_cost_brl": 0.8,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:fluid-voice-auto-fix": {
+   "kind": "skill",
+   "what_for": "fix words the dictation gets wrong from transcripts",
+   "est_minutes": 3,
+   "est_tokens": 10000,
+   "est_cost_brl": 0.4,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:hermes": {
+   "kind": "skill",
+   "what_for": "command the local Hermes profiles as agents with memory",
+   "est_minutes": 2,
+   "est_tokens": 6000,
+   "est_cost_brl": 0.24,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:hustler": {
+   "kind": "skill",
+   "what_for": "market view of an idea: alternatives, positioning, models",
+   "est_minutes": 10,
+   "est_tokens": 50000,
+   "est_cost_brl": 2.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:interview": {
+   "kind": "skill",
+   "what_for": "structured questions in one rich form window",
+   "est_minutes": 5,
+   "est_tokens": 10000,
+   "est_cost_brl": 15.87,
+   "owner_involved": true,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:kanban": {
+   "kind": "skill",
+   "what_for": "the owner's board: cards tied to a domain",
+   "est_minutes": 1,
+   "est_tokens": 3000,
+   "est_cost_brl": 0.12,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:keyword-ideas": {
+   "kind": "skill",
+   "what_for": "search targets from free sources",
+   "est_minutes": 2,
+   "est_tokens": 5000,
+   "est_cost_brl": 0.2,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:linear": {
+   "kind": "skill",
+   "what_for": "work the owner's Linear the way he wants",
+   "est_minutes": 2,
+   "est_tokens": 6000,
+   "est_cost_brl": 0.24,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:linkedin-publish": {
+   "kind": "skill",
+   "what_for": "publish, edit or check a LinkedIn post",
+   "est_minutes": 3,
+   "est_tokens": 8000,
+   "est_cost_brl": 0.32,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:lp-draft": {
+   "kind": "skill",
+   "what_for": "draft a landing page as a single HTML prototype",
+   "est_minutes": 10,
+   "est_tokens": 50000,
+   "est_cost_brl": 2.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:modifier-here": {
+   "kind": "skill",
+   "what_for": "`--here`: do it in this session, no subagent",
+   "est_minutes": 0,
+   "est_tokens": 0,
+   "est_cost_brl": 0.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:pi": {
+   "kind": "skill",
+   "what_for": "run the pi coding agent with the owner's Claude accounts",
+   "est_minutes": 3,
+   "est_tokens": 20000,
+   "est_cost_brl": 0.8,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:postmortem": {
+   "kind": "skill",
+   "what_for": "from the reported problem back to the decision",
+   "est_minutes": 10,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:prime-agent": {
+   "kind": "skill",
+   "what_for": "Prime Agent as a data-analysis notebook (GLM)",
+   "est_minutes": 8,
+   "est_tokens": 30000,
+   "est_cost_brl": 1.2,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:retro": {
+   "kind": "skill",
+   "what_for": "session review: corrections become rules in skills",
+   "est_minutes": 5,
+   "est_tokens": 25000,
+   "est_cost_brl": 1.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:search-console": {
+   "kind": "skill",
+   "what_for": "read Google Search Console data",
+   "est_minutes": 2,
+   "est_tokens": 5000,
+   "est_cost_brl": 0.2,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:seo-audit": {
+   "kind": "skill",
+   "what_for": "on-page and sitemap SEO audit from raw HTML",
+   "est_minutes": 3,
+   "est_tokens": 10000,
+   "est_cost_brl": 0.4,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:setup-biliboss": {
+   "kind": "skill",
+   "what_for": "configure a repo once for the biliboss skills",
+   "est_minutes": 4,
+   "est_tokens": 10000,
+   "est_cost_brl": 0.4,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:shape": {
+   "kind": "skill",
+   "what_for": "the default planning door: route, backbrief, delegate (the backbrief minutes are counted under skill:backbrief)",
+   "est_minutes": 1.0,
+   "est_tokens": 4000,
+   "est_cost_brl": 0.14,
+   "owner_involved": false,
+   "source": "journal:~/.local/share/shape/events.jsonl n=1",
+   "learned_n": 1
+  },
+  "skill:skill-smith": {
+   "kind": "skill",
+   "what_for": "create, update or adapt a skill",
+   "est_minutes": 8,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:sync": {
+   "kind": "skill",
+   "what_for": "leave every touched repo equal to the remote and clean",
+   "est_minutes": 2,
+   "est_tokens": 6000,
+   "est_cost_brl": 0.24,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:tensions": {
+   "kind": "skill",
+   "what_for": "record and retrieve Tension events shared by agents",
+   "est_minutes": 1,
+   "est_tokens": 3000,
+   "est_cost_brl": 0.12,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:thread": {
+   "kind": "skill",
+   "what_for": "open a card's topic in one call (tmux window + Hermes)",
+   "est_minutes": 1,
+   "est_tokens": 5000,
+   "est_cost_brl": 0.2,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:tmux": {
+   "kind": "skill",
+   "what_for": "read, list, send to, open and wait on tmux panes",
+   "est_minutes": 1,
+   "est_tokens": 2000,
+   "est_cost_brl": 0.08,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "skill:wiki-smith": {
+   "kind": "skill",
+   "what_for": "own the repo's .wiki, the agents' memory",
+   "est_minutes": 4,
+   "est_tokens": 15000,
+   "est_cost_brl": 0.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "profile:hacker": {
+   "kind": "profile",
+   "what_for": "writes code, tests, delivers the PR",
+   "est_minutes": 4.9,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.41,
+   "owner_involved": false,
+   "source": "journal:~/.local/share/shape/events.jsonl n=1",
+   "learned_n": 1
+  },
+  "profile:hipster": {
+   "kind": "profile",
+   "what_for": "interface and taste work",
+   "est_minutes": 5,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "profile:sre": {
+   "kind": "profile",
+   "what_for": "ops, servers, incidents",
+   "est_minutes": 5,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "profile:hustler": {
+   "kind": "profile",
+   "what_for": "market view of an idea",
+   "est_minutes": 5,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "profile:via-ads": {
+   "kind": "profile",
+   "what_for": "ads and search for Via",
+   "est_minutes": 5,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "profile:mantainer": {
+   "kind": "profile",
+   "what_for": "keeps the house's repos and skills tidy",
+   "est_minutes": 5,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "model:haiku": {
+   "kind": "model",
+   "what_for": "cheap and fast: lookups, mechanical edits, triage",
+   "est_minutes": 1,
+   "est_tokens": 20000,
+   "est_cost_brl": 0.3,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "model:sonnet": {
+   "kind": "model",
+   "what_for": "the default worker: code, writing, most tasks",
+   "est_minutes": 2.9,
+   "est_tokens": 50000,
+   "est_cost_brl": 1.76,
+   "owner_involved": false,
+   "source": "journal:~/.local/share/shape/events.jsonl n=1",
+   "learned_n": 1
+  },
+  "model:opus": {
+   "kind": "model",
+   "what_for": "judgment-heavy: architecture, hard bugs, second opinion",
+   "est_minutes": 6,
+   "est_tokens": 50000,
+   "est_cost_brl": 10.0,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "form:subagent": {
+   "kind": "form",
+   "what_for": "a background subagent in its own worktree, delivers a PR",
+   "est_minutes": 4.8,
+   "est_tokens": 60000,
+   "est_cost_brl": 2.11,
+   "owner_involved": false,
+   "source": "journal:~/.hermes/profiles/bili/cache/delegation/live/*/task-*.log n=190 + shape n=1",
+   "learned_n": 1
+  },
+  "form:thread": {
+   "kind": "form",
+   "what_for": "a topic that lives: tmux window + Hermes session on a card",
+   "est_minutes": 20,
+   "est_tokens": 120000,
+   "est_cost_brl": 4.8,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "form:card": {
+   "kind": "form",
+   "what_for": "a card in Upstream for later; nobody works now",
+   "est_minutes": 1,
+   "est_tokens": 2000,
+   "est_cost_brl": 0.08,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
+  "form:here": {
+   "kind": "form",
+   "what_for": "`--here`: this session does it, no subagent",
+   "est_minutes": 5,
+   "est_tokens": 40000,
+   "est_cost_brl": 1.6,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  }
+ }
+}
