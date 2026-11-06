@@ -1163,8 +1163,8 @@ def _name_tab(session: str, card_id: str, title: str) -> bool:
         rows.sort(key=lambda x: int(x[0]) if x[0].isdigit() else 0)
         idx = next((x[0] for x in rows if x[1].strip() == card_id), rows[0][0])
         target = f"={session}:{idx}"
-        # the tab carries the thread name (the owner's Value Object: one lowercase slug for session and tab), not the title
-        steps = (["rename-window", "-t", target, session.lower()], ["set-option", "-w", "-t", target, "automatic-rename", "off"],
+        # the tab carries the thread name (the owner's Value Object: the card title in lowercase, spaces and dots kept)
+        steps = (["rename-window", "-t", target, title.lower()], ["set-option", "-w", "-t", target, "automatic-rename", "off"],
                  ["set-option", "-w", "-t", target, "@card", card_id])
         return all(subprocess.run([tmux, *a], capture_output=True).returncode == 0 for a in steps)
     except OSError:
