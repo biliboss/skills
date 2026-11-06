@@ -3,7 +3,7 @@ name: pi
 description: >-
   Run the pi coding agent (pi.dev) with the owner's Claude accounts through the subscription, not an API key — on the Mac via the pi-claude-bridge extension, choosing the account (the main or the secondary one) by CLAUDE_CONFIG_DIR; check which account each folder has; install or repair the bridge; and see how pi reaches its providers on the VPS. Every action is a script in scripts/. Use when the user says "roda o pi", "pi com a conta do Claude", "pi com a conta principal", "usa o pi.dev aqui", "pi via cli", "as contas do pi", "o pi da VPS", "instala o bridge do pi". Not `delegate` (another Claude Code session) nor `bili` (the Hermes agent that launches pi robots on the VPS): this one runs pi itself, here.
 metadata:
-  version: 0.3.2
+  version: 0.3.3
 ---
 
 # pi — o pi.dev com as contas do Claude
@@ -21,6 +21,8 @@ O `pi` é o agente de terminal (pi.dev) que roda os robôs da VPS e que também 
 
 1. **Pronto e na versão mais nova?** `S/instalar.sh` confere o pi, instala o `pi-claude-bridge@0.9.3` se faltar e lista os modelos `claude-bridge/...`. `S/atualizar.sh [mac|vps|tudo]` põe todo pi na versão mais nova: o do Mac, o do `root` da VPS (pnpm global) e os dos usuários de `$CASA_VPS_USUARIOS_PI`, com as extensões e os catálogos. No fim, ele confere os logins OAuth do `root`. Ele não troca o pi da VPS se houver um rodando. Uma extensão com versão fixa (`@x.y.z`) não sobe sozinha: o script a lista. Antes de trocar a versão do bridge, leia o código do pacote novo (`npm pack`), porque ele roda com as permissões do pi.
 2. **Qual conta?** Use a conta da empresa do trabalho em questão: a principal para o trabalho dela, a secundária para o resto. Se não souber, pergunte. `S/contas.sh` mostra o e-mail e a organização de cada pasta, e `S/contas.sh --teste` faz o pi responder "ok" por cada uma.
+   - **A troca sozinha (extensão `pi-claude-accounts`):** o pi gasta a principal primeiro e só passa à reserva quando ela chega a 95% do limite de 5 h; volta à principal no primeiro prompt depois que ela renova. Roda o fork do biliboss (`~/src/pi-claude-accounts`, ramo `prioridade`), instalado de uma worktree fixa no commit revisado (`~/.pi/agent/forks/pi-claude-accounts`); o original sorteia a conta e não volta. A ordem fica em `~/.pi/agent/claude-accounts-priority.json`, que as instâncias antigas não apagam.
+   - **Os tokens moram no envless** (cofre `~/.cofre-claude`, env `claude`, chaves `CLAUDE_TOKEN_<NOME>`). `CASA_CLAUDE_PRIORIDADE="<principal> <reserva>" S/contas-tokens.sh --sem-login` leva-os ao `claude-accounts.json` (0600) sem o valor passar por tela ou log; num pi aberto, `/reload` e `/claude-accounts refresh`.
 3. **Rodar:** `S/pi-claude.sh <conta> [args do pi]` (o nome da conta principal ou da secundária).
    - Uma pergunta: `S/pi-claude.sh <conta> -p "<pedido>"`.
    - Outro modelo: `--model claude-bridge/claude-haiku-4-5` (o padrão é `claude-bridge/claude-sonnet-5`, ou `$PI_CLAUDE_MODEL`).
@@ -43,7 +45,10 @@ O `pi` é o agente de terminal (pi.dev) que roda os robôs da VPS e que também 
 
 ## O que pega
 
-- **O login OAuth da pasta não vai para o envless nem é copiado entre máquinas** (nem o `~/.pi/agent/auth.json`, nem a pasta do Claude Code): o token se renova a cada uso, e a cópia envelhece e pode derrubar o login da outra máquina. O token do `claude setup-token` é fixo por 1 ano e vai para o envless, como as chaves `zai` e `kimi`.
+- **O `claude setup-token` usa a sessão do navegador padrão,** e no Mac o padrão é o Safari: com o claude.ai logado lá na outra conta, ele autoriza sozinho e o token sai da conta errada. Rode com `BROWSER=/usr/bin/true` (não abre nada), abra o link no perfil certo do Chrome (`open -a "Google Chrome" --args --profile-directory=<perfil> "<url>"`, sempre na mesma aba), confira o "Logged in as" antes do Authorize e cole o código (`código#state`) no pane. Confira depois: o uso e o reset de 5 h de cada token têm de ser diferentes.
+- **O token do `setup-token` vale 1 ano e não se renova; o login da pasta (`claude auth login`) renova o acesso a cada uso, mas o token de renovação tem prazo fixo (semanas)** e o Claude Code avisa 3 dias antes. Anote a data de cada token e deixe um cartão no Linear antes de vencer. Gerar outro não revoga o antigo: revogue em claude.ai › Settings › Claude Code.
+- **Uma conta Max com pouco uso não manda a janela de 5 h** (só a de 7 dias): o `/claude-accounts` mostra `n/a`, e a extensão a trata como vazia.
+- **O login OAuth do Claude não vai para o envless nem é copiado entre máquinas** (nem o `~/.pi/agent/auth.json`, nem a pasta do Claude Code): o token se renova a cada uso, e a cópia envelhece e pode derrubar o login da outra máquina. O token do `setup-token`, que é fixo por 1 ano, vai para o envless (o cofre `~/.cofre-claude`), como as chaves `zai` e `kimi`.
 - **Login é do dono:** o OAuth acontece no navegador, e o agente não o conclui sozinho. Peça `! CLAUDE_CONFIG_DIR=<pasta> claude auth login` (uma conta no Claude Code) ou `! pi` seguido de `/login` (o login do próprio pi, como na VPS).
 - **`pi --list-models` só mostra os modelos `zai` com `ZAI_API_KEY` no ambiente:** sem ela, o GLM parece não existir. Confira com `ZAI_API_KEY="$(cat ~/glm_token)" pi --list-models | grep glm`.
 - **O catálogo do `claude-bridge` vem do pi e pode estar atrás** dos modelos novos. Confira com `pi --list-models claude-bridge` antes de pedir um modelo, e atualize com `S/atualizar.sh mac`.
