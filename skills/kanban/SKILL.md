@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.6.0
+  version: 0.6.1
 ---
 
 # kanban
@@ -32,6 +32,9 @@ upstream the options still being discovered, downstream the work committed to.
 | `decision.requested` | `sweep --apply` | `{text, repo, ref, reason}` | only the owner decides: a merge that publishes (the repo's main deploys), a branch with work outside main |
 
 The descriptions for humans are the comments on each command in `EVENTS`.
+
+- **Upstream is planning**: `pull` also runs `domain-plan`'s `plan.sh start <slug> --repo <repo> --domain <domain>` (the JSON has
+  `plan`), so the card's plan file exists when the session opens; the drawing and the drift are skill `domain-plan`.
 
 ## The one writer
 

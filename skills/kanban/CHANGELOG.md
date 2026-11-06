@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-11-06
+
+### Changed
+
+- `kanban.sh pull` opens the card's plan with `domain-plan` (`plan.sh start`, `plan` in the JSON; a missing skill is `null`, a failed start never fails the pull; `PLAN_SH` overrides the script in tests).
+
 ## [0.6.0] - 2026-11-06
 
 ### Changed

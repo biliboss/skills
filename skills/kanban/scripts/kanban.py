@@ -1099,10 +1099,21 @@ def pull(title: str, domain: str | None, repo: str, context: str | None, center:
     if r.returncode != 0:
         raise ValueError(f"hermes.sh workspace failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()[-400:]}")
     workspace = json.loads(r.stdout.strip().splitlines()[-1])
-    return {"slug": name, "card": {"id": card.id, "title": card.title, "domain": domain, "stage": "Upstream",
+    return {"slug": name, "plan": _start_plan(name, domain, repo), "card": {"id": card.id, "title": card.title, "domain": domain, "stage": "Upstream",
                                    "state": card_state},
             "center": {"id": center, "domain": domain, "bound_now": bound} if center else None,
             "workspace": workspace, "switched": _switch_client(name) if switch else None}
+
+
+def _start_plan(name: str, domain: str, repo: str) -> dict | None:
+    """Upstream is planning: open the card's plan (skill domain-plan, `plan.sh start`). Never fails the pull: a missing
+    skill is None, a failed start is {"error"}."""
+    sh = Path(os.environ.get("PLAN_SH") or _sibling("domain-plan", "plan.sh"))
+    if not sh.exists():
+        return None
+    r = subprocess.run(["bash", str(sh), "start", name, "--repo", repo, "--domain", domain], capture_output=True, text=True)
+    out = (r.stdout or r.stderr).strip().splitlines()
+    return {"started": r.returncode == 0, "note": out[-1] if out else ""}
 
 
 class PullFull(Exception):
