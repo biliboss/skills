@@ -27,6 +27,9 @@ Rules: short, for a human. One goal. 3-6 steps. A decision only when the owner m
 """
 import json, os, sys, tempfile, time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from view_state import check, template  # the view state, closed as a value object
+
 ROOT = os.path.expanduser(os.environ.get("THREADVIEW_DIR", "~/.local/state/threadview"))
 STATES = {"done", "doing", "blocked", "todo"}
 
@@ -38,13 +41,10 @@ def load(sid):
     except FileNotFoundError:
         return template()
 
-def template():
-    """Every thread is born from this template: in progress in the Upstream, the Downstream still ahead."""
-    return {"goal": {"title": "", "subtitle": ""}, "stage": {"upstream": "doing", "downstream": "todo", "ready": 0},
-            "steps": [], "artifacts": [], "decision": None, "pulse": ""}
-
-
 def save(sid, v):
+    problems = check(v)
+    if problems:  # nothing outside the shape reaches the screen
+        die("; ".join(problems))
     os.makedirs(ROOT, exist_ok=True)
     v["updated_at"] = time.time()
     fd, tmp = tempfile.mkstemp(dir=ROOT, suffix=".tmp")

@@ -25,7 +25,8 @@ DB = os.environ.get("THREADVIEW_DB") or os.path.expanduser(f"~/.hermes/profiles/
 VIEW = os.path.join(VIEWS, f"{SID}.json")
 VIEWPY = os.path.join(HERE, "view.py")
 LOG = os.path.join(VIEWS, f"{SID}.hermes.log")
-BORDO, DIM, ACC = "#800020", "grey50", "#d7875f"
+BORDO = ACC = "#c4405e"   # the single accent: what is moving or waits for the owner
+DIM, MID, HI = "grey50", "grey70", "bright_white"
 # the thread view is designed for a third of the screen: it draws at most THREADVIEW_WIDTH columns (default 88)
 c = Console(width=min(shutil.get_terminal_size((88, 40)).columns, int(os.environ.get("THREADVIEW_WIDTH", "88"))))
 LABELS = [False]
@@ -63,11 +64,11 @@ def load_view():
 def tag(r, name):
     if not LABELS[0]: return r
     g = Table.grid(expand=True); g.add_column(ratio=1); g.add_column(width=12, justify="right")
-    g.add_row(r, Text(name, style="italic magenta")); return g
+    g.add_row(r, Text(name, style="italic " + DIM)); return g
 
 def section(name, on=False): return Text.assemble(("● " if on else "", ACC), (name.upper(), f"bold {ACC}" if on else f"bold {DIM}"))
 
-MARK = {"done": ("✓", "green"), "doing": ("◐", ACC), "blocked": ("■", f"bold {BORDO}"), "todo": ("○", DIM)}
+MARK = {"done": ("✓", MID), "doing": ("◐", ACC), "blocked": ("■", f"bold {BORDO}"), "todo": ("○", DIM)}
 
 SUBAGENTS = {"n": 0, "since": time.time(), "checked": 0}
 
@@ -115,7 +116,7 @@ def body(v, flash={}):
     sg = v.get("stage")
     if sg:  # the thread's lane: Upstream, then Downstream (an optional component, on by the thread template)
         def lane(name, st):
-            if st == "done": return [("✓ ", "green"), (name, "bold green")]
+            if st == "done": return [("✓ ", MID), (name, "bold " + MID)]
             if st == "doing":
                 return [("◐◓◑◒"[int(time.time() * 3) % 4] + " ", ACC), (name, f"bold {ACC}"), ("  em progresso", ACC)]
             return [("○ ", DIM), (name, DIM)]
@@ -139,7 +140,7 @@ def body(v, flash={}):
         if ck and sg.get("downstream", "todo") == "todo":  # the Definition of Ready, only while in the Upstream
             ct = Table.grid(padding=(0, 1)); ct.add_column(width=4); ct.add_column(ratio=1)
             for c in ck:
-                ct.add_row(Text("  ☑" if c["done"] else "  ☐", "green" if c["done"] else DIM),
+                ct.add_row(Text("  ☑" if c["done"] else "  ☐", MID if c["done"] else DIM),
                            Text(c["text"], DIM if c["done"] else ""))
             parts.append(tag(ct, "Ready"))
         parts.append(Text())
@@ -158,7 +159,7 @@ def body(v, flash={}):
             if st == "running" and w.get("pid"):
                 try: os.kill(w["pid"], 0)
                 except OSError: st = "lost"
-            glyph = {"running": ("◐◓◑◒"[int(time.time() * 3) % 4], ACC), "done": ("✓", "green"), "fail": ("✗", "red"), "lost": ("?", "red")}[st]
+            glyph = {"running": ("◐◓◑◒"[int(time.time() * 3) % 4], ACC), "done": ("✓", MID), "fail": ("✗", ACC), "lost": ("?", ACC)}[st]
             end = w.get("ended_at") or time.time()
             what = Text(w.get("what", w["id"]), "bold" if st == "running" else DIM)
             note = w.get("note", "") if st != "lost" else "sumiu"
@@ -174,7 +175,7 @@ def body(v, flash={}):
         done = [x for x in v["steps"] if x.get("state") == "done"]
         st = Table.grid(padding=(0, 1), expand=True); st.add_column(width=2); st.add_column(ratio=1)
         if done:
-            st.add_row(Text("✓", "green"), Text(f"{len(done)} feito{'s' if len(done) > 1 else ''}", DIM))
+            st.add_row(Text("✓", MID), Text(f"{len(done)} feito{'s' if len(done) > 1 else ''}", DIM))
         for x in v["steps"]:
             if x.get("state") == "done": continue
             m, sty = MARK.get(x.get("state", "todo"), MARK["todo"])
@@ -205,12 +206,12 @@ def body(v, flash={}):
                 ph = int(time.time() * 6) + 2 * cells.__len__()
                 fill = ("░▒▓█▓▒"[ph % 6] + "░▒▓█▓▒"[(ph + 1) % 6], ACC)
             else:
-                fill = ("▓▓", "green") if a.get("state") == "ready" else ("░░", DIM)
+                fill = ("▓▓", MID) if a.get("state") == "ready" else ("░░", DIM)
             name = a.get("name", "").split(":")[0].split("(")[0].strip()[:12]
             rec = "recomend" in a.get("name", "").lower()
             cells.append(Text.assemble(("┌────┐\n│ ", ACC if rec else DIM), fill, (" │\n└────┘\n", ACC if rec else DIM),
                                        (a.get("key", ""), "bold"), (f" {name}", ACC if rec else DIM), (" ★" if rec else "", ACC),
-                                       (f"\n♛ {a['wins']}×" if a.get("wins") else "", "#e5c07b")))
+                                       (f"\n♛ {a['wins']}×" if a.get("wins") else "", MID)))
         sl.add_row(*cells)
         parts += [section("artefatos", "artifacts" in flash), tag(sl, "Artifacts")]
         if v.get("url"):
@@ -224,7 +225,7 @@ def body(v, flash={}):
         if d.get("cmd"): t.append("\n\n"); t.append(d["cmd"], style=f"bold {ACC}")
         if d.get("options"):
             t.append("\n\n")
-            for i, o in enumerate(d["options"], 1): t.append(f" {i} {label(o)} ", style="black on cyan" if i > 1 else "black on green"); t.append("  ")
+            for i, o in enumerate(d["options"], 1): t.append(f" {i} {label(o)} ", style="reverse " + DIM if i > 1 else "reverse"); t.append("  ")
         parts += [tag(Panel(t, title="◆ com você" + (" · novo" if "decision" in flash else ""), title_align="left", border_style=BORDO, box=box.HEAVY, padding=(0, 1)), "Decision"), Text()]
     if v.get("pulse") and not drawing(v):
         pl = Text.assemble(("◌ ", ACC if "pulse" in flash else DIM), (v["pulse"], ACC if "pulse" in flash else DIM))
@@ -249,14 +250,14 @@ def line(it):
     if it["state"] == "queued":
         glyph, gs, ticks, ts, timer, txt = "⋯", DIM, "", DIM, ago(now - it["at"]), DIM
     elif it.get("failed"):
-        glyph, gs, ticks, ts, timer, txt = "✗", "red", "falhou", "red", ago(it["done_at"] - it["sent_at"]), DIM
+        glyph, gs, ticks, ts, timer, txt = "✗", ACC, "falhou", ACC, ago(it["done_at"] - it["sent_at"]), DIM
     elif it.get("done_at"):
         ch = it.get("changed")
-        glyph, gs, ticks, ts, timer, txt = "✓", "green", ("↻ " + ", ".join(ch)) if ch else "sem mudança", ACC if ch else DIM, ago(it["done_at"] - it["sent_at"]), DIM
+        glyph, gs, ticks, ts, timer, txt = "✓", MID, ("↻ " + ", ".join(ch)) if ch else "sem mudança", ACC if ch else DIM, ago(it["done_at"] - it["sent_at"]), DIM
         if it.get("over"): glyph, gs, ticks, ts = "⚠", ACC, ticks + " · log", ACC
     else:
         glyph, gs = "◐◓◑◒"[int(now * 3) % 4], ACC
-        ticks, ts = ("✓✓", "green") if it["read"] else ("✓", "green")
+        ticks, ts = ("✓✓", MID) if it["read"] else ("✓", MID)
         timer, txt = ago(now - it["sent_at"]), "bright_white"
         if now - it["sent_at"] > BUDGET: glyph, gs = "◆", "bold " + ACC
     g = Table.grid(expand=True, padding=(0, 1))
@@ -324,7 +325,7 @@ def poll_panel(d, v):
         t.append(name(o).ljust(w), style="bold bright_white" if on else "")
         if isinstance(o, dict) and "pct" in o:
             n = round(o["pct"] / 10)
-            t.append("  " + "█" * n, style=ACC if i == 0 else "grey62"); t.append("░" * (10 - n), style="grey30")
+            t.append("  " + "█" * n, style=ACC if i == 0 else MID); t.append("░" * (10 - n), style="grey30")
             t.append(f" {o['pct']:>3}%", style=f"bold {ACC}" if i == 0 else DIM)
         if i == 0: t.append("  recomendado", style=f"italic {DIM}")
     keys = "j/k mover · ⏎ enviar" + (f" · o {OPEN_LABEL}" if v.get("url") else "") + " · i responder outra coisa"
@@ -349,18 +350,18 @@ def waiting_panel(v):
 def footer(buf, q, v=None):
     if drawing(v) and not buf and not POLL["prefix"]:
         return Group(*([stack(q)] if q else []), tag(waiting_panel(v), "Waiting"),
-                     tag(Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
+                     tag(Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
     PEND["since"] = None if not drawing(v) else PEND["since"]
     d = poll_of(v or {}) if not buf else None
     POLL["live"] = bool(poll_of(v or {}))
     if d:
         return Group(*([stack(q)] if q else []), tag(poll_panel(d, v), "Poll"),
-                     tag(Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
+                     tag(Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
     inp = Panel(Text.assemble(("❯ ", f"bold {ACC}"), (buf, ""), ("" if buf else ("feedback para a próxima rodada" if POLL["prefix"].strip() else ("responder outra coisa" if POLL["prefix"] else "qualquer pedido")), DIM), ("▌", "blink")),
                 box=box.ROUNDED, border_style=DIM, padding=(0, 1))
     hint = Table.grid(expand=True); hint.add_column(); hint.add_column(justify="right")
     hint.add_row(Text("⏎ empilhar · ctrl+l rótulos · ctrl+c sair", style=DIM),
-                 Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM)))
+                 Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM)))
     return Group(*([stack(q)] if q else []), tag(inp, "Input"), tag(hint, "Hints"))
 
 def footer_height(q, v=None, buf=""):
