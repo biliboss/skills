@@ -6,7 +6,8 @@
 # A thread is a /branch of the Hermes session that invoked the skill ($HERMES_SESSION_ID; --from overrides; --new only when asked).
 # The tab opens right after the invoking agent's window (tab 2 for a desktop caller: right after the session's first window).
 # The tab opens in the caller's tmux session ($TMUX_PANE's); outside tmux, in the session of the owner's most recently active client; --session overrides. Never a session per card.
-# Env: TMUX_SOCKET (private server, tests), TMUX_BIN, HERMES_BIN, KANBAN_SH, THREAD_READY_TIMEOUT (s, default 40).
+# The branch is made OFFLINE by fork.py (Hermes's own SessionDB, Hermes's interpreter): the window only resumes the NEW session, never the live source.
+# Env: THREAD_FORK (command: <source-id> <title> --profile P -> new id; default fork.py under Hermes's python), HERMES_PY, TMUX_SOCKET (private server, tests), TMUX_BIN, HERMES_BIN, KANBAN_SH, THREAD_READY_TIMEOUT (s, default 40).
 set -euo pipefail
 
 TMUX_BIN="${TMUX_BIN:-$(type -P tmux || true)}"
@@ -26,6 +27,13 @@ sessions() {
     awk 'NR>2 && NF>1 { id=$NF; t=$0; sub(/[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+ [^[:space:]]+[[:space:]]+[^[:space:]]+$/, "", t); print id "\t" t }'
 }
 session_ids() { sessions | cut -f1 | sort; }
+
+hermes_py() { # the interpreter the `hermes` launcher execs (fork.py needs Hermes's own dependencies)
+  [ -z "${HERMES_PY:-}" ] || { printf '%s' "$HERMES_PY"; return; }
+  grep -o '/[^ ]*/python3[^ ]*' "$(readlink -f "$HERMES_BIN")" 2>/dev/null | head -1 && return
+  local inner; inner="$(grep -o '/[^ "]*/hermes' "$HERMES_BIN" 2>/dev/null | head -1)"
+  [ -n "$inner" ] && grep -o '/[^ ]*/python3[^ ]*' "$inner" 2>/dev/null | head -1
+}
 
 wait_for() { # pane regex
   local deadline=$((SECONDS + READY_TIMEOUT))
@@ -106,9 +114,16 @@ cmd_open() {
   fi
   ids_before="$(session_ids)"
 
-  local hcmd
+  # branch OFFLINE first: the window then resumes the new copy, so it is never a second client of a live source
+  local hcmd newid=""
   if [ "$mode" = branch ]; then
-    hcmd="$(printf '%q -p %q --resume %q' "$HERMES_BIN" "$PROFILE" "$from")"
+    if [ -n "${THREAD_FORK:-}" ]; then newid="$($THREAD_FORK "$from" "$title" --profile "$PROFILE")" || die "fork failed for session $from"
+    else
+      local py; py="$(hermes_py)"; [ -n "$py" ] || die "cannot find Hermes's python (set HERMES_PY)"
+      newid="$("$py" -I "$HERE/fork.py" "$from" "$title" --profile "$PROFILE")" || die "fork failed for session $from (nothing opened)"
+    fi
+    [ -n "$newid" ] || die "fork printed no session id"
+    hcmd="$(printf '%q -p %q --resume %q' "$HERMES_BIN" "$PROFILE" "$newid")"
   else
     hcmd="$(printf '%q -p %q' "$HERMES_BIN" "$PROFILE")"
   fi
@@ -125,11 +140,7 @@ cmd_open() {
 
   wait_ready "$win" || die "Hermes did not get ready in ${READY_TIMEOUT}s (window $win left open)"
 
-  local sid=""
-  if [ "$mode" = branch ]; then
-    tm send-keys -t "$win" -l "/branch $title"; tm send-keys -t "$win" Enter
-    wait_for "$win" 'branched' || die "Hermes did not confirm the /branch in ${READY_TIMEOUT}s (window $win left open, brief not sent)"
-  fi
+  local sid="$newid"
   if [ "$have_brief" = 1 ] && [ -n "$brief" ]; then
     printf '%s' "$brief" | tm load-buffer -b "thread-$topic" -
     tm paste-buffer -p -d -b "thread-$topic" -t "$win"
@@ -139,12 +150,8 @@ cmd_open() {
 
   # session id: the one that appeared after the window opened
   local deadline=$((SECONDS + 25)) line
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    if [ "$mode" = branch ]; then
-      line="$(sessions | awk -F'\t' -v t="$title" '$2==t {print $1; exit}')"
-    else
-      line="$(comm -13 <(printf '%s\n' "$ids_before") <(session_ids) | head -1)"
-    fi
+  while [ -z "$sid" ] && [ "$SECONDS" -lt "$deadline" ]; do
+    line="$(comm -13 <(printf '%s\n' "$ids_before") <(session_ids) | head -1)"
     if [ -n "$line" ]; then sid="$line"; break; fi
     sleep 0.5
   done

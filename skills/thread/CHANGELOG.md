@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-06
+
+### Fixed
+
+- Branching no longer resumes the invoking session in a TUI. When that session was live (the desktop chat) the window became a second client of it: what was typed arrived as a user message in the live chat and `/branch` was refused mid-turn.
+
+### Changed
+
+- `scripts/fork.py` makes the branch offline through Hermes's own `SessionDB` (same lineage as `/branch` and the API's `/fork`: parent id, `_branched_from`, system prompt, transcript, title) and never ends the source. The window resumes the NEW session and the brief is pasted after `ready`.
+
 ## [0.2.0] - 2026-11-06
 
 ### Changed
