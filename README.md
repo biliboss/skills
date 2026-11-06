@@ -6,6 +6,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 |---|---|
 | `tensions` | registra eventos de domínio significativos no JSONL global, com Python stdlib e recipes `just` opcionais |
 | `task-understand` | em desenho, domínio Tasks: um comando para a tarefa explicada a alguém e repetida de volta do jeito que foi entendida (teach-back) |
+| `cost-track` | em desenho, domínio Costs: tudo tem custo; cada domínio pertence a um centro de custo e o tempo ligado vira dinheiro |
 | `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script |
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
