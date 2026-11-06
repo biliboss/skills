@@ -766,6 +766,9 @@ contra o pedido confirmado, não contra o relato de quem a fez.
 instalado, uma página no ar, o comportamento de verdade). Não rode de novo o que o relato já prova com evidência, \
 a menos que você duvide dela.
 - Rode o que prova (testes, build, o comando de verdade) dentro do worktree indicado; não edite nada.
+- Se a entrega roda (um servidor, uma página, uma CLI), verifique-a rodando: suba numa porta de teste livre (nunca \
+numa que já está em uso, que é de outra pessoa), chame o que mudou (a rota, a página, o comando), confira a resposta \
+e derrube só o que você subiu. Testes unitários verdes provam as partes, não que elas ainda se encaixam.
 - Cada checagem diz o que foi checado, como, a evidência que você viu (saída, trecho, número) e se passou.
 - Termine com UM bloco JSON, o último da resposta, e nada depois dele:
 ```json
