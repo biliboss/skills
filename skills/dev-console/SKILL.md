@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.17.0
+  version: 0.18.0
 ---
 
 # dev-console
@@ -170,9 +170,19 @@ into the browser's Print). The two key handlers listen in the capture phase so t
 
 `/agents` (listed by ⌘P beside Domain and Playground): what the owner typed to the agents and the agents' session logs,
 in real time. Two views switched in place (`?view=prompts|log`): **Prompts** (time, session, folder, text; a click
-expands the whole text) and **Log** (prompts, assistant text, tool calls). A filter by session (`?session=`), chips for
+expands the whole text) and **Log** (prompts, assistant text, tool calls as `Name: what it is about`: the command's first
+line, the file's last two path parts, the skill, the recipient). A filter by session (`?session=`), chips for
 `cross` / `notification` / `other` / `side` (`?show=`), a pause for the autoscroll (`?pause=1`). Delivery 1 reads Claude
 Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are another source class in `SOURCES`.
+
+- **A session is shown by the name given with `/rename`** (its `custom-title` line; `agent-name` when there is none),
+  in the rows and in the session filter; the short id stays beside it in the filter.
+- **The toolbar is console text, not buttons**: spans with `tabindex="0"` (Enter and Space click them), grey, the active
+  one white and underlined, one line. Never `<button>` or `role="button"`: MonsterUI paints both as blue filled
+  buttons. It is the same bar in both views; the chips that only filter Prompts are dimmed in the Log, never hidden.
+- **The console loads its own sibling modules by path** (`_sibling`, before any project): a project from another
+  checkout of this skill puts its folder first on `sys.path`, and a test console would otherwise run that checkout's
+  `console_agents.py` beside its own `dev-console.py`.
 
 - **What is a prompt (an allow-list)**: exactly `origin.kind == "human"` with `promptSource == "typed"`, or `"queued"`
   (typed while the agent was busy: still a prompt, with `queued: true` and a `queued` badge on the row). A message typed

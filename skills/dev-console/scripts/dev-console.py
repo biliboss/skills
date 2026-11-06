@@ -40,6 +40,20 @@ def load_project(path: str):
     return mod
 
 
+def _sibling(name: str):
+    """This script's own module, loaded by its path before any project: load_project puts each project's folder first on
+    sys.path, and a project from another checkout of this skill would otherwise hand us that checkout's copy."""
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parent / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # a later `import <name>` gets this one
+    spec.loader.exec_module(mod)
+    return mod
+
+
+for _name in ("console_agents", "console_playground"):
+    _sibling(_name)
+
+
 if "--project" in sys.argv:  # the module body needs the projects, so read the flags before argparse runs
     os.environ["DEV_CONSOLE_PROJECT"] = os.pathsep.join(
         str(Path(sys.argv[i + 1]).expanduser().resolve()) for i, a in enumerate(sys.argv) if a == "--project")
@@ -1665,16 +1679,16 @@ def agents_page():
     payload = json.dumps({"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Agents", "domains": domains, "modules": _modules()},
                          ensure_ascii=False).replace("</", "<\\/")
     btn = "px-2 rounded border border-transparent cursor-pointer"
-    chip = lambda k: Span(k, id=f"c-{k}", role="button", cls=btn)  # spans: MonsterUI restyles every <button>  # noqa: E731
+    chip = lambda k: Span(k, id=f"c-{k}", tabindex="0", cls=btn)  # spans without role="button": MonsterUI paints <button> and role="button" as blue filled buttons  # noqa: E731
     tools = Div(
-        Span("Prompts", id="v-prompts", role="button", cls="px-2 cursor-pointer"), Span("Log", id="v-log", role="button", cls="px-2 cursor-pointer"),
+        Span("Prompts", id="v-prompts", tabindex="0", cls="px-2 cursor-pointer"), Span("Log", id="v-log", tabindex="0", cls="px-2 cursor-pointer"),
         NotStr('<select id="sess" class="h-6 max-w-[28rem] bg-transparent border border-neutral-300 dark:border-neutral-700 rounded px-1"></select>'),
         chip("cross"), chip("notification"), chip("other"), chip("side"),
-        Span("", id="pause", role="button", cls="ml-auto px-2 cursor-pointer"), Span("", id="live"),
+        Span("", id="pause", tabindex="0", cls="ml-auto px-2 cursor-pointer whitespace-nowrap"), Span("", id="live", cls="whitespace-nowrap"),
         cls="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500")
     # the module's own script reuses the Playground's preamble + the one switcher script, with ⌘P's current module set
     pre = PLAYGROUND_JS.replace("'/playground'", "'/agents'")  # the Playground's script is exactly preamble + switcher
-    return Title("dev-console · Agents"), Style(CSS), Div(
+    return Title("dev-console · Agents"), Link(rel="icon", href="data:,"), Style(CSS), Div(
         tools, Div(id="warn", cls="px-3 text-amber-600 empty:hidden"), Div(id="aglist", cls="flex-1 min-h-0 overflow-y-auto"),
         _status_bar("Agents", False, module=False), _switcher(),
         Script(payload, type="application/json", id="data"), Script(pre + AG.AGENTS_JS, type="module"),

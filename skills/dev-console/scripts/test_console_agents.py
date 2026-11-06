@@ -111,6 +111,23 @@ class NormalizerTest(unittest.TestCase):
         e = norm(line(type="assistant", message={"content": [{"type": "tool_use", "name": "Bash"}, {"type": "tool_use", "name": "Read"}]}))
         self.assertEqual((e["kind"], e["text"]), ("tool", "Bash, Read"))
 
+    def test_tool_row_says_what_the_call_is_about(self):
+        e = norm(line(type="assistant", message={"content": [
+            {"type": "tool_use", "name": "Bash", "input": {"command": "git status\nsecond line"}},
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": "/w/demo/pkg/app.py"}},
+            {"type": "tool_use", "name": "Skill", "input": {"skill": "tmux"}},
+            {"type": "tool_use", "name": "Unknown", "input": {"x": 1}}]}))
+        self.assertEqual(e["text"], "Bash: git status, Edit: pkg/app.py, Skill: tmux, Unknown")
+
+    def test_rename_names_the_session_and_is_not_an_entry(self):
+        fs = fs_for()
+        self.assertIsNone(norm(line(type="agent-name", agentName="ag-fallback"), fs=fs))
+        self.assertEqual(fs.title, "ag-fallback")
+        self.assertIsNone(norm(line(type="custom-title", customTitle="bili"), fs=fs))
+        self.assertEqual(fs.title, "bili")
+        self.assertIsNone(norm(line(type="agent-name", agentName="other"), fs=fs))
+        self.assertEqual(fs.title, "bili")  # a /rename title wins over an agent name
+
     def test_noise_types_are_dropped(self):
         for t in ("attachment", "api-request", "last-prompt", "permission-mode", "mode"):
             self.assertIsNone(norm(line(type=t)))
