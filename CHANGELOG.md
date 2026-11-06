@@ -2,13 +2,19 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.40.0] - 2026-11-06
+
+### Added
+
+- `search-console` 0.1.0: o Google Search Console lido por uma conta de serviço só de leitura (`scripts/gsc.sh`: sites, consultas e páginas por período, sitemaps, inspeção de URL); primeiro uso no perfil `via-ads` do Hermes.
+
 ## [0.39.0] - 2026-11-06
 
 ### Added
 
 - `dev-console` 0.21.0: status line nativa no DevConsole.app (▶/⏸, centro de custo, R$ de hoje, módulo); a página mantém o conteúdo e esconde a própria barra só dentro do app; `GET /api/status`.
 
-## [0.38.0] - 2026-11-06
+## [0.40.0] - 2026-11-06
 
 ### Added
 
