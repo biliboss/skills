@@ -14,8 +14,8 @@ Layout: the work area (entity rail on the left, the selected record on the right
 domain model (DDD: aggregate root, entities, commands, events); Model = the state machine.
 Keys (vim-style goto): g d Domain, g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
 g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. All UI state lives in the query.
-A module may be a project widget (MODULE_WIDGETS), and / opens the module a domain names with CONSOLE_HOME (the
-Kanban's Quadro), else the first domain.
+A module may be a project widget (MODULE_WIDGETS). / is the home, the focus (console_focus.py; g h from any page): the
+Kanban card in Doing with the focus inside, else the module a domain names with CONSOLE_HOME (the Kanban's Quadro).
 """
 from __future__ import annotations
 
@@ -1733,7 +1733,7 @@ const isModule = t => Object.prototype.hasOwnProperty.call(MW, t);
 Object.keys(MW).forEach(name => {
   TABS[name] = () => `<div class="h-full flex"><div id="module-view" data-w-host class="flex-1 min-w-0 min-h-0 overflow-auto">
       <p class="px-4 py-3 text-neutral-400">carregando…</p></div>${SIDE_HTML}</div>`;
-  if (!KEYS[name]) { const used = new Set(Object.values(KEYS)); KEYS[name] = [...name.toLowerCase()].find(c => /[a-z]/.test(c) && !used.has(c)); }
+  if (!KEYS[name]) { const used = new Set([...Object.values(KEYS), 'h']); KEYS[name] = [...name.toLowerCase()].find(c => /[a-z]/.test(c) && !used.has(c)); }
 });
 function loadModule(name) {
   const [ev, w] = MW[name], box = $('module-view');
@@ -2276,8 +2276,14 @@ def event_widgets(slug: str, tid: str, event: str, e: str = ""):
 
 @rt("/")
 def index():
-    """The console's home: the module a domain names with CONSOLE_HOME (the Kanban's Quadro), when that domain has an
-    entity to open; else the first domain, as before. The status line switches between them."""
+    """The console's home is the focus (console_focus.py): the Kanban card in Doing with the current focus inside
+    (/home); with the Kanban as the focus, or no card in Doing, the board (_board_home). g h comes here from any page."""
+    return RedirectResponse(FOCUS.snapshot(_board_home())["home"], status_code=303)
+
+
+def _board_home() -> str:
+    """The board: the module a domain names with CONSOLE_HOME (the Kanban's Quadro), when that domain has an entity to
+    open; else the first domain, as before. The status line switches between them."""
     for slug, mod in DOMAINS.items():
         home = getattr(mod, "CONSOLE_HOME", None)
         if not home or not use(slug):
@@ -2287,8 +2293,8 @@ def index():
         except Exception:  # a broken journal must not take the home down: the first domain opens instead
             has_entity = False
         if has_entity:
-            return RedirectResponse(f"/domain/{slug}?tab={quote(home)}", status_code=303)
-    return RedirectResponse(f"/domain/{_first_domain()}", status_code=303)
+            return f"/domain/{slug}?tab={quote(home)}"
+    return f"/domain/{_first_domain()}"
 
 
 def _first_domain() -> str:
@@ -2564,6 +2570,15 @@ def playground():
         Script(src=f"{PG.PREFIX}/web/eventos.js", type="module"),
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )
+
+
+# --- the focus home (console_focus.py, its own file): /home, /home/shot, GET /agent/focus, and g h on every page -----
+FOCUS = _sibling("console_focus")
+FOCUS.register(app, rt, _json, SimpleNamespace(
+    css=CSS, status_bar=lambda name: _status_bar(name, False, module=False), switcher=_switcher,
+    switcher_js=lambda href: PLAYGROUND_JS.replace("'/playground'", f"'{href}'"), board=_board_home, recorder=REC,
+    data=lambda href: {"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Home", "modules": _modules(),
+                       "domains": [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]}))
 
 
 def _serve(port: int) -> None:

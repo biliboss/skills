@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.25.0
+  version: 0.26.0
 ---
 
 # dev-console
@@ -61,9 +61,10 @@ adding a domain needs no restart: `console.sh domains add <path>` (it appends th
 `~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`, `ent`), so a reload or a shared link reopens the same view.
-**`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when
-that domain's journal has an entity; else the first domain, as before (a domain page with an empty journal is a dead
-end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
+**`/` is the console's home, the focus** (below, "The focus home"): the Kanban card in focus with the current focus
+inside (`/home`); with the Kanban as the focus or no card in focus, the board: the module a domain names with
+`CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when that domain's journal has an entity; else the first domain, as
+before (a domain page with an empty journal is a dead end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
 `/api/palette` without a domain) point at the first domain by its URL.
 
 ## Agents: console.sh
@@ -108,7 +109,9 @@ window holding a `WKWebView` (`isInspectable = true`) on the console page (defau
 FastHTML server still serves it, nothing moved out of the web). The title follows the page title. The console's UI
 is made for **two thirds of a screen**: on first launch the window takes two thirds of the main screen's visible
 width and its full height, docked to the right (the left third stays free for a terminal or chat); `dock left|right`
-re-docks it at two thirds, `resize` sets any size, and the frame is remembered after that.
+re-docks it at two thirds, `resize` sets any size, and the frame is remembered after that. **At launch it opens the home**
+(`/`, the focus; `launchURL` in `ConsoleCore`), never the last URL saved in `state.json`; a window launched for one page
+(`DEV_CONSOLE_URL`, `window.sh --owner <name> launch <url>`) opens that page.
 
 The agent drives it only through `scripts/window.sh`, and the two files in `~/.local/state/dev-console-window/`
 have one writer each:
@@ -192,6 +195,39 @@ is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/
   the layer-3 window, ~560 px wide) and capture just that window with `screencapture -x -l<window number>`.
   `tell application "DevConsole" to activate` does not reliably bring it to the front.
 - **Testing real keys:** synthetic keystrokes (`osascript ... keystroke`) go to whatever app is in front, and the owner may be working in another one. Send them only when the Mac is idle (HIDIdleTime over 60 s), bring DevConsole to the front with `set frontmost of process "DevConsole" to true`, check that it is still in front before every key, and stop at the first key that lands elsewhere; never type text or Enter blind.
+
+## The focus home (g h)
+
+**The focus is ONE pointer**: what the owner and the Bili are looking at now, a stack (set / back) kept in one place, the
+append-only journal `${DEV_CONSOLE_FOCUS_DIR:-~/.local/share/dev-console/focus}/events.jsonl`
+(`{"id","event","at","actor","value"}`: `focus.set {text, target, card, by}`, `focus.back {by}`). Its only writer is
+`scripts/focus.sh` (`console_focus.py`); **only the owner's conversation with the Bili moves it**: `--by gabriel|bili`,
+anything else is refused (exit 3). **Subagents and profiles never call `focus.sh set` or `back`**: they read it.
+
+```sh
+F=<skill>/scripts/focus.sh
+$F set "<a sentence>" --target <kanban | slug | slug/event/Widget | url> [--card <card id, start, or title>] --by bili
+$F back --by gabriel          # pop; refused when the stack is already empty (the Kanban board)
+$F show [--json]              # the focus, the card in focus, where g h goes, the last 5 (devc focus reads the route)
+```
+
+- **The Kanban board is the default focus** (target `kanban`): with nothing set, or after `back` empties the stack.
+- **The home** (`/`; `g h` from any page) is **the Kanban card in focus with the current focus inside** (`/home`): the
+  card (title, domain, how long in its stage, what it cost so far (the Kanban's money), ticking while the clock runs on its
+  domain), the focus embedded through the existing embed modes (a slug: its graph, `?embed=graph`; a widget: its own
+  route; a console URL: `embed=1`; any other URL: the flight recorder's last shot of it), and the last 5 focuses (a click
+  goes there: navigation, never a focus change). **With the Kanban as the focus, or no card in focus, the home is the
+  board.** The card in focus is the Kanban's own rule (the top of a column is the card in focus, the order
+  of `card.prioritized`): the top card of `Downstream` when it has cards, else the top card of `Upstream`, never `Todo`
+  or `Feito` (`FOCUS_STAGES` in `console_focus.py`). The focus's `--card` does not pick it. Its cost is the Kanban's
+  own money for the card (`card_money`), not a rule of the console.
+- **The screen never jumps by itself**: the focus changes behind; only `g h` (g then h within 1 s, vim-style; every full
+  page gets it through FastHTML's `app.hdrs`, capture phase, never while typing, from an embed it moves the top window)
+  or a reload takes the window there. `h` is never a module's goto key.
+- **Read route** `GET /agent/focus` -> `{focus, card, history[5], cost_today, home, depth}` (`devc focus` prints it).
+- Code: `scripts/console_focus.py` (journal, folds, the card's clock, the page, the routes) and a registration block in
+  `dev-console.py`; tests `uv run --script scripts/test_console_focus.py`. Test on a second console with temp
+  `DEV_CONSOLE_FOCUS_DIR`, `KANBAN_DIR`, `COSTS_DIR` (outside the registry folder: the console restarts on writes there).
 
 ## Agent API (flight recorder)
 
