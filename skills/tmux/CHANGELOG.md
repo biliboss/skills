@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-06
+
+### Changed
+
+- Armadilha nova: ler o pane antes de mandar tecla; num agente vivo (a janela virou do dono) nunca `/quit` nem comando de shell; reabrir numa janela nova.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added
