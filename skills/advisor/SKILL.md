@@ -20,7 +20,7 @@ Toda escrita é um script em `scripts/`, o caminho relativo à pasta da skill in
 
 Faça isto em todo pedido que tem trabalho ou decisão pela frente. Uma consulta só ou um comando só não passa pelos pontos: responda e siga, sem gravar nada, ou o diário vira ruído. Quando a tarefa ou o dono pede o advisor, os pontos de consulta abaixo são obrigatórios e não há o que decidir. Nos outros pedidos, decida lendo o diário:
 
-1. Dê um `task_kind` ao pedido, **um destes seis** (a lista é fechada: `codigo` e `código` fragmentariam o histórico): `codigo`, `delegacao` (fazer à mão, subagente ou o Bili da VPS), `operacao-externa` (sai para fora ou não se desfaz), `ambiguidade`, `debug`, `pesquisa`.
+1. Dê um `task_kind` ao pedido, **um destes seis** (a lista é fechada: `codigo` e `código` fragmentariam o histórico): `codigo`, `delegacao` (fazer à mão ou delegar a um subagente local), `operacao-externa` (sai para fora ou não se desfaz), `ambiguidade`, `debug`, `pesquisa`.
 2. Leia o que já se aprendeu, para cada ponto de consulta: `scripts/decisions.sh recent <task_kind> --moment <ponto>`. A chave é (`task_kind`, ponto): o plano costuma ouvir `segue` e é a checagem de entrega que pega as coisas, então as chamadas nunca se misturam entre pontos. Ele diz **CHAME** quando o conselho já mudou o rumo ou houve um `missed`, e **PULE** só com três chamadas avaliadas daquele tipo e ponto, nenhuma mudando o rumo. `irreversivel` nunca dá PULE. Pouco histórico é CHAME. Uma janela só de pulos volta a CHAME de propósito: pular se conquista com chamadas, nunca com mais pulos.
 3. Em cada ponto de consulta, chamando ou não, grave a decisão com o motivo, **antes** de perguntar. Um pedido pode passar por vários pontos (`plano` e depois `irreversivel`): grave um por ponto, na mesma thread. O `decisions.sh` liga tudo pela thread, então `rate.sh` não repete o `task_kind`.
    `scripts/decide.sh <thread> --moment plano|travou|terminou|irreversivel|ambiguidade --called true|false --reason "..." --task-kind <kind>`
@@ -31,7 +31,7 @@ Faça isto em todo pedido que tem trabalho ou decisão pela frente. Uma consulta
 
 Os pontos de consulta são decisões, não só código. Fora deles, siga sozinho: é o ponto de usar o Sonnet.
 
-1. **O plano** (`plano`): depois de se orientar e antes do trabalho grande, incluindo a escolha entre fazer à mão, delegar a um subagente ou pedir ao Bili da VPS. "Este é o plano, está certo?"
+1. **O plano** (`plano`): depois de se orientar e antes do trabalho grande, incluindo a escolha entre fazer à mão e delegar a um subagente local. "Este é o plano, está certo?"
 2. **Travou** (`travou`): duas tentativas falharam, ou o caminho ficou ambíguo.
 3. **Antes de entregar** (`terminou`): "isto cumpre o pedido? falta algo?". Quando se chama, é **mesmo com os testes verdes**; a saída dos testes vai como resource.
 4. **Difícil de desfazer ou que sai para fora** (`irreversivel`): push na main, apagar, mandar mensagem a alguém, mexer num processo que não é seu.

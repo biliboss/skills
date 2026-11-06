@@ -8,7 +8,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - O protocolo do advisor (`~/.local/share/advisor/README.md`) virado skill, os dois lados na mesma skill. O agente
   principal é o Bili no Sonnet (não um "executor"); o advisor (Opus) é a segunda opinião quando o julgamento pesa.
-- Cinco pontos de consulta, que são decisões e não só código: o plano (inclui fazer à mão, subagente ou o Bili da VPS),
+- Cinco pontos de consulta, que são decisões e não só código: o plano (inclui fazer à mão ou delegar a um subagente local),
   travou, antes de entregar (obrigatório mesmo com os testes verdes), algo difícil de desfazer ou que sai para fora, e o
   pedido ambíguo. Fora deles, o agente segue sozinho.
 - A description dispara em todo pedido: antes de começar, decidir se consulta e registrar a decisão.
