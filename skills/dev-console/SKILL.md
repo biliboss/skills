@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.18.0
+  version: 0.19.0
 ---
 
 # dev-console
@@ -29,7 +29,9 @@ uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_con
 ```
 
 Verify in the headless browser (`browser_exec local=true`: load, read `window.__cy` and the DOM, screenshot)
-or `curl`, then show Gabriel the page as a tab in the Hermes desktop browser (`desktop_preview` open, with a label),
+or `curl`. Outside Hermes (Claude Code, pi), use the skill's own `scripts/check.sh <url> [--shot f.png] [--eval '<js>']`
+(the installed Chrome, headless, 1000 px and dark by default; JSON with status, title, errors and the eval value),
+never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page as a tab in the Hermes desktop browser (`desktop_preview` open, with a label),
 or in the DevConsole window when it is his console. Never Safari: he asked for every link to open in the Hermes browser.
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
