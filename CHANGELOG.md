@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.31.0] - 2026-11-06
+
+### Added
+
+- `diff-review` 0.1.0: revisão de código de um diff local (worktree contra a base) com prompt próprio, pelo pi no plano flat (Sonnet na assinatura ou GLM); achados em eventos JSONL; `task-understand` 0.13.4 a chama entre verify e deliver.
+
 ## [0.30.0] - 2026-11-06
 
 ### Added

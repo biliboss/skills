@@ -5,7 +5,7 @@ description: >-
   something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
   Questions and one-line commands skip the gate.
 metadata:
-  version: 0.13.3
+  version: 0.13.4
 ---
 
 # task-understand
@@ -133,6 +133,9 @@ shows which kinds of task each model does well and with what quality.
     it with the model, plan, duration and exit code. No parsable block, a failed check or a crashed verifier is
     `passed: false`. Failing sends the task back to `confirmed`: `execute` runs again (another model, or by hand), told
     which checks failed; then verify again. Pick the verifier model apart from the executor's when you can.
+10b. Review the code before delivering: `skills/diff-review/scripts/diff-review.sh <worktree> --task <id>` reviews the
+    delivery's diff against its base (only problems the diff introduced, each with a failure scenario). Exit 1 means an
+    open blocker: go back to `execute` (told the finding), or fix and `dismiss` with a reason, then review again.
 11. Deliver once it passed: `... deliver --task <id> --kind pr|direct|none [--url <link>] [--text "..."]` records
     `task.delivered`, refused unless the last verification passed. `pr` is one kind of delivery, not a mandatory step:
     `direct` is a change made in place (an issue created, a card moved), `none` is nothing to hand over.
