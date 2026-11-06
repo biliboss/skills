@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-06
+
+### Added
+
+- Every new thread's brief is prefixed with one line telling the agent to start by the `shape` skill (`shape.sh emit request.received --shaping <topic>`), unless the brief already mentions shape or `--no-shape` is passed. Tests cover the prefix and both opt-outs.
+
 ## [0.8.0] - 2026-11-06
 
 ### Added
