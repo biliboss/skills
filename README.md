@@ -38,6 +38,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `faceless-art` | a arte sem rosto do Gabriel gerada pelo Codex, com os prompts de referência |
 | `linkedin-publish` | publicar, editar e conferir um post do LinkedIn pelo Safari do Mac já logado |
 | `envless` | usar um segredo do cofre (envless) num comando sem que o valor passe pela conversa |
+| `doctor` | o protocolo de diagnóstico de um projeto: ambiente, arquitetura, comportamento, observabilidade e agente, só leitura, cada achado com o comando que conserta; `doctor.py` é o genérico |
 | `disky` | achar onde mora o espaço do disco com o disky e propor a limpeza numa tabela que o dono aprova |
 
 ## Instalar
