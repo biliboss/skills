@@ -98,6 +98,23 @@ class Term(SQLModel, table=True):
     avoid: Optional[str] = None
 
 
+# --- Phases: one table per phase, numbered so they sort in order in any SQLite viewer ---
+
+class OverviewDiagram(SQLModel, table=True):
+    """Phase 01: the one diagram that explains the domain. At most 9 nodes; an edge row joins two of them."""
+    __tablename__ = "01_overview_diagram"
+    domain: str = Field(primary_key=True, foreign_key="dm_domain.slug")
+    pos: int = Field(primary_key=True)          # reading order; nodes 1-9 first, then edges
+    row: str = Field(sa_column_kwargs={"server_default": "node"})  # node | edge
+    item: str                                   # node name, or the edge's source node
+    kind: Optional[str] = None                  # node: aggregate | entity | value
+    verb: Optional[str] = None                  # edge: the label
+    target: Optional[str] = None                # edge: the destination node
+    cardinality: Optional[str] = None           # edge: 1:1 | 1:N | N:1 | N:N
+    note: Optional[str] = None                  # node: one line that explains it
+    status: Status = Field(default=Status.draft, sa_column_kwargs={"server_default": "draft"})
+
+
 def engine():
     return create_engine(f"sqlite:///{DB}")
 

@@ -35,7 +35,7 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
-CONSOLE_MODULES = ("console_agents", "console_store", "console_home", "console_playground", "console_recorder", "console_reload")
+CONSOLE_MODULES = ("console_agents", "console_store", "console_home", "console_playground", "console_recorder", "console_reload", "console_model")
 PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
 
 
@@ -2362,6 +2362,10 @@ def api_palette(domain: str = ""):
 import console_recorder as REC  # noqa: E402  (the agent API: /agent/now, /agent/history, /agent/shot; read only)
 
 REC.register(rt, _json)
+
+import console_model as MOD  # noqa: E402  (the domain module: dm_* rows as a live Mermaid map, /model/<slug>)
+
+MOD.register(rt, _json)
 
 
 @rt("/api/domains/{slug}/actions")
