@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.69.0
+
+- backbrief 0.18.0: the "pelo resultado" mode (context first, up to 5 questions, the 5-field request + the week's bet) and the optional `intent` of the teach-back. kanban 0.7.0: `kanban.sh describe` (`card.described`), shown under the card's title on the Quadro.
+
 ## 0.68.0
 
 - domain-plan 0.1.0: planning in Upstream; the task's domain drawn in the dev-console as drafts (events, the real screen above each), a hand-editable `.plan/<slug>.jsonl` in the repo and `plan.sh drift` (to build, built, unplanned). kanban 0.6.1: `pull` opens the card's plan.

@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-11-06
+
+### Added
+
+- Mode "Pelo resultado": when a request names a thing (site, landing, app) or has no measurable outcome, read the context first, ask at most 5 questions in one call (the outcome first, the cheapest path last) and answer with the 5-field request (por quê, para quem, resultado, limites, pronto quando) plus the week's bet; worked example: Via Blog.
+- Optional `intent` `{why, who, result, limits, done_when, bet}` in `understanding.taught_back` (validated, kept in the task state).
+
 ## [0.17.1] - 2026-11-06
 
 ### Added

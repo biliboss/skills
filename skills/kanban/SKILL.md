@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.6.1
+  version: 0.7.0
 ---
 
 # kanban
@@ -28,6 +28,7 @@ upstream the options still being discovered, downstream the work committed to.
 | `card.moved` | `move` | `Move {stage, previous}` | the card changed stage, in any direction (back to Upstream too) |
 | `card.prioritized` | `top`, `rank` | `Prioritize {position, stage}` | the owner ordered the stage's queue: the card sits at `position` (0 = top) |
 | `card.renamed` | `rename` | `Rename {title}` | the card got another title |
+| `card.described` | `describe` | `Describe {text}` | the card got its description, the 5-field request (last wins) |
 | `item.aged` | `sweep --apply` | `{repo, kind pr\|branch, ref, age_h}` | an open PR or a branch is older than N hours (48) and not in main; no card |
 | `decision.requested` | `sweep --apply` | `{text, repo, ref, reason}` | only the owner decides: a merge that publishes (the repo's main deploys), a branch with work outside main |
 
@@ -47,6 +48,7 @@ scripts/kanban.sh move <card> <stage> [--force] [--actor <who>]   # exit 4 if th
 scripts/kanban.sh top <card> [--actor <who>]            # to the top of its stage: the card in focus now
 scripts/kanban.sh rank <card> <position> [--actor <who>]  # to a place in its stage's queue (0 = top)
 scripts/kanban.sh rename <card> <title> [--actor <who>]
+scripts/kanban.sh describe <card> --file <path> | --text <t> [--actor <who>]   # por quê / para quem / resultado / limites / pronto quando
 scripts/kanban.sh pull "<title>" [--domain D] [--repo DIR] [--context T|--context-file F] [--center C] [--no-switch] [--swap] [--json]
 scripts/kanban.sh list [--stage <stage>] [--json]       # the cards, per stage, with their Upstream money
 scripts/kanban.sh show <card> [--json]                  # its stays, its Upstream slices of time, the total

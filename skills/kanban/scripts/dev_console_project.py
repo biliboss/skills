@@ -223,6 +223,7 @@ def _card(m: CardMoney, now: datetime):
     age = _in_stage(secs, c.stage.value)
     return Div(
         P(c.title, cls="font-sans text-sm leading-5 text-neutral-900 dark:text-neutral-100 [overflow-wrap:anywhere]"),
+        P(c.why, title=c.description, cls=f"mt-0.5 line-clamp-2 [overflow-wrap:anywhere] {DIM}") if c.why else None,
         _clock(m, now),
         _agent(c) if c.stage.value in ("Upstream", "Downstream") else None,
         # the time in the stage last and still: in a narrow column only the domain is cut (the sidebar repeats both)
@@ -287,7 +288,8 @@ def card_history(ctx):
         rows.append(Div(Span(_when(s.start), cls=f"w-[5.5rem] shrink-0 tabular-nums {DIM}"),
                         Span(text, cls="min-w-0 font-sans text-sm text-neutral-800 dark:text-neutral-200"),
                         cls="flex items-baseline gap-3 py-1"))
-    return Div(_title("Histórico"), *rows)
+    about = [Div(_title("Descrição"), *[P(ln, cls="font-sans text-sm text-neutral-800 dark:text-neutral-200") for ln in c.description.splitlines() if ln.strip()], cls="mb-3")] if c.description else []
+    return Div(*about, _title("Histórico"), *rows)
 
 
 def card_time(ctx):

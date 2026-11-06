@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.17.1
+  version: 0.18.0
 ---
 
 # backbrief
@@ -36,6 +36,54 @@ The practice is **teach-back** (health literacy: "explain it back in your own wo
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
 
 Routing evals for the description (run after any change to it): [references/evals.md](references/evals.md).
+
+## Pelo resultado
+
+Use this mode when the request **names a thing** (site, landing, página, app) or **has no measurable outcome**
+("faz site pro Via Corretor"). Every task is asked by its outcome, not the thing: the thing is the means. The names
+come from the literature: *commander's intent* (Mission Command: say the why and the end state, not the steps),
+*Impact Mapping* (Gojko Adzic: goal, who, impact, deliverable) and *Fit for Purpose* (David Anderson: a weekly
+review of whether the number moved). The house's record is `.wiki/fit-for-purpose.md` in `~/biliboss`.
+
+1. **Context first.** Before asking anything read what already answers it: the task's domain (`/domain/<slug>`),
+   the reports (Search Console, analytics, the Costs journal), the Kanban cards (`kanban.sh list`, `show`). Ask only
+   what is still missing.
+2. **One ask call, at most 5 questions, the recommended option first in each**, built from what the context showed.
+   The first is always the outcome: *"Daqui a 90 dias deu certo: o que mudou?"* (options are numbers the context
+   makes plausible). Then, only if missing: para quem, qual número (with source and deadline) and the limits. The last
+   is always the cheapest path: *"Se só desse para fazer uma coisa nesta semana, qual mexe mais o número?"*.
+3. **The output is a high-level request with 5 fields, plus the week's bet:**
+
+   ```
+   Por quê: <the result the owner wants, one line>
+   Para quem: <the person it serves>
+   Resultado: <number, source, deadline; today's value when known>
+   Limites: <what must not happen>
+   Pronto quando: <what the source shows>
+   Aposta da semana: <the one cheapest move on the number>
+   ```
+
+   Limits skipped by the owner mean the house's: the 4 cases (money, login, publish, delete) and the LGPD.
+4. It goes through the normal gate: this text is the repetition (`understanding.taught_back`, step 3 of Explain),
+   confirmed as usual. Once confirmed, it becomes the card's description:
+   `kanban.sh describe <card> --file <path>` (the title is the *Por quê*; one card per piece of work, in Upstream).
+   The optional `intent` object of `understanding.taught_back` carries the same fields
+   `{why, who, result, limits, done_when, bet}`.
+
+Worked example. *"faz site pro Via Corretor"*: the context says the domain Via Blog gets 14 clicks a month and no
+signup is measured, so the first question is the outcome with *"cadastros por mês vindos do blog"* recommended.
+The request that comes out:
+
+```
+Por quê: o Via ganhar corretores pela busca do Google, sem pagar anúncio.
+Para quem: o corretor autônomo de Jundiaí.
+Resultado: cadastros por mês vindos do blog (ref=blog), medidos no domínio Via Blog; hoje 14 cliques por mês e nenhum cadastro medido; prazo de 90 dias.
+Limites: nada publicado sem o ok do Gabriel; sem gasto com anúncio; nenhum dado para fornecedor (LGPD).
+Pronto quando: o domínio Via Blog mostra cadastros com ref=blog subindo por 4 semanas seguidas.
+Aposta da semana: melhorar o blog que já traz gente pela busca (CTR de como-tirar-creci de 0,43% para 1,5%).
+```
+
+The cheapest path was not a new site: the blog that already gets people.
 
 ## Styles
 

@@ -79,6 +79,17 @@ class BoardHtmlTest(unittest.TestCase):
         html, _ = self.render(rate=0.0)
         self.assertNotRegex(html, r'data-tick-rate="[1-9]')
 
+    def test_the_why_shows_under_the_title_and_the_detail_has_the_full_text(self):
+        evs = [ev("card.created", "aaa", "2026-11-06T08:00:00-03:00", title="Via Blog", domain="via", stage="Upstream"),
+               ev("card.described", "aaa", "2026-11-06T08:30:00-03:00", text="Por quê: ganhar corretores.\nPara quem: o corretor.")]
+        board = K.board(K.cards_from(evs), [], {}, NOW)
+        P.read_board = lambda: board
+        html = to_xml(P.board(None))
+        self.assertIn("Por quê: ganhar corretores.", html)
+        self.assertNotIn(">Para quem", html)  # only in the tooltip, not as a line
+        ctx = type("C", (), {"history": evs})()
+        self.assertIn("Para quem: o corretor.", to_xml(P.card_history(ctx)))
+
     def test_the_ranked_card_is_first_and_there_are_four_columns(self):
         html, _ = self.render(rate=0.0)
         self.assertLess(html.index("Via Blog"), html.index("Outro"))

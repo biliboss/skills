@@ -341,6 +341,26 @@ class JournalTest(unittest.TestCase):
         self.assertEqual([m.card.id for m in K.read_board().columns[0].cards], [b])
         self.assertEqual(json.loads(self.cli("create", "Waits", "--domain", "k", "--stage", "todo")[1])["value"]["stage"], "Todo")
 
+    def test_describe_last_wins_and_show_prints_it(self):
+        a = K.create("Via Blog", "via-blog", "Upstream")["card_id"]
+        self.assertEqual(self.cli("describe", a, "--text", "  ")[0], 1)
+        f = Path(self.tmp.name) / "intent.md"
+        f.write_text("Por quê: ganhar corretores pela busca.\nPara quem: o corretor.\n", encoding="utf-8")
+        code, out, _ = self.cli("describe", a, "--file", str(f))
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["event"], "card.described")
+        self.assertEqual(self.cli("describe", a, "--text", "Por quê: outro.")[0], 0)
+        self.assertEqual(self.cli("describe", a, "--text", "Por quê: outro.")[0], 1)  # same text again: nothing new
+        self.assertEqual(self.cli("describe", a, "--file", str(Path(self.tmp.name) / "nope.md"))[0], 1)
+        card = K.cards_from(K.events())[0]
+        self.assertEqual((card.description, card.why), ("Por quê: outro.", "Por quê: outro."))
+        self.assertEqual(card.title, "Via Blog")
+        code, out, _ = self.cli("show", a)
+        self.assertIn("Por quê: outro.", out)
+        self.assertEqual(json.loads(self.cli("show", a, "--json")[1])["card"]["description"], "Por quê: outro.")
+        self.assertEqual(self.cli("move", a, "Downstream")[0], 0)  # a move keeps the description
+        self.assertEqual(K.cards_from(K.events())[0].why, "Por quê: outro.")
+
     def test_create_defaults_to_todo(self):
         code, out, _ = self.cli("create", "Backlog", "--domain", "kanban")
         self.assertEqual((code, json.loads(out)["value"]["stage"]), (0, "Todo"))
