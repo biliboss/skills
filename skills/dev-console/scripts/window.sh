@@ -6,13 +6,27 @@
 #   window.sh resize <w> <h>    window.sh dock left|right
 #   window.sh eval '<js>'       window.sh status        window.sh wait
 #   window.sh install           window.sh quit
+#   window.sh [--owner <name>] launch [url]   a window of its own (see below)
+#
+# --owner <name> (first argument, any command) drives that owner's own window: its state directory is
+# ~/.local/state/dev-console-window/<name>/ instead of the shared one. `launch` starts a second DevConsole
+# process on that directory (open -n, so the Dock gets one more app); without --owner, commands go to the
+# original window, as before.
 #
 # Every command except status/wait/install/quit sends one command with the next id and returns at
 # once; `wait` blocks until the app has applied it (5 s at most) and prints state.json.
 # Env: DEV_CONSOLE_WINDOW_STATE_DIR overrides the state directory (tests).
 set -euo pipefail
 
-STATE_DIR="${DEV_CONSOLE_WINDOW_STATE_DIR:-$HOME/.local/state/dev-console-window}"
+BASE_DIR="$HOME/.local/state/dev-console-window"
+OWNER=""
+if [[ "${1:-}" == --owner ]]; then
+  OWNER="${2:-}"
+  if [[ ! "$OWNER" =~ ^[A-Za-z0-9._-]+$ ]]; then echo "window: --owner needs a name (letters, digits, . _ -)" >&2; exit 1; fi
+  shift 2
+fi
+STATE_DIR="${DEV_CONSOLE_WINDOW_STATE_DIR:-${OWNER:+$BASE_DIR/$OWNER}}"
+STATE_DIR="${STATE_DIR:-$BASE_DIR}"
 STATE_FILE="$STATE_DIR/state.json"
 COMMAND_FILE="$STATE_DIR/command.json"
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -91,8 +105,37 @@ cmd_wait() {
   die "timeout: command $target not applied in 5 s (is the app running? window.sh install)"
 }
 
+# Which DevConsole processes belong to this state dir: the app reads it from its environment, so match there.
+# Without --owner that is the processes with no such variable, i.e. the original window.
+app_pids() {
+  local pid env
+  for pid in $(pgrep -x DevConsole 2>/dev/null || true); do
+    env="$(ps -Eww -p "$pid" -o command= 2>/dev/null || true)"
+    if echo "$env" | grep -q "DEV_CONSOLE_WINDOW_STATE_DIR=$STATE_DIR\( \|\$\)"; then
+      echo "$pid"
+    elif [[ -z "$OWNER" ]] && ! echo "$env" | grep -q DEV_CONSOLE_WINDOW_STATE_DIR=; then
+      echo "$pid"
+    fi
+  done
+}
+
 cmd_quit() {
-  pkill -x DevConsole 2>/dev/null && echo "app quit" || echo "app was not running"
+  local pids; pids="$(app_pids)"
+  if [[ -n "$pids" ]]; then kill $pids; echo "app quit"; else echo "app was not running"; fi
+}
+
+# launch [url]: a window of its own for --owner, on its own state dir (the app already reads
+# DEV_CONSOLE_WINDOW_STATE_DIR and DEV_CONSOLE_URL; its saved frame is per state dir).
+cmd_launch() {
+  [[ "$(uname)" == Darwin ]] || die "launch needs macOS"
+  [[ -n "$OWNER" ]] || die "launch needs --owner <name> (the shared window is opened by install)"
+  local url="${1:-http://127.0.0.1:5057/}" app="$HOME/Applications/DevConsole.app"
+  [[ -d "$app" ]] || app="$SELF_DIR/../app/build/DevConsole.app"
+  [[ -d "$app" ]] || die "DevConsole.app not found (window.sh install)"
+  [[ -z "$(app_pids)" ]] || die "a window for $OWNER is already running (window.sh --owner $OWNER open <url>)"
+  mkdir -p "$STATE_DIR"
+  open -n --env "DEV_CONSOLE_WINDOW_STATE_DIR=$STATE_DIR" --env "DEV_CONSOLE_URL=$url" "$app"
+  echo "launched a window for $OWNER on $url (state $STATE_DIR)"
 }
 
 cmd_install() {
@@ -117,5 +160,6 @@ case "${1:-}" in
   wait)    cmd_wait ;;
   install) cmd_install ;;
   quit)    cmd_quit ;;
-  *) die "usage: window.sh open <url> | reload | show | hide | resize <w> <h> | dock left|right | eval '<js>' | status | wait | install | quit" ;;
+  launch)  shift; cmd_launch "$@" ;;
+  *) die "usage: window.sh [--owner <name>] launch [url] | open <url> | reload | show | hide | resize <w> <h> | dock left|right | eval '<js>' | status | wait | install | quit" ;;
 esac
