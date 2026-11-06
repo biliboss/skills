@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.25.0] - 2026-11-06
+
+### Added
+
+- **Focus + context on a big domain's branch layout** (more than 15 events; Furnas 1986). It opens with one lane drawn
+  whole (the journal's latest event's lane, else the `HOME` event's, else the first) and the others folded to one line:
+  dots, no labels, nothing dashed, and the lane's name and count as a frozen row header at the window's left edge. A click
+  on a folded lane, or its number key (1-9), opens it and folds the previous; `0` opens all; the legend is the same
+  switcher; `?lane=<cat>|all` keeps it. A column with no open-lane station narrows to 44 px, a stage band never below its
+  header, so the open lane stays readable; the fit fits the open lane, not everything. Via: the session lane at 0.87, the
+  others one line each; Zap: the account lane (its `HOME`) and ten named rows, where every lane born right of the window
+  had no visible name before.
+- **Labels never below 16 px at 1140×1074**: the branch zoom floor is 0.81 (every branch label 20 px, the dashed edges'
+  too, were 17), and `min-zoomed-font-size` 16 hides a label a hand zoom-out would shrink below that.
+
+### Fixed
+
+- **`render_screens` shows the product's screen with its own frame only, scaled to fit.** A step may say where the
+  product draws its device frame in its page (`frame: [x, y, w, h]` inside `viewport: [w, h]`, its `radius`): only that
+  box shows, so Storybook's padding and the catalogue's margin no longer read as a second, white frame. The box scales
+  to the stage (never above `scale`, now 1), so a 406 x 860 phone or an 808-wide board fits the popup at any window size;
+  the fixed 390 x 844 iframe cut every Via story on the right and the bottom.
+- The ← → were `<button>`s that Pico paints as blue squares (the arrow sank to the bottom): now grey text controls,
+  focusable, dimmed at the ends, and the ← → keys step too. One step shows no arrows.
+- The popup no longer cuts the screen: a widget whose root says `data-pop="stage"` gets a popup of `min(1180px, 94vw)`
+  by `min(1000px, 92vh)` and its stage takes the height left, with nothing to scroll.
+- A `data-real-only` widget opened with `?mode=sim` kept the SIMULADO stripes and banner: the mode is cleared and
+  repainted. Real screens are `data-real-only` (nothing to simulate).
+- **Branch layout, readable at his window**: station labels 20 px (were 14: about 8 px rendered on a 1440 x 900 window,
+  12 now; 15 at 1140 x 1074), columns 210 apart to hold them, the entity named once at each lane's first station.
+- **Branch layout, no dashed line across the map**: a jump into another lane, or a loop back inside a lane over more
+  than two columns, is drawn as its end only (partial edge drawing), a short dashed stub labelled `command ← Source`. On
+  the Via `open_by_client` crossed all five lanes and `view_index` ran 1900 px along the session line.
+- **Branch layout, the broker's exits**: the grey spine of a lane that hangs from the Human ran its 45° leg through
+  Broker.SignedUp, on top of the yellow line; it now goes down the Human's column and along its own row.
+- A spur that ends at its station carries the label on its right (stacked spurs pushed labels 113 px away); a station
+  nothing in its lane leads into continues its own row (its rail cut across a fork); labels knock out the line under them
+  in their stage band's tone.
+
+### Changed
+
+- The dots are a list of the steps beside the screen: number, name, the event the screen leads to, and the current
+  step's note; a click, Enter or Space on a row opens it.
+
 ## [0.24.0] - 2026-11-06
 
 ### Added

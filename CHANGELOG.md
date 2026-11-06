@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.58.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.25.0: um domínio grande (Via, Zap) legível na janela do dono. O layout de ramos abre com uma raia inteira (a do último evento do diário, senão a do `HOME`) e as outras dobradas numa linha com nome e contagem, presos à esquerda; um clique (ou o número da raia) abre e dobra a anterior, `0` abre todas; nenhum rótulo abaixo de 16 px em 1140×1074.
+
+### Fixed
+
+- `dev-console` 0.25.0: `render_screens` mostra só a moldura do próprio produto, escalada ao popup, setas como texto, a lista dos passos e nada de SIMULADO em tela real; o layout de ramos com rótulos de 20 px, saltos desenhados pela ponta e a espinha do Human fora da estação do corretor.
+
 ## [0.57.0] - 2026-11-06
 
 ### Added

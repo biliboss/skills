@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.24.0
+  version: 0.25.0
 ---
 
 # dev-console
@@ -350,14 +350,21 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **An event's first widget is the real screen where it happens** (Event Modeling: the screen above the event), the
   numbers come after. `render_screens(steps, title)` (set on every project module like `render_widget_list`) takes
   `{name, url, event, note}` steps, each an iframe of the product's own URL (a Storybook story's
-  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → and dots, the event each screen
-  leads to beside its name; mark the widget `fake = True`. Never redraw a product's screen. For an imported product,
+  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → (keys too) and a list of the
+  steps beside the screen, the event each screen leads to under its name; mark the widget `fake = True`. Never redraw
+  a product's screen. **Show only the frame the product draws**: a story sits inside Storybook's padding and the
+  catalogue's margin, which read as a second, white frame (rejected twice); give each step its box, measured in the
+  story's page with the headless browser (`viewport: [w, h]`, `frame: [x, y, w, h]`, `radius`), and the widget crops to
+  it and scales it to the popup's stage. A fixed 390×844 iframe cut every Via story (their phones are 406 wide, a v12
+  board 808 and it wraps below 848). For an imported product,
   serve its Storybook from a detached read-only worktree in a durable folder (`~/src/<product>`, `pnpm install`, the
-  design system's `storybook dev`, log to `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
+  design system's `storybook dev --disable-telemetry`, in a herdr tab of its own, log to
+  `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
   folder: scratch prunes idle entries after 24 h, the server keeps running on deleted `node_modules` and every
-  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this),
-  check which port answers with **its** stories (another project's Storybook may already hold 6006), and list the
-  screens per step with the event they lead to (a subagent's job: find the stories, screenshot at 390×844).
+  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this,
+  000 = the server is down: start it again), check which port answers with **its** stories (another project's
+  Storybook may already hold 6006), and list the screens per step with the event they lead to (a subagent's job: find
+  the stories, screenshot them, measure each one's frame).
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
@@ -539,14 +546,35 @@ For a product whose code already records domain events (Domain.Imported):
    left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane (a branch), top to
    bottom in `EVENTS` order; a line follows `TRANSITIONS` as the metro does, but its fork is a 45° spur inside the lane. A lane is
    born where its transition comes from (its first station sits one column right of the station that leads into it, joined
-   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine; any other edge into a lane is a
-   merge (thin, grey, dashed, with its command). **Columns are funnel stages** when the project declares them: `STAGES =
+   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine, straight down the Human's column
+   and then along its own row (a 45° leg from the Human ran through the stations of the lanes it passed); any other edge
+   into a lane is a merge (thin, grey, dashed, with its command). **A jump is drawn as its end** (partial edge drawing,
+   Bruckdorfer & Kaufmann 2012): a merge from another lane, or a loop back inside a lane over more than two columns, is a
+   short dashed stub into the station from its source's side, labelled `command ← Source.Event`; drawn whole, those lines
+   crossed every lane in between or ran along the source's own line ("linhas tracejadas cruzando tudo", Via).
+   **Readable at the window he uses**: station labels are 20 px (14 px rendered about 8 px on a 900 px tall window once the
+   zoom fits the height), the entity is named once at the lane's first station and the others carry the event words only
+   (a metro line does not repeat its name per station), a spur that ends at its station carries the label on its right, a
+   station nothing in its lane leads into continues its own row, and every label knocks out what runs under it in its
+   stage band's tone. Check `labelPx` = font × zoom ≥ 16 at 1140×1074 (his window). **Columns are funnel stages** when the project declares them: `STAGES =
    {"cat.event": "stage"}`, `STAGE_ORDER = [...]` (and `STAGE_LABELS = {stage: text}` for the header); a stage is a band of
    columns with a faint header at the top, and an edge that would go back to an earlier stage is drawn as a loop (dashed),
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
    input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
-   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
-   until zoomed: scroll or zoom right to read on). **No two lines share a segment**: lines leaving one station down the
+   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height, **never below 0.81**:
+   every label is 20 px, so it renders at 16 px or more at his 1140×1074 window, and a label the person's own zoom-out
+   would shrink below 16 px is not drawn (`min-zoomed-font-size`); the rest is a scroll away.
+   **Focus + context on a big domain** (more than 15 events; Furnas 1986, fisheye views): it opens with ONE lane drawn
+   whole (the lane of the journal's latest event, else the project's `HOME` event, else the first lane; an `ev` in the
+   query opens its own lane) and every other lane folded to one line: its stations as dots, no labels, nothing dashed,
+   its name and count (`2  Chat · 11 eventos`) as a frozen row header at the window's left edge (HTML over the drawing,
+   knocking out the lines under it), so a lane born far right is still named. A click on a folded lane (its header, a
+   dot, its line), or its number key (1-9, `EVENTS` order), opens it and folds the one before; `0` opens them all; the
+   legend is the same switcher as console text. `lane` in the query keeps it (`all` = every lane). The columns keep
+   their order, so the mental map holds; a column with no station of an open lane narrows to 44 px (a rubber sheet)
+   and a stage band never below its header. The fit keeps the open lane readable, not everything: from the Human's
+   column, unless the lane starts past the window's middle. The code is in functions of their own (`laneFocus`,
+   `foldGrid`, `foldLanes`, `laneView`, `laneHeads`, `laneLegend`, `laneKey`, `laneTaps`); a small domain never folds. **No two lines share a segment**: lines leaving one station down the
    same 45° slope are an interchange, ranked by leg length, each next one leaving a step lower-left
    (`source-endpoint`) and turning earlier, so the legs run parallel; a back edge (loop, stage regress) is an
    `unbundled-bezier` arc above the rows, never routed along a line. Cytoscape's segment weights are relative to the

@@ -109,7 +109,7 @@ class _Live:
 
 
 PROJECT = _Live(CURRENT.get)
-from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, Ol, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
@@ -445,35 +445,100 @@ def render_widget_list(slug: str, event: str, eid: str | None = None):
         CURRENT.reset(token)
 
 
-def render_screens(steps: list[dict], title: str = "", width: int = 390, height: int = 844, scale: float = 0.62):
+# render_screens' behaviour: one copy, run by each screens widget on its own root (inject re-creates the script)
+SCREENS_JS = r"""
+(function (root) {
+  if (!root || root.dataset.wired) return; root.dataset.wired = '1';
+  const S = JSON.parse(root.dataset.screens), stage = root.querySelector('[data-stage]'), box = root.querySelector('[data-box]'),
+        fr = box.querySelector('iframe'), n = root.querySelector('[data-n]'), rows = [...root.querySelectorAll('[data-step]')],
+        arrows = [...root.querySelectorAll('[data-go]')], cap = +root.dataset.cap || 1;
+  let i = 0, seen = '';
+  // only the box the product draws (its own device frame) shows: the page is cropped to s.frame and scaled to fit
+  function fit() {
+    const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return;
+    const s = S[i], [x, y, w, h] = s.frame, k = Math.min(cap, W / w, H / h);
+    box.style.width = Math.floor(w * k) + 'px'; box.style.height = Math.floor(h * k) + 'px';
+    box.style.borderRadius = (s.radius || 0) * k + 'px';
+    fr.style.width = s.viewport[0] + 'px'; fr.style.height = s.viewport[1] + 'px';
+    fr.style.transform = 'scale(' + k + ') translate(' + -x + 'px,' + -y + 'px)';
+  }
+  function go(j, user) {
+    i = Math.max(0, Math.min(S.length - 1, j)); root.dataset.i = i; const s = S[i];
+    if (fr.getAttribute('src') !== s.url) { fr.setAttribute('src', s.url); fr.title = s.name || ''; }
+    if (n) n.textContent = (i + 1) + '/' + S.length;
+    rows.forEach((r, k) => { r.classList.toggle('on', k === i); k === i ? r.setAttribute('aria-current', 'step') : r.removeAttribute('aria-current'); });
+    arrows.forEach(a => { const off = +a.dataset.go < 0 ? i === 0 : i === S.length - 1; a.classList.toggle('off', off); a.setAttribute('aria-disabled', off); });
+    if (user && rows[i]) rows[i].scrollIntoView({block: 'nearest'});
+    fit();
+  }
+  const act = (el, f) => { el.onclick = f; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); f(); } }; };
+  arrows.forEach(a => act(a, () => go(i + +a.dataset.go, true)));
+  if (S.length > 1) rows.forEach((r, k) => act(r, () => go(k, true)));
+  // ← → step the screens while the popup is open (not inside a field; the story's own keys stay in its iframe)
+  const key = e => {
+    if (!root.isConnected) { document.removeEventListener('keydown', key); ro.disconnect(); return; }
+    const pop = root.closest('#pop'); if (pop && pop.classList.contains('hidden')) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
+    if (e.key === 'ArrowRight') { go(i + 1, true); e.preventDefault(); } else if (e.key === 'ArrowLeft') { go(i - 1, true); e.preventDefault(); }
+  };
+  if (S.length > 1) document.addEventListener('keydown', key);
+  const ro = new ResizeObserver(([e]) => {  // guarded by size: a tick that changes nothing does nothing
+    const k = Math.round(e.contentRect.width) + 'x' + Math.round(e.contentRect.height); if (k === seen) return; seen = k; fit(); });
+  ro.observe(stage);
+  go(0);
+})(document.currentScript && document.currentScript.closest('[data-screens]'));
+"""
+
+
+def render_screens(steps: list[dict], title: str = "", width: int = 390, height: int = 844, scale: float = 1.0):
     """The product's real screens, composed (never redrawn): each step {name, url, event?, note?} is an iframe of the
-    product's own URL (a Storybook story, a prototype, the app) in a phone frame, stepped with ← → and the dots; the
-    step's event (the one the screen leads to) shows beside its name. A widget of an event passes the steps around it."""
+    product's own URL (a Storybook story, a prototype, the app), stepped with ← → (the keys too) or a click on its row
+    in the list beside it, which names the event the screen leads to and shows the current step's note.
+
+    The product draws its own device frame, so the widget draws none: a step says where that frame sits in its page
+    (`frame: [x, y, w, h]` inside `viewport: [w, h]`, its corner `radius`), and only that box shows, scaled to fit the
+    popup (never above `scale`); without them the whole width x height page shows. The root asks the popup for its
+    stage size (data-pop=stage) and is data-real-only: real screens have nothing to simulate."""
     if not steps:
         return _empty("nenhuma tela")
-    data = json.dumps([{k: st.get(k) for k in ("name", "url", "event", "note")} for st in steps], ensure_ascii=False)
-    w, h = round(width * scale), round(height * scale)
-    go = ("(function(b,d){var r=b.closest('[data-screens]'),S=JSON.parse(r.dataset.screens),"
-          "i=Math.max(0,Math.min(S.length-1,(d==null?+b.dataset.i:+r.dataset.i+d)));r.dataset.i=i;var s=S[i];"
-          "r.querySelector('iframe').src=s.url;r.querySelector('[data-n]').textContent=(i+1)+'/'+S.length+' · '+s.name;"
-          "r.querySelector('[data-e]').textContent=s.event||'';r.querySelector('[data-note]').textContent=s.note||'';"
-          "r.querySelectorAll('[data-dot]').forEach(function(x,j){x.style.opacity=j===i?1:.35});})")
-    btn = "px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
-    first = steps[0]
+
+    def geo(st: dict) -> dict:
+        vw, vh = st.get("viewport") or (width, height)
+        return {"viewport": [vw, vh], "frame": list(st.get("frame") or (0, 0, vw, vh)), "radius": st.get("radius", 0)}
+
+    def safe(u):  # an iframe src is http(s) or a path of the same origin, never javascript: or data:
+        u = str(u or "")
+        return u if u.startswith(("http://", "https://", "/")) else ""
+
+    steps = [{**st, "url": safe(st.get("url"))} for st in steps]
+    data = json.dumps([{**{k: st.get(k) for k in ("name", "url", "event", "note")}, **geo(st)} for st in steps], ensure_ascii=False)
+    first, many = steps[0], len(steps) > 1
+    # text controls, never <button>: Pico/MonsterUI paints a button as a blue filled square (the arrow sank in it)
+    arrow = "inline-flex items-center justify-center w-8 h-8 rounded font-sans text-lg leading-none select-none cursor-pointer"  # look: CSS .sc
+    nav = Div(Span("←", data_go="-1", tabindex="0", aria_label="tela anterior", title="tela anterior (←)", cls=arrow),
+              Span(f"1/{len(steps)}", data_n="1", cls="min-w-[3.25rem] text-center tabular-nums text-neutral-500"),
+              Span("→", data_go="1", tabindex="0", aria_label="próxima tela", title="próxima tela (→)", cls=arrow),
+              cls="shrink-0 flex items-center gap-1") if many else ""
+    row = "sc-row flex gap-3 px-3 py-2.5 rounded"  # hover, focus and the current one: CSS .sc-row (a row opens on click, Enter, Space)
+    rows = [Li(Span(str(i + 1), cls="w-4 shrink-0 pt-px text-right tabular-nums text-neutral-500"),
+               Div(Div(st.get("name", ""), cls="sc-name font-sans text-sm leading-snug text-neutral-600 dark:text-neutral-400"),
+                   Div(st["event"], cls="mt-0.5 font-mono text-xs text-amber-600 dark:text-amber-400") if st.get("event") else "",
+                   P(st["note"], cls="sc-note mt-1.5 font-sans text-[13px] leading-snug text-neutral-500") if st.get("note") else "",
+                   cls="min-w-0"),
+               data_step=str(i), tabindex="0" if many else None, aria_label=f"tela {i + 1}: {st.get('name', '')}" if many else None,
+               cls=row)
+            for i, st in enumerate(steps)]
     return Div(
-        H2(title, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else "",
-        Div(Button("←", type="button", cls=btn, onclick=f"{go}(this,-1)"),
-            Span(f"1/{len(steps)} · {first.get('name', '')}", data_n="1", cls="flex-1 min-w-0 truncate text-neutral-700 dark:text-neutral-300"),
-            Span(first.get("event") or "", data_e="1", cls="shrink-0 font-mono text-xs text-amber-600 dark:text-amber-400"),
-            Button("→", type="button", cls=btn, onclick=f"{go}(this,1)"), cls="flex items-center gap-2"),
-        Div(Iframe(src=first.get("url", ""), style=f"width:{width}px;height:{height}px;border:0;transform:scale({scale});transform-origin:0 0"),
-            style=f"width:{w}px;height:{h}px;overflow:hidden",
-            cls="mt-3"),  # the product draws its own device frame (a Storybook story does)
-        Div(*[Span(cls="inline-block w-2 h-2 rounded-full bg-neutral-500 cursor-pointer", data_dot="1", data_i=str(i),
-                   style=f"opacity:{1 if i == 0 else .35}", onclick=f"{go}(this)") for i in range(len(steps))],
-            cls="mt-2 flex gap-1.5"),
-        P(first.get("note") or "", data_note="1", cls="mt-2 text-sm text-neutral-500"),
-        data_screens=data, data_i="0",
+        Div(H2(title, cls="font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else Span(),
+            nav, cls="shrink-0 mb-4 flex items-center justify-between gap-4"),
+        Div(Div(Div(Iframe(src=first.get("url", ""), title=first.get("name", ""),
+                           style="position:absolute;left:0;top:0;border:0;transform-origin:0 0;background:transparent"),
+                    data_box="1", cls="relative shrink-0 overflow-hidden"),
+                data_stage="1", cls="flex-1 min-w-0 min-h-0 flex items-center justify-center"),
+            Ol(*rows, cls="w-72 shrink-0 overflow-y-auto space-y-0.5"),
+            cls="flex-1 min-h-0 flex gap-6"),
+        Script(SCREENS_JS),
+        data_screens=data, data_i="0", data_cap=str(scale), data_real_only="1", data_pop="stage", cls="sc flex flex-col",
     )
 
 
@@ -592,6 +657,21 @@ def entity_key() -> str:
 CSS = """
 #pop-body.sim { background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(127,127,127,.06) 14px 15px); }
 #pop-body.sim::before { content: "SIMULADO · os botões funcionam, nada é gravado nem enviado"; display: block; margin-bottom: 14px; font-size: 11px; letter-spacing: .12em; color: #8a8a8a; }
+/* a widget whose root says data-pop=stage (render_screens) gets the big popup, and its stage takes the height left */
+#pop-box.stage { width: min(1180px, 94vw); height: min(1000px, 92vh); max-height: none; }
+#pop-box.stage #pop-body { display: flex; flex-direction: column; overflow: hidden; }
+#pop-box.stage #pop-body > [data-pop=stage] { flex: 1 1 auto; min-height: 0; }
+.sc [data-stage] { min-height: 16rem; }
+.sc [data-go] { color: rgb(115 115 115); }
+.sc [data-go]:hover, .sc [data-go]:focus-visible { color: rgb(23 23 23); background: rgb(229 229 229); outline: none; }
+.dark .sc [data-go]:hover, .dark .sc [data-go]:focus-visible { color: rgb(245 245 245); background: rgb(38 38 38); }
+.sc [data-go].off { opacity: .3; cursor: default; pointer-events: none; }
+.sc-row .sc-note { display: none; } .sc-row.on .sc-note { display: block; }
+.sc-row[tabindex] { cursor: pointer; }
+.sc-row[tabindex]:hover, .sc-row[tabindex]:focus-visible { background: rgb(250 250 250); outline: none; }
+.dark .sc-row[tabindex]:hover, .dark .sc-row[tabindex]:focus-visible { background: rgb(20 20 20); }
+.sc-row.sc-row.on { background: rgb(240 240 240); } .dark .sc-row.sc-row.on { background: rgb(30 30 30); }
+.sc-row.on .sc-name { font-weight: 600; color: rgb(23 23 23); } .dark .sc-row.on .sc-name { color: rgb(245 245 245); }
 
 html,body{height:100%;overflow:hidden}
 /* Nerd Font symbols (Font Awesome range): one small icon before each tab label */
@@ -712,6 +792,116 @@ function toggleLayout() {  // `L` only (no button): branch <-> metro (rays), rem
   clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1200);
 }
 
+// --- focus + context on the branch layout (Furnas 1986, "Generalized fisheye views"; Card, Mackinlay & Shneiderman
+// 1999). A domain with more than FOCUS_MIN events opens with ONE lane drawn whole and every other lane folded to one
+// labelled line with its count; a click on a folded lane (or its number key) opens it and folds the one open before;
+// 0 opens them all. `lane` in the query keeps the choice (`all` = every lane open). The columns keep their order (the
+// mental map stays): a column with no station of an open lane narrows to FOLD_COL (a rubber sheet), so the open lane
+// keeps its labels readable at the window's zoom instead of the whole map shrinking to fit it.
+const FOCUS_MIN = 15, LABEL_MIN_PX = 16, BRANCH_FONT = 20, FOLD_COL = 44, BAND_MIN = 170;
+const FOLD_ABOVE = 46, FOLD_BELOW = 24;   // a folded lane's band: its label above the line, the line, a little air
+function laneDefault(cats) {  // the lane of the journal's latest event, else of the project's HOME, else the north (the first)
+  const latest = E.filter(e => cats.includes(String(e.event || '').split('.')[0]))
+    .reduce((a, e) => (!a || String(e.at || '') >= String(a.at || '') ? e : a), null);
+  const home = (D.home || []).length ? String(D.home[0]).split('.')[0] : null;
+  return latest ? latest.event.split('.')[0] : cats.includes(home) ? home : cats[0];
+}
+function laneFocus(cats) {  // null: a small domain, every lane open as before
+  const n = cats.reduce((s, c) => s + M().lifecycle[c].length, 0);
+  if (n <= FOCUS_MIN || cats.length < 2) return null;
+  const q = Q.get('lane'), evc = (Q.get('ev') || '').split('.')[0];
+  const open = q === 'all' ? null : cats.includes(q) ? q : cats.includes(evc) ? evc : laneDefault(cats);
+  return {open, cats, folded: new Set(open ? cats.filter(c => c !== open) : [])};
+}
+function openLane(c) { setQ('lane', c || 'all'); drawGraph(); }   // c: a lane, or null for all of them
+function laneKey(e) {  // 1-9 open that lane (EVENTS order), 0 opens every lane; only on a focused branch drawing
+  const info = window.__cy && window.__cy.scratch('branch'), F = info && info.focus;
+  if (!F || e.metaKey || e.ctrlKey || e.altKey || !/^[0-9]$/.test(e.key)) return false;
+  const i = +e.key; if (i && !F.cats[i - 1]) return false;
+  openLane(i ? F.cats[i - 1] : null); e.preventDefault(); return true;
+}
+// the columns, left to right: centre x of each global column (0 = the Human's) and each stage band's x1..x2. Focused,
+// a column with no station of an open lane is FOLD_COL wide and a band never narrower than its header; unfocused,
+// every column is COL (the plain grid of before)
+function foldGrid(SO, width, bandStart, wide, COL, GAP, labels) {
+  const n = Math.max(1, ...SO.map((s, i) => bandStart[i] + width[i])), w = [], stageAt = [0];
+  for (let g = 0; g < n; g++) w[g] = !wide || g === 0 || wide.has(g) ? COL : FOLD_COL;
+  SO.forEach((s, i) => { for (let g = bandStart[i]; g < bandStart[i] + width[i]; g++) stageAt[g] = i;
+    if (!wide || !width[i]) return;
+    const need = Math.max(BAND_MIN, String(labels[s] ?? s).length * 12 + 48);
+    let have = 0; for (let g = bandStart[i]; g < bandStart[i] + width[i]; g++) have += w[g];
+    if (have < need) for (let g = bandStart[i]; g < bandStart[i] + width[i]; g++) w[g] += (need - have) / width[i]; });
+  const x = []; let left = 0;
+  for (let g = 0; g < n; g++) { x[g] = left + w[g] / 2 - w[0] / 2 + (stageAt[g] || 0) * GAP; left += w[g]; }
+  return {x, band: i => width[i] ? {x1: x[bandStart[i]] - w[bandStart[i]] / 2, x2: x[bandStart[i] + width[i] - 1] + w[bandStart[i] + width[i] - 1] / 2}
+                                 : {x1: 0, x2: 0}};
+}
+// a folded lane: its stations are dots on its row with no label (its name is a row header, laneHeads), and what is
+// dashed there (merges, loops, jumps into it) waits until it opens. Every element of it opens it
+function foldLanes(F, lanes, nodes, edges, laneOf) {
+  if (!F) return;
+  const folded = id => laneOf[id] != null && lanes[laneOf[id]].fold;
+  nodes.forEach(n => { const id = n.data.id; if (!folded(id)) return;
+    n.data.mlabel = ''; n.data.fold = lanes[laneOf[id]].c; n.classes = `${n.classes || ''} folded`; });
+  edges.forEach(e => { const d = e.data, a = d.from || d.source, b = d.target, cl = e.classes || '';
+    const dashed = /\b(cross|stub|backloop)\b/.test(cl);
+    if (dashed && (folded(b) || (!/\bstub\b/.test(cl) && folded(a)))) { e.classes = `${cl} foldhide`; d.label = ''; return; }
+    if (folded(b) && folded(a)) d.fold = lanes[laneOf[b]].c; });
+}
+// the home view of a branch drawing: the Human at the top left, the zoom fitting the height but never below what keeps
+// a label at LABEL_MIN_PX; a focused drawing fits its open lane, never everything (the rest is a scroll away), from the
+// Human's column so the left edge stays put across lanes, unless the lane starts past the window's middle
+function laneView(cy, info) {
+  const m = 40, W = cy.width(), H = cy.height(), zmin = (LABEL_MIN_PX + 0.2) / BRANCH_FONT;
+  const opt = {includeLabels: true, includeOverlays: false}, bb = cy.elements(':visible').boundingBox(opt);
+  const F = info && info.focus, li = F && F.open ? F.cats.indexOf(F.open) : -1;
+  const lane = li < 0 ? null : cy.nodes('.station').filter(n => n.data('lane') === li), ob = lane && lane.nonempty() ? lane.boundingBox(opt) : null;
+  let z = Math.min(1, (H - 2 * m) / Math.max(bb.h, 1), ob ? (W - 2 * m) / Math.max(ob.x2 - bb.x1, 1) : 1);
+  z = Math.max(z, zmin);
+  const pan = {x: m - bb.x1 * z, y: m - bb.y1 * z};
+  if (ob && (ob.x1 - bb.x1) * z > (W - 2 * m) / 2) pan.x = m - (ob.x1 - 2 * m) * z;   // a lane born far right: from its start
+  if (ob && (ob.y2 - bb.y1) * z > H - 2 * m) pan.y = m - Math.max(bb.y1, ob.y1 - 3 * m) * z;
+  return {zoom: z, pan};
+}
+// the legend of a focused drawing is the lanes' switcher: console text (spans, tabindex 0), the open lane underlined
+function laneLegend(info, PATH) {
+  const F = info && info.focus, el = $('legend'); if (!F || !el) return;
+  const span = (c, text, on) => `<span tabindex="0" data-lane="${esc(c)}" class="cursor-pointer ${on ? 'underline underline-offset-4 font-semibold' : 'opacity-70 hover:opacity-100'}"${c ? ` style="color:${PATH[c]}"` : ''}>${text}</span>`;
+  el.innerHTML = F.cats.map((c, i) => span(c, `${i < 9 ? i + 1 + ' ' : ''}${esc(c)}`, F.open === c)).join('') + span('', '0 todas', !F.open);
+  el.querySelectorAll('[data-lane]').forEach(s => { const go = () => openLane(s.dataset.lane || null);
+    s.onclick = go; s.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+}
+// a folded lane's name stays on screen like a frozen row header: HTML over the drawing at the window's left edge, just
+// above the lane's line, in its colour, knocking out what runs under it; never smaller than LABEL_MIN_PX. A lane born
+// far right (most of the Zap's) had its name cut off or off screen when the name sat at its first station
+function laneHeads(cy, info, PATH, title, bg) {
+  const old = $('lane-heads'); if (old) old.remove();
+  const F = info && info.focus, host = $('cy'); if (!F || !host) return;
+  const box = document.createElement('div'); box.id = 'lane-heads'; box.className = 'absolute inset-0 pointer-events-none overflow-hidden';
+  host.parentElement.appendChild(box);
+  const rows = info.lanes.filter(l => l.fold).map(l => { const k = F.cats.indexOf(l.cat) + 1, n = l.ids.length, el = document.createElement('span');
+    el.tabIndex = 0; el.dataset.lane = l.cat; el.setAttribute('aria-label', `abrir ${title(l.cat)}`);
+    el.className = 'absolute pointer-events-auto cursor-pointer font-mono font-semibold whitespace-nowrap px-1 rounded hover:underline';
+    el.style.color = PATH[l.cat]; el.style.background = bg;
+    el.textContent = `${k <= 9 ? k + '  ' : ''}${title(l.cat)} · ${n} ${n === 1 ? 'evento' : 'eventos'}`;
+    const go = () => openLane(l.cat); el.onclick = go;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+    box.appendChild(el); return {el, row: l.row}; });
+  const place = () => { const z = cy.zoom(), p = cy.pan(), fs = Math.max(LABEL_MIN_PX, BRANCH_FONT * z), lh = Math.round(fs * 1.25);
+    const hb = cy.$('#human').nonempty() ? cy.$('#human').renderedBoundingBox({includeLabels: false}) : null;
+    rows.forEach(r => { const top = r.row * z + p.y - lh - 5 * z;
+      r.el.style.fontSize = `${fs}px`; r.el.style.lineHeight = `${lh}px`; r.el.style.top = `${top}px`;
+      // never on the Human: a header on its rows starts right of it
+      r.el.style.left = `${hb && top < hb.y2 && top + lh > hb.y1 && hb.x2 > 0 ? Math.round(hb.x2 + 10) : 12}px`;
+      r.el.style.display = top < -lh || top > cy.height() ? 'none' : ''; }); };
+  cy.on('viewport resize', place); place();
+}
+function laneTaps(cy) {  // a folded lane opens on a click anywhere on it; the pointer says so
+  cy.on('tap', '[fold]', ev => { const c = ev.target.data('fold'); setTimeout(() => openLane(c), 0); });   // not inside cy's own event
+  cy.on('mouseover', '[fold]', () => { cy.container().style.cursor = 'pointer'; });
+  cy.on('mouseout', '[fold]', () => { cy.container().style.cursor = ''; });
+}
+
 function drawGraph() {
   if (graphRO) graphRO.disconnect();
   if (window.__cy) { try { window.__cy.destroy(); } catch (e) {} window.__cy = null; }
@@ -789,10 +979,11 @@ function drawGraph() {
   const STEP = 170, TRACK = 180, HUMAN_R = 56, LABEL_CHARS = 14, LABEL_PUSH = 14;
   const LINE_POINTS = [], DASH_POINTS = [];   // thick line and dashed edge polylines (model coordinates), for the label collision test
   const SHIFT = [0, 1, 0, -1, 0, -1, 0, 1];   // diagonals (NE SE SW NW): the label leaves its own line, down (+1) or up (-1)
-  const metroLabelOf = id => { const [c, v] = id.split('.'), ent = ENT[c] || pascal(c);
+  // bare: the event words only (a branch lane names its entity once, at its first station, like a metro line its name)
+  const metroLabelOf = (id, bare) => { const [c, v] = id.split('.'), ent = ENT[c] || pascal(c);
     const parts = pascal(v).match(/[A-Z][a-z0-9]*|[a-z0-9]+/g) || [pascal(v)], lines = [];
     parts.forEach(p => { const last = lines.length - 1; if (last >= 0 && lines[last].length + p.length <= LABEL_CHARS) lines[last] += p; else lines.push(p); });
-    return [ent, ...lines].join('\n'); };
+    return (bare ? lines : [ent, ...lines]).join('\n'); };
   if (METRO) {
     const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]].map(([x, y]) => { const l = Math.hypot(x, y); return [x / l, y / l]; });
     const SIDE = ['r', 'r', 'b', 'r', 'l', 'l', 't', 'l'];   // N NE E SE S SW W NW: the label's side, fixed per direction
@@ -854,10 +1045,15 @@ function drawGraph() {
     // columns per stage, a faint header at the top, a station inside its stage's band, ordered by the path); without
     // them a column is the longest step count from the Human. Labels are horizontal, below the station (above on a
     // spur that rises), pushed apart by the same collision pass as the metro.
-    const COL = 170, SPURY = 72, GAP = 40, LANE_ABOVE = 80, LANE_BELOW = 88, LANE_PAD = 34, LANE_SKIP = 12, HEADER = 84;
+    // COL leaves room for a 14-character label at the branch's 20 px (the labels were 14 px, about 8 px on a 900 px tall
+    // window once the zoom fits the height); STUB is how far a jump's dashed end reaches out of its station
+    const COL = 210, SPURY = 72, GAP = 40, LANE_ABOVE = 80, LANE_BELOW = 88, LANE_PAD = 34, LANE_SKIP = 12, HEADER = 84, STUB = 64;
+    const mix = (a, b, t) => '#' + [1, 3, 5].map(i => { const x = parseInt(a.slice(i, i + 2), 16), y = parseInt(b.slice(i, i + 2), 16);
+      return Math.round(x + (y - x) * t).toString(16).padStart(2, '0'); }).join('');   // b over a at opacity t
     const branchLayout = () => {
       const lanes = cats.map(c => ({c, ids: M().lifecycle[c].map(v => `${c}.${v}`)})), laneOf = {};
       lanes.forEach((l, i) => l.ids.forEach(id => { laneOf[id] = i; }));
+      const FOC = laneFocus(cats); lanes.forEach(l => { l.fold = !!FOC && FOC.folded.has(l.c); });
       const adj = {}; edges.forEach(e => { (adj[e.data.source] ??= []).push(e.data.target); });
       // reverse post-order of a depth-first walk from the Human (then from what it does not reach, in lane order): every
       // edge but the back edges (loops) points forward, so a longest path gives the columns
@@ -907,21 +1103,33 @@ function drawGraph() {
         occ.add(key(base)); local[id] = base; });
       const width = SO.map(() => 0); Object.keys(local).forEach(id => { width[stage[id]] = Math.max(width[stage[id]], local[id] + 1); });
       const bandStart = []; let cc = 1; SO.forEach((s, i) => { bandStart[i] = cc; cc += width[i]; });
-      const xOf = id => (bandStart[stage[id]] + local[id]) * COL + stage[id] * GAP;
+      const wide = FOC ? new Set(Object.keys(local).filter(id => !lanes[laneOf[id]].fold).map(id => bandStart[stage[id]] + local[id])) : null;
+      const GX = foldGrid(SO, width, bandStart, wide, COL, GAP, M().stage_labels || {});
+      const xOf = id => GX.x[bandStart[stage[id]] + local[id]];
       // the lanes, top to bottom in EVENTS order; the Human sits on the first lane's row
       let y = 0; lanes.forEach(l => { const ss = l.ids.map(id => slot[id]), lo = Math.min(...ss), hi = Math.max(...ss);
-        l.top = y; l.row = y + (lo < 0 ? -lo * SPURY + LANE_ABOVE : LANE_PAD); l.bottom = l.row + hi * SPURY + LANE_BELOW; y = l.bottom + LANE_SKIP; });
+        l.top = y; l.row = y + (lo < 0 ? -lo * SPURY + LANE_ABOVE : LANE_PAD); l.bottom = l.row + hi * SPURY + LANE_BELOW;
+        if (l.fold) { l.row = y + FOLD_ABOVE; l.bottom = l.row + FOLD_BELOW; }   // folded: one row, its label above
+        y = l.bottom + LANE_SKIP; });
       const y0 = lanes[0].row;
-      lanes.forEach(l => { l.top -= y0; l.row -= y0; l.bottom -= y0; l.ids.forEach(id => { pos[id] = {x: xOf(id), y: l.row + slot[id] * SPURY}; }); });
+      lanes.forEach(l => { l.top -= y0; l.row -= y0; l.bottom -= y0; l.ids.forEach(id => { pos[id] = {x: xOf(id), y: l.row + (l.fold ? 0 : slot[id] * SPURY)}; }); });
+      const headOf = id => { const l = lanes[laneOf[id]]; return l && l.ids.find(x => !parentOf[x]) === id; };
       nodes.forEach(n => { const id = n.data.id; if (id === 'human') return;
-        n.position = pos[id]; n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id);
-        n.data.side = slot[id] < 0 ? 't' : 'b'; n.data.dir = 2; n.data.lane = laneOf[id]; n.data.stage = SO[stage[id]]; });
+        n.position = pos[id]; n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id, !headOf(id));
+        // a spur that ends at its station carries the label on its right, where the row is free (stacked spurs are one
+        // SPURY apart, less than a two-line label above or below: they were pushed far from their stations)
+        n.data.side = slot[id] !== 0 && !kidsOf[id].length ? 'r' : slot[id] < 0 ? 't' : 'b';
+        // the label knocks out what runs under it (a cartographic halo) in its stage band's own tone, so a label that
+        // must sit on a line stays readable and the box does not show
+        n.data.lbg = staged ? mix(bg, ink, stage[id] % 2 ? 0.05 : 0.025) : bg;
+        n.data.dir = 2; n.data.lane = laneOf[id]; n.data.stage = SO[stage[id]]; });
       const top = lanes[0].top - (staged ? HEADER : 0), bottom = lanes[lanes.length - 1].bottom;
-      const bands = SO.map((s, i) => ({stage: s, x1: bandStart[i] * COL + i * GAP - COL / 2, x2: (bandStart[i] + width[i]) * COL + i * GAP - COL / 2}));
+      const bands = SO.map((s, i) => ({stage: s, ...GX.band(i)}));
       if (staged) bands.forEach((b, i) => { if (!width[i]) return;
         nodes.unshift({data: {id: `stage:${i}`, label: (M().stage_labels || {})[b.stage] ?? b.stage, w: b.x2 - b.x1, h: bottom - top, tone: i % 2 ? 0.05 : 0.025},
           position: {x: (b.x1 + b.x2) / 2, y: (top + bottom) / 2}, classes: 'stagehdr', selectable: false, grabbable: false}); });
-      BRINFO = {lanes: lanes.map(l => ({cat: l.c, y1: l.top, y2: l.bottom, row: l.row, ids: l.ids})), bands: staged ? bands.filter((b, i) => width[i]) : [],
+      BRINFO = {lanes: lanes.map(l => ({cat: l.c, y1: l.top, y2: l.bottom, row: l.row, ids: l.ids, fold: l.fold})), bands: staged ? bands.filter((b, i) => width[i]) : [],
+        focus: FOC ? {open: FOC.open, cats: FOC.cats} : null,
         stage: Object.fromEntries(Object.entries(stage).map(([id, i]) => [id, SO[i]]))};
       // the edges. A lane's birth: the transition into its first station from the leftmost source outside the lane
       lanes.forEach(l => { l.first = l.ids.find(id => !parentOf[id]); });
@@ -943,7 +1151,9 @@ function drawGraph() {
       Object.values(groups).forEach(({a, bs}) => bs.sort((p, q) => Math.abs(pos[q].y - pos[a].y) - Math.abs(pos[p].y - pos[a].y))
         .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(46 + i * 26, COL - 40); }));  // a full track apart: 10 px read as one line
       const branchRoute = (a, b) => { const S = pos[a], T = pos[b], dy = T.y - S.y, dx = T.x - S.x, s = Math.sign(dy);
-        if (a === 'human') return Math.abs(dy) >= dx ? [{x: 0, y: T.y - s * dx}] : spurRoute(a, b);
+        // a lane nothing leads into hangs from the Human: straight down its column, then along the lane's own row (a
+        // 45° leg from the Human ran through the stations of the lanes it passed, Broker.SignedUp on the Via)
+        if (a === 'human') return Math.abs(dy) >= 1 ? [{x: S.x, y: T.y}] : [];
         const h = gutter[`${a}>${b}`];
         if (Math.abs(dy) < COL || dx < COL - 1 || h == null) return spurRoute(a, b);
         const Bs = [{x: S.x + h, y: S.y + s * h}, {x: S.x + h, y: T.y - s * (COL - h)}, {x: S.x + COL, y: T.y}];
@@ -961,10 +1171,24 @@ function drawGraph() {
         const sg = Math.sign(Bs[0].y - pos[a].y) || 1, d = 2 * k * PAR, nx = Bs[1] || pos[b];
         const horiz = Math.abs(nx.y - Bs[0].y) < 1;  // a leg that then runs along a row turns earlier; one that drops, lower
         return [horiz ? {x: Bs[0].x - d, y: Bs[0].y} : {x: Bs[0].x, y: Bs[0].y + sg * d}, ...Bs.slice(1)]; };
-      const done = new Set(), born = new Set();
+      const done = new Set(), born = new Set(), stubs = [];
       edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
         if (a === b) return;
         const kind = kindOf(a, b); done.add(`${a}>${b}`); let Bs = [];
+        // a jump into another lane (partial edge drawing, Bruckdorfer & Kaufmann 2012): only its end is drawn, a short
+        // dashed stub into the station from the side its source is on, labelled with the command and where it comes from.
+        // Drawn whole it crossed every lane in between, or ran along the source's own line (Via: open_by_client, view_index).
+        // A loop back inside a lane over more than two columns is a jump too (an arc that long crossed the lane's spurs)
+        const jump = kind === 'merge' && a !== 'human' && laneOf[a] != null && laneOf[b] != null
+          && (laneOf[a] !== laneOf[b] || (back.has(`${a}>${b}`) && Math.abs(pos[a].x - pos[b].x) > 2 * COL));
+        if (jump) {
+          const T = pos[b], sx = Math.sign(pos[a].x - T.x) || -1, sy = Math.sign(pos[a].y - T.y) || -1;   // from the source's side
+          const P = {x: T.x + sx * STUB, y: T.y + sy * STUB}, sid = `stub:${a}>${b}`;
+          e.classes = `${cl} jump`;
+          nodes.push({data: {id: sid, label: ''}, position: P, classes: 'stubend', selectable: false, grabbable: false});
+          stubs.push({data: {id: `${sid}:end`, source: sid, target: b, color: soft, from: a,
+            label: `${(M().edge_cmd || {})[`${a}>${b}`] || M().commands[b]} ← ${name(a)}`}, classes: 'cross stub'});
+          DASH_POINTS.push([P, T]); return; }
         if (kind === 'merge' && back.has(`${a}>${b}`)) {  // a loop runs leftwards: an arc above the rows, never along a line
           const dx = Math.abs(pos[b].x - pos[a].x), dy = pos[b].y - pos[a].y;
           e.classes = `${cl} cross backloop`; e.data.cpd = (pos[b].x <= pos[a].x ? 1 : -1) * (SPURY * 0.9 + Math.min(dx, 4 * COL) * 0.12 + Math.abs(dy) * 0.1); }
@@ -976,14 +1200,20 @@ function drawGraph() {
           e.classes = `${cl} ${spine ? 'spine' : 'line'}${e.data.sep ? ' parallel' : ''}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
           LINE_POINTS.push([k ? {x: pos[a].x - k * PAR, y: pos[a].y + sg * k * PAR} : pos[a], ...Bs, pos[b]]); }  // the shifted start, for the label test
         if (Bs.length) e.data.route = route(pos[a], pos[b], Bs); });
+      edges.push(...stubs);
       // a lane is continuous: where the model has no edge between a station and the one before it, a faint rail carries the
       // line on; a lane nothing leads into hangs from the Human on the grey spine
       const rail = (a, b, color, cls, Bs) => { edges.push({data: {id: `rail:${a}>${b}`, source: a, target: b, color, label: '', ...(Bs.length ? {route: route(pos[a], pos[b], Bs)} : {})}, classes: cls});
         LINE_POINTS.push([pos[a], ...Bs, pos[b]]); };
-      lanes.forEach(l => { const pairs = l.ids.slice(1).map(id => [parentOf[id] || prevOf(id), id]).filter(([a, b]) => a !== b && !done.has(`${a}>${b}`));
+      // a station nothing in its lane leads into continues the row it sits on (the last station before it on that row):
+      // carried on from the station before it in EVENTS order, a spur's end, the rail cut across the fork's other spurs
+      const rowPrev = id => { const l = lanes[laneOf[id]], i = l.ids.indexOf(id);
+        for (let j = i - 1; j >= 0; j--) if (slot[l.ids[j]] === slot[id] && pos[l.ids[j]].x < pos[id].x) return l.ids[j]; return prevOf(id); };
+      lanes.forEach(l => { const pairs = l.ids.slice(1).map(id => [parentOf[id] || rowPrev(id), id]).filter(([a, b]) => a !== b && !done.has(`${a}>${b}`));
         if (!born.has(l.first)) pairs.unshift(['human', l.first]);
         pairs.forEach(([a, b]) => { if (a === 'human') { const far = Math.abs(pos[b].y) >= 1; rail(a, b, far ? soft : PATH[l.c], far ? 'spine' : 'rail', far ? branchRoute(a, b) : []); }
           else rail(a, b, PATH[l.c], 'rail', spurRoute(a, b)); }); });
+      foldLanes(FOC, lanes, nodes, edges, laneOf);
     };
     if (BR) branchLayout();
     (BR ? [] : edges).forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
@@ -1040,8 +1270,10 @@ function drawGraph() {
       {selector: 'edge.loop', style: {'curve-style': 'bezier', 'control-point-step-size': 60}},
       ...(METRO ? [
         {selector: 'node.station', style: {shape: 'ellipse', width: 16, height: 16, 'background-color': bg, 'border-width': 3,
-          'border-color': 'data(color)', 'border-opacity': 1, label: 'data(mlabel)', 'font-size': 14, 'font-weight': 400,
+          'border-color': 'data(color)', 'border-opacity': 1, label: 'data(mlabel)', 'font-size': BR ? 20 : 14, 'font-weight': 400,
           color: dark ? '#a3a3a3' : '#525252', 'text-wrap': 'wrap', 'line-height': 1.15, 'text-valign': 'center', 'text-halign': 'center'}},
+        ...(BR ? [{selector: 'node.station', style: {'text-background-color': 'data(lbg)', 'text-background-opacity': 1,
+          'text-background-padding': '2px', 'text-background-shape': 'roundrectangle'}}] : []),
         {selector: 'node.station.used', style: {'background-color': 'data(color)', 'border-width': 0, width: 18, height: 18, color: ink}},
         {selector: 'node.station[side="r"]', style: {'text-halign': 'right', 'text-valign': 'center', 'text-justification': 'left'}},
         {selector: 'node.station[side="l"]', style: {'text-halign': 'left', 'text-valign': 'center', 'text-justification': 'right'}},
@@ -1057,7 +1289,17 @@ function drawGraph() {
         {selector: 'edge.parallel', style: {'source-endpoint': 'data(sep)'}},
         {selector: 'edge.backloop', style: {'curve-style': 'unbundled-bezier', 'control-point-distances': 'data(cpd)', 'control-point-weights': 0.5, 'z-index': 1}},
         {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
-          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
+          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': BR ? 17 : 12, 'text-rotation': 'none', 'z-index': 2}},
+        // a jump (branch): the whole edge stays in the model, hidden; its stub draws the end
+        {selector: 'edge.jump', style: {display: 'none'}},
+        {selector: 'node.stubend', style: {width: 1, height: 1, 'background-opacity': 0, 'border-width': 0, label: '', events: 'no'}},
+        ...(BR ? [
+          {selector: 'node.station.folded', style: {width: 11, height: 11, 'border-width': 2.5}},
+          {selector: 'node.station.used.folded', style: {width: 11, height: 11, 'border-width': 0}},
+          {selector: 'edge.foldhide', style: {display: 'none'}},
+          {selector: 'edge.cross', style: {'font-size': BRANCH_FONT}},
+          {selector: 'node, edge', style: {'min-zoomed-font-size': LABEL_MIN_PX}},
+        ] : []),
       ] : []),
       {selector: ':selected', style: {'border-width': 4, 'border-color': ink, 'border-opacity': 1}},
     ],
@@ -1076,7 +1318,8 @@ function drawGraph() {
     const uni = (a, b) => ({x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1), x2: Math.max(a.x2, b.x2), y2: Math.max(a.y2, b.y2)});
     const placed = [], unions = [], PUSH = {r: [1, 0], l: [-1, 0], b: [0, 1], t: [0, -1]};
     cy.nodes('.station').forEach(n => {
-      const pref = n.data('side'), dir = n.data('dir'), cands = BR ? [pref, pref === 'b' ? 't' : 'b'] : [pref];   // branch: a station that branches downwards may carry its label above
+      // branch: a station that branches downwards may carry its label above, and any may fall back to its right
+      const pref = n.data('side'), dir = n.data('dir'), cands = BR ? [pref, ...['b', 't', 'r'].filter(s => s !== pref)] : [pref];
       let best = null;
       for (const side of cands) {
         n.data('side', side);
@@ -1122,11 +1365,7 @@ function drawGraph() {
   graphRO.observe($('cy'));
   // open centred on the Human (fit keeps the zoom, then the Human goes to the middle); off centre, a button brings it back
   // branch: the Human at the top left with a margin, the zoom fitting the height (scroll or zoom right to read on)
-  function homeView() {
-    const bb = cy.elements().boundingBox({includeLabels: true, includeOverlays: false}), m = 40;
-    const zoom = Math.min(1, (cy.height() - 2 * m) / Math.max(bb.y2 - bb.y1, 1));
-    return {zoom, pan: {x: m - bb.x1 * zoom, y: m - bb.y1 * zoom}};
-  }
+  function homeView() { return laneView(cy, BRINFO); }
   function centreHuman() {
     const h = cy.$('#human'); if (h.empty()) { offCentre(); return; }
     if (BR) { const v = homeView(); cy.zoom(v.zoom); cy.pan(v.pan); offCentre(); return; }
@@ -1152,7 +1391,9 @@ function drawGraph() {
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
     + '';
   cy.on('tap', ev => { if (ev.target === cy) closeSide(); });
-  cy.on('tap', 'node', ev => { if (Q.get('embed') !== 'graph') openSide(ev.target.id()); });  // embed=graph: the graph alone
+  cy.on('tap', 'node[!fold]', ev => { if (Q.get('embed') !== 'graph') openSide(ev.target.id()); });  // embed=graph: the graph alone
+  if (BR) { laneTaps(cy); laneLegend(BRINFO, PATH); }
+  laneHeads(cy, BR ? BRINFO : null, PATH, c => ENT[c] || pascal(c), bg);
   window.__cy = cy;
 }
 
@@ -1365,11 +1606,14 @@ function openWidget(id, name, base = D.base) {
   $('pop-name').textContent = name;
   $('pop-sub').textContent = Q.get('e') ? `${id} · evento ${Q.get('e').slice(0, 8)}` : `${id} · primeiro evento real do diário`;
   $('pop-body').innerHTML = '<p class="text-neutral-400">carregando…</p>';
+  $('pop-box').classList.remove('stage');
   $('pop').classList.remove('hidden'); $('pop').classList.add('flex');
   frag(`${base}/w/${D.state.id}/${id}/${encodeURIComponent(name)}?e=${base === D.base ? Q.get('e') || '' : ''}&mode=${MODE()}`).then(h => {
+    // a stage widget (render_screens: the product's real screens) gets the big popup before its script measures it
+    $('pop-box').classList.toggle('stage', /data-pop="stage"/.test(h));
     inject($('pop-body'), h);
     // a widget generated from a real source (data-real-only: a SKILL.md, the code) has nothing to simulate: no REAL | SIMULADO
-    if ($('pop-body').querySelector('[data-real-only]')) { setQ('mode', ''); $('pop-mode').classList.add('hidden'); }
+    if ($('pop-body').querySelector('[data-real-only]')) { setQ('mode', ''); $('pop-mode').classList.add('hidden'); paintMode(); }
     // a composed WidgetList inside the popup: its abrir opens that widget here (in its own domain)
     wireRows($('pop-body'));
   });
@@ -1564,6 +1808,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'g') { $('keyhint').textContent = 'g…'; pending = setTimeout(() => { pending = null; $('keyhint').textContent = ''; }, 1200); return; }
   if ((e.key === 'l' || e.key === 'L') && GRAPH(tab) && !popOpen()) { toggleLayout(); e.preventDefault(); return; }
+  if (GRAPH(tab) && !popOpen() && laneKey(e)) return;   // 1-9 open a lane, 0 all (a focused branch drawing)
   if (e.key === 'Escape') { popOpen() ? closeWidget() : closeSide(); return; }
   if (popOpen()) return;
 });
@@ -2201,6 +2446,7 @@ def tension(slug: str, tid: str, embed: str = ""):
                     Div("✕", id="pop-close", title="Esc", cls="shrink-0 px-2 cursor-pointer text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"),
                     cls="shrink-0 flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-neutral-200 dark:border-neutral-800"),
                 Div(id="pop-body", cls="flex-1 min-h-0 overflow-y-auto px-6 py-5"),
+                id="pop-box",
                 cls="w-[min(860px,92vw)] max-h-[82vh] flex flex-col rounded-lg border border-neutral-300 dark:border-neutral-700 "
                     "bg-white dark:bg-neutral-950 shadow-2xl",
             ),
