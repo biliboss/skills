@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.32.0] - 2026-11-06
+
+### Changed
+
+- `task-understand` is now `backbrief` 0.14.0 (US Army backbrief; the Tasks domain keeps its name). Patch bumps: `advisor` 0.1.1, `cost-track` 0.3.2, `dev-console` 0.16.1, `skill-smith` 0.4.1.
+
 ## [0.31.0] - 2026-11-06
 
 ### Added

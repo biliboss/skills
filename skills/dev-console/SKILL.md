@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.16.0
+  version: 0.16.1
 ---
 
 # dev-console
@@ -314,7 +314,7 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
    the new path. Leave the `/tmp` folder (deleting is his call). Ship as one PR.
    **Its events go to a global append-only JSONL**, like tensions: `~/.local/share/<name>/events.jsonl` (override
    `<NAME>_DIR`), written only by `scripts/<name>.py emit <event> '<json>' [--<entity> <id>] --actor <who>`;
-   no example journal inside the repo. **Name the skill `<entity>-<action>`** (task-understand): one command
+   no example journal inside the repo. **Name the skill for the work** (backbrief; `<entity>-<action>` when no short name exists): one command
    runs the whole workflow, never one skill per command, and it does not collide with harness built-ins
    (`/tasks` is Claude Code's). The domain keeps its plural set name (Tasks: `SLUG` tasks, the journal folder)
    and its console `NAME` says where it lives ("Biliboss Skills - Tasks").

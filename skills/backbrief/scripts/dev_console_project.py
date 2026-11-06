@@ -42,7 +42,7 @@ def _skill_meta() -> tuple[str, str, list[str]]:
 
     text = SKILL_MD.read_text()
     front = text.split("---")[1]
-    name = next((l.split(":", 1)[1].strip() for l in front.splitlines() if l.startswith("name:")), "task-understand")
+    name = next((l.split(":", 1)[1].strip() for l in front.splitlines() if l.startswith("name:")), "backbrief")
     desc = " ".join(l.strip() for l in front.split("description:", 1)[1].split("metadata:")[0].splitlines()[1:])
     body = text.split("## Explain", 1)[1].split("\n## ", 1)[0] if "## Explain" in text else ""
     steps = [re.sub(r"`([^`]+)`", r"\1", m) for m in re.findall(r"^\d+\.\s+(.+)$", body, re.M)]
@@ -216,7 +216,7 @@ FAKE_EXECUTION = ExecutionResult(
     method=Method.PRINT, harness=Harness.PI, model="sonnet", effort=None, cycle_time_s=87,
     delivery=Delivery.PR_CLOSED, session=None,
     pull_request=PullRequest(41, "https://github.com/biliboss/skills/pull/41", PullRequestState.MERGED),
-    commits=(Commit("99769cd", "feat(task-understand): 0.5.1, the whole process by the executor's first real run",
+    commits=(Commit("99769cd", "feat(backbrief): 0.5.1, the whole process by the executor's first real run",
                     "biliboss/skills"),),
     provider="claude-bridge", plan="mukutu-claude", exit_code=0, duration_s=84, turns=12,
     verification=Verification(

@@ -2,7 +2,7 @@
 name: advisor
 description: Use on every request before starting work, to decide whether to consult the advisor (a stronger session that only advises, reached by SendMessage with a shared context in ~/.local/share/advisor/) and to record that decision, called or not. The consult points are the plan before big work, when stuck, and before saying done; whether to call is read from the journal of past decisions of the same kind of task. Also covers the advisor's own side (how to answer). Triggers include "pergunta ao advisor", "plano antes de trabalho grande", "travei", "terminei, vou entregar", "você é o advisor". Not `delegate-and-review` (a subagent that opens a PR) nor `herdr-agentes` (opens another session); here the other session already exists and only gives the verdict.
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # advisor — o agente principal pergunta, o advisor aconselha
@@ -35,7 +35,7 @@ Os pontos de consulta são decisões, não só código. Fora deles, siga sozinho
 2. **Travou** (`travou`): duas tentativas falharam, ou o caminho ficou ambíguo.
 3. **Antes de entregar** (`terminou`): "isto cumpre o pedido? falta algo?". Quando se chama, é **mesmo com os testes verdes**; a saída dos testes vai como resource.
 4. **Difícil de desfazer ou que sai para fora** (`irreversivel`): push na main, apagar, mandar mensagem a alguém, mexer num processo que não é seu.
-5. **O pedido está ambíguo** (`ambiguidade`) e o task-understand não resolveu.
+5. **O pedido está ambíguo** (`ambiguidade`) e o backbrief não resolveu.
 
 Os passos de cada consulta:
 

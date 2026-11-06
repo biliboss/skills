@@ -6,7 +6,7 @@
 Review domain.
 
 Code review is the practice (the literature's term); a finding's severity follows Conventional Comments' labels. The
-review checks the code's quality; task-understand's verify (IV&V) checks that the delivery does what was asked. No
+review checks the code's quality; backbrief's verify (IV&V) checks that the delivery does what was asked. No
 GitHub: the diff is the worktree's against its base, read with git.
 
 Prototype: the journal is a global append-only JSONL, ~/.local/share/review/events.jsonl (override REVIEW_DIR); the
@@ -24,7 +24,7 @@ JOURNAL = Path(os.environ.get("REVIEW_DIR", "~/.local/share/review")).expanduser
 EVENTS = {
     "review": {
         # Uma revisão começou sobre o diff de um worktree contra a base: a branch, o commit, o modelo (plano fixo) e a
-        # tarefa do task-understand que gerou a mudança.
+        # tarefa do backbrief que gerou a mudança.
         "start": "started",
         # A revisão acabou: quanto tempo levou, quantos achados e quantos ficaram abertos; a saída inteira em runs/<id>.md.
         "finish": "finished",
@@ -233,14 +233,14 @@ def _git(wt: str, *args: str) -> str:
 
 
 def _registry():
-    """The house's model registry lives in task-understand's tasks.py; import it, never copy the table."""
-    path = str(SKILL_DIR.parent / "task-understand" / "scripts")
+    """The house's model registry lives in backbrief's tasks.py; import it, never copy the table."""
+    path = str(SKILL_DIR.parent / "backbrief" / "scripts")
     if path not in sys.path:
         sys.path.insert(0, path)
     try:
         import tasks  # noqa: PLC0415
     except ImportError as ex:
-        raise ValueError(f"the model registry needs skills/task-understand beside this skill: {ex}") from ex
+        raise ValueError(f"the model registry needs skills/backbrief beside this skill: {ex}") from ex
     return tasks
 
 
@@ -358,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("worktree")
     r.add_argument("--base", default="origin/main")
     r.add_argument("--task")
-    r.add_argument("--model", default=DEFAULT_MODEL, help="a registry id of task-understand: sonnet (default) or glm")
+    r.add_argument("--model", default=DEFAULT_MODEL, help="a registry id of backbrief: sonnet (default) or glm")
     e = sub.add_parser("emit")
     e.add_argument("event")
     e.add_argument("value")

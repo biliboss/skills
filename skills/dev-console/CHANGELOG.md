@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.1] - 2026-11-06
+
+### Changed
+
+- Naming guidance cites `backbrief` (renamed from task-understand).
+
 ## [0.16.0] - 2026-11-06
 
 ### Added
