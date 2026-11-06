@@ -1,13 +1,13 @@
 ---
 name: tmux
-description: Faz tudo o que um agente precisa nos panes e janelas do tmux por scripts, sem montar comando na mão. Lê as últimas linhas de um pane, lista sessões, janelas e panes com comando e pasta, manda texto (inclusive um comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, e espera um pane mostrar um texto, com prazo. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "o que a janela bili-sonnet está mostrando", "renomeia a janela". Para abas e sessões do herdr use a `duplo-local-agents`; esta é só do tmux.
+description: Faz tudo o que um agente precisa no tmux por scripts, sem montar comando na mão: lê as últimas linhas de um pane, lista sessões, janelas e panes, manda texto (inclusive comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, espera um pane mostrar um texto, com prazo. E roda processo longo (servidor, watcher, suite de testes) numa sessão tmux nomeada presa à worktree do dono, com log, vaga global para testes e limpeza de órfão, nunca solto em segundo plano. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "renomeia a janela", "sobe o servidor", "roda os testes em tmux", "processo órfão", "mata o que ficou rodando", "o watcher ficou rodando". Para abas e sessões do herdr use a `duplo-local-agents`; esta é só do tmux.
 metadata:
-  version: 0.1.1
+  version: 0.2.0
 ---
 
 # tmux: panes e janelas por script
 
-Toda necessidade de tmux de um agente passa por aqui, e quem precisar de algo novo evolui os scripts (e o `CHANGELOG.md`), em vez de improvisar. Scripts em `scripts/` (nesta pasta); chame pelo caminho completo. Nenhum script daqui mata sessão ou servidor.
+Toda necessidade de tmux de um agente passa por aqui, e quem precisar de algo novo evolui os scripts (e o `CHANGELOG.md`), em vez de improvisar. Scripts em `scripts/` (nesta pasta); chame pelo caminho completo. Só o `run.sh` mata, e só sessão que ele mesmo criou (marcada); nunca o servidor.
 
 Isto é para panes e janelas do **tmux**. As abas e sessões de agente do **herdr** são da skill `duplo-local-agents`, que também fala com o tmux pelo `mux.sh` dela.
 
@@ -27,6 +27,7 @@ scripts/pane.sh wait <alvo> --text '<regex>' --timeout 60
 scripts/pane.sh wait <alvo> --idle 3 --timeout 60
 scripts/win.sh new <nome> "<comando>" [--cwd DIR] [--session S] [--allow-duplicate]  # imprime o %id; não rouba o foco
 scripts/win.sh rename <alvo> <novo-nome>
+scripts/run.sh start|ls|log|stop|reap ...                # processo longo em sessão nomeada: veja "Processos longos"
 scripts/test.sh                                    # testa tudo num servidor privado
 ```
 
@@ -42,6 +43,49 @@ Códigos de saída: 0 ok, 124 prazo esgotado (`send` sem ver o texto, `wait`), 1
 - **`--` antes de texto que começa com `-`.** `pane.sh send alvo -- "-n x"`; sem ele o texto seria lido como opção. O texto também pode vir por `--stdin`.
 - **`wait` é um comando só, com prazo.** Ele repete a cada 0,2 s e sai sozinho; o prazo é obrigatório. Não escreva `while ... sleep` no comando do agente: os hooks desta máquina recusam (`no-sync-wait`). Pelo mesmo motivo chame os scripts pelo caminho completo, nunca por uma variável (o `var-command-guard` barra um programa rodado por variável), e sem `cd` antes. `--text` casa uma regex com as linhas atuais (já visíveis conta). `--idle S` espera a tela ficar parada S segundos e **não chega num Claude Code que está trabalhando** (o spinner muda a tela o tempo todo): ali use `--text`; com o TUI parado, o `--idle` sai 0.
 - **`new` não rouba o foco** (`-d`) e recusa um nome já usado na sessão (igualdade exata), salvo `--allow-duplicate`. A pasta padrão é a do chamador.
+
+## Processos longos
+
+**Regra:** servidor, watcher e suite de testes nunca vão para `run_in_background`, `&` ou `nohup`. Vão por `scripts/run.sh start`, que os põe numa sessão tmux com o nome da **worktree** do trabalho (o dono observável: num Claude Code o subagente roda dentro do processo do pai, então a worktree é o que vive e morre com a tarefa). O dono os vê no tmux/sesh (⌘O), e a sessão acaba quando a worktree acaba. Motivo: um watcher de testes órfão rodou 1h36 em laço depois que o pai morreu (load average 165).
+
+- **Testes:** `--low --slot`. `--low` roda sob `taskpolicy -b` (QoS de fundo do macOS; sem ele, `nice -n 10`); `--slot` espera uma das `PROCS_MAX_SLOTS` vagas globais (padrão 2), a tampa da máquina inteira para suites.
+- **Resultado:** `run.sh log <sessão>:<nome>`. Nunca rode a suite de novo só para ver o resultado: o log termina com `exit=<código>` (0 passou, outro falhou; sem essa linha ainda roda ou foi morto).
+- **Fim:** quando o comando acaba a janela fica aberta mostrando `exit=N` (Enter fecha); sessão morta por `stop` ou `reap` não deixa a linha `exit=`.
+
+```
+scripts/run.sh start <nome> [--cwd DIR] [--owner DIR] [--low] [--slot] [--restart] -- <comando...>
+scripts/run.sh ls [--json]                  # sessões do run.sh: dono, se a pasta existe, janelas, estado, exit, log
+scripts/run.sh log <sessão>:<nome> [N=40]   # últimas N linhas do log
+scripts/run.sh stop <sessão>[:<nome>]       # mata a janela ou a sessão (stop --owner DIR acha pela pasta)
+scripts/run.sh reap [--dry-run]             # mata sessões cujo dono (worktree) sumiu
+scripts/run.sh install-reaper [--print] [--no-load] | uninstall-reaper
+```
+
+Exemplo: `scripts/run.sh start tests --cwd /Users/billiboss/src/x.minha-tarefa --low --slot -- npm test`, depois `scripts/run.sh log x-minha-tarefa:tests 60`.
+
+O dono (`--owner`) é, por padrão, a raiz da worktree git de `--cwd` (ou do pwd); fora de um repo git passe `--owner`. A sessão se chama como a pasta do dono (sem ponto nem dois-pontos), uma janela por `<nome>`, log em `~/.local/state/procs/<sessão>/<nome>.log` (`PROCS_DIR` muda), com um cabeçalho (data, cwd, comando) por início. Códigos: 0 ok, 1 erro, 2 uso.
+
+### Limpeza
+
+- `reap` mata toda sessão do `run.sh` cujo dono não existe mais; sessão sem a marca (`@procs`) nunca é tocada, nem por `stop`.
+- Um agente launchd roda `reap` a cada 60 s: `scripts/run.sh install-reaper` (idempotente; copia `run.sh` e `lib.sh` para `~/.local/share/procs/bin/`, porque o caminho do plugin muda a cada versão: rode de novo depois de atualizar o skill). `uninstall-reaper` desfaz.
+- **`wt remove` mata a sessão na hora:** o Worktrunk tem o hook `post-remove` (roda em segundo plano, na worktree principal, com `{{ worktree_path }}` apontando a removida; o `pre-remove` bloqueia e roda dentro da worktree). Acrescente ao `~/.config/worktrunk/config.toml`:
+
+  ```toml
+  [post-remove]
+  procs = "/Users/billiboss/.local/share/procs/bin/run.sh stop --owner '{{ worktree_path }}'"
+  ```
+
+  Sem o hook, o reaper cobre em até um minuto.
+
+### Armadilhas dos processos
+
+- **Um processo que se desprende** (`nohup`, `setsid`, um daemon que faz fork) escapa do `stop`: matar a janela manda SIGHUP ao grupo, não a quem saiu dele. Rode o servidor em primeiro plano.
+- **Mesmo nome de pasta, outro repo** (`/a/x` e `/b/x`) dá a mesma sessão: o `start` recusa a segunda. Use `--owner` ou outro nome de worktree.
+- **`--restart`** faz `respawn-pane -k` na mesma janela (mata o processo velho; matar a única janela derrubaria a sessão). Janela já terminada (`exited`) é reaproveitada sem `--restart`; uma que roda é recusada.
+- **O pane tem `tee`**, não o terminal direto: o comando vê um pipe na saída, e programas que só colorem em tty perdem a cor. A vaga (`--slot`) é solta quando o comando acaba, não quando a janela fecha.
+- **Vaga presa:** uma vaga de dono morto (pid inexistente) é retomada sozinha pelo próximo `--slot`; não apague `$PROCS_DIR/slots` à mão.
+- **Hooks do shell:** chame `run.sh` pelo caminho completo e sem `cd` antes; para esperar, `pane.sh wait <sessão>:<nome> --text 'exit=' --timeout N`, nunca um laço com pausa.
 
 ## Evoluir
 

@@ -1,6 +1,6 @@
 # tmux
 
-Skill de agente para tudo o que se faz em panes e janelas do tmux: ler, listar, mandar texto com segurança, abrir e renomear janelas, esperar um texto. Cada ação é um script em `scripts/`, que chama o binário do tmux pelo caminho (o alias `tmux` do shell do dono atrapalha) e resolve o alvo por igualdade exata. Nenhum script mata sessão ou servidor.
+Skill de agente para tudo o que se faz em panes e janelas do tmux: ler, listar, mandar texto com segurança, abrir e renomear janelas, esperar um texto. Cada ação é um script em `scripts/`, que chama o binário do tmux pelo caminho (o alias `tmux` do shell do dono atrapalha) e resolve o alvo por igualdade exata. Só o `run.sh` mata, e só sessão que ele mesmo criou; nunca o servidor.
 
 | Script | O que faz | Exemplo |
 |---|---|---|
@@ -11,6 +11,9 @@ Skill de agente para tudo o que se faz em panes e janelas do tmux: ler, listar, 
 | `scripts/pane.sh send` | manda texto, confere o fim, aperta Enter | `pane.sh send %12 "/reload-plugins"` |
 | `scripts/pane.sh key` | manda teclas nomeadas | `pane.sh key %12 Escape C-c` |
 | `scripts/pane.sh wait` | espera um texto (ou a tela parar), com prazo | `pane.sh wait %12 --text 'done' --timeout 60` |
+| `scripts/run.sh start` | roda um servidor, watcher ou suite numa sessão tmux presa à worktree, com log | `run.sh start tests --low --slot -- npm test` |
+| `scripts/run.sh ls`, `log`, `stop`, `reap` | lista, lê o log, para, limpa as sessões cujo dono sumiu | `run.sh log minha-worktree:tests 60` |
+| `scripts/run.sh install-reaper` | agente launchd que roda `reap` a cada 60 s | `run.sh install-reaper --print` |
 
 Alvos: `%12`, `nome-da-janela`, `sessao:janela`, `sessao:janela.pane`. `TMUX_SOCKET=nome` usa outro servidor; `TMUX_BIN` aponta o binário.
 
