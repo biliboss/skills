@@ -10,6 +10,13 @@ while [ -h "$SOURCE" ]; do
 done
 DIR="$(cd -P "$(dirname "$SOURCE")" && pwd -P)"
 
+# The one timer: running.json exists only while it runs (atomic write, removed on stop). Checking it is a stat,
+# about a microsecond, with no uv: exit 0 and the JSON when it runs, exit 1 when it is stopped.
+if [ "${1:-}" = running ]; then
+  f="${COSTS_DIR:-$HOME/.local/share/costs}/running.json"
+  [ -e "$f" ] && { cat "$f"; echo; exit 0; } || exit 1
+fi
+
 command -v uv >/dev/null 2>&1 || { echo "costs.sh: uv not found (install: https://docs.astral.sh/uv/)" >&2; exit 127; }
 
 [ "${1:-}" = "help" ] && set -- --help
