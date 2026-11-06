@@ -3,7 +3,7 @@ name: linear
 description: >-
   Work the owner's Linear (workspace `$CASA_LINEAR_WORKSPACE`, team `$CASA_LINEAR_TIME_CHAVE`) the way he wants it: read a project before touching it, write the project's description and content, create result cards with an owner and a way to check, keep milestones honest, and post project updates that read well (O Alquimista style) with images and links. The main path is the official Linear MCP through mcpc (@linear, the Bili app's voice), wrapped by scripts/linear.sh; the scripts cover what the MCP does not (a project snapshot, image upload, the owner's own inbox). Use when the user says "atualiza o projeto no Linear", "cria os cartões", "posta um update", "o update não apareceu", "revisa o marco", "põe no Linear", "update the Linear project". Not `to-tickets` (turns a plan into tickets anywhere) nor `bili` (asks the Hermes agent to do work): this one edits Linear itself.
 metadata:
-  version: 0.3.0
+  version: 0.3.1
 ---
 
 # linear — o Linear do dono, do jeito dele
@@ -53,6 +53,8 @@ O Linear é o lugar de toda a conversa. Escolha o nível antes de escrever:
    - Trabalho de agente é do app Bili (`$CASA_LINEAR_APP_BILI_ID`), numa sessão só por cartão: delegar já abre a sessão dele, e uma menção depois abre outra. Para pedir com contexto, crie sem delegado e marque-o uma vez (skill `bili`); cartão já delegado não leva menção nova.
    - O passo que só uma pessoa faz (merge, conta, segredo, conversa com o cliente) fica sem delegado.
    - **Dois níveis.** O **pai** é o que tem valor para o dono, em linguagem de diretoria: o título diz o resultado para o negócio numa linha, sem jargão, e a descrição tem 3 linhas (o que muda para quem usa, por que importa para o negócio, como saberemos que deu certo). Quem lê só os títulos dos pais, de cima para baixo, entende a versão. O **subcartão** é o trabalho que um agente faz sozinho, em paralelo, em 10 a 30 min, e que entrega algo que se vê ou se confere, com um Como conferir que alguém de fora entende. Passo que depende de outro vira um subcartão só; passo que não é trabalho de agente (uma conferência, esperar dados, a chave do dono) vira item de checklist. Sem esse critério, a divisão vira dezenas de cartões soltos que ninguém lê.
+   - **Cada subcartão vale por si** (o seu Como conferir) e delegá-lo ao Bili abre uma sessão por cartão: crie só os que valem a sessão. Checklist é só para o que não é trabalho de agente; passando de uns 5 por pai, junte.
+   - **Toda decisão de criar, dividir ou juntar cartões publica `mesa.agent.decision.made`** (`issue`, `choice`, `why` até 120 caracteres, `turn_id`, `trace_id`) e vira o comentário "Decidi X porque Y" no pai. Cartão com sessão de agente ativa não muda de estado: só título, pai, junção e comentário.
    - **Ordem dos pais = a jornada do usuário** (`sortOrder`); o control plane e o quadro seguem essa ordem.
    - Antes de criar um pai ou subcartão, procure se já existe (`searchIssues(term:"…")`, em qualquer projeto e marco) e reaproveite.
    - **Cancelar é reversível, apagar não.** Cartão velho, repetido ou sem sentido: cancele e comente "Decidi cancelar porque…" (repetido vai para Duplicate, com a relação `duplicate` criada antes). Apagar continua sendo do dono.

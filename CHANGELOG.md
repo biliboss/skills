@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.46.0] - 2026-11-06
+
+### Added
+
+- `linear` 0.3.1: `mesa.agent.decision.made` em toda decisão de criar, dividir ou juntar cartões; cada subcartão vale por si (reaplica o PR #11 sobre os dois níveis que o main já tinha).
+
 ## [0.45.0] - 2026-11-06
 
 ### Added
