@@ -2219,6 +2219,8 @@ async def home_show(req):
     import console_home as HM
     try:
         body = json.loads((await req.body()) or b"{}")
+        if not isinstance(body, dict):
+            raise ValueError("body must be a JSON object")
         rec = HM.show(body, req.headers.get("x-devc-actor") or "agent")
     except (ValueError, TypeError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)

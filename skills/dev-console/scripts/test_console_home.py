@@ -77,7 +77,8 @@ class Home(Base):
         self.assertIsNone(r["content"])
         old = HM.show({"id": "o", "kind": "widget", "content": "/domain/kanban/w/_/card.created/Board"})  # an older devc
         self.assertEqual((old["source"], old["widget_id"]), ("widget", "kanban/card.created/Board"))
-        for bad in ({"id": "x"}, {"id": "x", "source": "html"}, {"id": "x", "source": "widget"}, {"source": "url", "content": "u"}):
+        for bad in ({"id": "x", "source": "url", "content": "javascript:alert(1)"}, {"id": "x", "source": "url", "content": "//evil.example"},
+                    {"id": "x"}, {"id": "x", "source": "html"}, {"id": "x", "source": "widget"}, {"source": "url", "content": "u"}):
             with self.assertRaises(ValueError):
                 HM.show(bad)
 

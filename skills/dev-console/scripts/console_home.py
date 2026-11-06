@@ -86,7 +86,7 @@ HOME_JS = r"""
     const f = document.createElement('iframe');
     f.className = 'flex-1 min-h-0 w-full border-0 bg-white dark:bg-neutral-950';
     if (w.source === 'html') { f.sandbox = 'allow-scripts'; f.srcdoc = BASE + w.content; }
-    else f.src = w.src || w.content;
+    else { const u = w.src || w.content; if (/^(https?:\/\/|\/(?!\/))/i.test(u)) f.src = u; }  // a row edited by hand may hold anything
     return f;
   }
   function card(w, kids) {

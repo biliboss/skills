@@ -17,12 +17,14 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
 
 LOGO_ID = "dev-console/domain.updated/Logo"  # the logo is a real widget of the dev-console's own project
 SOURCES = ("widget", "html", "url")
+SAFE_URL = re.compile(r"^(https?://|/(?!/))", re.I)  # never javascript:, data: or a protocol-relative URL in a frame
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS widgets (
@@ -118,6 +120,8 @@ def _upsert(db: sqlite3.Connection, body: dict, actor: str, at: str | None = Non
         raise ValueError("source widget needs widget_id (<domain>/<event>/<Name>)")
     if source != "widget" and not (isinstance(content, str) and content):
         raise ValueError(f"source {source} needs content")
+    if source == "url" and not SAFE_URL.match(content):
+        raise ValueError("url must be http(s):// or a path starting with /")
     parent = body.get("parent_id") or None
     if parent == wid:
         raise ValueError("parent_id cannot be the placement itself")
