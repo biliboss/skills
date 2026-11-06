@@ -7,6 +7,7 @@ export HERMES_SESSION_ID=local-39c1abc  # the invoking agent
 export TMUX_SOCKET="thread-test-$$"
 export FAKE_DIR; FAKE_DIR="$(mktemp -d)"
 export THREAD_READY_TIMEOUT=15
+export THREAD_UI=cli   # the tests below drive the Hermes CLI path; the thread agent (default) has its own test at the end
 export THREAD_LOG="$FAKE_DIR/threads.log"
 TMUXB="$(type -P tmux)"
 FAKEBIN="$FAKE_DIR/bin"; mkdir -p "$FAKEBIN"
@@ -139,6 +140,13 @@ tm set-option -w -u -t "$bid" @subagents; HERMES_SESSION_ID=sess-busy "$T" close
 "$T" open conv --session work --new >/dev/null; "$T" close conv --by bili --summary "resolvido" >/dev/null
 awk -F'\t' '$2=="conv" && $6=="bili"' "$THREAD_LOG" | grep -q .; ok $? "close <topic> --by bili logged"
 HERMES_SESSION_ID=nope "$T" close --self >/dev/null 2>&1; [ $? -ne 0 ]; ok $? "close --self outside a thread refused"
+
+# the default: the thread agent (the branch runs headless; the tab is the thread view, the brief its first queued message)
+export THREADVIEW_DIR="$FAKE_DIR/views"
+THREAD_UI=view THREAD_VIEW_CMD="sleep 30 #" "$T" open agente --session work --brief 'primeira mensagem' >/dev/null; ok $? "thread agent: open (default UI)"
+aid="$("$T" list | awk -F'\t' '$2=="agente"{print $3}')"; ahs="$(tm show-options -w -v -t "$aid" @hsid)"
+[ -n "$ahs" ] && jq -e '.[0].msg == "primeira mensagem"' "$THREADVIEW_DIR/$ahs.queue.json" >/dev/null; ok $? "thread agent: the brief is the first message of the queue ($ahs)"
+tm list-panes -t "$aid" -F '#{pane_start_command}' | grep -q "THREADVIEW_DIR=.*$ahs"; ok $? "thread agent: the tab runs the thread view on the branch"
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-06
+
+### Changed
+
+- A thread opens **the thread agent** by default: the same offline branch (fork.py), run headless, with the tab running the thread view (`threadview.py <new id>`) and the brief as the first message of its queue (no paste, no waiting for the Hermes TUI). `--cli` (or `THREAD_UI=cli`) keeps the Hermes CLI; `--new` always uses it.
+- SKILL.md: the thread shape (goal, steps, artifacts, decision, pulse, workers) written as the model's contract.
+
 ## [0.8.0] - 2026-11-06
 
 ### Added

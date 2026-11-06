@@ -1,8 +1,8 @@
 ---
 name: thread
-description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
+description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running the thread agent (a /branch of the Hermes session that invoked the skill, run headless; the tab is the thread view, the screen the agent builds; --cli for the Hermes CLI instead), titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.8.0
+  version: 0.9.0
 ---
 
 # thread — a topic, in one call
@@ -21,7 +21,7 @@ EOF
 
 - **Where the tab opens**: the caller's session (`$TMUX_PANE`'s, i.e. `tmux display-message -p '#S'`). Not inside tmux (the Hermes desktop agent): the session of the owner's most recently active client (`tmux list-clients -F '#{client_activity} #{client_session}' | sort -rn | head -1`). `--session S` overrides. No client and no `--session`: refused. Never a session per card.
 - `--card C`: slug or id, resolved by kanban; the window gets `@card=<id>`, the Hermes title is `<C> · <topic>`. Without it the title is `<topic>` and the window has no `@card`.
-- **A thread is ALWAYS a branch of the Hermes session that invoked the skill**: `$HERMES_SESSION_ID` (set in every Hermes agent's environment). The branch is made OFFLINE by `scripts/fork.py` (Hermes's own `SessionDB`, run with Hermes's interpreter: same lineage as `/branch`, i.e. `parent_session_id` + `_branched_from`, system prompt and transcript copied, titled) and the window runs `hermes -p <profile> --resume <NEW id>`, waits for `ready`, then pastes the brief. The source is never resumed, attached to or ended, so a LIVE chat (the desktop one) gets no second client and no stray message. `--from SESSION_ID` branches from another session. `--new` (fresh session, renamed once its id appears) only when explicitly asked. `HERMES_SESSION_ID` empty and no `--from`: refused with a message, nothing opened. `fork.py <source-id> <title> [--profile P]` prints the new id (usable alone; `--profile` wins over an inherited `HERMES_HOME`).
+- **A thread is ALWAYS a branch of the Hermes session that invoked the skill**: `$HERMES_SESSION_ID` (set in every Hermes agent's environment). The branch is made OFFLINE by `scripts/fork.py` (Hermes's own `SessionDB`, run with Hermes's interpreter: same lineage as `/branch`, i.e. `parent_session_id` + `_branched_from`, system prompt and transcript copied, titled) and the window runs **the thread agent**: `scripts/threadview.py <NEW id>`, the branch run headless (one `hermes --resume <NEW id> -z` per turn) with the brief as the first message of its queue (written to `<THREADVIEW_DIR>/<id>.queue.json` before the tab starts: no paste, no waiting for a TUI). `--cli` (or `THREAD_UI=cli`) opens the Hermes CLI instead, as before: `hermes -p <profile> --resume <NEW id>`, waits for `ready`, pastes the brief. `--new` always uses the CLI (there is no id before the session exists). The source is never resumed, attached to or ended, so a LIVE chat (the desktop one) gets no second client and no stray message. `--from SESSION_ID` branches from another session. `--new` (fresh session, renamed once its id appears) only when explicitly asked. `HERMES_SESSION_ID` empty and no `--from`: refused with a message, nothing opened. `fork.py <source-id> <title> [--profile P]` prints the new id (usable alone; `--profile` wins over an inherited `HERMES_HOME`).
 - **Placement**: `tmux new-window -a` right after the invoking agent's window (the window of `$TMUX_PANE` when it is in the target session; for the desktop caller, the session's first window), pushing the others right.
 - `--brief TEXT` inline; `--brief -` stdin (quoted heredoc `<<'EOF'` so the shell expands nothing); `--brief-gz B64` = base64 of gzip, when your tool parameter is size-limited (`gzip -c f | base64`).
 - `--profile` (default `bili`), `--cwd DIR` (default `$PWD`).
@@ -65,8 +65,27 @@ The state lives in window options (`@ask`, `@done`, `@agent`, `@subagents`, `@to
 
 ## Thread view: the thread as a screen, not a chat
 
-`scripts/threadview.py <hermes-session-id>` is a fullscreen TUI (Rich, no Textual) for one thread, opened in a tmux
-tab: the agent builds the screen, the owner types at the bottom. Prototype; one turn = one `hermes --resume <id> -z`.
+The default of a thread. `scripts/threadview.py <hermes-session-id>` is a fullscreen TUI (Rich, no Textual) in the
+thread's tmux tab: the agent builds the screen, the owner types at the bottom. One turn = one `hermes --resume <id> -z`.
+
+### The thread shape (the model's contract)
+
+The agent of a thread follows this shape on every turn; `threadview.py` restates it in each message it sends.
+
+| Part | What the agent sets (`view.py <sid> …`) | Rule |
+|---|---|---|
+| Goal | `goal "<title>" "<subtitle>"` | one goal; the subtitle is the constraint that matters |
+| Steps | `steps '<json>'`, `step <n> done|doing|blocked|todo "<note>"` | 3-6 steps, the lifecycle in order |
+| Artifacts | `artifacts '<json>'` (`key`, `name`, `state`, `path`, `pct`, `wins`) | a path gets the showcase (HTML) and its URL |
+| Decision | `decision "<text>" --option "<name>" <pct>`… or a tournament | only when the owner must act; confidence sums 100, best first |
+| Pulse | `pulse "<one line>"` | what is happening now; set at the start and at the end of the turn |
+| Workers | `worker add|done|fail <id> "<what>"` | work longer than the turn (10 s) |
+
+- **Screen first, then work.** Update the screen in the first seconds of the turn; the turn ends within 10 s; longer
+  work is a worker. The chat text is discarded: the screen is the only answer.
+- **A choice between options is a tournament** (skill `choice`): 4 options, the champion vs 3 challengers, the
+  answer recorded by the screen itself; the agent only draws the next round.
+- **Talk about options by name**, never by letter or number (the number is the rank).
 
 - **The agent's only output is the screen** (`scripts/view.py <sid> …`: goal, steps, artifacts, decision, pulse,
   workers); its chat text is discarded. State lives in `~/.local/state/threadview/<sid>.json` (`THREADVIEW_DIR`).
