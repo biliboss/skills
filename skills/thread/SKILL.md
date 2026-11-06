@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.7.0
+  version: 0.8.0
 ---
 
 # thread — a topic, in one call
@@ -80,3 +80,14 @@ tab: the agent builds the screen, the owner types at the bottom. Prototype; one 
 - **ctrl+l** shows the component names (Goal, Steps, Artifacts, Decision, Pulse, Queue, Input).
 - Headless `--resume` on a long session makes Hermes compact it (old rows `active=0`); the live tab still holds the old
   history in memory, so don't type in both at once.
+
+## Estado em tempo real
+
+`thread.sh state [<aba>]` dá uma linha JSON por thread: sessão, índice, tópico, estado (`working` ●, `ask` ◆, `done` ✓, `idle`), subagentes, `touched` (ms) e cartão.
+
+`thread.sh watch` imprime o estado atual e depois uma linha a cada mudança, ao vivo, do NATS local (`mesa.thread.state.changed`, `THREAD_NATS_URL`). O dev-console e a barra nativa assinam o mesmo assunto.
+
+Evento na escrita, não consulta periódica: quem grava o estado (o `agent-state.sh` da skill tmux, e o `sort` ao reordenar) publica na hora, por `scripts/thread-state.sh`, que fala o protocolo do NATS direto no `/dev/tcp` do bash, sem abrir processo. Por que não o control mode do tmux (`refresh-client -B`, `%subscription-changed`): o man do tmux 3.7 diz que ele avisa "at most once a second", lento para a meta de 50 ms.
+
+Medido (`scripts/test-state.sh`, tmux privado): da gravação à linha no watch, mediana de 33 a 53 ms com a máquina em carga 30 em 10 núcleos. Sem NATS no ar, o `state` funciona e o `watch` diz que não há fonte ao vivo.
+

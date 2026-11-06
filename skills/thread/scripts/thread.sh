@@ -4,6 +4,7 @@
 #   thread.sh list
 #   thread.sh close <topic> [--session S] [--summary TEXT] [--by owner|bili]   |   close --self [--summary TEXT]
 #   (the owner is on that tab: it closes when he leaves; each close writes a line to $THREAD_LOG, default ~/.local/state/threads.log)
+#   thread.sh state [<tab>] | watch   the threads' state as JSON lines (●◆✓/idle, subagents, card); watch = live from NATS
 #   thread.sh sweep            closes the tabs marked done-and-closing that the owner left
 #   thread.sh sort [<tab>] [--now]   stamp <tab> as most recent, re-sort its session's tabs (MRU with an attention band;
 #                              debounced ~2 s, THREAD_SORT_DEBOUNCE); the owner's tab never moves. touch <tab> = sort <tab> --now
@@ -224,7 +225,9 @@ slide() { # window target-index active-window current-order...
   local step; step="$(awk -v m="$ms" 'BEGIN { printf "%.3f", m / 1000 }')"
   tm set-option -w -t "$w" window-status-style 'fg=#800020,bold' 2>/dev/null || true
   for ((k = j - 1; k >= to; k--)); do
-    tm swap-window -d -s "$w" -t "${cur[k]}" 2>/dev/null || break
+    # no -d: on tmux 3.7, swap-window -d makes the moved window current (it stole the owner's focus); without it the
+    # focus stays where it was
+    tm swap-window -s "$w" -t "${cur[k]}" 2>/dev/null || break
     sleep "$step"
   done
   ( sleep 0.6; tm set-option -w -u -t "$w" window-status-style 2>/dev/null ) </dev/null >/dev/null 2>&1 &
@@ -248,6 +251,8 @@ sort_session() { # session: move only what is out of place (move-window -d keeps
   done
   # -a/-b shift indexes up and renumber-windows only acts on close: close the gaps now (tabs stay 1..N)
   tm move-window -r -t "=$sess" 2>/dev/null || true
+  # indexes changed: the session's lines, live (only when something moved would be nicer; one message per thread is cheap)
+  state_lines -t "=$sess" | publish
 }
 
 cmd_sort() { # [<target>] [--now]: stamp the target thread's @touched, then re-sort its session (debounced ~2 s)
@@ -343,8 +348,30 @@ cmd_close() {
   [ -n "$(tm display-message -p -t "$w" '#{@closing}' 2>/dev/null)" ] || echo "closed $topic in $(printf '%s' "$hits" | cut -f1) (the Hermes session stays)"
 }
 
+# --- realtime state (thread-state.sh: the hot path, event on write; see its header for why not tmux -C)
+. "$HERE/thread-state.sh"
+NATS_BIN="${NATS_BIN:-$(type -P nats || echo "$HOME/.local/bin/nats")}"
+
+cmd_state() { # [<target>]: the target's window, else every thread in every session
+  if [ $# -gt 0 ]; then state_of "$1"; else state_lines -a; fi
+}
+
+cmd_publish() { # <target> [--session]: publish the target's line (or its whole session's)
+  "$HERE/thread-state.sh" pub "$@"
+}
+
+cmd_watch() { # the current state first, then one line per change, live from NATS
+  cmd_state
+  [ -x "$NATS_BIN" ] || die "watch: nats CLI not found (NATS_BIN); no live source"
+  "$NATS_BIN" -s "$THREAD_NATS_URL" rtt >/dev/null 2>&1 || die "watch: NATS at $THREAD_NATS_URL is down; no live source"
+  exec "$NATS_BIN" -s "$THREAD_NATS_URL" sub --raw "$THREAD_SUBJECT" 2>/dev/null
+}
+
 [ $# -gt 0 ] || usage
 case "$1" in
+  state) shift; cmd_state "$@" ;;
+  publish) shift; cmd_publish "$@" ;;
+  watch) shift; cmd_watch "$@" ;;
   open) shift; cmd_open "$@" ;;
   list) shift; cmd_list "$@" ;;
   close) shift; cmd_close "$@" ;;

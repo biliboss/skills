@@ -2,7 +2,7 @@
 name: tmux
 description: Faz tudo o que um agente precisa no tmux por scripts, sem montar comando na mão: lê as últimas linhas de um pane, lista sessões, janelas e panes, manda texto (inclusive comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, espera um pane mostrar um texto, com prazo. E roda processo longo (servidor, watcher, suite de testes) numa sessão tmux nomeada presa à worktree do dono, com log, vaga global para testes e limpeza de órfão, nunca solto em segundo plano. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "renomeia a janela", "sobe o servidor", "roda os testes em tmux", "processo órfão", "mata o que ficou rodando", "o watcher ficou rodando". Para abas e sessões do herdr use a `duplo-local-agents`; esta é só do tmux.
 metadata:
-  version: 0.6.0
+  version: 0.6.1
 ---
 
 # tmux: panes e janelas por script
