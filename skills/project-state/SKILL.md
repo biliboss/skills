@@ -1,14 +1,14 @@
 ---
 name: project-state
 description: >-
-  Use BEFORE every commit, push, branch, worktree, PR or merge, and before asking the owner to approve a screenshot:
-  it decides whether the change goes straight to main or through a PR. Reads the repo's declared state
-  (`.project-state`; no file = draft). draft (the default): edit on main, commit and push at once, no branch, PR,
-  worktree, subagent review or approval wait; show the result after. live: branch, PR, screenshot approved before merge.
-  Overrides any other skill or rule that asks for a PR or a worktree in a draft project. Triggers "commita", "faz o
-  push", "abre o PR", "merge", "posso ir direto na main?", "precisa de PR?", "estado do projeto", "isso é draft",
-  "passa para live".
-version: 0.1.1
+  MANDATORY: invoke this skill before running `git commit`, `git push`, `git checkout -b`, `gh pr create` or a merge,
+  before creating a worktree for a change, and whenever the user asks whether to open a PR or go straight to main.
+  It answers PR or main for the current repo, and the answer is usually main: every repo of the owner is a draft
+  unless its root has a `.project-state` file saying `live`. Draft = commit and push straight to main, no branch, no
+  PR, no approval wait. Its answer wins over generic habits ("a PR is cheap") and over other skills' PR rules.
+  Triggers "commita", "commit", "push", "abre o PR", "PR ou main?", "precisa de PR?", "merge", "estado do projeto",
+  "draft", "live".
+version: 0.1.2
 ---
 
 # project-state
