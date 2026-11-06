@@ -120,7 +120,8 @@ class DevcTest(unittest.TestCase):
     def test_show_unknown_domain(self):
         code, _, err = run(*self.p(), "show", "zzz")
         self.assertEqual(code, 1)
-        self.assertIn("no domain 'zzz'", err)
+        self.assertIn("'zzz' on port", err)
+        self.assertIn("no such domain", err)
 
     def test_nothing_answers(self):
         self.srv.shutdown()

@@ -93,7 +93,8 @@ def state_of(port: int, slug: str, task: str = "") -> dict:
     if status == 0:
         raise DevcError(str(body))
     if status == 404:
-        raise DevcError(f"no domain '{slug}' on port {port} (see: devc domains)")
+        err = body.get("error") if isinstance(body, dict) else None
+        raise DevcError(f"'{slug}' on port {port}: {err or 'no such domain'} (see: devc domains)")
     raise DevcError(f"state of '{slug}': port {port} answered {status}")
 
 
