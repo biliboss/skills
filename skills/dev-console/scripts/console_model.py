@@ -130,9 +130,13 @@ def register(rt, json_response):
 
     @rt("/model")
     def model_index():
+        ds = domains()
+        if len(ds) == 1:  # one domain: straight to its diagram
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(f"/model/{ds[0]['slug']}")
         items = "".join(f'<li><a href="/model/{escape(d["slug"])}">{escape(d["name"])}</a> · {escape(d["status"])}</li>'
-                        for d in domains()) or "<li>nenhum domínio modelado (skill domain-model)</li>"
-        return HTMLResponse(f"<!doctype html><meta charset=utf-8><title>Modelos</title><h1>Modelos</h1><ul>{items}</ul>")
+                        for d in ds) or "<li>nenhum domínio modelado (skill domain-model)</li>"
+        return HTMLResponse(f"<!doctype html><meta charset=utf-8><title>Modelos</title><style>body{{font:15px system-ui;padding:16px 24px;background:#0c0a09;color:#f5f5f4}}a{{color:inherit}}</style><h1>Modelos</h1><ul>{items}</ul>")
 
     @rt("/model/{slug}.mmd")
     def model_mmd(slug: str):

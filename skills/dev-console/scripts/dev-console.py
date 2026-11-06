@@ -2355,7 +2355,8 @@ def api_palette(domain: str = ""):
         modules.insert(0, {"id": home[1], "title": home[1], "url": f"/domain/{home[0]}?tab={quote(home[1])}"})
     modules += [{"id": "playground", "title": "Playground", "url": "/playground"},
                 {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]},
-                {"id": BROWSER_MODULE["name"].lower(), "title": BROWSER_MODULE["name"], "url": BROWSER_MODULE["href"]}]
+                {"id": BROWSER_MODULE["name"].lower(), "title": BROWSER_MODULE["name"], "url": BROWSER_MODULE["href"]},
+                {"id": MODEL_MODULE["name"].lower(), "title": MODEL_MODULE["name"], "url": MODEL_MODULE["href"]}]
     return _json({"domains": domains, "modules": modules})
 
 
@@ -2475,6 +2476,8 @@ def _known(slug: str) -> bool:
 
 AGENTS_MODULE = {"name": "Agents", "href": "/agents"}  # listed by ⌘P beside Domain and Playground
 BROWSER_MODULE = {"name": "Browser", "href": "/browser"}  # a page an agent is running (a landing, a dev server), inside
+# Model is not a page of its own: the Browser is the base module, and Model opens it on the live diagram (console_model)
+MODEL_MODULE = {"name": "Model", "href": "/browser?url=" + quote("/model", safe="")}
 
 
 @rt("/browser")
@@ -2520,8 +2523,8 @@ def _modules(tabs: list[str] | None = None) -> list[dict]:
     # the home module (CONSOLE_HOME) is listed on every page, first; on its own domain page it is already a tab
     lead = [{"name": home[1], "href": f"/domain/{home[0]}?tab={quote(home[1])}"}] if home and home[1] not in (tabs or ()) else []
     if tabs is None:
-        return [*lead, {"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
-    return [*lead, *({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
+        return [*lead, {"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE, MODEL_MODULE]
+    return [*lead, *({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE, MODEL_MODULE]
 
 
 def _status_bar(name: str, money: bool, module: bool = True):
