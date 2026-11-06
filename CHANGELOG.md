@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.48.0] - 2026-11-06
+
+### Added
+
+- `copywriting` 0.2.3: a skill de escrita do Gabriel (post do LinkedIn, Diário e artigo), com `scripts/metricas.sh` e o template do artigo (reaplica o PR #12).
+
 ## [0.47.0] - 2026-11-06
 
 ### Added

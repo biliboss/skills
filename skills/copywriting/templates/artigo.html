@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Esqueleto do artigo do LinkedIn, tirado do artigo aprovado "A quarta sócia"
+  (~/biliboss/.wiki/resources/velumma-diario-02.html, seção 2). Copie, troque cada
+  {{MARCADOR}} e apague os comentários. A ordem dos blocos é fixa:
+  objetivos, capa, título e subtítulo, seções, exercício, CTA, Bastidores.
+  As imagens (capa e corpo) só entram depois do OK do texto: até lá, cada
+  <figure> mostra só a ideia da imagem, em texto. Quem gera é a skill faceless-art.
+-->
+<title>{{TITULO}} · rascunho do artigo</title>
+<style>
+body{font-family:-apple-system,system-ui,sans-serif;max-width:700px;margin:24px auto;padding:0 16px;color:#1d1d1f;background:#f3f2ef;line-height:1.5}
+.meta{font-size:13px;color:#666;margin-bottom:14px}
+.tag{display:inline-block;font-size:12px;font-weight:600;border-radius:99px;padding:2px 10px;margin-left:6px;vertical-align:middle;background:#fff0c9;color:#8a5a00}
+.obj{background:#eef2fb;border:1px solid #b9c8ea;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+.obj li{margin-bottom:4px}
+.capa{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px 10px 0 0;background:#e6e6e6}
+.art{background:#fff;border:1px solid #ddd;border-radius:10px;padding:26px 32px;line-height:1.6}
+.art h1{font-size:28px;line-height:1.25;margin:0 0 4px}.sub{color:#555;font-size:17px;margin:0 0 18px}
+.art h2{font-size:20px;margin:26px 0 8px}.art p{margin:0 0 14px}
+.by{display:flex;gap:10px;align-items:center;margin-bottom:18px;font-size:14px;color:#555}
+.av{width:40px;height:40px;border-radius:50%;background:#0a66c2;color:#fff;display:grid;place-items:center;font-weight:700}
+.q{font-size:18px;font-weight:600;border-left:3px solid #0a66c2;padding-left:12px;margin:18px 0}
+figure{margin:18px 0}figure img{width:100%;border-radius:6px;display:block}
+figcaption,.ideia{font-size:13px;color:#666}
+.ideia{border:1px dashed #bbb;border-radius:6px;padding:10px 12px}
+.tool{background:#f6f9ff;border:1px dashed #0a66c2;border-radius:8px;padding:12px 16px;margin:10px 0 16px}
+.box{background:#fffbe6;border:1px solid #f0e2a0;border-radius:8px;padding:10px 14px;font-size:13px;margin:12px 0}
+.box li{margin-bottom:4px}
+</style>
+
+<div class="meta">Artigo do LinkedIn <span class="tag">rascunho, ainda não salvo no Linear</span> · {{DATA_HORA}}</div>
+
+<!-- 1. Objetivos: escritos antes do texto; a revisão mede o rascunho contra cada um. -->
+<div class="obj"><b>Objetivos do artigo</b><ol>
+<li><b>Principal, o leitor se enxergar:</b> quem lê pensa "que ideia boa, serve para mim e para a minha empresa". Nada técnico. Sai com um exercício em texto que dá para fazer hoje. {{COMO_ESTE_ARTIGO_CHEGA_LA}}</li>
+<li><b>Secundário, o cliente:</b> {{CLIENTE}} dá vontade de contratar (só o nome, e só com o OK do cliente).</li>
+<li><b>Oculto, o autor:</b> "esse cara pensa diferente, quero ele no meu negócio", sem que ele se ponha no centro.</li>
+</ol>CTA: fazer o exercício e postar nos comentários.</div>
+
+<div class="art">
+
+<!-- 2. Capa: 1920 × 1080 (16:9), PNG ou JPG, nunca GIF; tem de ser entendida pequena (miniatura do feed e do e-mail).
+     Antes do OK do texto, deixe só a ideia: <div class="ideia">Capa: {{IDEIA_DA_CAPA}}</div> -->
+<img class="capa" src="{{CAPA_1920x1080.png}}" alt="{{ALT_DA_CAPA}}">
+
+<!-- 3. Título e subtítulo -->
+<h1>{{TITULO}}</h1>
+<p class="sub">{{SUBTITULO}}</p>
+<div class="by"><div class="av">GF</div><div><b>Gabriel Fonseca</b><br>Diário de um Dev em Desconstrução</div></div>
+
+<!-- Abertura: uma verdade sem "eu", dita por uma imagem concreta; liga com o último Diário se houver. -->
+<p>{{ABERTURA}}</p>
+<p>{{ABERTURA_2}}</p>
+
+<!-- 4. Seções com subtítulo. 3 a 4 imagens no corpo, uma a cada ~250 palavras, uma por seção-chave,
+     cada uma simbolizando um conceito (nunca enfeite). -->
+<h2>{{SECAO_1_O_CASO}}</h2>
+<p>{{PARAGRAFO}}</p>
+<p>{{PARAGRAFO}}</p>
+
+<h2>{{SECAO_2_O_LEITOR_FAZ_A_CONTA}}</h2>
+<p>{{PERGUNTA_QUE_POE_O_LEITOR_NA_HISTORIA}}</p>
+<p>{{PARAGRAFO}}</p>
+<figure><img src="{{IMAGEM_2.png}}" alt="{{ALT}}"><figcaption>{{CONCEITO_QUE_A_IMAGEM_SIMBOLIZA}}</figcaption></figure>
+
+<h2>{{SECAO_3_A_IMAGEM_CENTRAL}}</h2>
+<p>{{A_IMAGEM_CENTRAL_SIMPLES}}</p>
+<p class="q">{{EXEMPLO_CONCRETO}}</p>
+<p>{{PARAGRAFO}}</p>
+<figure><img src="{{IMAGEM_3.png}}" alt="{{ALT}}"><figcaption>{{CONCEITO_QUE_A_IMAGEM_SIMBOLIZA}}</figcaption></figure>
+
+<h2>{{SECAO_4_COMO_SE_FAZ_DEVAGAR}}</h2>
+<p>{{PARAGRAFO}}</p>
+<p>{{PARAGRAFO}}</p>
+<figure><img src="{{IMAGEM_4.png}}" alt="{{ALT}}"><figcaption>{{CONCEITO_QUE_A_IMAGEM_SIMBOLIZA}}</figcaption></figure>
+
+<h2>{{SECAO_5_O_QUE_EU_AINDA_NAO_SEI}}</h2>
+<p>{{HIPOTESES_ESCRITAS_COMO_HIPOTESE}}</p>
+
+<!-- 5. A ferramenta prática em texto: o exercício, sem ferramenta nenhuma. -->
+<h2>Agora é com você: {{NOME_DO_EXERCICIO}} em {{MINUTOS}} minutos</h2>
+<p>Não precisa de ferramenta nenhuma. Papel e caneta, ou o bloco de notas do celular.</p>
+<div class="tool">
+<p><b>1. {{PASSO_1}}</b> {{DETALHE}}</p>
+<p><b>2. {{PASSO_2}}</b> {{DETALHE}}</p>
+<p><b>3. {{PASSO_3}}</b> {{DETALHE}}</p>
+<p><b>4. {{PASSO_4}}</b> {{DETALHE}}</p>
+</div>
+<p>{{A_LEITURA_DO_RESULTADO}}</p>
+
+<!-- 6. Fecho e CTA: a pergunta põe o leitor dentro da ideia; o CTA pede o exercício nos comentários, com a ajuda gratuita. -->
+<h2>E você?</h2>
+<p class="q">{{PERGUNTA_QUE_POE_O_LEITOR_DENTRO_DA_IDEIA}}</p>
+<p>Posta o seu {{RESULTADO_DO_EXERCICIO}} nos comentários. {{AJUDA_GRATUITA}}</p>
+</div>
+
+<!-- 7. Bastidores: só para o Gabriel; nunca vai para o Linear como texto publicável. -->
+<div class="box"><b>Bastidores (não publicar)</b><ul>
+<li><b>Fato x plano:</b> {{O_QUE_E_FATO_E_O_QUE_E_PLANO_OU_HIPOTESE}}</li>
+<li><b>O exercício:</b> {{DE_ONDE_VEM_O_METODO}}</li>
+<li><b>Métricas:</b> {{SAIDA_DE_scripts/metricas.py_FORA_DA_FAIXA}}</li>
+<li><b>Ideias de imagem</b> (antes do OK do texto, só em texto): {{CAPA_E_3_A_4_IDEIAS}}</li>
+<li><b>A conferir:</b> {{EXEMPLOS_ESCOLHIDOS_PELO_AGENTE_NOMES_NUMEROS_PROMESSAS}}</li>
+<li><b>SEO</b> (antes de publicar, pelo checklist de .wiki/seo-cheatsheet.md): título {{TITULO_SEO_ATE_60}} ({{N}}) · descrição {{DESCRICAO_SEO_140_A_160}} ({{N}})</li>
+<li><b>Depois de publicar:</b> {{LINKAR_DO_ULTIMO_DIARIO}}</li>
+</ul></div>
+</html>
