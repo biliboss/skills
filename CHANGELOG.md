@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.59.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.26.0: a home do foco (`g h`, `/home`, `GET /agent/focus`, `focus.sh`): o card em foco é o topo do Downstream (senão o topo do Upstream, nunca Todo nem Feito, na ordem do Kanban), com o custo que o Kanban dá a ele e o foco embutido; o app abre na home.
+
 ## [0.58.0] - 2026-11-06
 
 ### Added

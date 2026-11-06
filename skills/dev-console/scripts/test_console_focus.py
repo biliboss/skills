@@ -2,7 +2,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["starlette", "httpx", "python-fasthtml>=0.14"]
 # ///
-"""Tests of console_focus.py: the journal, the by-guard, the stack (set / back), the card in Doing, and the routes, on
+"""Tests of console_focus.py: the journal, the by-guard, the stack (set / back), the card in focus, and the routes, on
 temp DEV_CONSOLE_FOCUS_DIR, KANBAN_DIR and COSTS_DIR with invented cards.
 Run: uv run --script test_console_focus.py"""
 import io
@@ -133,8 +133,8 @@ class Stack(Base):
 
 
 class Home(Base):
-    def test_without_a_card_in_doing_the_home_is_the_board(self):
-        self.card("Ainda descobrindo", stage="Upstream")
+    def test_without_a_card_in_focus_the_home_is_the_board(self):
+        self.card("Ainda no backlog", stage="Todo")
         F.set_focus("o grafo do Via", "via", None, "bili")
         s = F.snapshot(BOARD)
         self.assertIsNone(s["card"])
@@ -154,38 +154,52 @@ class Home(Base):
         F.set_focus("o quadro", "kanban", None, "gabriel")
         self.assertEqual(F.snapshot(BOARD)["home"], BOARD)
 
-    def test_the_focus_card_wins_among_cards_in_doing_else_the_last_in(self):
+    def test_the_focus_card_is_the_top_of_downstream(self):
         a = self.card("A")
-        self.card("B")
+        b = self.card("B")
         F.set_focus("x", "via", None, "bili")
+        self.assertEqual(F.snapshot(BOARD)["card"]["title"], "A")  # by arrival the first is the top
+        self.K.prioritize(b, 0, actor="gabriel")
+        self.assertEqual(F.snapshot(BOARD)["card"]["title"], "B")  # card.prioritized moves the top
+        F.set_focus("y", "via", a, "bili")  # the focus's own card does not pick it: the top does
         self.assertEqual(F.snapshot(BOARD)["card"]["title"], "B")
-        F.set_focus("y", "via", a, "bili")
-        self.assertEqual(F.snapshot(BOARD)["card"]["title"], "A")
+
+    def test_without_downstream_the_top_of_upstream_and_never_todo_or_feito(self):
+        self.card("T", stage="Todo")
+        self.card("F", stage="Feito")
+        self.assertIsNone(F.snapshot(BOARD)["card"])
+        self.card("U1", stage="Upstream")
+        u2 = self.card("U2", stage="Upstream")
+        self.assertEqual(F.snapshot(BOARD)["card"]["title"], "U1")
+        self.K.prioritize(u2, 0, actor="gabriel")
+        self.assertEqual(F.snapshot(BOARD)["card"]["title"], "U2")
+        self.card("D", stage="Downstream")
+        self.assertEqual(F.snapshot(BOARD)["card"]["title"], "D")  # Downstream wins over Upstream
 
     def test_an_unknown_card_is_refused(self):
         with self.assertRaises(ValueError):
             F.set_focus("x", "via", "no such card", "bili")
         self.assertEqual(F.events(), [])
 
-    def test_the_cost_clock_counts_only_the_doing_stays(self):
+    def test_the_cost_is_the_kanbans_own_money_for_the_card(self):
         K, t0 = self.K, datetime(2026, 11, 6, 9, 0).astimezone()
         evs = [{"id": "1", "event": "card.created", "at": t0.isoformat(), "actor": "g", "card_id": "c1",
-                "value": {"title": "C", "domain": "via", "stage": "Upstream"}},
-               {"id": "2", "event": "card.moved", "at": (t0 + timedelta(hours=1)).isoformat(), "actor": "g", "card_id": "c1",
-                "value": {"stage": "Downstream", "previous": "Upstream"}}]
-        card = K.card_from(evs)
+                "value": {"title": "C", "domain": "via", "stage": "Upstream"}}]
         now = t0 + timedelta(hours=3)
-        entries = [K.TimeEntry("e1", "via", "house", t0, t0 + timedelta(hours=2)),  # half of it in Doing
+        entries = [K.TimeEntry("e1", "via", "house", t0, t0 + timedelta(hours=2)),
                    K.TimeEntry("e2", "tasks", "house", t0, now),  # another domain
                    K.TimeEntry("running", "via", "house", now - timedelta(minutes=30), now, True)]
-        m = F.doing_money(card, "Downstream", entries, {"house": 120.0}, now)
-        self.assertEqual(m, {"seconds": 5400.0, "brl": 180.0, "live_rate_hour": 120.0})
-        today = F.doing_money(card, "Downstream", entries, {"house": 120.0}, now, since=now - timedelta(minutes=10))
-        self.assertEqual(today["seconds"], 600.0)
+        rates = {"house": 120.0}
+        cols = K.board(K.cards_from(evs), entries, rates, now).columns
+        m = F.focus_card(cols)
+        c = F.card_cost(m, now)
+        self.assertEqual((c["seconds"], c["brl"], c["live_rate_hour"]), (m.total.seconds, m.total.brl, 120.0))
+        self.assertEqual(m.total.brl, K.card_money(m.card, entries, rates, now).total.brl)
+        self.assertEqual(c["today"]["seconds"], m.total.seconds)  # the whole span is on the same day
 
-    def test_the_doing_stage_is_doing_when_the_board_has_it(self):
-        self.assertEqual(F.doing_stage(["Upstream", "Downstream", "Feito"]), "Downstream")
-        self.assertEqual(F.doing_stage(["To Do", "Doing", "Downstream"]), "Doing")
+    def test_the_focus_stages_are_downstream_then_upstream(self):
+        self.assertEqual(F.FOCUS_STAGES, ("Downstream", "Upstream"))
+        self.assertIsNone(F.focus_card([]))
 
 
 def client():
