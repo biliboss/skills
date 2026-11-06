@@ -58,11 +58,14 @@ def widgets(plan_file, base: dict) -> dict:
         ev = getattr(ctx, "event", "")
         els = [e for (k, _), e in st["elements"].items() if k == "screen" and e.get("event") == ev]
         repo = plan_file.parent.parent
-        frames = []
+        frames, style = [], "width:100%;height:520px;border:1px solid rgba(127,127,127,.3);border-radius:6px"
         for e in els:
-            src = Path(repo / e["file"]).read_text(encoding="utf-8") if e.get("file") and (repo / e["file"]).exists() else None
-            frames.append(Iframe(srcdoc=src, style="width:100%;height:520px;border:1px solid rgba(127,127,127,.3);border-radius:6px")
-                          if src is not None else Iframe(src=e.get("url", ""), style="width:100%;height:520px;border:0"))
+            # a screen is untrusted HTML: sandboxed (no script), a file only from inside the repo, a URL only http(s)
+            path = (repo / e["file"]).resolve() if e.get("file") else None
+            if path is not None and path.is_relative_to(repo.resolve()) and path.is_file():
+                frames.append(Iframe(srcdoc=path.read_text(encoding="utf-8"), sandbox="", style=style))
+            elif str(e.get("url", "")).startswith(("http://", "https://")):
+                frames.append(Iframe(src=e["url"], sandbox="", style=style))
         return Div(H2("Tela", style="font-size:18px;margin:0 0 8px"), *(frames or [Para("sem tela desenhada para este evento")]),
                    data_real_only="1")
 
