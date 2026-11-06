@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["python-fasthtml>=0.14", "monsterui>=1.0.48"]
+# dependencies = ["python-fasthtml>=0.14", "monsterui>=1.0.48", "watchfiles>=0.21"]
 # ///
 """dev-console: a read-only, full-screen console for an event-sourced project in development (FastHTML + MonsterUI).
 
@@ -18,6 +18,7 @@ g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -99,6 +100,13 @@ from starlette.responses import RedirectResponse  # noqa: E402
 # that one agent drives while another agent saves files: its window never reloads because of someone else's save.
 LIVE = "--no-live" not in sys.argv and os.environ.get("DEV_CONSOLE_LIVE", "1") != "0"
 app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=LIVE)
+# DNS rebinding: a page on another domain pointed at 127.0.0.1 would otherwise read /agents/api/prompts. Any other Host
+# gets a 400. No CORS is configured anywhere, on purpose: the console is read by its own pages only.
+from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
+
+import console_agents as _AGH  # noqa: E402  (the allowed host names live with the module that needs them)
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_AGH.allowed_hosts())
 journal = _Live(lambda: CURRENT.get().journal)
 
 # The real code, read from disk on every request and pushed again when the file changes.
@@ -1610,6 +1618,70 @@ async def source_stream(slug: str):
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
+# --- Agents: what the owner typed to the agents, and the agents' logs, in real time (the logic is console_agents.py) -----
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import console_agents as AG  # noqa: E402
+
+try:  # the server stops the tailer thread on shutdown (a reload kills the child process anyway)
+    app.router.on_shutdown.append(AG.stop_hub)
+except AttributeError:
+    pass
+
+
+def _agents_args(limit: int, session: str, side: str) -> dict:
+    return {"limit": limit, "session": session, "side": side in ("1", "true")}
+
+
+@rt("/agents/api/prompts")
+def agents_prompts(limit: int = 200, session: str = "", kinds: str = "prompt", side: str = ""):
+    return _json(AG.ready_hub().get_prompts(kinds=[k for k in kinds.split(",") if k], **_agents_args(limit, session, side)))
+
+
+@rt("/agents/api/log")
+def agents_log(limit: int = 500, session: str = "", side: str = ""):
+    return _json(AG.ready_hub().get_log(**_agents_args(limit, session, side)))
+
+
+@rt("/agents/api/entry")
+def agents_entry(id: str = ""):
+    e = AG.ready_hub().get_entry(id)
+    return _json(e or {"error": "unknown entry"}, 200 if e else 404)
+
+
+@rt("/agents/events")
+async def agents_events(req, after: str = ""):
+    """SSE, one stream per client over the one tailer; resumes from Last-Event-ID (header) or ?after=."""
+    from starlette.responses import StreamingResponse
+
+    hub = await asyncio.to_thread(AG.ready_hub)
+    return StreamingResponse(AG.sse(hub, req.headers.get("last-event-id") or after), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@rt("/agents")
+def agents_page():
+    """The Agents module: the console's bar and, above it, two live views (Prompts, Log) of the agents' session logs."""
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    payload = json.dumps({"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Agents", "domains": domains, "modules": _modules()},
+                         ensure_ascii=False).replace("</", "<\\/")
+    btn = "px-2 rounded border border-transparent cursor-pointer"
+    chip = lambda k: Span(k, id=f"c-{k}", role="button", cls=btn)  # spans: MonsterUI restyles every <button>  # noqa: E731
+    tools = Div(
+        Span("Prompts", id="v-prompts", role="button", cls="px-2 cursor-pointer"), Span("Log", id="v-log", role="button", cls="px-2 cursor-pointer"),
+        NotStr('<select id="sess" class="h-6 max-w-[28rem] bg-transparent border border-neutral-300 dark:border-neutral-700 rounded px-1"></select>'),
+        chip("cross"), chip("notification"), chip("other"), chip("side"),
+        Span("", id="pause", role="button", cls="ml-auto px-2 cursor-pointer"), Span("", id="live"),
+        cls="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500")
+    # the module's own script reuses the Playground's preamble + the one switcher script, with ⌘P's current module set
+    pre = PLAYGROUND_JS.replace("'/playground'", "'/agents'")  # the Playground's script is exactly preamble + switcher
+    return Title("dev-console · Agents"), Style(CSS), Div(
+        tools, Div(id="warn", cls="px-3 text-amber-600 empty:hidden"), Div(id="aglist", cls="flex-1 min-h-0 overflow-y-auto"),
+        _status_bar("Agents", False, module=False), _switcher(),
+        Script(payload, type="application/json", id="data"), Script(pre + AG.AGENTS_JS, type="module"),
+        cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
+    )
+
+
 # --- the money bar: the Costs domain's journal is the only storage (cost-track's costs.py is its only writer) --------
 def _load_costs():
     """cost-track's costs.py, next to this skill in the skills folder; None (no bar) when it is not there."""
@@ -1991,13 +2063,16 @@ def _known(slug: str) -> bool:
     return bool(use(slug)) or (slug == PLAYGROUND_SLUG and slug not in DOMAINS)
 
 
+AGENTS_MODULE = {"name": "Agents", "href": "/agents"}  # listed by ⌘P beside Domain and Playground
+
+
 def _modules(tabs: list[str] | None = None) -> list[dict]:
     """The one module model both pages ship as D.modules, listed by ⌘P: `{name, href}`. On a domain page: Domain and the
     project's TABS (href null: shown in place), then Playground (href: navigates). On the Playground: Domain (href "/", the
     first domain) and Playground. ⌘K never lists these: it lists domains only."""
     if tabs is None:
-        return [{"name": "Domain", "href": "/"}, {"name": "Playground", "href": "/playground"}]
-    return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}]
+        return [{"name": "Domain", "href": "/"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
+    return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
 
 
 def _status_bar(name: str, money: bool, module: bool = True):

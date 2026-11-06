@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.16.1
+  version: 0.17.0
 ---
 
 # dev-console
@@ -165,6 +165,45 @@ into the browser's Print). The two key handlers listen in the capture phase so t
 - Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`) with
   `DEV_CONSOLE_PLAYGROUND_DIR=<temp>` after a `playground import` into it; never write the design-playground's `dados`. Keep the registry
   in a folder of its own: the watcher restarts the console on any write beside it (the money clock writes `running.json`).
+
+## Agents
+
+`/agents` (listed by ⌘P beside Domain and Playground): what the owner typed to the agents and the agents' session logs,
+in real time. Two views switched in place (`?view=prompts|log`): **Prompts** (time, session, folder, text; a click
+expands the whole text) and **Log** (prompts, assistant text, tool calls). A filter by session (`?session=`), chips for
+`cross` / `notification` / `other` / `side` (`?show=`), a pause for the autoscroll (`?pause=1`). Delivery 1 reads Claude
+Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are another source class in `SOURCES`.
+
+- **What is a prompt (an allow-list)**: exactly `origin.kind == "human"` with `promptSource == "typed"`, or `"queued"`
+  (typed while the agent was busy: still a prompt, with `queued: true` and a `queued` badge on the row). A message typed
+  mid-turn is logged as an **attachment** line, not a user line: `attachment.type == "queued_command"` with
+  `commandMode == "prompt"` is read too (origin `human` is a queued `prompt`, `peer` is `cross`, `task-notification` is
+  `notification`, any other origin is `other`; the text is `attachment.prompt`; a missing or malformed prompt is dropped).
+  **No duplicates**: the same session, kind and first ~200 characters (whitespace-normalized) within ~2 minutes is one
+  entry, the earliest; the same text further apart stays two. Content is a string,
+  or an array: its text blocks plus a marker such as `[image]`. `origin.kind == "peer"` is `cross`, `"task-notification"` is
+  `notification`, anything else (no origin, `human` without a `promptSource`, unknown) is `other`, never `prompt`.
+  `isSidechain` lines and `agent-*.jsonl` files carry `side` and stay out of Prompts unless the `side` chip is on.
+  Lines above 1 MB (api-request-blob) are skipped without parsing.
+- **Real time by events**: one thread for all clients; `watchfiles` (FSEvents) names the `.jsonl` that changed and the hub
+  reads it from its stored byte offset (about 50 ms from the write to the SSE message, measured). Each SSE client has an `asyncio.Queue` fed by the watcher thread
+  (`call_soon_threadsafe`); nothing polls, and the queue is dropped when the client disconnects. A safety net rescans the roots
+  and checks every file every ~5 s. If `watchfiles` cannot be imported it polls every ~1 s and the page shows one warning line.
+- **Backfill**: on start the hub reads the tail of the newest 150 files (until about 200 prompts and 500 log entries), so
+  **prompts older than that do not appear**. Raise it with `DEV_CONSOLE_AGENTS_BACKFILL_FILES=<n>` (the constant
+  `BACKFILL_FILES` in `console_agents.py`); a bigger number makes the first request slower.
+- **Lifecycle**: the watcher is a daemon thread with a stop event (`Hub.shutdown`, called on the server's shutdown and at
+  exit); a hot reload replaces the whole child process, so no thread or process is left behind.
+- `DEV_CONSOLE_AGENTS_DIRS`: roots, `os.pathsep`-separated (default `~/.claude/projects`; deduplicated by realpath, so
+  the `~/.claude-mukutu/projects` symlink is read once). Tests point it at a temp folder.
+- **Privacy**: the logs hold private prompts. Read-only, only inside the roots, memory only (no cache, no persistence),
+  no entry text in any log or print, all text rendered with `textContent`. The console binds 127.0.0.1 only, and a
+  `TrustedHostMiddleware` on the whole app answers 400 to any other `Host` (DNS rebinding: a site in the browser pointed at
+  127.0.0.1 cannot read `/agents/api/prompts`); allowed names are `127.0.0.1` and `localhost` (the port is not compared),
+  extended by `DEV_CONSOLE_ALLOWED_HOSTS` (comma-separated). No CORS is configured: no `Access-Control-Allow-Origin` anywhere. Tests use
+  invented lines; never commit a real prompt, id or path of a session.
+- Code: `scripts/console_agents.py` (source, normalizer, hub, SSE, page script); `dev-console.py` has only the glue.
+  Tests: `uv run --script scripts/test_console_agents.py`.
 
 ## Hook up a project
 
