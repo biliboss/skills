@@ -141,16 +141,6 @@ before `innerHTML`.
   farthest lane the innermost, so none cross) and enters at 45°; the others bend once. Stage bands are `stagehdr` nodes
   (`events: no`, excluded from the label collision pass); the label pass tries below, then above, with the same push. A
   redraw (`toggleLayout`, a source change) destroys the previous cytoscape instance and disconnects its resize observer.
-- **Focus + context** (branch only, more than `FOCUS_MIN` 15 events): `laneFocus(cats)` picks the open lane (`?lane=`, else
-  the `ev` lane, else the journal's latest event's, `HOME`'s, the first); a folded lane is one row (`FOLD_ABOVE` 46,
-  `FOLD_BELOW` 24) whose stations keep their columns (computed with the unfolded slots, so a switch never moves a column);
-  `foldGrid` gives each column its x: `COL` when it holds an open lane's station, else `FOLD_COL` 44, a band at least
-  `BAND_MIN` 170 or its header's width; unfocused it is the plain `COL` grid. `foldLanes` hides a folded lane's labels and
-  its dashed edges (cross, loop, a stub into it; a stub from it into the open lane stays) and tags its elements `fold` (a
-  tap opens it; `node[!fold]` keeps the sidebar for the rest). `laneView` is the home view: zoom = min(1, the height, the
-  open lane's width from the Human), floored at (16 + 0.2) / 20; left at the Human unless the open lane starts past the
-  middle. `laneHeads` draws the row headers in `#lane-heads` over `#cy`, placed on every `viewport` event, right of the
-  Human when on its rows. `cy.scratch('branch').focus` = `{open, cats}`; each lane has `fold`.
 - Rejected: the hand-made radial (`pos`), dagre left to right (the Human is not in the centre) and breadthfirst
   `circle` (overlaps). Forces that read well: `idealEdgeLength` 130, `nodeRepulsion` 45000, `gravity` 0.4.
 

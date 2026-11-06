@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.26.0
+  version: 0.27.0
 ---
 
 # dev-console
@@ -61,10 +61,9 @@ adding a domain needs no restart: `console.sh domains add <path>` (it appends th
 `~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`, `ent`), so a reload or a shared link reopens the same view.
-**`/` is the console's home, the focus** (below, "The focus home"): the Kanban card in focus with the current focus
-inside (`/home`); with the Kanban as the focus or no card in focus, the board: the module a domain names with
-`CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when that domain's journal has an entity; else the first domain, as
-before (a domain page with an empty journal is a dead end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
+**`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when
+that domain's journal has an entity; else the first domain, as before (a domain page with an empty journal is a dead
+end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
 `/api/palette` without a domain) point at the first domain by its URL.
 
 ## Agents: console.sh
@@ -109,9 +108,7 @@ window holding a `WKWebView` (`isInspectable = true`) on the console page (defau
 FastHTML server still serves it, nothing moved out of the web). The title follows the page title. The console's UI
 is made for **two thirds of a screen**: on first launch the window takes two thirds of the main screen's visible
 width and its full height, docked to the right (the left third stays free for a terminal or chat); `dock left|right`
-re-docks it at two thirds, `resize` sets any size, and the frame is remembered after that. **At launch it opens the home**
-(`/`, the focus; `launchURL` in `ConsoleCore`), never the last URL saved in `state.json`; a window launched for one page
-(`DEV_CONSOLE_URL`, `window.sh --owner <name> launch <url>`) opens that page.
+re-docks it at two thirds, `resize` sets any size, and the frame is remembered after that.
 
 The agent drives it only through `scripts/window.sh`, and the two files in `~/.local/state/dev-console-window/`
 have one writer each:
@@ -195,39 +192,6 @@ is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/
   the layer-3 window, ~560 px wide) and capture just that window with `screencapture -x -l<window number>`.
   `tell application "DevConsole" to activate` does not reliably bring it to the front.
 - **Testing real keys:** synthetic keystrokes (`osascript ... keystroke`) go to whatever app is in front, and the owner may be working in another one. Send them only when the Mac is idle (HIDIdleTime over 60 s), bring DevConsole to the front with `set frontmost of process "DevConsole" to true`, check that it is still in front before every key, and stop at the first key that lands elsewhere; never type text or Enter blind.
-
-## The focus home (g h)
-
-**The focus is ONE pointer**: what the owner and the Bili are looking at now, a stack (set / back) kept in one place, the
-append-only journal `${DEV_CONSOLE_FOCUS_DIR:-~/.local/share/dev-console/focus}/events.jsonl`
-(`{"id","event","at","actor","value"}`: `focus.set {text, target, card, by}`, `focus.back {by}`). Its only writer is
-`scripts/focus.sh` (`console_focus.py`); **only the owner's conversation with the Bili moves it**: `--by gabriel|bili`,
-anything else is refused (exit 3). **Subagents and profiles never call `focus.sh set` or `back`**: they read it.
-
-```sh
-F=<skill>/scripts/focus.sh
-$F set "<a sentence>" --target <kanban | slug | slug/event/Widget | url> [--card <card id, start, or title>] --by bili
-$F back --by gabriel          # pop; refused when the stack is already empty (the Kanban board)
-$F show [--json]              # the focus, the card in focus, where g h goes, the last 5 (devc focus reads the route)
-```
-
-- **The Kanban board is the default focus** (target `kanban`): with nothing set, or after `back` empties the stack.
-- **The home** (`/`; `g h` from any page) is **the Kanban card in focus with the current focus inside** (`/home`): the
-  card (title, domain, how long in its stage, what it cost so far (the Kanban's money), ticking while the clock runs on its
-  domain), the focus embedded through the existing embed modes (a slug: its graph, `?embed=graph`; a widget: its own
-  route; a console URL: `embed=1`; any other URL: the flight recorder's last shot of it), and the last 5 focuses (a click
-  goes there: navigation, never a focus change). **With the Kanban as the focus, or no card in focus, the home is the
-  board.** The card in focus is the Kanban's own rule (the top of a column is the card in focus, the order
-  of `card.prioritized`): the top card of `Downstream` when it has cards, else the top card of `Upstream`, never `Todo`
-  or `Feito` (`FOCUS_STAGES` in `console_focus.py`). The focus's `--card` does not pick it. Its cost is the Kanban's
-  own money for the card (`card_money`), not a rule of the console.
-- **The screen never jumps by itself**: the focus changes behind; only `g h` (g then h within 1 s, vim-style; every full
-  page gets it through FastHTML's `app.hdrs`, capture phase, never while typing, from an embed it moves the top window)
-  or a reload takes the window there. `h` is never a module's goto key.
-- **Read route** `GET /agent/focus` -> `{focus, card, history[5], cost_today, home, depth}` (`devc focus` prints it).
-- Code: `scripts/console_focus.py` (journal, folds, the card's clock, the page, the routes) and a registration block in
-  `dev-console.py`; tests `uv run --script scripts/test_console_focus.py`. Test on a second console with temp
-  `DEV_CONSOLE_FOCUS_DIR`, `KANBAN_DIR`, `COSTS_DIR` (outside the registry folder: the console restarts on writes there).
 
 ## Agent API (flight recorder)
 
@@ -386,21 +350,14 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **An event's first widget is the real screen where it happens** (Event Modeling: the screen above the event), the
   numbers come after. `render_screens(steps, title)` (set on every project module like `render_widget_list`) takes
   `{name, url, event, note}` steps, each an iframe of the product's own URL (a Storybook story's
-  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → (keys too) and a list of the
-  steps beside the screen, the event each screen leads to under its name; mark the widget `fake = True`. Never redraw
-  a product's screen. **Show only the frame the product draws**: a story sits inside Storybook's padding and the
-  catalogue's margin, which read as a second, white frame (rejected twice); give each step its box, measured in the
-  story's page with the headless browser (`viewport: [w, h]`, `frame: [x, y, w, h]`, `radius`), and the widget crops to
-  it and scales it to the popup's stage. A fixed 390×844 iframe cut every Via story (their phones are 406 wide, a v12
-  board 808 and it wraps below 848). For an imported product,
+  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → and dots, the event each screen
+  leads to beside its name; mark the widget `fake = True`. Never redraw a product's screen. For an imported product,
   serve its Storybook from a detached read-only worktree in a durable folder (`~/src/<product>`, `pnpm install`, the
-  design system's `storybook dev --disable-telemetry`, in a herdr tab of its own, log to
-  `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
+  design system's `storybook dev`, log to `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
   folder: scratch prunes idle entries after 24 h, the server keeps running on deleted `node_modules` and every
-  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this,
-  000 = the server is down: start it again), check which port answers with **its** stories (another project's
-  Storybook may already hold 6006), and list the screens per step with the event they lead to (a subagent's job: find
-  the stories, screenshot them, measure each one's frame).
+  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this),
+  check which port answers with **its** stories (another project's Storybook may already hold 6006), and list the
+  screens per step with the event they lead to (a subagent's job: find the stories, screenshot at 390×844).
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
@@ -582,35 +539,14 @@ For a product whose code already records domain events (Domain.Imported):
    left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane (a branch), top to
    bottom in `EVENTS` order; a line follows `TRANSITIONS` as the metro does, but its fork is a 45° spur inside the lane. A lane is
    born where its transition comes from (its first station sits one column right of the station that leads into it, joined
-   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine, straight down the Human's column
-   and then along its own row (a 45° leg from the Human ran through the stations of the lanes it passed); any other edge
-   into a lane is a merge (thin, grey, dashed, with its command). **A jump is drawn as its end** (partial edge drawing,
-   Bruckdorfer & Kaufmann 2012): a merge from another lane, or a loop back inside a lane over more than two columns, is a
-   short dashed stub into the station from its source's side, labelled `command ← Source.Event`; drawn whole, those lines
-   crossed every lane in between or ran along the source's own line ("linhas tracejadas cruzando tudo", Via).
-   **Readable at the window he uses**: station labels are 20 px (14 px rendered about 8 px on a 900 px tall window once the
-   zoom fits the height), the entity is named once at the lane's first station and the others carry the event words only
-   (a metro line does not repeat its name per station), a spur that ends at its station carries the label on its right, a
-   station nothing in its lane leads into continues its own row, and every label knocks out what runs under it in its
-   stage band's tone. Check `labelPx` = font × zoom ≥ 16 at 1140×1074 (his window). **Columns are funnel stages** when the project declares them: `STAGES =
+   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine; any other edge into a lane is a
+   merge (thin, grey, dashed, with its command). **Columns are funnel stages** when the project declares them: `STAGES =
    {"cat.event": "stage"}`, `STAGE_ORDER = [...]` (and `STAGE_LABELS = {stage: text}` for the header); a stage is a band of
    columns with a faint header at the top, and an edge that would go back to an earlier stage is drawn as a loop (dashed),
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
    input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
-   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height, **never below 0.81**:
-   every label is 20 px, so it renders at 16 px or more at his 1140×1074 window, and a label the person's own zoom-out
-   would shrink below 16 px is not drawn (`min-zoomed-font-size`); the rest is a scroll away.
-   **Focus + context on a big domain** (more than 15 events; Furnas 1986, fisheye views): it opens with ONE lane drawn
-   whole (the lane of the journal's latest event, else the project's `HOME` event, else the first lane; an `ev` in the
-   query opens its own lane) and every other lane folded to one line: its stations as dots, no labels, nothing dashed,
-   its name and count (`2  Chat · 11 eventos`) as a frozen row header at the window's left edge (HTML over the drawing,
-   knocking out the lines under it), so a lane born far right is still named. A click on a folded lane (its header, a
-   dot, its line), or its number key (1-9, `EVENTS` order), opens it and folds the one before; `0` opens them all; the
-   legend is the same switcher as console text. `lane` in the query keeps it (`all` = every lane). The columns keep
-   their order, so the mental map holds; a column with no station of an open lane narrows to 44 px (a rubber sheet)
-   and a stage band never below its header. The fit keeps the open lane readable, not everything: from the Human's
-   column, unless the lane starts past the window's middle. The code is in functions of their own (`laneFocus`,
-   `foldGrid`, `foldLanes`, `laneView`, `laneHeads`, `laneLegend`, `laneKey`, `laneTaps`); a small domain never folds. **No two lines share a segment**: lines leaving one station down the
+   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
+   until zoomed: scroll or zoom right to read on). **No two lines share a segment**: lines leaving one station down the
    same 45° slope are an interchange, ranked by leg length, each next one leaving a step lower-left
    (`source-endpoint`) and turning earlier, so the legs run parallel; a back edge (loop, stage regress) is an
    `unbundled-bezier` arc above the rows, never routed along a line. Cytoscape's segment weights are relative to the
