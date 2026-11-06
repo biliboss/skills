@@ -137,6 +137,9 @@ def body(v, flash={}):
         parts.append(tag(Text.assemble(*lane2("UPSTREAM", "upstream"), ("   ──▶   ", DIM),
                                        *lane2("DOWNSTREAM", "downstream")), "Stage"))
         ck = sg.get("checklist") or []
+        if ck and sg.get("downstream", "todo") == "todo" and all(c["done"] for c in ck):
+            parts.append(tag(Text(f"    ☑  Definition of Ready: {len(ck)}/{len(ck)}", MID), "Ready"))
+            ck = []
         if ck and sg.get("downstream", "todo") == "todo":  # the Definition of Ready, only while in the Upstream
             ct = Table.grid(padding=(0, 1)); ct.add_column(width=4); ct.add_column(ratio=1)
             for c in ck:
@@ -144,28 +147,6 @@ def body(v, flash={}):
                            Text(c["text"], DIM if c["done"] else ""))
             parts.append(tag(ct, "Ready"))
         parts.append(Text())
-    ws = [w for w in v.get("workers", []) if w.get("state") == "running" or time.time() - (w.get("ended_at") or 0) < 15]
-    dl = delegations()
-    ws = ws + dl
-    subs = SUBAGENTS["n"]
-    if subs and not [d for d in dl if d["state"] == "running"]:  # the tab knows a count but the database has no rows
-        ws = ws + [{"id": "sub", "what": f"{subs} subagente{'s' if subs > 1 else ''} do Hermes", "state": "running",
-                    "started_at": SUBAGENTS["since"]}]
-    if ws:
-        wt = Table.grid(expand=True, padding=(0, 1)); wt.add_column(width=1); wt.add_column(ratio=1)
-        wt.add_column(width=0); wt.add_column(width=5, justify="right")
-        for w in ws:
-            st = w.get("state")
-            if st == "running" and w.get("pid"):
-                try: os.kill(w["pid"], 0)
-                except OSError: st = "lost"
-            glyph = {"running": ("◐◓◑◒"[int(time.time() * 3) % 4], ACC), "done": ("✓", MID), "fail": ("✗", ACC), "lost": ("?", ACC)}[st]
-            end = w.get("ended_at") or time.time()
-            what = Text(w.get("what", w["id"]), "bold" if st == "running" else DIM)
-            note = w.get("note", "") if st != "lost" else "sumiu"
-            if note: what.append("\n" + note, style=DIM)  # the name first; the note under it, never squeezing it
-            wt.add_row(Text(*glyph), what, Text(""), Text(ago(end - w["started_at"]), DIM))
-        parts += [section("agentes", "workers" in flash), tag(wt, "Agents"), Text()]
     g = v.get("goal") or {}
     title = Text.assemble(fl("goal"), ("▍", ACC), (" " + (g.get("title") or ""), "bold bright_white"))
     if g.get("subtitle"):
@@ -347,24 +328,69 @@ def waiting_panel(v):
     t.append("\nnada a decidir agora · a rodada nova aparece aqui sozinha · digite para outra coisa", style=DIM)
     return Panel(t, box=box.ROUNDED, border_style=ACC, padding=(0, 1))
 
+def agents_of(v):
+    """Who is working now: the agent's workers (running, or ended in the last 15 s) and the Hermes subagents."""
+    ws = [w for w in (v or {}).get("workers", []) if w.get("state") == "running" or time.time() - (w.get("ended_at") or 0) < 15]
+    dl = delegations()
+    ws = ws + dl
+    subs = SUBAGENTS["n"]
+    if subs and not [d for d in dl if d["state"] == "running"]:
+        ws = ws + [{"id": "sub", "what": f"{subs} subagente{'s' if subs > 1 else ''} do Hermes", "state": "running",
+                    "started_at": SUBAGENTS["since"]}]
+    for w in ws:
+        if w.get("state") == "running" and w.get("pid"):
+            try: os.kill(w["pid"], 0)
+            except OSError: w = dict(w, state="lost")
+    return ws
+
+def agents_panel(ws):
+    """1..N agents above the input, one line each, always moving while they run: a spinner offset per line and a
+    bar that slides; the border takes the accent while anything runs."""
+    now = time.time()
+    running = [w for w in ws if w.get("state") == "running"]
+    t = Table.grid(expand=True, padding=(0, 1))
+    t.add_column(width=1); t.add_column(ratio=1, no_wrap=True, overflow="ellipsis"); t.add_column(width=8); t.add_column(width=5, justify="right")
+    for i, w in enumerate(ws):
+        st = w.get("state")
+        end = w.get("ended_at") or now
+        if st == "running":
+            glyph = ("◐◓◑◒"[(int(now * 4) + i) % 4], ACC)
+            pos = (int(now * 8) + 3 * i) % 12   # a 3-cell light sliding along an 8-cell track
+            bar = Text("".join("▰" if 0 <= pos - k < 3 else "▱" for k in range(8)), ACC)
+        else:
+            glyph = {"done": ("✓", MID), "fail": ("✗", ACC), "lost": ("?", ACC)}.get(st, ("·", DIM))
+            bar = Text("▰" * 8 if st == "done" else "", DIM)
+        t.add_row(Text(*glyph), Text(w.get("what", w["id"]), HI if st == "running" else DIM), bar,
+                  Text(ago(end - (w.get("started_at") or now)), DIM))
+    title = f"agentes · {len(running)} rodando" if running else "agentes"
+    return Panel(t, title=title, title_align="left", border_style=ACC if running else DIM, box=box.ROUNDED, padding=(0, 1))
+
+def AG(v):
+    ws = agents_of(v)
+    return [tag(agents_panel(ws), "Agents")] if ws else []
+
 def footer(buf, q, v=None):
     if drawing(v) and not buf and not POLL["prefix"]:
-        return Group(*([stack(q)] if q else []), tag(waiting_panel(v), "Waiting"),
+        return Group(*AG(v), *([stack(q)] if q else []), tag(waiting_panel(v), "Waiting"),
                      tag(Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
     PEND["since"] = None if not drawing(v) else PEND["since"]
     d = poll_of(v or {}) if not buf else None
     POLL["live"] = bool(poll_of(v or {}))
     if d:
-        return Group(*([stack(q)] if q else []), tag(poll_panel(d, v), "Poll"),
+        return Group(*AG(v), *([stack(q)] if q else []), tag(poll_panel(d, v), "Poll"),
                      tag(Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
     inp = Panel(Text.assemble(("❯ ", f"bold {ACC}"), (buf, ""), ("" if buf else ("feedback para a próxima rodada" if POLL["prefix"].strip() else ("responder outra coisa" if POLL["prefix"] else "qualquer pedido")), DIM), ("▌", "blink")),
                 box=box.ROUNDED, border_style=DIM, padding=(0, 1))
     hint = Table.grid(expand=True); hint.add_column(); hint.add_column(justify="right")
     hint.add_row(Text("⏎ empilhar · ctrl+l rótulos · ctrl+c sair", style=DIM),
                  Text.assemble((SID[-6:], DIM), (f"  {PROFILE}", DIM)))
-    return Group(*([stack(q)] if q else []), tag(inp, "Input"), tag(hint, "Hints"))
+    return Group(*AG(v), *([stack(q)] if q else []), tag(inp, "Input"), tag(hint, "Hints"))
 
 def footer_height(q, v=None, buf=""):
+    n = len(agents_of(v)); extra = (n + 2) if n else 0
+    return extra + _footer_height(q, v, buf)
+
+def _footer_height(q, v=None, buf=""):
     if drawing(v) and not buf and not POLL["prefix"]: return len(q) + 4 + 1
     d = poll_of(v or {}) if not buf else None
     if d and d.get("keys"): return len(q) + 2 + 1 + 1 + len(d["keys"]) + (1 if (v or {}).get("url") else 0) + 1
