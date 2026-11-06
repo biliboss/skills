@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.70.0
+
+- backbrief 0.18.0: the "pelo resultado" mode (context first, up to 5 questions, the 5-field request + the week's bet) and the optional `intent` of the teach-back. kanban 0.7.0: `kanban.sh describe` (`card.described`), shown under the card's title on the Quadro.
+
 ## 0.69.0
 
 - Loose learnings from sessions landed: patch bumps for backbrief, brainstorm, dev-console, hermes (+`references/briefing.md`), kanban, linear, lp-draft, seo-audit, skill-smith (+`resolve_release_conflicts.py`), sync, tmux, wiki-smith.

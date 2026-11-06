@@ -82,6 +82,9 @@ STYLES = {
     "exemplo": {"version": 1, "guide": "Um parágrafo curto que mostra como ficará pronto, com um exemplo concreto."},
 }
 
+# The optional `intent` of understanding.taught_back (the "pelo resultado" mode): the high-level request's fields.
+INTENT_FIELDS = {"why", "who", "result", "limits", "done_when", "bet"}
+
 EVENTS = {
     # Alguém explicou uma tarefa a outra pessoa, do jeito dele e com o tempo que ela pedia; depois do entendimento
     # confirmado, quem recebeu executou a tarefa. Um contexto novo, de fora, que só conhece o pedido confirmado e a
@@ -428,6 +431,8 @@ def _project(events: list[dict]) -> dict | None:
         if event == "understanding.taught_back":
             state["teach_backs"].append(value["text"])
             state["style"] = value.get("style")
+            if value.get("intent"):
+                state["intent"] = value["intent"]
             state["options"] = []
             state["status"] = "taught_back"
         elif event == "option.generated":
@@ -487,6 +492,10 @@ class TasksJournal:
             value = {**value, "version": value.get("version", STYLES[value["style"]]["version"])}
         if event == "style.scored" and not isinstance(value.get("delta"), int):
             raise ValueError("style.scored needs an integer delta (+ score, - downscore)")
+        if event == "understanding.taught_back" and "intent" in value:
+            it = value["intent"]
+            if not isinstance(it, dict) or set(it) - INTENT_FIELDS or not all(isinstance(x, str) for x in it.values()):
+                raise ValueError(f"intent is an object of strings with keys among {sorted(INTENT_FIELDS)}")
         if event == "task.verified" and not isinstance(value.get("passed"), bool):
             raise ValueError("task.verified needs passed (true or false)")
         if event == "task.delivered" and value.get("kind") not in DELIVERY_KINDS:
