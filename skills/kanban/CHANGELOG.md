@@ -2,6 +2,14 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-06
+
+### Added
+
+- `kanban.sh wip [--repo R]`: open PRs per repo against the WIP limit (`wip.limit`, default 3, `~/.config/kanban/config.json`); exits 3 at or over it.
+- `kanban.sh sweep [--hours 48] --repos a/b,c/d [--apply]`: PRs and branches older than N hours; `--apply` closes PRs whose content is already in main, deletes remote branches already in main, and records the rest.
+- Events `item.aged` `{repo, kind, ref, age_h}` and `decision.requested` `{text, repo, ref, reason}` (no card); a deploying repo (viacorretor) only ever gets `decision.requested`.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added

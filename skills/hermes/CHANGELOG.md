@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-11-06
+
+### Added
+
+- `spawn hacker ... --repo owner/name` runs `kanban.sh wip --repo` first and refuses (exit 6, with the open PRs) at the WIP limit; a failing check only warns.
+
 ## [0.2.1] - 2026-11-06
 
 ### Changed

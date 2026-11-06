@@ -299,5 +299,194 @@ class JournalTest(unittest.TestCase):
         self.assertEqual(j.read({"id": "_"}), {})
 
 
+FAKE_GH = r'''#!/usr/bin/env python3
+# fake gh: answers from $FAKE_GH_FILE ({"args joined by space": output | {"fail": true}}), logs every call; no GitHub.
+import json, os, sys
+key = " ".join(sys.argv[1:])
+with open(os.environ["FAKE_GH_LOG"], "a") as f:
+    f.write(key + "\n")
+table = json.load(open(os.environ["FAKE_GH_FILE"]))
+if key in table:
+    ans = table[key]
+elif sys.argv[1] in ("pr", "api") and ("close" in key or "-X DELETE" in key):
+    ans = ""
+else:
+    print("fake gh: no answer for " + key, file=sys.stderr)
+    sys.exit(1)
+if isinstance(ans, dict) and ans.get("fail"):
+    print("not found", file=sys.stderr)
+    sys.exit(1)
+print(ans if isinstance(ans, str) else json.dumps(ans))
+'''
+
+NOW = datetime.now(timezone.utc)  # the sweep reads the real clock; ages are relative to it (hours of margin)
+
+
+def ago(hours: float) -> str:
+    return (NOW - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class GhCase(unittest.TestCase):
+    """A fake gh on KANBAN_GH, a temp journal and config: the WIP check and the sweep never see GitHub."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.home = Path(tmp.name)
+        os.environ["KANBAN_DIR"] = str(self.home / "kanban")
+        gh = self.home / "gh"
+        gh.write_text(FAKE_GH, encoding="utf-8")
+        gh.chmod(0o755)
+        self.table: dict = {}
+        self.log = self.home / "gh.log"
+        self.answers = self.home / "answers.json"
+        self.config = self.home / "config.json"
+        for k, v in {"KANBAN_GH": str(gh), "FAKE_GH_LOG": str(self.log), "FAKE_GH_FILE": str(self.answers),
+                     "KANBAN_CONFIG": str(self.config)}.items():
+            os.environ[k] = v
+            self.addCleanup(os.environ.pop, k, None)
+        self.answers.write_text("{}", encoding="utf-8")
+
+    def gh(self, **answers):
+        self.table.update({k.replace("__", " "): v for k, v in answers.items()})
+
+    def put(self, args: str, answer):
+        self.table[args] = answer
+        self.answers.write_text(json.dumps(self.table), encoding="utf-8")
+
+    def calls(self) -> list[str]:
+        return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = K.main(list(args))
+        return code, out.getvalue(), err.getvalue()
+
+
+def prs(n: int, repo="o/r") -> list[dict]:
+    return [{"number": i, "title": f"PR {i}", "headRefName": f"b{i}", "createdAt": ago(1), "url": f"https://x/{i}"}
+            for i in range(1, n + 1)]
+
+
+LIST = "pr list -R {} --state open --limit 200 --json number,title,headRefName,createdAt,url"
+
+
+class WipTest(GhCase):
+    def test_under_at_and_over_the_limit(self):
+        for n, code in ((2, 0), (3, 3), (4, 3)):
+            self.put(LIST.format("o/r"), prs(n))
+            got, out, _ = self.cli("wip", "--repo", "o/r")
+            self.assertEqual(got, code, n)
+            self.assertIn(f"{n} open PR(s), limit 3", out)
+
+    def test_limit_comes_from_the_config_default_three(self):
+        self.assertEqual(K.wip_limit("o/r"), 3)
+        self.config.write_text(json.dumps({"wip": {"limit": 5, "repos": {"o/small": 1}}}), encoding="utf-8")
+        self.assertEqual((K.wip_limit("o/r"), K.wip_limit("o/small")), (5, 1))
+        self.put(LIST.format("o/r"), prs(4))
+        self.assertEqual(self.cli("wip", "--repo", "o/r", "--json")[0], 0)
+        self.put(LIST.format("o/small"), prs(1))
+        self.assertEqual(self.cli("wip", "--repo", "o/small")[0], 3)
+
+    def test_repo_defaults_to_the_current_directory_and_a_gh_failure_is_an_error(self):
+        self.put("repo view --json nameWithOwner", {"nameWithOwner": "o/here"})
+        self.put(LIST.format("o/here"), prs(0))
+        code, out, _ = self.cli("wip")
+        self.assertEqual((code, "o/here" in out), (0, True))
+        code, _, err = self.cli("wip", "--repo", "o/unknown")
+        self.assertEqual(code, 1)  # not 3: an unknown count is not "over the limit"
+        self.assertIn("kanban:", err)
+
+
+def branch_answers(t: GhCase, repo: str, branches: dict[str, dict], default="main"):
+    """branches: name -> {age_h, ahead, files: {path: (branch sha, main sha)}}."""
+    t.put(f"api repos/{repo}", {"default_branch": default})
+    t.put(f"api repos/{repo}/branches?per_page=100", [{"name": default}] + [{"name": n} for n in branches])
+    for n, b in branches.items():
+        t.put(f"api repos/{repo}/commits/{n}", {"commit": {"committer": {"date": ago(b["age_h"])}}})
+        t.put(f"api repos/{repo}/compare/{default}...{n}",
+              {"ahead_by": b.get("ahead", 0), "files": [{"filename": p} for p in b.get("files", {})]})
+        for p, (on_branch, on_main) in b.get("files", {}).items():
+            t.put(f"api repos/{repo}/contents/{p}?ref={n}", {"sha": on_branch} if on_branch else {"fail": True})
+            t.put(f"api repos/{repo}/contents/{p}?ref={default}", {"sha": on_main} if on_main else {"fail": True})
+
+
+class SweepTest(GhCase):
+    def setUp(self):
+        super().setUp()
+        old = {"number": 7, "title": "old", "headRefName": "landed", "createdAt": ago(60), "url": "u7"}
+        wip = {"number": 8, "title": "work", "headRefName": "wip", "createdAt": ago(100), "url": "u8"}
+        fresh = {"number": 9, "title": "fresh", "headRefName": "fresh", "createdAt": ago(5), "url": "u9"}
+        self.put(LIST.format("o/r"), [old, wip, fresh])
+        branch_answers(self, "o/r", {
+            "landed": {"age_h": 60, "ahead": 2, "files": {"a.py": ("s1", "s1"), "gone.py": (None, None)}},  # squash-merged
+            "wip": {"age_h": 100, "ahead": 1, "files": {"b.py": ("s2", "s3")}},
+            "fresh": {"age_h": 5},
+            "merged-old": {"age_h": 90, "ahead": 0},
+            "orphan": {"age_h": 80, "ahead": 3, "files": {"c.py": ("s4", "s5")}},
+        })
+
+    def run_sweep(self, *args):
+        return self.cli("sweep", "--repos", "o/r", "--json", *args)
+
+    def test_dry_run_lists_and_changes_nothing(self):
+        code, out, _ = self.run_sweep()
+        self.assertEqual(code, 0)
+        by = {i["ref"]: i["action"] for i in json.loads(out)["items"]}
+        self.assertEqual(by, {"#7 landed": "close", "#8 wip": "aged", "merged-old": "delete", "orphan": "decision"})
+        self.assertEqual(K.events(), [])
+        self.assertFalse([c for c in self.calls() if "close" in c or "DELETE" in c])  # no write at all
+
+    def test_apply_closes_deletes_and_records_the_rest_once(self):
+        code, out, _ = self.run_sweep("--apply")
+        self.assertEqual(code, 0)
+        calls = self.calls()
+        self.assertIn("pr close 7 -R o/r --comment Closed by the kanban sweep: this content is already in main.", calls)
+        self.assertIn("api -X DELETE repos/o/r/git/refs/heads/merged-old", calls)
+        # never touched: the unmerged branch and PR, the fresh PR, main
+        self.assertEqual([c for c in calls if "wip" in c and ("close" in c or "DELETE" in c)], [])
+        self.assertEqual([c for c in calls if "orphan" in c and "DELETE" in c], [])
+        self.assertEqual([c for c in calls if "merge" in c.split()[:2]], [])
+        evs = [(e["event"], e["value"]["ref"]) for e in K.events()]
+        self.assertEqual(sorted(evs), [("decision.requested", "orphan"), ("item.aged", "#8 wip"), ("item.aged", "orphan")])
+        aged = next(e for e in K.events() if e["event"] == "item.aged" and e["value"]["ref"] == "#8 wip")
+        self.assertEqual({k: v for k, v in aged["value"].items() if k != "age_h"}, {"repo": "o/r", "kind": "pr", "ref": "#8 wip"})
+        self.assertAlmostEqual(aged["value"]["age_h"], 100, delta=0.5)
+        self.assertIsNone(aged["card_id"])
+        before = len(K.events())
+        self.run_sweep("--apply")  # the daily sweep says each thing once
+        self.assertEqual(len(K.events()), before)
+
+    def test_a_deploying_repo_only_ever_gets_decision_requested(self):
+        self.put(LIST.format("viacorretor/the-viacorretor"),
+                 [{"number": 3, "title": "x", "headRefName": "landed2", "createdAt": ago(70), "url": "u"}])
+        branch_answers(self, "viacorretor/the-viacorretor", {"landed2": {"age_h": 70, "ahead": 0}, "stale": {"age_h": 99, "ahead": 0}})
+        code, out, _ = self.cli("sweep", "--repos", "viacorretor/the-viacorretor", "--apply", "--json")
+        self.assertEqual(code, 0)
+        self.assertEqual({i["action"] for i in json.loads(out)["items"]}, {"decision"})  # even in main: not closed, not deleted
+        self.assertFalse([c for c in self.calls() if "close" in c or "DELETE" in c])
+        self.assertEqual({e["event"] for e in K.events()}, {"item.aged", "decision.requested"})
+        self.assertEqual({e["value"]["repo"] for e in K.events()}, {"viacorretor/the-viacorretor"})
+
+    def test_hours_and_text_output_and_errors(self):
+        code, out, _ = self.cli("sweep", "--repos", "o/r", "--hours", "95")
+        self.assertEqual(code, 0)
+        self.assertIn("sweep >95 h (dry run): 1 item(s): 1 aged", out)
+        code, _, err = self.cli("sweep", "--repos", "o/missing")
+        self.assertEqual(code, 1)
+        self.assertIn("o/missing", err)
+
+    def test_new_events_are_validated(self):
+        with self.assertRaises(ValueError):
+            K.emit("item.aged", {"repo": "o/r", "kind": "tag", "ref": "x", "age_h": 1})
+        with self.assertRaises(ValueError):
+            K.emit("decision.requested", {"repo": "o/r", "ref": "x"})
+        self.assertIn("item.aged", K.KNOWN_EVENTS)
+        self.assertIn("decision.requested", K.KNOWN_EVENTS)
+        K.create("A card", "kanban")
+        self.assertEqual(len(K.read_board().columns[0].cards), 1)  # cardless events never become cards
+
+
 if __name__ == "__main__":
     unittest.main()

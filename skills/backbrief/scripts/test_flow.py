@@ -542,5 +542,145 @@ class Verify(RepoCase):
         self.assertEqual(tasks.outcome_of([]), (None, None))
 
 
+FAKE_GH = r'''#!/bin/sh
+# fake gh: reads canned answers from $FAKE_GH_DIR; never touches GitHub.
+d="$FAKE_GH_DIR"
+if [ "$1 $2" = "pr list" ]; then
+  head=; state=
+  while [ $# -gt 0 ]; do
+    case "$1" in --head) head="$2";; --state) state="$2";; esac
+    shift
+  done
+  f="$d/pr-$state-$(printf %s "$head" | tr / _).json"
+  if [ -f "$f" ]; then cat "$f"; else echo '[]'; fi
+  exit 0
+fi
+if [ "$1 $2" = "pr view" ]; then cat "$d/view.json"; exit 0; fi
+echo "fake gh: unexpected $*" >&2; exit 2
+'''
+FAKE_WT = r'''#!/bin/sh
+# fake wt: remove <branch> --foreground = remove its worktree, then delete the branch only when merged (-d)
+branch="$2"
+git merge-base --is-ancestor "$branch" main || { echo "wt: $branch is not merged" >&2; exit 1; }
+path="$(git worktree list --porcelain | awk -v b="refs/heads/$branch" '/^worktree /{w=$2} $0=="branch " b {print w}')"
+[ -n "$path" ] && git worktree remove "$path" || exit 1
+git branch -d "$branch" >/dev/null 2>&1 || exit 1
+'''
+
+
+class Clean(RepoCase):
+    """workspace.cleaned: `clean` checks the worktree, the remote branch and the PR with real git and a fake gh."""
+
+    def setUp(self):
+        super().setUp()
+        git = lambda *a, cwd=self.repo: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True)  # noqa: E731
+        self.git = git
+        self.origin = self.home / "origin.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(self.origin)], check=True, capture_output=True)
+        git("branch", "-M", "main")
+        git("remote", "add", "origin", str(self.origin))
+        git("push", "-q", "origin", "main")
+        self.gh_dir = self.home / "gh-answers"
+        self.gh_dir.mkdir()
+        for name, body in (("gh", FAKE_GH), ("wt", FAKE_WT)):
+            f = self.home / name
+            f.write_text(body, encoding="utf-8")
+            f.chmod(0o755)
+        self.env = {**self.env, "TASKS_GH": str(self.home / "gh"), "TASKS_WT": str(self.home / "wt"),
+                    "FAKE_GH_DIR": str(self.gh_dir)}
+
+    def merged_task(self, branch: str | None = None):
+        """A task merged through a PR from a branch with its worktree, pushed to origin; returns (journal, id, branch, worktree)."""
+        with patch.dict(os.environ, self.env):
+            j = tasks.TasksJournal()
+            tid = j.emit("task.explained", {"title": "T", "text": "t"})["task_id"]
+            branch = branch or tasks.branch_name(tid, "feito")
+            wt = self.home / "wt-feito"
+            self.git("worktree", "add", "-q", str(wt), "-b", branch)
+            (wt / "a.txt").write_text("a", encoding="utf-8")
+            self.git("add", ".", cwd=wt)
+            self.git("commit", "-qm", "work", cwd=wt)
+            self.git("push", "-q", "origin", branch, cwd=wt)
+            self.git("merge", "-q", "--ff-only", branch)  # merged into main (a squash would need wt's own check)
+            self.git("push", "-q", "origin", "main")
+            j.emit("understanding.taught_back", {"text": "r"}, tid)
+            j.emit("understanding.confirmed", {"text": "ok"}, tid)
+            j.emit("task.executed", {"text": "feito", "exit_code": 0, "worktree": str(wt), "branch": branch}, tid)
+            j.emit("task.verified", {"text": "ok", "passed": True, "checks": []}, tid)
+            tasks.deliver(tid, "pr", url="https://github.com/o/r/pull/9")
+            tasks.merge(tid)
+            (self.gh_dir / f"pr-merged-{branch.replace('/', '_')}.json").write_text('[{"number": 9}]', encoding="utf-8")
+            (self.gh_dir / "view.json").write_text(json.dumps({"headRefName": branch}), encoding="utf-8")
+        return j, tid, branch, wt
+
+    def test_branch_names_carry_the_task_id(self):
+        tid = "0123456789ab"
+        self.assertEqual(tasks.branch_name(tid, "Sonnet"), "task/01234567-sonnet")
+        self.assertEqual(tasks.branch_name(tid, "Fix the Bug!"), "task/01234567-fix-the-bug")
+        with self.assertRaises(ValueError):
+            tasks.branch_name(tid, "  ")
+
+    def test_clean_removes_and_records_after_the_merge(self):
+        j, tid, branch, wt = self.merged_task()
+        self.assertEqual(j.read({"id": tid})["status"], "merged")  # merged is not done yet
+        with patch.dict(os.environ, self.env):
+            ev = tasks.clean(tid, repo=str(self.repo))
+        self.assertEqual(ev["event"], "workspace.cleaned")
+        self.assertEqual((ev["value"]["branch"], ev["value"]["pr_url"], ev["value"]["worktree"]),
+                         (branch, "https://github.com/o/r/pull/9", str(wt)))
+        self.assertEqual(ev["value"]["repo"], str(self.repo))
+        self.assertEqual(j.read({"id": tid})["status"], "done")
+        self.assertFalse(wt.exists())
+        self.assertEqual(self.git("ls-remote", "--heads", "origin", branch).stdout.decode().strip(), "")
+        self.assertIn("workspace.cleaned", tasks.TRANSITIONS["pull_request.merged"])
+
+    def test_clean_refuses_what_is_not_clean_and_records_nothing(self):
+        j, tid, branch, wt = self.merged_task()
+        (self.gh_dir / f"pr-open-{branch.replace('/', '_')}.json").write_text('[{"number": 10}]', encoding="utf-8")
+        with patch.dict(os.environ, self.env):
+            with self.assertRaisesRegex(ValueError, "open PR"):
+                tasks.clean(tid, repo=str(self.repo))  # the worktree went, the PR is still open: not clean
+        self.assertEqual(j.read({"id": tid})["status"], "merged")
+        self.assertNotIn("workspace.cleaned", [e["event"] for e in j.read({"id": tid, "history": True})])
+
+    def test_clean_never_deletes_a_remote_branch_without_a_merged_pr(self):
+        j, tid, branch, wt = self.merged_task()
+        (self.gh_dir / f"pr-merged-{branch.replace('/', '_')}.json").unlink()
+        with patch.dict(os.environ, self.env):
+            with self.assertRaisesRegex(ValueError, "no merged PR"):
+                tasks.clean(tid, repo=str(self.repo))
+        self.assertIn(branch, self.git("ls-remote", "--heads", "origin", branch).stdout.decode())
+
+    def test_clean_refuses_a_worktree_with_unmerged_work(self):
+        j, tid, branch, wt = self.merged_task()
+        (wt / "b.txt").write_text("b", encoding="utf-8")
+        self.git("add", ".", cwd=wt)
+        self.git("commit", "-qm", "more", cwd=wt)  # a commit main does not have: wt (never forced) refuses
+        with patch.dict(os.environ, self.env):
+            with self.assertRaisesRegex(ValueError, "refused"):
+                tasks.clean(tid, repo=str(self.repo))
+        self.assertTrue(wt.exists())
+
+    def test_clean_needs_a_merge_first_and_cli_merge_prints_the_command(self):
+        with patch.dict(os.environ, self.env):
+            j = tasks.TasksJournal()
+            tid = j.emit("task.explained", {"title": "T", "text": "t"})["task_id"]
+            j.emit("understanding.taught_back", {"text": "r"}, tid)
+            j.emit("understanding.confirmed", {"text": "ok"}, tid)
+            j.emit("task.executed", {"text": "feito", "exit_code": 0, "worktree": "/w", "branch": "b"}, tid)
+            j.emit("task.verified", {"text": "ok", "passed": True, "checks": []}, tid)
+        env = {**os.environ, **self.env}
+        script = str(Path(tasks.__file__))
+        run = lambda *a: subprocess.run([sys.executable, script, *a], env=env, capture_output=True, text=True, cwd=self.repo)  # noqa: E731
+        done = run("clean", "--task", tid, "--repo", str(self.repo))
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("pull_request.merged", done.stderr)
+        self.assertEqual(run("deliver", "--task", tid, "--kind", "pr", "--url", "https://x/pr/1").returncode, 0)
+        merged = run("merge", "--task", tid)
+        self.assertEqual(merged.returncode, 0, merged.stderr)
+        self.assertIn(f"tasks.sh clean --task {tid}", merged.stderr)
+        self.assertEqual(json.loads(merged.stdout)["event"], "pull_request.merged")  # stdout stays JSON
+        self.assertEqual(run("branch", "--task", tid, "--slug", "x").stdout.strip(), f"task/{tid[:8]}-x")
+
 if __name__ == "__main__":
     unittest.main()

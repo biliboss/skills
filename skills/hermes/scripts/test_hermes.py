@@ -117,6 +117,26 @@ class T(unittest.TestCase):
         (lock / "pid").write_text("999999")  # dead pid: stale lock is taken over
         self.assertEqual(self.sh("spawn", "researcher", "again").returncode, 0)
 
+    def test_spawn_of_the_code_profile_checks_the_wip_limit(self):
+        fake = self.t / "kanban.sh"
+        fake.write_text('#!/bin/sh\necho "$@" > "$KLOG"\necho "o/r: 3 open PR(s), limit 3"\nexit "${KEXIT:-0}"\n')
+        fake.chmod(0o755)
+        env = {"HERMES_KANBAN": str(fake), "KLOG": str(self.t / "klog")}
+        r = self.sh("spawn", "hacker", "x", "--repo", "o/r", env={**env, "KEXIT": "3"})
+        self.assertEqual(r.returncode, 6)
+        self.assertIn("WIP limit reached", r.stderr)
+        self.assertEqual((self.t / "klog").read_text().strip(), "wip --repo o/r")
+        # no refusal when there is room, a failing check only warns (the profile is unknown here: 5 proves it got past)
+        self.assertEqual(self.sh("spawn", "hacker", "x", "--repo", "o/r", env={**env, "KEXIT": "0"}).returncode, 5)
+        r = self.sh("spawn", "hacker", "x", "--repo", "o/r", env={**env, "KEXIT": "1"})
+        self.assertEqual(r.returncode, 5)
+        self.assertIn("warning", r.stderr)
+        # other profiles and spawns without --repo are never checked
+        (self.t / "klog").unlink()
+        self.sh("spawn", "researcher", "x", "--repo", "o/r", env={**env, "KEXIT": "3"})
+        self.sh("spawn", "hacker", "x", env={**env, "KEXIT": "3"})
+        self.assertFalse((self.t / "klog").exists())
+
     def test_per_token_profile_refused(self):
         r = self.sh("spawn", "cheap", "x")
         self.assertEqual(r.returncode, 4)
