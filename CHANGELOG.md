@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.59.0] - 2026-11-06
+
+### Added
+
+- `kanban` 0.4.0: limite de WIP por etapa (`stage_limits`, Upstream 1 por padrão): `create`/`move` recusam com exit 4 e dizem quem ocupa; `--force` registra a exceção (`forced: true`). O cabeçalho da coluna no Quadro e o `list` mostram `Upstream 1/1`.
+
+### Changed
+
+- `kanban create` passa a criar em Todo (era Upstream).
+
 ## [0.58.0] - 2026-11-06
 
 ### Added

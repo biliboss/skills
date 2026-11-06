@@ -2,6 +2,17 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-06
+
+### Added
+
+- WIP limit per stage: `stage_limits` in the config, `{"Upstream": 1}` by default. `create --stage` and `move` refuse a full stage with exit 4, naming the card there; `--force` allows it and records `forced: true`.
+- The Quadro's column header and `kanban.sh list` show `count/limit` (`Upstream 1/1`); over the limit the header is bold with a darker rule.
+
+### Changed
+
+- `create` defaults to Todo (was Upstream).
+
 ## [0.3.0] - 2026-11-06
 
 ### Added

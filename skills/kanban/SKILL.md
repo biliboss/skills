@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.3.0
+  version: 0.4.0
 ---
 
 # kanban
@@ -39,8 +39,8 @@ The descriptions for humans are the comments on each command in `EVENTS`.
 ("cria um card para X no domínio Y", "move o card X para Downstream"); the board in the console only reads.
 
 ```sh
-scripts/kanban.sh create "<title>" --domain <slug> [--stage Upstream|Downstream|Feito] [--actor <who>]
-scripts/kanban.sh move <card> <stage> [--actor <who>]   # <card>: its id, a unique start of it, or its exact title
+scripts/kanban.sh create "<title>" --domain <slug> [--stage Todo|Upstream|Downstream|Feito] [--force] [--actor <who>]
+scripts/kanban.sh move <card> <stage> [--force] [--actor <who>]   # exit 4 if the stage is full; <card>: its id, a unique start of it, or its exact title
 scripts/kanban.sh top <card> [--actor <who>]            # to the top of its stage: the card in focus now
 scripts/kanban.sh rank <card> <position> [--actor <who>]  # to a place in its stage's queue (0 = top)
 scripts/kanban.sh rename <card> <title> [--actor <who>]
@@ -69,12 +69,22 @@ gets only `decision.requested`, never a close or a delete. Tests override gh wit
 title or no domain slug, an unknown stage (any case is accepted: `feito`), a move to the stage the card is already in,
 and an unknown or ambiguous card (it lists the matches). Never edit the real journal by hand while the console reads it.
 
+## The WIP limit of a stage
+
+**Upstream holds one card** (Kanban Method: a WIP limit per column, an explicit policy). `create --stage` and `move`
+refuse a card into a full stage with exit 4 and name who occupies it: `Upstream está cheio (1/1): Via Blog. Mova-o antes,
+ou use --force para registrar a exceção.` `--force` lets it in and records `forced: true` in the event's value. The limits
+live in `~/.config/kanban/config.json` (override `KANBAN_CONFIG`): `"stage_limits": {"Upstream": 1}` is the default;
+other stages are unlimited unless set, `0` lifts one. The Quadro's column header and `kanban.sh list` show `count/limit`
+(`Upstream 1/1`); over the limit the header goes bold with a darker rule (grayscale, no red). `wip.limit` (open PRs per
+repo) is a separate limit.
+
 ## The order of a column
 
 **The top of a column is the card in focus** (Kanban literature: ordering the queue by priority). A stage's cards follow
 the latest explicit order (`top`, `rank`, replayed from `card.prioritized`); cards never ranked come after the ranked
 ones, by arrival. Moving a card to another stage clears its rank there. **Todo** is the backlog, what is not being worked
-now: its time is waiting, not discovery, so it never counts as Upstream money (`create` still defaults to Upstream).
+now: its time is waiting, not discovery, so it never counts as Upstream money (`create` defaults to Todo).
 
 **The Quadro is live.** It counts up in the browser every second from the server's `since` (the time in the stage) and
 `tick-rate` (the cost clock's R$ per hour), without a reload, and redraws by itself within ~2 s of any change to the
