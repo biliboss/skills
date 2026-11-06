@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.28.0] - 2026-11-06
+
+### Added
+
+- `advisor` 0.1.0: o agente principal (o Bili no Sonnet) consulta uma segunda opinião (Opus) nos pontos em que o julgamento pesa; contexto compartilhado em `~/.local/share/advisor/` e um diário de decisões que ensina quando vale chamar.
+
 ## [0.27.0] - 2026-11-06
 
 ### Added
