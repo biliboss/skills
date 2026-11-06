@@ -1,0 +1,696 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+"""Kanban: the owner's board. Each card is one piece of work tied to a dev-console domain, and it sits in one stage:
+Upstream (discover and decide what to do), Downstream (deliver what was decided) or Feito (done). Drawn in the
+dev-console as the Kanban domain, whose Quadro module is the console's home.
+
+The names come from the Kanban Method (David J. Anderson, "Kanban: Successful Evolutionary Change for Your Technology
+Business", 2010) and from Upstream Kanban (Patrick Steyaert, "Essential Upstream Kanban", 2018): the commitment point
+splits the board in two, upstream the options still being discovered, downstream the work committed to.
+
+Money: a card's Upstream time is priced from the Costs journal (skill cost-track, read only, never written here): the
+time entries of the card's domain, clipped to the stays in which the card was in Upstream, at the hour rate of the
+entry's cost center (costs.rate_hour: an investment center is priced at the goal). The band sums the cards' Upstream
+time for today, this week (from Monday) and this month (from the 1st).
+
+The journal is a global append-only JSONL, ~/.local/share/kanban/events.jsonl (override KANBAN_DIR), one line per event
+{"id","event","at","actor","card_id","value"}. This file is its only writer, through kanban.sh:
+
+    kanban.sh create "<title>" --domain <slug> [--stage Upstream|Downstream|Feito] [--actor <who>]
+    kanban.sh move <card> <stage> [--actor <who>]
+    kanban.sh list [--stage <stage>] [--json]
+    kanban.sh show <card> [--json]
+    kanban.sh money [--json]
+
+The screen only draws what the pure functions below return (board, card_money, upstream_totals). Stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import fcntl
+import importlib.util
+import json
+import os
+import re
+import sys
+import uuid
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import datetime, timedelta
+from enum import StrEnum
+from functools import cache
+from pathlib import Path
+from typing import Any
+
+EVENTS = {
+    "card": {
+        # Um card entrou no quadro: um trabalho com título, ligado a um domínio do dev-console, numa etapa (em geral
+        # Upstream, quando ainda se descobre o que fazer).
+        "create": "created",
+        # O card mudou de etapa: de Upstream (descobrir e decidir) para Downstream (entregar o que foi decidido), para
+        # Feito, ou de volta. Só o tempo em Upstream entra no investimento do card.
+        "move": "moved",
+    },
+}
+
+# The edges: a card is created, then moves as often as the work needs (back to Upstream too).
+TRANSITIONS = {
+    "card.created": ["card.moved"],
+    "card.moved": ["card.moved"],
+}
+
+
+# --- the value objects: the screen and the CLI draw only these ------------------------------------------------------
+class Stage(StrEnum):
+    """Where a card is on the board: discovering, delivering, or done."""
+
+    UPSTREAM = "Upstream"  # discover and decide what to do (before the commitment point)
+    DOWNSTREAM = "Downstream"  # deliver what was decided
+    DONE = "Feito"  # done
+
+
+@dataclass(frozen=True)
+class NewCard:
+    """What card.created carries: the title, the dev-console domain it belongs to, and the stage it starts in."""
+
+    title: str
+    domain: str  # a dev-console domain slug: that domain's time in Costs is the card's time
+    stage: Stage
+
+
+@dataclass(frozen=True)
+class Move:
+    """What card.moved carries: the stage the card entered and the one it left."""
+
+    stage: Stage
+    previous: Stage
+
+
+@dataclass(frozen=True)
+class Stay:
+    """One stay of a card in a stage: from when it entered to when it left (None while it is still there)."""
+
+    stage: Stage
+    start: datetime
+    end: datetime | None = None
+
+
+@dataclass(frozen=True)
+class Card:
+    """A card of the board, folded from its events: what it is, its domain, where it is now and since when."""
+
+    id: str
+    title: str
+    domain: str
+    stage: Stage  # the current stage (the last stay's)
+    since: datetime  # when it entered the current stage
+    created_at: datetime
+    stays: tuple[Stay, ...]  # every stay, oldest first; the last one is still open
+
+
+@dataclass(frozen=True)
+class TimeEntry:
+    """A stretch of the cost clock in one domain, read from the Costs journal: a stopped entry, or the one running."""
+
+    id: str  # the time_entry.stopped event's id, or "running"
+    domain: str
+    center: str  # the cost center the stretch was billed to: the domain's
+    start: datetime
+    end: datetime
+    running: bool = False  # the stretch running now: its end is the moment of the reading
+
+
+@dataclass(frozen=True)
+class Slice:
+    """The part of a time entry that fell while a card was in Upstream (a partial overlap is clipped), priced."""
+
+    entry: str  # the time entry's id
+    start: datetime
+    end: datetime
+    seconds: float
+    rate_hour: float  # R$ per hour of the entry's cost center today (0 when the center or the worth is unknown)
+    brl: float  # seconds x rate_hour, in R$, rounded to cents
+    running: bool = False
+
+
+@dataclass(frozen=True)
+class Money:
+    """Time and what it is worth."""
+
+    seconds: float
+    brl: float
+
+
+@dataclass(frozen=True)
+class CardMoney:
+    """What a card cost while it was in Upstream: its slices of time, their total, and the R$ per hour it gains now (only
+    while the card is in Upstream and the clock runs on its domain; 0 otherwise)."""
+
+    card: Card
+    slices: tuple[Slice, ...]
+    total: Money
+    live_rate_hour: float = 0.0
+
+
+@dataclass(frozen=True)
+class UpstreamTotals:
+    """The money band: the Upstream time of every card today, this week (from Monday) and this month (from the 1st),
+    and the R$ per hour the three gain now while the clock runs on the domain of a card in Upstream."""
+
+    today: Money
+    week: Money
+    month: Money
+    live_rate_hour: float  # 0 when nothing ticks
+    live_domain: str  # the domain the clock runs on while it ticks; "" otherwise
+    at: datetime  # the moment the numbers are true: the screen ticks from here
+
+
+@dataclass(frozen=True)
+class Column:
+    """One column of the board: a stage and its cards, in the order they arrived there."""
+
+    stage: Stage
+    cards: tuple[CardMoney, ...]
+
+
+@dataclass(frozen=True)
+class Board:
+    """The Quadro as the screen draws it: the money band on top, then one column per stage."""
+
+    totals: UpstreamTotals
+    columns: tuple[Column, ...]
+    at: datetime
+
+
+# Which value object each event carries (the dev-console's Code shows it with the event).
+VALUES = {"card.created": "NewCard", "card.moved": "Move"}
+
+
+# --- pure functions: journal events in, value objects out (no file, no clock) ----------------------------------------
+# The console's own rule (dev-console's _settle): a running stretch nobody pinged for this long ended at its last ping.
+STALE_SECONDS = 45
+
+
+def parse_at(iso: str) -> datetime:
+    """A journal time; one written without an offset is local time."""
+    t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    return t if t.tzinfo else t.astimezone()
+
+
+def stage_of(text: Any) -> Stage:
+    """The stage a person or an agent named, in any case (upstream, FEITO); ValueError otherwise."""
+    for s in Stage:
+        if str(text).strip().casefold() == s.value.casefold():
+            return s
+    raise ValueError(f"unknown stage {text!r}; one of {', '.join(s.value for s in Stage)}")
+
+
+def card_from(events: list[dict]) -> Card | None:
+    """One card's events, oldest first, folded into its Card; None before its card.created. A move to the stage it is
+    already in changes nothing; a line a hand edit broke is skipped."""
+    head: dict | None = None
+    stays: list[Stay] = []
+    for e in events:
+        v = e.get("value") or {}
+        kind = e.get("event")
+        try:
+            at = parse_at(e["at"])
+            stage = stage_of(v.get("stage") or (Stage.UPSTREAM if kind == "card.created" else ""))
+        except (KeyError, ValueError):
+            continue
+        if kind == "card.created" and head is None:
+            head = {"id": e.get("card_id", ""), "title": v.get("title", ""), "domain": v.get("domain", ""), "at": at}
+            stays = [Stay(stage, at)]
+        elif kind == "card.moved" and head is not None and stage is not stays[-1].stage:
+            stays[-1] = Stay(stays[-1].stage, stays[-1].start, at)
+            stays.append(Stay(stage, at))
+    if head is None:
+        return None
+    return Card(head["id"], head["title"], head["domain"], stays[-1].stage, stays[-1].start, head["at"], tuple(stays))
+
+
+def cards_from(events: list[dict]) -> list[Card]:
+    """Every card of the Kanban journal, in the order they were created."""
+    groups: dict[str, list[dict]] = {}
+    for e in events:
+        if e.get("card_id"):
+            groups.setdefault(e["card_id"], []).append(e)
+    return [c for g in groups.values() if (c := card_from(g))]
+
+
+def time_entries(cost_events: list[dict], running: dict | None, now: datetime) -> list[TimeEntry]:
+    """The clock's stretches, from the Costs journal. A stopped entry runs from its time_entry.started (same center and
+    domain) for its seconds: its own `at` is when it was written, later than its end after an idle trim or a quiet page.
+    The running stretch (the costs folder's running.json) runs until now; one nobody pinged for STALE_SECONDS ended at
+    its last ping, where the console will close it."""
+    out: list[TimeEntry] = []
+    started: dict[tuple[str, str], datetime] = {}
+    for e in cost_events:
+        v = e.get("value") or {}
+        key = (e.get("cost_center") or "", v.get("domain") or "")
+        try:
+            at = parse_at(e["at"])
+        except (KeyError, ValueError):
+            continue
+        if e.get("event") == "time_entry.started":
+            started[key] = at
+        elif e.get("event") == "time_entry.stopped":
+            seconds = float(v.get("seconds") or 0)
+            start = started.pop(key, None) or at - timedelta(seconds=seconds)
+            if seconds > 0 and key[1]:
+                out.append(TimeEntry(e.get("id", ""), key[1], key[0], start, start + timedelta(seconds=seconds)))
+    if running and running.get("domain") and running.get("started_at"):
+        try:
+            start = parse_at(running["started_at"])
+            seen = parse_at(running.get("last_seen") or running["started_at"])
+        except ValueError:
+            return out
+        live = (now - seen).total_seconds() <= STALE_SECONDS
+        end = now if live else max(seen, start)
+        if end > start:
+            out.append(TimeEntry("running", running["domain"], running.get("center") or "", start, end, running=live))
+    return out
+
+
+def upstream_spans(card: Card, now: datetime) -> list[tuple[datetime, datetime]]:
+    """When the card was in Upstream: each Upstream stay, the open one until now."""
+    return [(s.start, s.end or now) for s in card.stays if s.stage is Stage.UPSTREAM and (s.end or now) > s.start]
+
+
+def _merged(spans: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]:
+    out: list[tuple[datetime, datetime]] = []
+    for s, e in sorted(spans):
+        if out and s <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], e))
+        else:
+            out.append((s, e))
+    return out
+
+
+def _cut(entry: TimeEntry, spans: list[tuple[datetime, datetime]], rates: dict[str, float],
+         since: datetime | None = None) -> list[Slice]:
+    """The parts of one time entry inside the spans (and after `since`), each priced at its center's hour rate."""
+    rate = rates.get(entry.center) or 0.0
+    out = []
+    for s0, s1 in spans:
+        a, b = max(entry.start, s0, since or s0), min(entry.end, s1)
+        if b > a:
+            sec = (b - a).total_seconds()
+            out.append(Slice(entry.id, a, b, sec, rate, round(sec * rate / 3600, 2), entry.running))
+    return out
+
+
+def _sum(slices: list[Slice] | tuple[Slice, ...]) -> Money:
+    return Money(sum(s.seconds for s in slices), round(sum(s.brl for s in slices), 2))
+
+
+def card_money(card: Card, entries: list[TimeEntry], rates: dict[str, float], now: datetime) -> CardMoney:
+    """A card's Upstream money: the time entries of its domain clipped to its Upstream stays (time before, between and
+    after them does not count), each priced at its cost center's hour rate; live while the card is in Upstream and the
+    clock runs on its domain."""
+    spans = upstream_spans(card, now)
+    slices = tuple(sorted((s for t in entries if t.domain == card.domain for s in _cut(t, spans, rates)),
+                          key=lambda s: s.start))
+    live = next((t for t in entries if t.running and t.domain == card.domain), None) if card.stage is Stage.UPSTREAM else None
+    return CardMoney(card, slices, _sum(slices), (rates.get(live.center) or 0.0) if live else 0.0)
+
+
+def periods(now: datetime) -> tuple[datetime, datetime, datetime]:
+    """Where today, this week (Monday) and this month (the 1st) start: midnight on `now`'s own clock."""
+    day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return day, day - timedelta(days=day.weekday()), day.replace(day=1)
+
+
+def upstream_totals(cards: list[Card], entries: list[TimeEntry], rates: dict[str, float], now: datetime) -> UpstreamTotals:
+    """The band: every card's Upstream time today, this week and this month. A second of the clock counts once: two
+    cards of one domain in Upstream at the same time share its time (each card shows it whole, the band counts it
+    once). Live while the clock runs on the domain of a card that is in Upstream now."""
+    spans: dict[str, list[tuple[datetime, datetime]]] = {}
+    for c in cards:
+        spans.setdefault(c.domain, []).extend(upstream_spans(c, now))
+    merged = {d: _merged(s) for d, s in spans.items()}
+
+    def since(t0: datetime) -> Money:
+        return _sum([s for t in entries for s in _cut(t, merged.get(t.domain, []), rates, t0)])
+
+    day, week, month = periods(now)
+    live = next((t for t in entries if t.running
+                 and any(c.stage is Stage.UPSTREAM and c.domain == t.domain for c in cards)), None)
+    return UpstreamTotals(since(day), since(week), since(month), (rates.get(live.center) or 0.0) if live else 0.0,
+                          live.domain if live else "", now)
+
+
+def board(cards: list[Card], entries: list[TimeEntry], rates: dict[str, float], now: datetime) -> Board:
+    """The Quadro: the band, then the three columns, each card with its money, in the order it arrived in its stage."""
+    money = [card_money(c, entries, rates, now) for c in cards]
+    columns = tuple(Column(st, tuple(sorted((m for m in money if m.card.stage is st), key=lambda m: m.card.since)))
+                    for st in Stage)
+    return Board(upstream_totals(cards, entries, rates, now), columns, now)
+
+
+# --- the words and numbers a person reads (the money bar's formats) ------------------------------------------------
+def brl(v: float) -> str:
+    """R$ 1.234,56"""
+    return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def hm(seconds: float) -> str:
+    """0h50: whole minutes, as the money bar shows them."""
+    m = int(max(seconds, 0) // 60)
+    return f"{m // 60}h{m % 60:02d}"
+
+
+def stage_age(seconds: float) -> str:
+    """How long a card has been in its stage, for a person: chegou agora, há 5 min na etapa, há 2 dias na etapa."""
+    m = int(max(seconds, 0) // 60)
+    if m < 1:
+        return "chegou agora"
+    if m < 60:
+        return f"há {m} min na etapa"
+    h = m // 60
+    if h < 24:
+        return f"há {h} h na etapa"
+    d = h // 24
+    return f"há {d} dia{'s' if d > 1 else ''} na etapa"
+
+
+def short(seconds: float) -> str:
+    """45m, 3h12m, 2d4h: a duration in a terminal column."""
+    m = int(max(seconds, 0) // 60)
+    if m < 60:
+        return f"{m}m"
+    if m < 24 * 60:
+        return f"{m // 60}h{m % 60:02d}m"
+    return f"{m // 1440}d{m % 1440 // 60}h"
+
+
+# --- the journal: the one writer, and the reads -----------------------------------------------------------------------
+KNOWN_EVENTS = [f"{cat}.{ev}" for cat, cmds in EVENTS.items() for ev in dict.fromkeys(cmds.values())]
+DOMAIN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def kanban_dir() -> Path:
+    """The folder of the journal; read on every call so KANBAN_DIR may change."""
+    return Path(os.environ.get("KANBAN_DIR", "~/.local/share/kanban")).expanduser()
+
+
+def journal_path() -> Path:
+    return kanban_dir() / "events.jsonl"
+
+
+def _parse(text: str) -> list[dict]:
+    out = []
+    for line in text.splitlines():
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue  # a torn or hand-broken line never hides the rest
+    return out
+
+
+def events() -> list[dict]:
+    """Every event of the Kanban journal, oldest first."""
+    path = journal_path()
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_SH)
+        try:
+            return _parse(f.read())
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
+@contextmanager
+def _locked():
+    """The journal open for append under an exclusive lock, with the events already in it (read under the same lock, so
+    a move's `previous` cannot race another writer)."""
+    path = journal_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.seek(0)
+            yield f, _parse(f.read())
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def _now() -> datetime:
+    return datetime.now().astimezone()
+
+
+def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agent", at: datetime | None = None) -> dict:
+    """Append one event (id and `at` generated) and return it: the only writer of the Kanban journal. card.created takes
+    {title, domain, stage} (stage defaults to Upstream; the card id is generated when not given); card.moved takes
+    {stage} for an existing card that is in another stage, and records `previous` itself."""
+    if event not in KNOWN_EVENTS:
+        raise ValueError(f"unknown event {event!r}; known: {', '.join(KNOWN_EVENTS)}")
+    if not isinstance(value, dict):
+        raise ValueError("the value must be a JSON object")
+    with _locked() as (f, past):
+        cards = {c.id: c for c in cards_from(past)}
+        if event == "card.created":
+            new = NewCard(str(value.get("title") or "").strip(), str(value.get("domain") or "").strip(),
+                          stage_of(value.get("stage") or Stage.UPSTREAM))
+            if not new.title:
+                raise ValueError("a card needs a title")
+            if not DOMAIN_RE.match(new.domain):
+                raise ValueError(f"a card needs the dev-console domain it belongs to (a slug), got {new.domain!r}")
+            card_id = card_id or uuid.uuid4().hex[:8]
+            if card_id in cards:
+                raise ValueError(f"card {card_id} already exists")
+            val: dict = {"title": new.title, "domain": new.domain, "stage": new.stage.value}
+        else:
+            card = cards.get(card_id or "")
+            if card is None:
+                raise ValueError(f"no card {card_id!r}")
+            mv = Move(stage_of(value.get("stage", "")), card.stage)
+            if mv.stage is mv.previous:
+                raise ValueError(f"card {card.id} ({card.title}) is already in {card.stage.value}")
+            val = {"stage": mv.stage.value, "previous": mv.previous.value}
+        record = {"id": uuid.uuid4().hex[:12], "event": event, "at": (at or _now()).isoformat(timespec="seconds"),
+                  "actor": actor, "card_id": card_id, "value": val}
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+    return record
+
+
+def create(title: str, domain: str, stage: Stage | str = Stage.UPSTREAM, actor: str = "agent",
+           at: datetime | None = None) -> dict:
+    """card.created: a new card in a stage (Upstream by default)."""
+    return emit("card.created", {"title": title, "domain": domain, "stage": str(stage)}, actor=actor, at=at)
+
+
+def move(card_id: str, stage: Stage | str, actor: str = "agent", at: datetime | None = None) -> dict:
+    """card.moved: a card to another stage."""
+    return emit("card.moved", {"stage": str(stage)}, card_id, actor, at)
+
+
+def find(ref: str, cards: list[Card]) -> Card:
+    """The card a person or an agent named: its id, a unique start of its id (3 characters or more), or its exact
+    title in any case. ValueError when none or several match."""
+    ref = str(ref).strip()
+    tests = (lambda c: c.id == ref, lambda c: len(ref) >= 3 and c.id.startswith(ref),
+             lambda c: c.title.casefold() == ref.casefold())
+    for test in tests:
+        hits = [c for c in cards if test(c)]
+        if len(hits) == 1:
+            return hits[0]
+        if hits:
+            raise ValueError(f"{ref!r} names {len(hits)} cards: " + ", ".join(f"{c.id} ({c.title})" for c in hits))
+    raise ValueError(f"no card {ref!r}")
+
+
+def _project(events: list[dict]) -> dict:
+    """A card as the journal leaves it, the dict the dev-console reads (Card is the same thing as a value object)."""
+    c = card_from(events)
+    if c is None:
+        return {}
+    state = {
+        "id": c.id,
+        "title": c.title,
+        # the dev-console domain the card belongs to
+        "domain": c.domain,
+        # Upstream, Downstream or Feito
+        "stage": c.stage.value,
+        # when it entered its stage
+        "since": c.since.isoformat(timespec="seconds"),
+        "created_at": c.created_at.isoformat(timespec="seconds"),
+        "updated_at": events[-1]["at"],
+    }
+    return state
+
+
+class KanbanJournal:
+    """Read-only view of the Kanban journal for the dev-console contract."""
+
+    def read(self, query: dict | None = None) -> Any:
+        query = query or {}
+        evs = events()
+        if "id" in query:
+            mine = [e for e in evs if e.get("card_id") == query["id"]]
+            return mine if query.get("history") else _project(mine)
+        if "event" in query:
+            return [e for e in evs if e.get("event") == query["event"]]
+        if query.get("history"):
+            return evs
+        groups: dict[str, list[dict]] = {}
+        for e in evs:
+            if e.get("card_id"):
+                groups.setdefault(e["card_id"], []).append(e)
+        return [s for g in groups.values() if (s := _project(g))]
+
+
+# --- reading the Costs journal (cost-track's costs.py, read only) ----------------------------------------------------
+@cache
+def _costs():
+    """cost-track's costs.py beside this skill (../../cost-track/scripts/costs.py), loaded by path; None when it is
+    missing (the board then shows its cards without money)."""
+    path = Path(__file__).resolve().parent.parent.parent / "cost-track" / "scripts" / "costs.py"
+    if not path.exists():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("kanban_costs", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:  # noqa: BLE001 - a broken neighbour must not break the board
+        return None
+
+
+def cost_inputs(now: datetime) -> tuple[list[TimeEntry], dict[str, float]]:
+    """The clock's time entries and the hour rate of each cost center, read from the Costs journal now."""
+    costs = _costs()
+    if costs is None:
+        return [], {}
+    rates = {cid: costs.rate_hour(cid) or 0.0 for cid in costs.centers()}
+    return time_entries(costs.events(), costs.running(), now), rates
+
+
+def read_board(now: datetime | None = None) -> Board:
+    """The Quadro now: both journals read, then the pure functions."""
+    now = now or _now()
+    entries, rates = cost_inputs(now)
+    return board(cards_from(events()), entries, rates, now)
+
+
+def read_card(card_id: str, now: datetime | None = None) -> CardMoney | None:
+    """One card's money now (None when there is no such card)."""
+    now = now or _now()
+    card = next((c for c in cards_from(events()) if c.id == card_id), None)
+    if card is None:
+        return None
+    entries, rates = cost_inputs(now)
+    return card_money(card, entries, rates, now)
+
+
+# --- the CLI (kanban.sh) ---------------------------------------------------------------------------------------------
+def _jsonable(o: Any) -> Any:
+    if isinstance(o, datetime):
+        return o.isoformat(timespec="seconds")
+    raise TypeError(f"{type(o).__name__} is not JSON")
+
+
+def as_json(obj: Any) -> str:
+    return json.dumps(asdict(obj) if is_dataclass(obj) else obj, ensure_ascii=False, indent=2, default=_jsonable)
+
+
+def _when(t: datetime) -> str:
+    return t.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+def _print_list(b: Board, stage: Stage | None) -> None:
+    rows = [m for col in b.columns if stage is None or col.stage is stage for m in col.cards]
+    print(f"{'ID':<10}{'STAGE':<12}{'IN STAGE':<10}{'UPSTREAM R$':>14}{'TIME':>8}  {'DOMAIN':<16}TITLE")
+    for m in rows:
+        c = m.card
+        print(f"{c.id:<10}{c.stage.value:<12}{short((b.at - c.since).total_seconds()):<10}{brl(m.total.brl):>14}"
+              f"{hm(m.total.seconds):>8}  {c.domain:<16}{c.title}")
+    if not rows:
+        print("(no cards)")
+
+
+def _print_card(m: CardMoney, now: datetime) -> None:
+    c = m.card
+    print(f"{c.title}  ({c.id})")
+    print(f"  domain    {c.domain}")
+    print(f"  stage     {c.stage.value} since {c.since.isoformat(timespec='seconds')} ({short((now - c.since).total_seconds())})")
+    print("  stays")
+    for s in c.stays:
+        print(f"    {s.stage.value:<12}{_when(s.start)} -> {_when(s.end) if s.end else 'now'}")
+    live = f"  (live +{brl(m.live_rate_hour)}/h)" if m.live_rate_hour else ""
+    print(f"  upstream  {brl(m.total.brl)}  {hm(m.total.seconds)}{live}")
+    for s in m.slices:
+        end = "now" if s.running else s.end.astimezone().strftime("%H:%M")
+        print(f"    {_when(s.start)} -> {end}  {hm(s.seconds)}  {brl(s.brl)}  at {brl(s.rate_hour)}/h")
+    if not m.slices:
+        print("    (no Upstream time yet)")
+
+
+def _print_money(b: Board) -> None:
+    t = b.totals
+    print(f"Upstream time of the cards, at {t.at.isoformat(timespec='seconds')}")
+    for label, mo in (("Hoje", t.today), ("Semana", t.week), ("Mês", t.month)):
+        print(f"  {label:<8}{brl(mo.brl):>14}  {hm(mo.seconds)}")
+    print(f"  live    +{brl(t.live_rate_hour)}/h, the clock runs on {t.live_domain}" if t.live_rate_hour
+          else "  live    no (the clock is not running on the domain of a card in Upstream)")
+    print("per card (all its Upstream time)")
+    for col in b.columns:
+        for m in col.cards:
+            print(f"  {m.card.id:<10}{m.card.stage.value:<12}{brl(m.total.brl):>14}  {hm(m.total.seconds):>6}  {m.card.title}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="kanban.sh", description="The Kanban journal's only writer, and the board read from it.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("create", help="a new card (card.created)")
+    c.add_argument("title")
+    c.add_argument("--domain", required=True, help="the dev-console domain slug the card belongs to")
+    c.add_argument("--stage", default=Stage.UPSTREAM.value, help="Upstream (default), Downstream or Feito")
+    c.add_argument("--actor", default="agent")
+    m = sub.add_parser("move", help="a card to another stage (card.moved)")
+    m.add_argument("card", help="its id, a unique start of its id, or its exact title")
+    m.add_argument("stage", help="Upstream, Downstream or Feito")
+    m.add_argument("--actor", default="agent")
+    ls = sub.add_parser("list", help="the cards, per stage, with their Upstream money")
+    ls.add_argument("--stage")
+    ls.add_argument("--json", action="store_true")
+    sh = sub.add_parser("show", help="one card: its stays and its Upstream time")
+    sh.add_argument("card")
+    sh.add_argument("--json", action="store_true")
+    mo = sub.add_parser("money", help="the band (Hoje, Semana, Mês) and each card's Upstream money")
+    mo.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+    try:
+        if a.cmd == "create":
+            print(json.dumps(create(a.title, a.domain, a.stage, a.actor), ensure_ascii=False))
+        elif a.cmd == "move":
+            card = find(a.card, cards_from(events()))
+            print(json.dumps(move(card.id, a.stage, a.actor), ensure_ascii=False))
+        elif a.cmd == "list":
+            b = read_board()
+            stage = stage_of(a.stage) if a.stage else None
+            if a.json:
+                print(as_json([asdict(m) for col in b.columns if stage is None or col.stage is stage for m in col.cards]))
+            else:
+                _print_list(b, stage)
+        elif a.cmd == "show":
+            now = _now()
+            cm = read_card(find(a.card, cards_from(events())).id, now)
+            print(as_json(cm)) if a.json else _print_card(cm, now)
+        else:
+            b = read_board()
+            print(as_json(b)) if a.json else _print_money(b)
+    except ValueError as err:
+        print(f"kanban: {err}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

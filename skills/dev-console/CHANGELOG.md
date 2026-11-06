@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.23.0] - 2026-11-06
+
+### Added
+
+- **`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when that domain's journal has an entity; else the first domain, as before. The Playground's and Agents' ⌘P "Domain" and `/api/palette` without a domain now link the first domain by its URL (what `/` used to open).
+- **A module can be a project widget** (`MODULE_WIDGETS` in the project contract): full width, its leading title hidden, goto key the first free letter of its name, beside the same contextual sidebar.
+- **An entity's sidebar** (`ENTITY_PARTS`): a click, Enter or Space on a `[data-entity]` element of a widget module opens the console's sidebar with the project's widgets for that entity as expandable parts, then its JSON; `?ent=` keeps it open, Esc closes it; the selection survives the widget's redraws. One `SIDE_HTML` and one `partHtml` for the event sidebar and this one.
+- The money bar dispatches `devconsole-money` on `document` after each start, stop or enter, so a widget that draws money redraws at once.
+- `console.sh url ... --ent <id>`.
+
+### Fixed
+
+- A domain page no longer asks for `/favicon.ico` (an empty icon link, like the Agents page): `check.sh` on a domain page reported that 404 as an error.
+
 ## [0.22.1] - 2026-11-06
 
 ### Changed

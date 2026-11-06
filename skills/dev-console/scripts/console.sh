@@ -8,7 +8,7 @@
 #   console.sh domains [port]                         slug, origin (--project | registry), path
 #   console.sh domains add <path> | remove <path|slug>   edit the registry (domains.txt)
 #   console.sh state <slug> [--port N] [--task <id>]  the page's data as JSON (pipe it to jq)
-#   console.sh url <slug> [--port N] [--task <id>] [--tab X] [--ev X] [--side X] [--w X] [--e X]
+#   console.sh url <slug> [--port N] [--task <id>] [--tab X] [--ev X] [--side X] [--w X] [--e X] [--ent X]
 #   console.sh actions [<slug>] [--port N]            the names in PROJECT.ACTIONS, per domain
 #
 # Who owns which instance lives in ONE append-only journal, $DEV_CONSOLE_STATE/instances.jsonl
@@ -414,13 +414,13 @@ cmd_url() {
       --port) port="$2"; shift 2 ;;
       --task) task="$2"; shift 2 ;;
       # the page's own query keys (references/console-ui.md, "State in the URL")
-      --tab|--ev|--side|--w|--e)
+      --tab|--ev|--side|--w|--e|--ent)
         k="${1#--}"; v=$(jq -rn --arg v "$2" '$v | @uri')
         q="${q:+$q&}$k=$v"; shift 2 ;;
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || die "usage: console.sh url <slug> [--port N] [--task <id>] [--tab X] [--ev X] [--side X] [--w X] [--e X]"
+  [ -n "$slug" ] || die "usage: console.sh url <slug> [--port N] [--task <id>] [--tab X] [--ev X] [--side X] [--w X] [--e X] [--ent X]"
   # without --task the server redirects /domain/<slug> to the entity it opens, keeping the query
   printf 'http://127.0.0.1:%s/domain/%s%s%s\n' "$port" "$slug" \
     "${task:+/t/$(jq -rn --arg v "$task" '$v | @uri')}" "${q:+?$q}"
