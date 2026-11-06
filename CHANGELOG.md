@@ -6,7 +6,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 ### Added
 
-- `postmortem` 0.1.0: do problema relatado à decisão que o causou, reconstruída dos eventos do NATS (`scripts/timeline.py`), com modelo de postmortem blameless (reaplica o PR #9).
+- `postmortem` 0.1.0: do problema relatado à decisão que o causou, reconstruída dos eventos do NATS (`scripts/timeline.sh`), com modelo de postmortem blameless (reaplica o PR #9).
 
 ## [0.47.0] - 2026-11-06
 
