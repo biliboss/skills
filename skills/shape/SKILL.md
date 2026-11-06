@@ -8,7 +8,7 @@ description: >-
   "plan", "vamos fazer", "quero", "faz", "nova tarefa", "brainstorm", "backbrief". Questions and one-line commands skip
   it.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
@@ -95,6 +95,23 @@ Aposta da semana: melhorar o blog que já traz gente pela busca (CTR de como-tir
 ```
 
 The cheapest path was not a new site: the blog that already gets people.
+
+## In the dev-console
+
+The domain `shape` (`/domain/shape`) lists every shaping, one line each: request · piece · state; burgundy only for
+what waits for the owner (a backbrief not yet confirmed). The agent writes it through `scripts/shape.sh`:
+
+```
+shape.sh emit request.received '{"text":"..."}' --shaping <id> --actor <who>
+shape.sh emit piece.routed '{"piece":"brainstorm"}' --shaping <id> --actor <who>
+shape.sh emit understanding.taught_back '{"text":"..."}' --shaping <id> --actor <who>
+shape.sh emit understanding.confirmed '{"text":"ok"}' --shaping <id> --actor <who>
+shape.sh emit work.delegated '{"to":"subagent"}' --shaping <id> --actor <who>
+shape.sh list [--status taught_back]
+```
+
+Pieces: brainstorm, pelo-resultado, interview, domain-plan, design-taste, direct. Delegations: subagent, thread, card.
+Journal: `~/.local/share/shape/events.jsonl` (override `SHAPE_DIR`).
 
 ## Writing for the owner
 
