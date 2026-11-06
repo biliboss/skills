@@ -6,7 +6,10 @@ objects kanban.py computes (Board, CardMoney, UpstreamTotals): no number is comp
 """
 from __future__ import annotations
 
+import re
+import subprocess
 import sys
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -136,9 +139,55 @@ def _band(tot: UpstreamTotals):
                                   f"whitespace-nowrap border-b {LINE}")
 
 
+def _slug(text: str) -> str:
+    t = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", t).strip("-")
+
+
+# The Hermes TUI status line: "─ ready │ opus 5.5 │ 25k/1M │ [░░░] 2% ─ …" (a narrow pane drops the %); anything but
+# "ready" means it is working.
+STATUS_RE = re.compile(r"─\s+(.+?)\s+│\s+([^│]+?)\s+│\s+([\d.]+[kKmM]?)/([\d.]+[kKmM]?)")
+
+
+def agent_state(card) -> dict | None:
+    """The card's agent: the tmux session named like the card (slug of its title, then its domain) and the state its
+    Hermes window shows. Read-only (tmux list/capture); None when the card has no session."""
+    def tmux(*args: str) -> str:
+        try:
+            return subprocess.run(["tmux", *args], capture_output=True, text=True, timeout=1).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+    sessions = {line.split("\t")[0]: line.split("\t")[1:] for line in tmux(
+        "list-sessions", "-F", "#{session_name}\t#{session_attached}\t#{session_activity}").splitlines() if "\t" in line}
+    name = next((n for n in (_slug(card.title), _slug(card.domain)) if n in sessions), None)
+    if name is None:
+        return None
+    attached, activity = sessions[name][0] != "0", int(sessions[name][1] or 0)
+    screen = tmux("capture-pane", "-p", "-t", f"{name}:1")
+    hit = next((m for m in map(STATUS_RE.search, reversed(screen.splitlines())) if m), None)
+    if hit is None:
+        state, ctx = "sem Hermes aberto", ""
+    else:
+        word = hit.group(1).strip()
+        state = "pronto" if word == "ready" else "trabalhando"
+        ctx = f"contexto {hit.group(3)} de {hit.group(4)}"
+    return {"session": name, "state": state, "context": ctx, "attached": attached, "activity": activity}
+
+
+def _agent(card):
+    """One line on the card: its agent's state, the context it carries and whether Gabriel is inside the session."""
+    a = agent_state(card)
+    if a is None:
+        return None
+    bits = [f"agente {a['state']}"] + ([a["context"]] if a["context"] else []) + (["você está nela"] if a["attached"] else [])
+    return P(Span("●" if a["state"] == "trabalhando" else "○", cls="mr-1 " + ("animate-pulse" if a["state"] == "trabalhando" else "")),
+             " · ".join(bits), title=f"sessão {a['session']}: sesh connect {a['session']}", data_agent=a["state"],
+             cls="mt-0.5 truncate font-sans text-[14px] text-neutral-600 dark:text-neutral-400")
+
+
 def _card(m: CardMoney, now: datetime):
-    """A card in its column: the title, what it cost in Upstream, its domain and how long it has been in the stage. A
-    click (Enter, Space) opens the console's sidebar for it (data-entity)."""
+    """A card in its column: the title, what it cost in Upstream, its domain and how long it has been in the stage, and
+    the state of its agent when it has a session. A click (Enter, Space) opens the console's sidebar (data-entity)."""
     c = m.card
     age = stage_age((now - c.since).total_seconds())
     spent = bool(m.total.seconds or m.live_rate_hour)
@@ -148,6 +197,7 @@ def _card(m: CardMoney, now: datetime):
         # the time in the stage first: in a narrow column only the domain is cut (the sidebar repeats both)
         P(f"{age} · {c.domain}", title=f"{age}, domínio {c.domain}", data_since=_ms(c.since), data_domain=c.domain,
           cls=f"mt-0.5 truncate {DIM}"),
+        _agent(c) if c.stage.value in ("Upstream", "Downstream") else None,
         tabindex="0", data_entity=c.id, data_entity_name=c.title, data_entity_sub=f"{c.stage.value} · {age} · {c.domain}",
         aria_label=f"abrir {c.title}",
         cls="px-4 py-2.5 cursor-pointer border-b border-l-2 border-l-transparent border-b-neutral-100 dark:border-b-neutral-900 "
