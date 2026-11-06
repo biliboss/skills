@@ -1,14 +1,15 @@
 ---
 name: project-state
 description: >-
-  MANDATORY: invoke this skill before running `git commit`, `git push`, `git checkout -b`, `gh pr create` or a merge,
+  MUST LOAD THIS SKILL AT THE START OF ANY SESSION, before the first reply, to get the project's stage (draft or
+  live): it sets how every change in this session ships. Also invoke it before running `git commit`, `git push`, `git checkout -b`, `gh pr create` or a merge,
   before creating a worktree for a change, and whenever the user asks whether to open a PR or go straight to main.
   It answers PR or main for the current repo, and the answer is usually main: every repo of the owner is a draft
   unless its root has a `.project-state` file saying `live`. Draft = commit and push straight to main, no branch, no
   PR, no approval wait. Its answer wins over generic habits ("a PR is cheap") and over other skills' PR rules.
   Triggers "commita", "commit", "push", "abre o PR", "PR ou main?", "precisa de PR?", "merge", "estado do projeto",
   "draft", "live".
-version: 0.1.2
+version: 0.1.3
 ---
 
 # project-state
