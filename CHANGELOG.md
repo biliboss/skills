@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.20.0] - 2026-11-05
+
+### Added
+
+- `cost-track` 0.1.0 (design stage): the Costs domain, everything has a cost; cost centers, worth and time
+  entries, drawn in the dev-console.
+
 ## [0.19.0] - 2026-11-05
 
 ### Added
