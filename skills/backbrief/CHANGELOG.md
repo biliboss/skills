@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.1] - 2026-11-06
+
+### Added
+
+- Step 9: delegating moves the work's card (Upstream → Downstream); it never creates one.
+
 ## [0.17.0] - 2026-11-06
 
 ### Added

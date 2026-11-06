@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.64.0
+
+- dev-console 0.29.1: `devc delegated` / `devc done` removed (one card per named work). hermes 0.2.4, kanban 0.4.1 (policy), backbrief 0.17.1 (step 9).
+
 ## 0.63.0
 
 - dev-console 0.29.0: `devc delegated` / `devc done` / `devc board`, every delegated subagent is a Kanban card

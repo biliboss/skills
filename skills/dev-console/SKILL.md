@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.29.0
+  version: 0.29.1
 ---
 
 # dev-console
@@ -29,15 +29,7 @@ devc now | history [n] | eval '<js>' # the flight recorder and the window
 devc start [port] [--owner N] | stop <port> [--force] | list [port]   # console.sh
 devc check <url> [--shot f.png] [--eval '<js>']                        # check.sh
 devc board [kanban args...]          # the one door to kanban.sh: devc board list, devc board move <card> Feito
-devc delegated "<goal>" --domain D [--parent CARD] [--by bili-local]   # a card in Downstream; prints its id (--json too); idempotent per (title, domain) while open
-devc done <card> [--note text]       # the card goes to Feito
 ```
-
-**Delegating is a card.** When the Bili or any agent dispatches a subagent (a `delegate-and-review` worktree, a Hermes
-`spawn`, a native subagent), it runs `devc delegated "<goal>" --domain <slug>` right away, keeps the printed card id, and
-runs `devc done <card>` when the result arrives. Title: the goal trimmed to 80 characters, prefixed by the parent card's
-title with `--parent` ('Via Blog · ...'). It only calls `kanban.sh` (the journal's one writer; no new events). Tests
-use a temp `KANBAN_DIR` each.
 
 `console.sh`, `agent.sh`, `window.sh` and `check.sh` keep working as they are and `devc` calls them; they will be
 retired (cited names first moved to `devc`) once nothing cites them. Tests: `python3 -m unittest test_devc` in `scripts/`.

@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-06
+
+### Added
+
+- Policy: one card per piece of work the owner names; subagents and delegations create no card; delegating moves the work's card.
+
 ## [0.4.0] - 2026-11-06
 
 ### Added

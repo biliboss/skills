@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.17.0
+  version: 0.17.1
 ---
 
 # backbrief
@@ -150,6 +150,7 @@ shows which kinds of task each model does well and with what quality.
      `task.executed` per model: the run's answer, model, provider, plan, harness, exit code, duration, worktree, branch
      and what pi's JSON reports (turns, tokens, cost). No `--models` runs the registry's default. After the runs,
      review each worktree's diff and open the PR from the one that came out best.
+   Delegar move o cartão do trabalho (Upstream → Downstream quando o Gabriel aprova o backbrief); nunca cria cartão novo. As frentes de um trabalho ficam dentro do cartão, não viram cartões.
 10. Verify before delivering, with eyes that did not do the work (independent verification, IV&V): `scripts/tasks.sh
      verify --task <id> [--model sonnet] [--executed <event id>] [--cwd <dir>]`, only after a
     `task.executed`. It runs pi in a **fresh context** (`--no-session`, a flat-plan model from the registry, from the

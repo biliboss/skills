@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.1
+
+- Removed `devc delegated` and `devc done` (0.29.0, #129): one card per piece of work the owner names; subagents never create cards. `devc board` stays.
+
 ## 0.29.0
 
 - devc gains the Kanban: `devc delegated "<goal>" --domain D [--parent CARD] [--by bili-local]` creates a card in
