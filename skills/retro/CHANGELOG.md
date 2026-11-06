@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2026-11-06
+
+### Changed
+
+- `scripts/retro.sh` is the entry point (`uv run` behind it); the docs call it instead of `uv run --script scripts/retro.py`.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added

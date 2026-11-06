@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.27.0] - 2026-11-06
+
+### Added
+
+- `retro` 0.1.1, `cost-track` 0.3.1, `task-understand` 0.13.3: `scripts/retro.sh`, `costs.sh` and `tasks.sh` as the entry point of each CLI (the uv Python script stays the implementation).
+
+### Changed
+
+- `skill-smith` 0.3.1: Step 3 says the `.sh` is the interface every harness calls.
+
 ## [0.26.0] - 2026-11-06
 
 ### Added

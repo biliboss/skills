@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.3] - 2026-11-06
+
+### Changed
+
+- `scripts/tasks.sh` is the entry point (`uv run` behind it); the docs call it instead of `uv run --script scripts/tasks.py`.
+
 ## [0.13.2] - 2026-11-06
 
 ### Fixed

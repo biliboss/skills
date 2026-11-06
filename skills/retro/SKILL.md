@@ -6,20 +6,20 @@ description: >-
   rules for the skills they belong to, asks him to pick, and applies the accepted ones in one PR. Differs from
   skill-smith (how to write a skill; retro uses it to apply) and from postmortem (one error, read from NATS events).
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # retro
 
 The owner-facing text (the ask, the report) is in Portuguese (Brazil). The journal is global,
 `~/.local/share/retro/events.jsonl` (override `RETRO_DIR`); the only writer is `scripts/retro.py`
-(stdlib, `uv run --script`). Sources and the reasoning: [references/prior-art.md](references/prior-art.md).
+(stdlib, run through `scripts/retro.sh`). Sources and the reasoning: [references/prior-art.md](references/prior-art.md).
 
 ```
-uv run --script scripts/retro.py emit <event> '{"text": "...", ...}' [--lesson <id>] --actor <who>
-uv run --script scripts/retro.py lessons [--status S]
-uv run --script scripts/retro.py rejected-rules
-uv run --script scripts/retro.py scan <session.jsonl> [--max N]
+scripts/retro.sh  emit <event> '{"text": "...", ...}' [--lesson <id>] --actor <who>
+scripts/retro.sh  lessons [--status S]
+scripts/retro.sh  rejected-rules
+scripts/retro.sh  scan <session.jsonl> [--max N]
 ```
 
 ## Steps
