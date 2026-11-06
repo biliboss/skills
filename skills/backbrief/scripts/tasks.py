@@ -25,12 +25,20 @@ Storage: one global append-only JSONL shared by every agent, ~/.local/share/task
     uv run --script tasks.py deliver --task <task_id> --kind pr|direct|none [--url <link>] [--text "..."]
     uv run --script tasks.py merge --task <task_id> [--url <link>]  # records pull_request.merged (gh pr merge is yours)
     uv run --script tasks.py request-review --task <task_id> --text "<why>"
+    uv run --script tasks.py clean --task <task_id> [--repo <path>] [--branch <b>]
+                                                                   # after the merge: checks the worktree, the remote
+                                                                   # branch and the open PR are gone (removes what is
+                                                                   # left, never forced), then records workspace.cleaned
+    uv run --script tasks.py branch --task <task_id> --slug <slug> # the branch name every branch of the skill takes:
+                                                                   # task/<id8>-<slug>
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import subprocess
+import sys
 from dataclasses import dataclass
 from enum import StrEnum
 from datetime import datetime, timezone
@@ -98,6 +106,9 @@ EVENTS = {
     # experimento, o merge direto; produto ou cliente, pedir a revisão antes, e a tarefa volta a ser executada (deixar
     # aberto não é evento). Os nomes são os do GitHub.
     "pull_request": {"merge": "merged", "request_review": "review_requested"},
+    # Depois do merge, o espaço de trabalho foi limpo de verdade: nenhum worktree da tarefa, nenhuma branch remota,
+    # nenhum PR aberto da branch. Só então a tarefa está feita (merge sem limpeza deixa lixo para o próximo agente).
+    "workspace": {"clean": "cleaned"},
 }
 
 class Method(StrEnum):
@@ -286,6 +297,7 @@ TRANSITIONS = {
     # derived graph, so the decision hangs off task.delivered); a review goes back to execution.
     "task.delivered": ["pull_request.merged", "pull_request.review_requested"],
     "pull_request.review_requested": ["task.executed"],
+    "pull_request.merged": ["workspace.cleaned"],
 }
 
 
@@ -404,7 +416,8 @@ def _project(events: list[dict]) -> dict | None:
                 "delivery": None,
                 # each request of a review on a delivered PR, verbatim
                 "review_requests": [],
-                # explained, taught_back, confirmed, executed, verified, delivered or merged; a verification that did
+                # explained, taught_back, confirmed, executed, verified, delivered, merged or done (merged and the
+                # workspace cleaned: workspace.cleaned); a verification that did
                 # not pass, and a review requested on the PR, put the task back at confirmed (execute runs it again)
                 "status": "explained",
                 # when the task last moved
@@ -442,6 +455,8 @@ def _project(events: list[dict]) -> dict | None:
             state["status"] = "delivered"
         elif event == "pull_request.merged":
             state["status"] = "merged"
+        elif event == "workspace.cleaned":
+            state["status"] = "done"
         elif event == "pull_request.review_requested":
             state["review_requests"].append(value["text"])
             state["verification"] = state["delivery"] = None
@@ -464,6 +479,8 @@ class TasksJournal:
             raise ValueError(f"unknown event: {event}")
         if not isinstance(value, dict) or not value.get("text"):
             raise ValueError("value must be an object with text")
+        if event == "workspace.cleaned" and not value.get("branch"):
+            raise ValueError("workspace.cleaned needs the branch it cleaned")
         if event in ("option.generated", "option.chosen", "style.scored"):
             if value.get("style") not in STYLES:
                 raise ValueError(f"{event} needs a style, one of {list(STYLES)}")
@@ -655,13 +672,23 @@ def models_overview() -> dict:
     return {"default": default_model(), "models": out}
 
 
+def branch_name(task_id: str, slug: str) -> str:
+    """The name of every branch the skill creates: task/<id8>-<slug> (the pi runs use the model id as the slug)."""
+    import re
+
+    clean = re.sub(r"[^a-z0-9._-]+", "-", slug.strip().lower()).strip("-.")
+    if not clean:
+        raise ValueError("a branch needs a slug")
+    return f"task/{task_id[:8]}-{clean}"
+
+
 def _worktree_for(repo: Path, id8: str, mid: str) -> tuple[Path, str]:
     """The model's own git worktree, from the repo's HEAD: <repo>/../<repo>.task-<id8>-<model> on branch
     task/<id8>-<model> (reused when it already exists, so a re-run lands on the same branch)."""
     import subprocess
 
     path = repo.parent / f"{repo.name}.task-{id8}-{mid}"
-    branch = f"task/{id8}-{mid}"
+    branch = branch_name(id8, mid)
     if path.exists():
         return path, branch
     done = subprocess.run(["git", "worktree", "add", str(path), "-b", branch], cwd=repo, capture_output=True, text=True)
@@ -891,6 +918,105 @@ def merge(task_id: str, url: str | None = None, *, actor: str | None = None) -> 
     return journal.emit("pull_request.merged", value, task_id, actor=actor)
 
 
+def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+
+
+def _gh() -> list[str]:
+    return [os.environ.get("TASKS_GH", "gh")]
+
+
+def _leftovers(repo: Path, branch: str) -> list[str]:
+    """What of the task's workspace is still there, from the real git and gh: the worktree, the local branch, the remote
+    branch, an open PR. Empty means clean. A tool that fails is a leftover too (unknown is not clean)."""
+    left = []
+    wl = _run(["git", "worktree", "list", "--porcelain"], repo)
+    if wl.returncode != 0:
+        left.append(f"git worktree list failed: {wl.stderr.strip()}")
+    elif any(line == f"branch refs/heads/{branch}" for line in wl.stdout.splitlines()):
+        left.append(f"worktree of {branch}")
+    lb = _run(["git", "branch", "--list", branch], repo)
+    if lb.returncode != 0 or lb.stdout.strip():
+        left.append(f"local branch {branch}")
+    rb = _run(["git", "ls-remote", "--heads", "origin", branch], repo)
+    if rb.returncode != 0:
+        left.append(f"git ls-remote failed: {rb.stderr.strip()}")
+    elif rb.stdout.strip():
+        left.append(f"remote branch origin/{branch}")
+    op = _run([*_gh(), "pr", "list", "--head", branch, "--state", "open", "--json", "number"], repo)
+    try:
+        if op.returncode != 0:
+            raise ValueError(op.stderr.strip())
+        if json.loads(op.stdout or "[]"):
+            left.append(f"open PR of {branch}")
+    except ValueError as err:
+        left.append(f"gh pr list failed: {err}")
+    return left
+
+
+def _pr_branch(repo: Path, url: str) -> str:
+    done = _run([*_gh(), "pr", "view", url, "--json", "headRefName"], repo)
+    try:
+        return json.loads(done.stdout)["headRefName"] if done.returncode == 0 else ""
+    except (ValueError, KeyError):
+        return ""
+
+
+def clean(task_id: str, repo: str | None = None, branch: str | None = None, *, actor: str | None = None) -> dict:
+    """After pull_request.merged: make the workspace really clean, then record workspace.cleaned. The worktree goes
+    through `wt remove` (never forced: it deletes the branch only when its content is in main), the remote branch is
+    deleted only when its PR merged; then the checks run again from scratch and nothing is recorded if one fails."""
+    journal = TasksJournal()
+    state = journal.read({"id": task_id})
+    if not state:
+        raise ValueError(f"no task {task_id}")
+    if state["status"] != "merged":
+        raise ValueError(f"task {task_id} is {state['status']}: a workspace is cleaned only after pull_request.merged")
+    root = Path(repo or os.getcwd()).expanduser().resolve()
+    pr_url = (state.get("delivery") or {}).get("url", "")
+    history = journal.read({"id": task_id, "history": True})
+    x, _ = outcome_of(history)
+    branch = branch or (_pr_branch(root, pr_url) if pr_url else "") or (x.branch if x else "")
+    if not branch:
+        raise ValueError(f"task {task_id}: no branch known (the PR names none and the run recorded none): pass --branch")
+    wt = ""
+    wl = _run(["git", "worktree", "list", "--porcelain"], root)
+    block: dict[str, str] = {}
+    for line in wl.stdout.splitlines() + [""]:
+        if not line:
+            if block.get("branch") == f"refs/heads/{branch}":
+                wt = block.get("worktree", "")
+            block = {}
+        else:
+            k, _, v = line.partition(" ")
+            block[k] = v
+    if wt and Path(wt).resolve() != root:
+        done = _run([os.environ.get("TASKS_WT", "wt"), "remove", branch, "--foreground"], root)
+        if done.returncode != 0:
+            raise ValueError(f"wt remove {branch} refused: {(done.stderr or done.stdout).strip()}")
+    elif _run(["git", "branch", "--list", branch], root).stdout.strip():
+        done = _run(["git", "branch", "-d", branch], root)  # -d, never -D: git refuses an unmerged branch
+        if done.returncode != 0:
+            # a squash merge leaves the branch "unmerged" for git; wt knows the content is in main
+            done = _run([os.environ.get("TASKS_WT", "wt"), "remove", branch, "--foreground"], root)
+        if done.returncode != 0:
+            raise ValueError(f"local branch {branch} is not merged: {(done.stderr or done.stdout).strip()}")
+    merged = _run([*_gh(), "pr", "list", "--head", branch, "--state", "merged", "--json", "number"], root)
+    remote = _run(["git", "ls-remote", "--heads", "origin", branch], root).stdout.strip()
+    if remote:
+        if merged.returncode != 0 or not json.loads(merged.stdout or "[]"):
+            raise ValueError(f"remote branch origin/{branch} has no merged PR: it may hold unmerged work, not deleted")
+        push = os.environ.get("TASKS_PUSH", "git push").split()
+        done = _run([*push, "origin", "--delete", branch], root)
+        if done.returncode != 0:
+            raise ValueError(f"deleting origin/{branch} failed: {(done.stderr or done.stdout).strip()}")
+    left = _leftovers(root, branch)
+    if left:
+        raise ValueError("not clean yet: " + "; ".join(left))
+    return journal.emit("workspace.cleaned", {"text": "worktree, branch and PR gone", "branch": branch, "worktree": wt,
+                                              "pr_url": pr_url, "repo": str(root)}, task_id, actor=actor)
+
+
 def request_review(task_id: str, text: str, *, actor: str | None = None) -> dict:
     """Record pull_request.review_requested with the reason; the task goes back where execute runs."""
     journal, _ = _pr_delivery(task_id, "a review request")
@@ -926,6 +1052,14 @@ if __name__ == "__main__":
     mg.add_argument("--task", required=True)
     mg.add_argument("--url")
     mg.add_argument("--actor")
+    cl = sub.add_parser("clean", help="after the merge: verify and remove the worktree, branch and PR leftovers, then record")
+    cl.add_argument("--task", required=True)
+    cl.add_argument("--repo", help="the local clone to clean (default: the current directory)")
+    cl.add_argument("--branch", help="when neither the PR nor the run names it")
+    cl.add_argument("--actor")
+    bn = sub.add_parser("branch", help="the branch name task/<id8>-<slug>")
+    bn.add_argument("--task", required=True)
+    bn.add_argument("--slug", required=True)
     rr = sub.add_parser("request-review", help="pull_request.review_requested: back to execution")
     rr.add_argument("--task", required=True)
     rr.add_argument("--text", required=True)
@@ -973,6 +1107,12 @@ if __name__ == "__main__":
         out(deliver(args.task, args.kind, args.url, args.text, actor=args.actor))
     elif args.cmd == "merge":
         out(merge(args.task, args.url, actor=args.actor))
+        print(f"next: tasks.sh clean --task {args.task} [--repo <clone>]  (the task is done only after workspace.cleaned)",
+              file=sys.stderr)
+    elif args.cmd == "clean":
+        out(clean(args.task, args.repo, args.branch, actor=args.actor))
+    elif args.cmd == "branch":
+        print(branch_name(args.task, args.slug))
     elif args.cmd == "request-review":
         out(request_review(args.task, args.text, actor=args.actor))
     elif args.cmd == "emit":

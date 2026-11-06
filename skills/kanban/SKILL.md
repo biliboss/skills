@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # kanban
@@ -26,6 +26,8 @@ upstream the options still being discovered, downstream the work committed to.
 |---|---|---|---|
 | `card.created` | `create` | `NewCard {title, domain, stage}` | a card entered the board (in Upstream unless told otherwise) |
 | `card.moved` | `move` | `Move {stage, previous}` | the card changed stage, in any direction (back to Upstream too) |
+| `item.aged` | `sweep --apply` | `{repo, kind pr\|branch, ref, age_h}` | an open PR or a branch is older than N hours (48) and not in main; no card |
+| `decision.requested` | `sweep --apply` | `{text, repo, ref, reason}` | only the owner decides: a merge that publishes (the repo's main deploys), a branch with work outside main |
 
 The descriptions for humans are the comments on each command in `EVENTS`.
 
@@ -40,7 +42,21 @@ scripts/kanban.sh move <card> <stage> [--actor <who>]   # <card>: its id, a uniq
 scripts/kanban.sh list [--stage <stage>] [--json]       # the cards, per stage, with their Upstream money
 scripts/kanban.sh show <card> [--json]                  # its stays, its Upstream slices of time, the total
 scripts/kanban.sh money [--json]                        # the band (Hoje, Semana, Mês) and each card's total
+scripts/kanban.sh wip [--repo owner/name] [--json]      # open PRs vs the WIP limit; exit 3 at or over it
+scripts/kanban.sh sweep [--hours 48] --repos a/b,c/d [--apply] [--json]
 ```
+
+**WIP limit.** `wip.limit` (default 3) in `~/.config/kanban/config.json` (override `KANBAN_CONFIG`;
+`wip.repos {"owner/name": n}` per repo). `wip` counts the repo's open PRs with `gh pr list` and exits **3** at or over the
+limit (1 when gh fails: an unknown count is not "over"). Run it before opening a PR (backbrief step 9);
+`hermes.sh spawn hacker ... --repo R` runs it and refuses (exit 6).
+
+**Aging sweep (daily).** `sweep` lists the open PRs (by creation) and branches (by last commit) older than `--hours`
+(48). Without `--apply` it only reads. With `--apply`: a PR whose content is already in main (same commits, or every
+changed file identical on main, so squash merges count) is closed with a comment, a remote branch already in main is
+deleted, and the rest is recorded once per 24 h: `item.aged`, plus `decision.requested` for a branch with work outside
+main. It never deletes unmerged work and never merges. A repo whose main deploys (`viacorretor/*`, `*/the-viacorretor`)
+gets only `decision.requested`, never a close or a delete. Tests override gh with `KANBAN_GH`.
 
 `create` and `move` print the event they appended. The journal is global and append-only,
 `~/.local/share/kanban/events.jsonl` (override `KANBAN_DIR`), one line per event

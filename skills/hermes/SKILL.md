@@ -2,7 +2,7 @@
 name: hermes
 description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
 metadata:
-  version: 0.2.1
+  version: 0.2.2
   license: MIT
 ---
 
@@ -23,11 +23,13 @@ this skill's folder. Rules and routing below; depth in [references/routing.md](r
    coordination). No owner, or code that ends in a PR: do not use a profile (backbrief step 9 native subagent). `list [--json]` shows each
    profile's model, description and whether it is allowed.
 2. **Read what it already knows when it matters.** `scripts/hermes.sh memory <profile>` (read only).
-3. **Run it.** `scripts/hermes.sh spawn <profile> "<task>" [--cwd DIR] [--timeout S]`. The profile sees nothing of
+3. **Run it.** `scripts/hermes.sh spawn <profile> "<task>" [--cwd DIR] [--timeout S] [--repo owner/name]`. For the code profile
+   (`hacker`), `--repo` first runs `kanban.sh wip` and refuses with exit 6 at the WIP limit (3 open PRs by default).
+   The profile sees nothing of
    this session: put the whole task, the constraints and the learnings in the prompt, no credentials. The output is
    the answer, then a last JSON line `{profile, session_id, exit_code, duration_s, usage}`.
 4. **Check the exit code; only 0 is success.** 1 no text, 2 partial or failed, 130 interrupted, 124 timeout, 3 profile
-   busy, 4 profile refused, 5 unknown profile. Report non-zero as it is; never present a partial as done.
+   busy, 4 profile refused, 5 unknown profile, 6 WIP limit reached. Report non-zero as it is; never present a partial as done.
 5. **Follow up.** `resume <profile> <session> "<msg>"` continues a session; `sessions <profile> [--limit N]` lists;
    `read <profile> <session>` prints a trimmed export.
 6. **Verify with other eyes.** The profile that did the work never verifies it (backbrief step 10 runs a fresh context).

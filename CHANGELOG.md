@@ -2,6 +2,14 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.53.0] - 2026-11-06
+
+### Added
+
+- `backbrief` 0.17.0: `workspace.cleaned` e `tasks.sh clean --task <id>`: o merge só fecha a tarefa (status `done`) quando o worktree, a branch remota e o PR sumiram de verdade; as branches levam o id da tarefa (`task/<id8>-<slug>`, `tasks.sh branch`).
+- `kanban` 0.2.0: limite de WIP por repo (`kanban.sh wip`, 3 PRs abertos, sai com 3) e a varredura diária (`kanban.sh sweep --hours 48 [--apply]`) com os eventos `item.aged` e `decision.requested`; o repo que faz deploy (viacorretor) só pede decisão.
+- `hermes` 0.2.2: `spawn hacker --repo` recusa (saída 6) no limite de WIP.
+
 ## [0.52.0] - 2026-11-06
 
 ### Added
