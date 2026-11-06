@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-11-06
+
+### Added
+
+- `thread.sh doctor [--json] [--verbose] [--profile P]`: read-only drift check of the thread invariant (own tmux session, live Hermes session, `--resume <hsid>`; card-only sessions), in the `doctor` skill protocol (dimension, check, status, evidence, action). Exit 0/1/2. `scripts/test-doctor.sh`.
+
+### Changed
+
+- The Value Object `thread()` never keeps a dot: `.` becomes `-` (`Sygnal 0.2` -> `sygnal 0-2`). tmux reads the dot as window.pane, so the previous rule (#183) left sessions unreachable by `sesh connect` and `switch-client`. Spaces stay (checked: `has-session -t 'a b'` works).
+- `doctor` gains `name-targetable`: any session or window name with a dot is a drift, with the `tmux rename-session` fix.
+- First rule: open a thread only when the owner explicitly asks. The frontmatter description now says so.
+
 ## [0.9.0] - 2026-11-06
 
 ### Added

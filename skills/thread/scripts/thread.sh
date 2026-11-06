@@ -5,6 +5,7 @@
 #   thread.sh close <topic> [--session S] [--summary TEXT] [--by owner|bili]   |   close --self [--summary TEXT]
 #   (the owner is on that tab: it closes when he leaves; each close writes a line to $THREAD_LOG, default ~/.local/state/threads.log)
 #   thread.sh state [<tab>] | watch   the threads' state as JSON lines (●◆✓/idle, subagents, card); watch = live from NATS
+#   thread.sh doctor [--json] [--verbose] [--profile P]   read-only drift check of the thread invariant (exit 0 ok, 1 drift, 2 cannot run)
 #   thread.sh sweep            closes the tabs marked done-and-closing that the owner left
 #   thread.sh sort [<tab>] [--now]   stamp <tab> as most recent, re-sort its session's tabs (MRU with an attention band;
 #                              debounced ~2 s, THREAD_SORT_DEBOUNCE); the owner's tab never moves. touch <tab> = sort <tab> --now
@@ -24,7 +25,7 @@ READY_TIMEOUT="${THREAD_READY_TIMEOUT:-40}"
 
 tm() { if [ -n "${TMUX_SOCKET:-}" ]; then "$TMUX_BIN" -L "$TMUX_SOCKET" "$@"; else "$TMUX_BIN" "$@"; fi; }
 die() { echo "thread.sh: $*" >&2; exit 1; }
-usage() { sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 
 # sessions as "id<TAB>title" lines (id = last column of `hermes sessions list`)
 sessions() {
@@ -76,10 +77,12 @@ target_session() { # explicit -> caller's session -> session of the most recentl
 }
 
 # The Value Object `thread`: ONE name for a thread, used as is everywhere (tmux session, its tab, @thread, the Hermes
-# session title). Lowercase ASCII; spaces, dots and - stay: "Sygnal 0.2" -> "sygnal 0.2", "Ação Já!" -> "acao ja". (tmux itself shows a dot in a SESSION name as _.)
+# session title). Lowercase ASCII; spaces and - stay, a dot becomes -: "Sygnal 0.2" -> "sygnal 0-2", "Ação Já!" -> "acao ja".
+# NEVER a dot: tmux reads "a.b" in a target as window.pane, so has-session/switch-client (sesh, the owner's shortcuts) cannot reach it.
+# Spaces are safe: `tmux has-session -t 'a b'` works (checked on a private server).
 thread() { # raw text -> the thread name (empty when nothing is left)
   printf '%s' "$1" | perl -CS -MUnicode::Normalize -pe '$_ = lc NFD($_); s/\pM//g' |
-    sed -E 's/[^a-z0-9 .-]+/ /g; s/ +/ /g; s/^ //; s/ $//'
+    sed -E 's/\./-/g; s/[^a-z0-9 -]+/ /g; s/ +/ /g; s/^ //; s/ $//'
 }
 
 cmd_open() {
@@ -367,6 +370,104 @@ cmd_close() {
   [ -n "$(tm display-message -p -t "$w" '#{@closing}' 2>/dev/null)" ] || echo "closed $topic in $(printf '%s' "$hits" | cut -f1) (the Hermes session stays)"
 }
 
+# --- doctor: READ-ONLY check of the thread invariant (never kills, renames, moves or selects anything)
+# Every thread (a window with @thread) has (a) its own tmux session named like the thread, as that session's window, and
+# (b) a live Hermes session: @hsid set, present in the profile's state.db, not ended, and the pane resumes THAT id.
+# Also: a tmux session whose windows carry @card but no @thread (a card is never a session of its own).
+cmd_doctor() {
+  # Protocol of the `doctor` skill: one finding = dimension, check, status, evidence, action (the action is NEVER run here).
+  # Text: <status> <dimension> <check> <session>/<window-id>: <evidence> -> <action>.  Exit 0 healthy, 1 drift/fail, 2 cannot run.
+  local json=0 verbose=0 PROFILE="bili" db="" have_db=1 n=0 bad=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json=1 ;;
+      --verbose) verbose=1 ;;
+      --profile) PROFILE="${2:?}"; shift ;;
+      *) echo "thread.sh doctor: unknown option: $1" >&2; return 2 ;;
+    esac
+    shift
+  done
+  tm list-sessions >/dev/null 2>&1 || { echo "thread.sh doctor: no tmux server to check" >&2; return 2; }
+  db="${THREAD_STATE_DB:-$HOME/.hermes/profiles/$PROFILE/state.db}"
+  local sq; sq="$(type -P sqlite3 || true)"
+  jesc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+  finding() { # status dimension check session window evidence action
+    local st="$1" dim="$2" chk="$3" s="$4" wid="$5" ev="$6" act="$7"
+    [ "$st" != ok ] || [ "$verbose" = 1 ] || return 0
+    case "$st" in drift|fail) bad=$((bad + 1)) ;; esac
+    if [ "$json" = 1 ]; then
+      printf '{"dimension":"%s","check":"%s","status":"%s","session":"%s","window":"%s","evidence":"%s","action":"%s"}\n' \
+        "$dim" "$chk" "$st" "$(jesc "$s")" "$wid" "$(jesc "$ev")" "$(jesc "$act")"
+    else printf '%s %s %s %s/%s: %s -> %s\n' "$st" "$dim" "$chk" "$s" "$wid" "$ev" "$act"; fi
+  }
+  if [ -z "$sq" ] || [ ! -f "$db" ]; then
+    have_db=0
+    finding warn environment state-db - - "$db missing or no sqlite3" "install sqlite3 / pass --profile P for a profile that has a state.db; Hermes checks skipped"
+  fi
+  local sess wid th hsid card cmd row expect bad0 reopen
+  while IFS='|' read -r sess wid th hsid card cmd; do
+    [ -n "$th" ] || continue
+    n=$((n + 1))
+    reopen="thread.sh close '$th' --session '$sess'; thread.sh open '$th' --from <live Hermes session id>"
+    expect="$(printf '%s' "$th" | tr '.:' '__')"
+    if [ "$sess" != "$th" ] && [ "$sess" != "$expect" ]; then
+      finding drift environment thread-has-own-session "$sess" "$wid" "thread '$th' lives in tmux session '$sess'" "tmux rename-session -t '=$sess' '$th'  (or $reopen)"
+    elif [ "$(tm list-windows -t "=$sess" 2>/dev/null | grep -c .)" -gt 1 ]; then
+      finding warn environment thread-has-own-session "$sess" "$wid" "session '$sess' has more than the thread's own window" "tmux move-window -s <other window> -t <its own session>:"
+    else finding ok environment thread-has-own-session "$sess" "$wid" "session '$sess' holds thread '$th'" "-"; fi
+
+    if [ -z "$hsid" ]; then
+      finding drift observability hsid-set "$sess" "$wid" "no @hsid: hooks cannot find the tab, so no light and no sort" "tmux set-option -w -t $wid @hsid <Hermes session id the pane resumes>"
+    else
+      case "$hsid" in
+        *[!A-Za-z0-9_.-]*) finding drift observability hsid-set "$sess" "$wid" "@hsid '$hsid' is not an id" "tmux set-option -w -t $wid @hsid <Hermes session id>"; hsid="" ;;
+        *) finding ok observability hsid-set "$sess" "$wid" "@hsid $hsid" "-" ;;
+      esac
+    fi
+    if [ -n "$hsid" ] && [ "$have_db" = 1 ]; then
+      row="$("$sq" -readonly "$db" "select ended_at is not null from sessions where id='$hsid'" 2>/dev/null || true)"
+      if [ -z "$row" ]; then finding drift environment hsid-in-db "$sess" "$wid" "@hsid $hsid is not in the $PROFILE state.db" "$reopen"
+      else finding ok environment hsid-in-db "$sess" "$wid" "@hsid $hsid is in the $PROFILE state.db" "-"
+        if [ "$row" != 0 ]; then finding drift behavior hsid-live "$sess" "$wid" "@hsid $hsid is an ended Hermes session (ended_at set)" "$reopen"
+        else finding ok behavior hsid-live "$sess" "$wid" "@hsid $hsid not ended" "-"; fi
+      fi
+    fi
+    bad0=$bad
+    case "$cmd" in
+      *--continue*) finding drift environment resume-hsid "$sess" "$wid" "start command: $cmd" "tmux respawn-pane -k -t $wid \"hermes -p $PROFILE --resume ${hsid:-<hsid>}\"  (--continue makes a second client of another chat)" ;;
+      *"--resume $hsid"*|*"threadview.py $hsid"*) [ -n "$hsid" ] || finding drift environment resume-hsid "$sess" "$wid" "start command resumes an id but there is no @hsid: $cmd" "tmux set-option -w -t $wid @hsid <that id>" ;;
+      *) [ -z "$hsid" ] || finding drift environment resume-hsid "$sess" "$wid" "start command does not resume @hsid $hsid: $cmd" "tmux respawn-pane -k -t $wid \"hermes -p $PROFILE --resume $hsid\"" ;;
+    esac
+    [ "$bad" != "$bad0" ] || [ -z "$hsid" ] || finding ok environment resume-hsid "$sess" "$wid" "start command resumes $hsid" "-"
+    case "$cmd" in
+      *threadview.py*) local vp vd; vp="$(printf '%s' "$cmd" | grep -o '[^ ]*threadview\.py' | head -1)"; vd="$(dirname "$vp")"
+        [ "$vd" = "$HERE" ] || finding warn environment viewer-path "$sess" "$wid" "pane runs threadview.py from $vd, not $HERE" "tmux respawn-pane -k -t $wid with the threadview.py of the checkout you ship" ;;
+    esac
+  done < <(tm list-windows -a -F '#{session_name}|#{window_id}|#{@thread}|#{@hsid}|#{@card}|#{pane_start_command}' 2>/dev/null)
+  local s
+  while IFS='|' read -r s wid; do
+    finding drift architecture card-not-a-session "$s" "$wid" "session carries @card but no @thread" "make it a thread (thread.sh open '$s' --card <card> --from <id>) or a tab: tmux move-window -s $wid -t <parent session>:"
+  done < <(tm list-windows -a -F '#{session_name}|#{window_id}|#{@thread}|#{@card}' 2>/dev/null |
+    awk -F'|' '{ if ($3 != "") th[$1]=1; else if ($4 != "" && !($1 in first)) first[$1]=$2 } END { for (s in first) if (!(s in th)) print s "|" first[s] }' | sort)
+  # name-targetable: a dot in a session/window name is read by tmux as window.pane, so no target (sesh, switch-client) reaches it.
+  local sid wn fix seen=" "
+  while IFS='|' read -r s sid wid wn; do
+    case "$s" in
+      *.*) case "$seen" in *" $sid "*) ;; *) seen="$seen$sid "
+        fix="$(thread "$s")"; [ -n "$fix" ] || fix="renamed"
+        finding drift environment name-targetable "$s" "$wid" "name '$s' has a dot; tmux reads it as window.pane, so sesh/switch-client cannot reach it" "tmux rename-session -t '$sid' '$fix'" ;; esac ;;
+    esac
+    case "$wn" in
+      *.*) fix="$(thread "$wn")"; [ -n "$fix" ] || fix="renamed"
+        finding drift environment name-targetable "$s" "$wid" "name '$wn' has a dot; tmux reads it as window.pane, so sesh/switch-client cannot reach it" "tmux rename-window -t '$wid' '$fix'" ;;
+    esac
+  done < <(tm list-windows -a -F '#{session_name}|#{session_id}|#{window_id}|#{window_name}' 2>/dev/null)
+  if [ "$json" = 0 ]; then
+    if [ "$bad" -eq 0 ]; then echo "ok $n threads"; else echo "drift $bad of $n"; fi
+  fi
+  [ "$bad" -eq 0 ]
+}
+
 # --- realtime state (thread-state.sh: the hot path, event on write; see its header for why not tmux -C)
 . "$HERE/thread-state.sh"
 NATS_BIN="${NATS_BIN:-$(type -P nats || echo "$HOME/.local/bin/nats")}"
@@ -391,6 +492,7 @@ case "$1" in
   state) shift; cmd_state "$@" ;;
   publish) shift; cmd_publish "$@" ;;
   watch) shift; cmd_watch "$@" ;;
+  doctor) shift; cmd_doctor "$@" ;;
   open) shift; cmd_open "$@" ;;
   list) shift; cmd_list "$@" ;;
   close) shift; cmd_close "$@" ;;
