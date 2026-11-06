@@ -51,6 +51,9 @@ LINE = "border-neutral-200 dark:border-neutral-800"
 STRONG = "tabular-nums font-semibold text-neutral-800 dark:text-neutral-200"
 DIM = "text-neutral-400"
 
+WATCH = ["../../cost-track/scripts"]  # the console also watches cost-track's costs.py (read by kanban.py)
+
+
 # The money bar's way of ticking (dev-console MONEY_JS): a snapshot from the server and the R$ per hour it gains,
 # redrawn every second. One timer for the page; it redraws whatever [data-tick-rate] is on screen.
 TICK_JS = """
@@ -63,16 +66,8 @@ TICK_JS = """
     el.querySelectorAll('[data-brl]').forEach(x => { x.textContent = brl(+x.dataset.brl + dt * rate / 3600); });
     el.querySelectorAll('[data-sec]').forEach(x => { x.textContent = hm(+x.dataset.sec + dt); });
   });
-  // the time in the stage counts up from the server's `since` (same words as stage_age in kanban.py)
-  const age = t => { t = Math.floor(Math.max(t, 0)); const m = Math.floor(t / 60), h = Math.floor(m / 60), d = Math.floor(h / 24),
-      p = n => String(n).padStart(2, '0');
-    return t < 60 ? `há ${t} s na etapa` : m < 60 ? `há ${m} min ${p(t % 60)} s na etapa`
-      : h < 24 ? `há ${h} h ${p(m % 60)} min na etapa` : `há ${d} dia${d > 1 ? 's' : ''} na etapa`; };
-  const ages = () => document.querySelectorAll('[data-since]').forEach(x => {
-    x.textContent = age((Date.now() - +x.dataset.since) / 1000) + ' · ' + x.dataset.domain; });
-  const both = () => { tick(); ages(); };
-  if (!window.__kanbanTick) window.__kanbanTick = setInterval(both, 1000);
-  both();
+  if (!window.__kanbanTick) window.__kanbanTick = setInterval(tick, 1000);
+  tick();
 })();
 """
 

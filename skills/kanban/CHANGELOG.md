@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-06
+
+### Changed
+
+- The Quadro's "há N min na etapa" is static (drawn by the server, refreshed by the 10 s poll or any money event): time only moves where the clock runs, so only a card with `data-tick-rate` > 0 ticks R$ and time.
+- `WATCH` in the project file: the console reloads on a change in cost-track's scripts.
+
 ## [0.5.0] - 2026-11-06
 
 ### Added

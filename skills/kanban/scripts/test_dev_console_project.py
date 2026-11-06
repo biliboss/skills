@@ -43,7 +43,8 @@ class BoardHtmlTest(unittest.TestCase):
         self.assertIn('data-domain="via"', html)
         self.assertRegex(html, r'data-tick-rate="360\.000000"')  # the running cost clock, R$ per hour
         self.assertIn("data-tick-at=", html)
-        self.assertIn("setInterval(both, 1000)", html)  # the one timer, no reload
+        self.assertIn("setInterval(tick, 1000)", html)  # the one timer (money/time only), no reload
+        self.assertNotIn("na etapa' +", html)  # the stage age is drawn by the server: static between refreshes
 
     def test_a_still_clock_has_rate_zero(self):
         html, _ = self.render(rate=0.0)

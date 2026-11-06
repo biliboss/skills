@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 
 import importlib.util  # noqa: E402
@@ -34,12 +35,20 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
+PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
+
+
 def load_project(path: str):
     """Import the project file (it may import its own code from its folder)."""
+    folder = Path(path).resolve().parent
+    if "console_reload" in sys.modules:  # a re-import must read the helpers again, not the cached ones
+        sys.modules["console_reload"].purge([folder, *PROJECT_PATHS.get(str(path), ())], keep=("console_reload",))
     spec = importlib.util.spec_from_file_location("dev_console_project", path)
     mod = importlib.util.module_from_spec(spec)
-    sys.path.insert(0, str(Path(path).resolve().parent))
+    before = list(sys.path)
+    sys.path.insert(0, str(folder))
     spec.loader.exec_module(mod)
+    PROJECT_PATHS[str(path)] = [Path(x) for x in sys.path if x not in before]  # what this project put on sys.path
     return mod
 
 
@@ -53,7 +62,7 @@ def _sibling(name: str):
     return mod
 
 
-for _name in ("console_agents", "console_playground", "console_recorder"):
+for _name in ("console_agents", "console_playground", "console_recorder", "console_reload"):
     _sibling(_name)
 
 
@@ -1725,6 +1734,12 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
     else draw();
   }, 1000);
   setInterval(() => { if (S.running && auto()) post('beat'); }, 10000);
+  // the Costs journal changed on disk (a tmux focus switch): read the state again and tell the modules at once
+  if (!EMB) { let first = true; const es = new EventSource('/costs/stream'); es.onmessage = ev => {
+    if (first) { first = false; return; }
+    if (!ev.data.startsWith('change')) return;
+    fetch(`${D.base}/time`, {cache: 'no-store'}).then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); }
+      document.dispatchEvent(new CustomEvent('devconsole-money', {detail: {path: 'costs', running: !!(s && s.running)}})); }).catch(() => {}); }; }
   draw();
   // a page load never stops the clock (an agent's or a background tab's load is not a person leaving)
 }
@@ -1750,6 +1765,29 @@ async def source_stream(slug: str):
                 last = m
                 yield f"data: {json.dumps(real_model(), ensure_ascii=False)}\n\n"
             await asyncio.sleep(1)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@rt("/costs/stream")
+async def costs_stream():
+    """Server-sent events: one `change` the moment the Costs journal or running.json is written (a tmux focus switch
+    starts or stops a stretch), watched by watchfiles like the code; pages redraw the money at once, the 10 s poll stays
+    as a fallback."""
+    from starlette.responses import StreamingResponse
+    from watchfiles import awatch
+
+    folder = Path(os.environ.get("COSTS_DIR", "~/.local/share/costs")).expanduser()
+
+    async def gen():
+        yield "data: hello\n\n"
+        if not folder.is_dir():
+            return
+        async for changes in awatch(folder, debounce=50, step=20, rust_timeout=1000, yield_on_timeout=True):
+            if any(Path(p).name in ("events.jsonl", "running.json") for _, p in changes):
+                yield f"data: change {int(time.time() * 1000)}\n\n"
+            else:
+                yield ": keepalive\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -2384,5 +2422,11 @@ if __name__ == "__main__":
                 child.join(5)
             os.execv(sys.executable, [sys.executable, *sys.argv])
 
-    run_process(Path(__file__).parent, REGISTRY.parent, *{p.parent for p in projects}, target=_serve, args=(args.port,),
+    import console_reload as _reload
+
+    # also what the projects import (sys.path folders, loaded modules) and the folders a project lists in WATCH
+    _extra = [d for ds in PROJECT_PATHS.values() for d in ds] + [
+        (Path(pp).parent / w).resolve() for pp, m in zip(DOMAINS, DOMAINS.values()) for w in getattr(m, "WATCH", ())]
+    _dirs = _reload.watch_dirs(projects, extra_paths=_extra) | {Path(__file__).parent}
+    run_process(*_dirs, REGISTRY.parent, target=_serve, args=(args.port,),
                 callback=_registry_changed)
