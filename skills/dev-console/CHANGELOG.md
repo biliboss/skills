@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.0] - 2026-11-06
+## [0.16.0] - 2026-11-06
 
 ### Added
 - The Playground is served by the console itself: the design-playground's canvas web (`scripts/playground/`: `canvas.js`, `widgets.js`, `paleta.js`, `app.css`, plus `eventos.js`) same-origin, no iframe, no chat. ⌘K and ⌘P now work with the canvas focused (the key handlers listen in the capture phase).
@@ -10,7 +10,7 @@
 ### Removed
 - The iframe, `DEV_CONSOLE_PLAYGROUND_URL`, `GET /playground/up` and the "design-playground não responde" page.
 
-## [0.13.0] - 2026-11-06
+## [0.15.0] - 2026-11-06
 
 ### Added
 - `scripts/console.sh`, the agent's one door: `list`, `start` (a herdr tab `dev-console:<port>` by default, `--no-tab` for the foreground, `--dry-run`, next free port when none is given), `stop`, `claim`, `domains [port]` / `domains add|remove`, `state`, `url`, `actions`.
@@ -22,7 +22,7 @@
 - `list` shows every domain of an instance, the registry's too (they were hidden).
 - `instances.sh` and `second.sh` are thin wrappers over `console.sh`; the per-port owner files are gone (the journal replaces them).
 
-## [0.12.0] - 2026-11-06
+## [0.14.0] - 2026-11-06
 
 ### Added
 - `scripts/instances.sh`: `list` (every running instance: port, owner, where its code comes from, domains, live reload, start time and pid), `start [port] [--from 5057] --owner <name>` (the second instance's logic, now requiring an owner, which it records in `~/.local/state/dev-console/instances/<port>.json`) and `stop <port> [--force]` (kills the process tree; 5057 needs `--force`). Without an owner file, `list` shows the herdr pane, the tmux pane or the tty.
@@ -30,7 +30,7 @@
 ### Changed
 - `scripts/second.sh` is a thin wrapper that runs `instances.sh start`; it now needs `--owner`.
 
-## [0.11.0] - 2026-11-06
+## [0.13.0] - 2026-11-06
 
 ### Added
 - `--no-live` (and `DEV_CONSOLE_LIVE=0`): the server does not reload open pages on a save.
