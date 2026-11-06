@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0] - 2026-11-06
+
+### Added
+- Dev-console domain `shape` (`/domain/shape`): the journal (request.received, piece.routed,
+  understanding.taught_back, understanding.confirmed, work.delegated), `shape.sh emit|list`, tests, one HOME widget
+  listing shapings (burgundy for what waits for the owner).
+
 ## [0.1.0] - 2026-11-06
 
 ### Added
