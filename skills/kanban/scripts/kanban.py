@@ -1099,10 +1099,32 @@ def pull(title: str, domain: str | None, repo: str, context: str | None, center:
     if r.returncode != 0:
         raise ValueError(f"hermes.sh workspace failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()[-400:]}")
     workspace = json.loads(r.stdout.strip().splitlines()[-1])
+    _name_tab(name, card.id, card.title)
     return {"slug": name, "plan": _start_plan(name, domain, repo), "card": {"id": card.id, "title": card.title, "domain": domain, "stage": "Upstream",
                                    "state": card_state},
             "center": {"id": center, "domain": domain, "bound_now": bound} if center else None,
             "workspace": workspace, "switched": _switch_client(name) if switch else None}
+
+
+def _name_tab(session: str, card_id: str, title: str) -> bool:
+    """Name the card's agent window (tmux tab) with its title. The window is the one tagged `@card=<id>`, else the first
+    one (which gets tagged); automatic-rename goes off so the shell does not take the name back. The session keeps its
+    slug name (cost-track and the Quadro look it up). Best effort: no tmux or no session is False, never an error."""
+    tmux = os.environ.get("TMUX_BIN", "tmux")
+    try:
+        r = subprocess.run([tmux, "list-windows", "-t", f"={session}", "-F", "#{window_index} #{@card}"],
+                           capture_output=True, text=True)
+        rows = [ln.split(" ", 1) + [""] for ln in r.stdout.splitlines() if ln.strip()]
+        if r.returncode != 0 or not rows:
+            return False
+        rows.sort(key=lambda x: int(x[0]) if x[0].isdigit() else 0)
+        idx = next((x[0] for x in rows if x[1].strip() == card_id), rows[0][0])
+        target = f"={session}:{idx}"
+        steps = (["rename-window", "-t", target, title], ["set-option", "-w", "-t", target, "automatic-rename", "off"],
+                 ["set-option", "-w", "-t", target, "@card", card_id])
+        return all(subprocess.run([tmux, *a], capture_output=True).returncode == 0 for a in steps)
+    except OSError:
+        return False
 
 
 def _start_plan(name: str, domain: str, repo: str) -> dict | None:
@@ -1207,7 +1229,9 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(prioritize(card.id, 0 if a.cmd == "top" else a.position, a.actor), ensure_ascii=False))
         elif a.cmd == "rename":
             card = find(a.card, cards_from(events()))
-            print(json.dumps(rename(card.id, a.title, a.actor), ensure_ascii=False))
+            out = rename(card.id, a.title, a.actor)
+            _name_tab(slug(card.title), card.id, a.title.strip())  # the tab follows the title; the session keeps its slug
+            print(json.dumps(out, ensure_ascii=False))
         elif a.cmd == "list":
             b = read_board()
             stage = stage_of(a.stage) if a.stage else None

@@ -680,7 +680,42 @@ class PullTest(JournalTest):
         self.assertIn("switch-client -c /dev/ttys009 -t =sygnal-0-2", (self.d / "tmux.log").read_text())
         (self.d / "tmux.log").unlink()
         self.pull("--no-switch")
-        self.assertFalse((self.d / "tmux.log").exists())
+        self.assertNotIn("switch-client", (self.d / "tmux.log").read_text())
+
+
+class TabNameTest(PullTest):
+    """The card's tmux tab (window) is named by its title and follows `rename`; the session keeps its slug."""
+
+    def setUp(self):
+        super().setUp()
+        (self.d / "tmux").write_text(STUB_TMUX.replace(
+            'exit 0', '[ "$1" = "list-windows" ] && [ -f "$STUB_DIR/windows" ] && cat "$STUB_DIR/windows"\n[ "$1" = "list-windows" ] && [ ! -f "$STUB_DIR/windows" ] && exit 1\nexit 0'))
+
+    def log(self):
+        return (self.d / "tmux.log").read_text().splitlines()
+
+    def test_pull_names_the_first_window_and_tags_it(self):
+        (self.d / "windows").write_text("1 \n2 \n")
+        code, r, _ = self.pull("--domain", "sygnal", "--no-switch")
+        cid = r["card"]["id"]
+        self.assertIn("rename-window -t =sygnal-0-2:1 Sygnal 0.2", self.log())
+        self.assertIn("set-option -w -t =sygnal-0-2:1 automatic-rename off", self.log())
+        self.assertIn(f"set-option -w -t =sygnal-0-2:1 @card {cid}", self.log())
+
+    def test_rename_follows_the_tagged_window_and_keeps_the_session(self):
+        _, r, _ = self.pull("--domain", "sygnal", "--no-switch")
+        cid = r["card"]["id"]
+        (self.d / "windows").write_text(f"1 \n3 {cid}\n")
+        (self.d / "tmux.log").unlink()
+        self.assertEqual(self.cli("rename", cid, "Sygnal 0.3")[0], 0)
+        self.assertIn("rename-window -t =sygnal-0-2:3 Sygnal 0.3", self.log())
+        self.assertFalse([x for x in self.log() if "rename-session" in x])
+
+    def test_no_session_or_no_tmux_is_silent(self):
+        _, r, _ = self.pull("--domain", "sygnal", "--no-switch")  # no `windows` file: list-windows fails
+        self.assertEqual(self.cli("rename", r["card"]["id"], "Other")[0], 0)
+        os.environ["TMUX_BIN"] = str(self.d / "missing")
+        self.assertEqual(self.cli("rename", r["card"]["id"], "Again")[0], 0)
 
 
 if __name__ == "__main__":

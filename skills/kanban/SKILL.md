@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.6.2
+  version: 0.6.3
 ---
 
 # kanban
@@ -67,6 +67,10 @@ The descriptions for humans are the comments on each command in `EVENTS`.
 - **The card's slug is its identity everywhere**: `slug(title)` (`Sygnal 0.2` → `sygnal-0-2`) names the tmux/sesh session,
   the Hermes session (`hermes -p bili sessions rename <id> <slug>`, resumed with `hermes -p bili --continue <slug>`)
   and is what cost-track's tmux hook and the Quadro's agent line look up. One name, nothing to memorize.
+- **The tab carries the card's title, the session keeps the slug.** `pull` names the agent window `Sygnal 0.2`
+  (`automatic-rename` off, so the shell does not take the name back) and tags it `@card=<id>`; `kanban.sh rename`
+  renames that window too (the tagged one, else the first), never the session. Best effort: no tmux or no session is
+  silent. A window made by hand: `tmux set-option -w -t <slug>:<n> @card <id>`.
 - **Starting a task ("vamos trabalhar em X")**: reuse or create the card in Upstream (ask only if Upstream is full:
   current card back to Todo, or cancel); create the Hermes session in the project's repo (`--in <repo> -z <request +
   where to read>`, Upstream = discovery, no code yet) and rename it to the slug; open the tmux session `<slug>` with a
