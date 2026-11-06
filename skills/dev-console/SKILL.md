@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.6.0
+  version: 0.6.1
 ---
 
 # dev-console
@@ -180,6 +180,11 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
 
 1. Write it in `/tmp/<name>/` (`<name>.py` with EVENTS, the projector and a JSONL journal class; `dev_console_project.py`;
    `<name>.jsonl` with one example walk), then append the project path to the domain registry: no restart.
+   **A domain of the house's own work** (costs, tasks, anything about how he works, not a client's product) skips
+   `/tmp` and `~/biliboss/dev`: it is a skill of biliboss/skills from the first draft (step 6 at once), or he asks
+   for the move.
+   **Design comes before implementation**: when he says "design first" / "faz o design no Domain", stop any
+   executor already implementing that feature and draw the domain; the implementation follows the approved drawing.
 2. **Name events after the story's own actors and verbs** (Task.Explained → Understanding.TaughtBack), not
    generic document nouns (Brief.Created → Narrative.Generated read as unrelated to the story and were rejected).
    Look up the literature's term for the practice (teach-back, closed-loop communication) and cite it in the
@@ -187,8 +192,12 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
    ("demand" reads as an imposition in English and is Brazilian work slang).
 3. **Start with the fewest events the story needs** (often two); he cuts extra steps (request, clarify, confirm)
    himself. Branches and loops go in `TRANSITIONS` only when he asks for them.
-4. Each command gets its Portuguese comment (the Description). The example journal mirrors the story with real-
-   sounding content, then give him the URL.
+4. Each command gets its Portuguese comment (the Description), on **its own line** in the category's dict: two
+   commands written on one line (`{"start": "started", "stop": "stopped"}`) share the comment above them, so both
+   events show the same description. The example journal mirrors the story with real-sounding content.
+   **Ship the first widgets with the domain**, on the example journal's real data: one per event worth seeing for a
+   person (a list of the entities, the day's summary as `HOME`), each starting with its title. A drawn domain with no
+   widgets gets asked "e os widgets, foram feitos?". Then give him the URL.
 5. When he asks about a word (etymology, origin), discuss without editing anything.
 6. **When he says it will be a skill**, move it out of `/tmp` into `skills/<name>/` of biliboss/skills:
    `scripts/<name>.py` + `dev_console_project.py`, a short SKILL.md marked "Design stage"
@@ -211,6 +220,22 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
    in `EVENTS` and name each edge's command in `TRANSITIONS` with a dict target (`{"style.scored": "downscore"}`);
    one label `score | downscore` on both edges was rejected. An act of the person (confirm) is an edge from the
    Human: put that event in `INITIAL`, not after the agent's event.
+
+## Import a domain from existing code
+
+For a product whose code already records domain events (Domain.Imported):
+
+1. Read a **detached worktree of `origin/main`** (`git worktree add --detach <dir> origin/main`), never another
+   session's checkout, and never edit the product repo: the project file lives outside it (`~/biliboss/dev/<name>/`).
+   This is long work: give it to a subagent with the console contract and the read-only rule.
+2. `EVENTS` follows the code's own kinds, each line traceable (`# kind: ListingShared`), with the Portuguese comment
+   taken from the code's docs; the journal returns one placeholder entity when production's journal is unreachable.
+3. A big import drawn at once is "bom mas complexo": set `LAYOUT = "clock"`, keep only the first hand in `EVENTS`
+   (the north at 12 o'clock is the access to the system by a Human with no role yet; then where the Human takes a
+   role) and park the other categories, as imported, in `EVENTS_BACKLOG` in the same file until he orders the next
+   hand. The clock order is the order of `EVENTS`: never a list in the project file nor a number in the console.
+4. The Human is twice an event node's size, the graph opens centred on it, and "◎ Centralizar Human" brings it back.
+   The native window hot-reloads like the browser when the project file changes.
 
 ## Design a widget with the user
 
