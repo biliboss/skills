@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.43.0] - 2026-11-06
+
+### Added
+
+- `hermes` 0.1.0: o Claude Code e o pi comandam os perfis locais do Hermes como agentes com memória persistente (`scripts/hermes.sh`: list, spawn, resume, sessions, read, memory, route, dm); trava por perfil, recusa de provedor por token, tabela de roteamento.
+
+### Changed
+
+- `backbrief` 0.16.1: o passo 9 manda a tarefa que tem perfil dono para `hermes.sh spawn`, registrada como `task.executed` com `harness: hermes`.
+
 ## [0.42.0] - 2026-11-06
 
 ### Added

@@ -107,6 +107,7 @@ class Method(StrEnum):
     INTERACTIVE = "interactive"  # a session someone can follow and steer
     BY_HAND = "by_hand"  # the agent did it itself, no executor
     PI = "pi"  # a pi run (0.11.0, `execute` per model); the journal also carries it as method
+    SPAWN = "spawn"  # a Hermes profile run by `hermes.sh spawn` (hermes skill)
 
 
 class Harness(StrEnum):

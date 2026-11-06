@@ -23,6 +23,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP |
+| `hermes` | o Claude Code e o pi comandam os perfis locais do Hermes (researcher, designer, sre, via-ads, mantainer) como agentes com memória própria |
 | `interview` | formulários de perguntas ricos (pi-interview) numa janela única com fila; rascunho salvo a cada mudança, e o tempo limite não perde respostas |
 
 ## Instalar

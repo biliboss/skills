@@ -272,6 +272,12 @@ class ExecuteParallel(RepoCase):
         self.assertEqual((y.method, y.pull_request.state), ("claude-code", tasks.PullRequestState.CLOSED))
         self.assertEqual(tasks.result_from({**pi, "method": "by-hand"}).method, "by-hand")
 
+    def test_result_from_reads_a_hermes_spawn(self):
+        v = {"text": "done", "harness": "hermes", "method": "spawn", "profile": "researcher", "session_id": "s1",
+             "exit_code": 0, "duration_s": 12.5, "worktree": "/repo"}
+        x = tasks.result_from(v)
+        self.assertEqual((x.method, x.harness, x.worktree), (tasks.Method.SPAWN, tasks.Harness.HERMES, "/repo"))
+
     def test_unknown_and_refused_never_run(self):
         with patch.dict(os.environ, self.env):
             j = tasks.TasksJournal()

@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.16.0
+  version: 0.16.1
 ---
 
 # backbrief
@@ -120,6 +120,14 @@ shows which kinds of task each model does well and with what quality.
 8. The Human picks one: `... choose --task <id> --option <option id>` records `option.chosen` (that text becomes
    the repetition to confirm) and scores (+1) its style. Wait for the confirmation as in step 4.
 9. Once the Human confirms (`understanding.confirmed`), execute.
+   - **First, a task with an owning profile: Hermes.** `skills/hermes/scripts/hermes.sh route <kind>` names the profile
+     (research, ui, infra, search/ads, upkeep, coordination; code with a PR has none). If it prints one, run
+     `skills/hermes/scripts/hermes.sh spawn <profile> "<confirmed teach-back + learnings>" --cwd <repo>`: the profile
+     has its own memory but does not see this session, so the prompt carries both in full. Record `emit task.executed`
+     by hand (value built with `jq -n` from the script's last JSON line): `{text: <its answer>, harness: "hermes",
+     method: "spawn", profile, session_id, exit_code, duration_s, worktree: <the --cwd>}`, `--actor "hermes:<profile>"`.
+     A non-zero `exit_code` (partial, no text, busy) is not a delivery. `verify` (step 10) still runs in a fresh
+     context, never on the same profile. No route, or code with a PR: the branches below.
    - **In Claude Code: a native subagent.** Agent tool, `model: "sonnet"`, `run_in_background: true`, working in a
      worktree of the right repo (a subagent's `isolation: "worktree"` makes one of the session's repo, so for another
      repo create it first and name it in the prompt). The prompt carries the confirmed teach-back and the learnings

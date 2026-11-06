@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-11-06
+
+### Changed
+
+- Step 9 gets a first branch: a task with an owning Hermes profile (`skills/hermes/scripts/hermes.sh route`) runs through `hermes.sh spawn`, recorded as `task.executed` with `harness: hermes`, `method: spawn`, the profile, session id, exit code and duration; verify stays in a fresh context. `Method.SPAWN` added to `tasks.py` so the console reads it as a known method.
+
 ## [0.16.0] - 2026-11-06
 
 ### Changed
