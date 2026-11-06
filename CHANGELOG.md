@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.77.0
+
+- hustler 0.1.0: market vision for an idea (customer job, alternatives with sources, positioning map and the upper quadrant, business models incl. open-core, re-check list), with `render-map.sh`; first use on Zelito.
+
 ## 0.76.0
 
 - Loose notes landed: cost-track 0.5.1, delegate-and-review 0.3.3, dev-console 0.30.4, disky 0.1.1 (organizing `~/src`), domain-plan 0.2.0, kanban 0.7.2 (swimlanes; thread recipe points to `thread`), lp-draft 0.2.2, wiki-smith 0.1.5.
