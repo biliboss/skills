@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.29.0] - 2026-11-06
+
+### Added
+
+- `tmux` 0.1.0: scripts para ler, listar, mandar texto com segurança (inclusive `/comando` numa TUI), abrir e esperar em panes e janelas; `skill-smith` 0.4.0: toda skill tem `README.md` e `CHANGELOG.md` próprios.
+
 ## [0.28.0] - 2026-11-06
 
 ### Added
