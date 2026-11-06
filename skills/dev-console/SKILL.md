@@ -9,10 +9,31 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.23.0
+  version: 0.24.0
 ---
 
 # dev-console
+
+## devc: the one door
+
+**Agents use `devc`** (`scripts/devc`, `devc install` symlinks it into `~/.local/bin`): short text for people, JSON with
+`--json` for agents, `--port` (default 5057) anywhere. It reads the console's routes and delegates to the older scripts.
+
+```sh
+devc domains                         # slug, origin, name
+devc show <slug> [--json]            # lanes, transitions (with the command), events in order as a small git-log graph
+devc events <slug> [--task ID] [--tail] [-n N]   # events of the entity the domain opens (what state.json carries; no whole-journal route yet); --tail polls every 1 s, Ctrl-C ends
+devc focus                           # GET /agent/focus; 'sem foco ainda' while the route or the focus is missing
+devc open <slug|url> [--ev E] [--w W]  # agent.sh open (the URL carries agent=1); devc shot prints the PNG path
+devc now | history [n] | eval '<js>' # the flight recorder and the window
+devc start [port] [--owner N] | stop <port> [--force] | list [port]   # console.sh
+devc check <url> [--shot f.png] [--eval '<js>']                        # check.sh
+```
+
+`console.sh`, `agent.sh`, `window.sh` and `check.sh` keep working as they are and `devc` calls them; they will be
+retired (cited names first moved to `devc`) once nothing cites them. Tests: `python3 -m unittest test_devc` in `scripts/`.
+
+## The console
 
 One file, `scripts/dev-console.py` (FastHTML + MonsterUI, PEP 723, `uv run --script`), shows
 **domains**: each project file is one domain in its own context, `/domain/<slug>`; the status line at the bottom shows

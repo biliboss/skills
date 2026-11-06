@@ -9,7 +9,8 @@
 #                                       o endereço do /mcp (Streamable HTTP) e a config de cliente HTTP;
 #                                       --remota usa DP_URL_REMOTA (a tailnet); --servidor sobe
 #                                       `bun run $DP_DIR/src/main.ts --servidor` se ninguém estiver na porta
-# Lê DP_DIR, DP_URL, DP_URL_REMOTA e DP_TOKEN (opcional) do casa.env.
+# Lê DP_URL, DP_URL_REMOTA, DP_TOKEN (opcional), DESIGN_PRODUTOS e DADOS_DIR do casa.env.
+# DP_DIR (opcional) vale o padrão: o playground/ desta skill. Só o casa.env sobrescreve.
 set -euo pipefail
 CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
 # shellcheck source=/dev/null
@@ -18,16 +19,31 @@ _url="${DP_URL:-}"; _rem="${DP_URL_REMOTA:-}"; _dir="${DP_DIR:-}"
 if [ -f "$CASA" ]; then set -a; . "$CASA"; set +a; fi
 [ -n "$_url" ] && DP_URL="$_url"; [ -n "$_rem" ] && DP_URL_REMOTA="$_rem"; [ -n "$_dir" ] && DP_DIR="$_dir"
 : "${DP_URL:=http://127.0.0.1:5317}"
+: "${DP_DIR:=$(cd "$(dirname "$0")/../playground" && pwd)}"
+: "${DADOS_DIR:=${XDG_STATE_HOME:-$HOME/.local/state}/design-playground}"
+export DADOS_DIR
+[ -n "${DESIGN_PRODUTOS:-}" ] && export DESIGN_PRODUTOS
+[ -n "${PATCHES_DIRS:-}" ] && export PATCHES_DIRS
 
 modo="${1:-}"; shift || true
-precisa_dir() { [ -n "${DP_DIR:-}" ] && [ -f "$DP_DIR/src/main.ts" ] || { echo "DP_DIR não aponta para o design-playground (casa.env)" >&2; exit 1; }; }
+precisa_dir() {
+  [ -f "$DP_DIR/src/main.ts" ] || { echo "DP_DIR não aponta para o design-playground (casa.env)" >&2; exit 1; }
+  [ -d "$DP_DIR/node_modules" ] || { echo "bun install em $DP_DIR" >&2; (cd "$DP_DIR" && bun install >&2); }
+}
+# O env do processo do MCP: as pastas que ele lê e grava.
+env_json() {
+  local e="\"DADOS_DIR\": \"$DADOS_DIR\""
+  [ -n "${DESIGN_PRODUTOS:-}" ] && e="$e, \"DESIGN_PRODUTOS\": \"$DESIGN_PRODUTOS\""
+  [ -n "${PATCHES_DIRS:-}" ] && e="$e, \"PATCHES_DIRS\": \"$PATCHES_DIRS\""
+  echo "$e"
+}
 no_ar() { curl -fsS -m 2 "$1/api/estado" >/dev/null 2>&1; }
 
 config_stdio() { # $1 = idleTimeout ("" para não pôr)
   local arq; arq="$(mktemp "${TMPDIR:-/tmp}/design-playground-mcp.XXXXXX")"
   local extra=""; [ -n "${1:-}" ] && extra=", \"idleTimeout\": $1"
   cat > "$arq" <<EOF
-{ "mcpServers": { "design-playground": { "command": "bun", "args": ["run", "$DP_DIR/src/main.ts"]$extra } } }
+{ "mcpServers": { "design-playground": { "command": "bun", "args": ["run", "$DP_DIR/src/main.ts"], "env": { $(env_json) }$extra } } }
 EOF
   echo "$arq"
 }

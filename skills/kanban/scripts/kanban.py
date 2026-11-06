@@ -23,6 +23,10 @@ The journal is a global append-only JSONL, ~/.local/share/kanban/events.jsonl (o
     kanban.sh list [--stage <stage>] [--json]
     kanban.sh show <card> [--json]
     kanban.sh money [--json]
+    kanban.sh wip [--repo owner/name] [--json]      # open PRs of the repo; exit 3 at or over the WIP limit (wip.limit, 3)
+    kanban.sh sweep [--hours 48] [--repos a/b,c/d] [--apply] [--json]
+                                                    # open PRs and branches older than N hours; --apply closes what is
+                                                    # already in main and records item.aged / decision.requested
 
 The screen only draws what the pure functions below return (board, card_money, upstream_totals). Stdlib only.
 """
@@ -34,6 +38,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 import uuid
 from contextlib import contextmanager
@@ -52,6 +57,16 @@ EVENTS = {
         # O card mudou de etapa: de Upstream (descobrir e decidir) para Downstream (entregar o que foi decidido), para
         # Feito, ou de volta. Só o tempo em Upstream entra no investimento do card.
         "move": "moved",
+    },
+    "item": {
+        # Uma PR aberta ou uma branch passou de N horas (48 por padrão) sem entrar na main: o que foi começado e não
+        # terminou. Não é um card: é o varredor diário que enxerga (value: repo, kind pr|branch, ref, age_h).
+        "age": "aged",
+    },
+    "decision": {
+        # Só o dono decide: um merge que publica (repo cujo main faz deploy), uma branch com trabalho fora da main.
+        # O varredor nunca decide por ele (value: text, repo, ref, reason).
+        "request": "requested",
     },
 }
 
@@ -390,6 +405,7 @@ def short(seconds: float) -> str:
 
 # --- the journal: the one writer, and the reads -----------------------------------------------------------------------
 KNOWN_EVENTS = [f"{cat}.{ev}" for cat, cmds in EVENTS.items() for ev in dict.fromkeys(cmds.values())]
+CARDLESS = {"item.aged": ("repo", "kind", "ref", "age_h"), "decision.requested": ("text", "repo", "ref", "reason")}
 DOMAIN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
@@ -453,6 +469,19 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
         raise ValueError(f"unknown event {event!r}; known: {', '.join(KNOWN_EVENTS)}")
     if not isinstance(value, dict):
         raise ValueError("the value must be a JSON object")
+    if event in CARDLESS:  # the sweep's events belong to a repo item, not to a card
+        missing = [k for k in CARDLESS[event] if not value.get(k) and value.get(k) != 0]
+        if missing:
+            raise ValueError(f"{event} needs {', '.join(missing)}")
+        if event == "item.aged" and value["kind"] not in ("pr", "branch"):
+            raise ValueError("item.aged kind is pr or branch")
+        with _locked() as (f, _past):
+            record = {"id": uuid.uuid4().hex[:12], "event": event, "at": (at or _now()).isoformat(timespec="seconds"),
+                      "actor": actor, "card_id": None, "value": value}
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        return record
     with _locked() as (f, past):
         cards = {c.id: c for c in cards_from(past)}
         if event == "card.created":
@@ -647,6 +676,206 @@ def _print_money(b: Board) -> None:
             print(f"  {m.card.id:<10}{m.card.stage.value:<12}{brl(m.total.brl):>14}  {hm(m.total.seconds):>6}  {m.card.title}")
 
 
+# --- the WIP limit and the aging sweep: what was started and not finished (gh, never the journal's cards) -----------------
+DEFAULT_WIP_LIMIT = 3
+WIP_EXIT = 3  # `wip` exits with it at or over the limit
+# repos whose main deploys: nothing is closed, deleted or merged there by the sweep, only asked to the owner
+DEPLOY_OWNERS = ("viacorretor",)
+DEPLOY_REPOS = ("the-viacorretor",)
+
+
+def config() -> dict:
+    """~/.config/kanban/config.json (override KANBAN_CONFIG), when it exists and parses: {"wip": {"limit": 3}}."""
+    path = Path(os.environ.get("KANBAN_CONFIG", "~/.config/kanban/config.json")).expanduser()
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (ValueError, OSError):
+        return {}
+
+
+def wip_limit(repo: str | None = None) -> int:
+    """wip.limit (default 3); wip.repos {"owner/name": n} overrides it for one repo."""
+    wip = config().get("wip") or {}
+    try:
+        return int((wip.get("repos") or {}).get(repo or "", wip.get("limit", DEFAULT_WIP_LIMIT)))
+    except (TypeError, ValueError):
+        return DEFAULT_WIP_LIMIT
+
+
+def _gh(*args: str) -> str:
+    """gh (override KANBAN_GH); the output, or ValueError with what it said."""
+    done = subprocess.run([os.environ.get("KANBAN_GH", "gh"), *args], capture_output=True, text=True)
+    if done.returncode != 0:
+        raise ValueError(f"gh {' '.join(args[:3])} failed: {done.stderr.strip() or done.stdout.strip()}")
+    return done.stdout
+
+
+def _gh_json(*args: str) -> Any:
+    try:
+        return json.loads(_gh(*args) or "null")
+    except json.JSONDecodeError as err:
+        raise ValueError(f"gh {' '.join(args[:3])}: not JSON ({err})") from err
+
+
+def open_prs(repo: str) -> list[dict]:
+    return _gh_json("pr", "list", "-R", repo, "--state", "open", "--limit", "200", "--json",
+                    "number,title,headRefName,createdAt,url") or []
+
+
+def wip(repo: str | None = None) -> dict:
+    """The open PRs of a repo against its limit. Without a repo: the one of the current directory."""
+    if not repo:
+        repo = str((_gh_json("repo", "view", "--json", "nameWithOwner") or {}).get("nameWithOwner") or "")
+        if not repo:
+            raise ValueError("no repo: pass --repo owner/name")
+    prs = open_prs(repo)
+    limit = wip_limit(repo)
+    return {"repo": repo, "open": len(prs), "limit": limit, "over": len(prs) >= limit,
+            "prs": [{"number": x["number"], "title": x["title"], "branch": x["headRefName"], "url": x.get("url", "")}
+                    for x in prs]}
+
+
+def deploys(repo: str) -> bool:
+    owner, _, name = repo.lower().partition("/")
+    return owner in DEPLOY_OWNERS or name in DEPLOY_REPOS
+
+
+def _age_h(iso: str, now: datetime) -> float:
+    return round((now - parse_at(iso.replace("Z", "+00:00"))).total_seconds() / 3600, 1)
+
+
+def _in_main(repo: str, default: str, branch: str) -> tuple[bool, int]:
+    """(is the branch's content already in main, commits ahead). Squash merges leave the commits ahead, so when it is
+    ahead every changed file is compared with main's: identical blobs everywhere means the content landed."""
+    cmp = _gh_json("api", f"repos/{repo}/compare/{default}...{branch}") or {}
+    ahead = int(cmp.get("ahead_by") or 0)
+    if ahead == 0:
+        return True, 0
+    files = cmp.get("files") or []
+    if not files or len(files) >= 300:
+        return False, ahead  # unknown or too big to prove: not in main
+    for f in files:
+        name = f["filename"]
+        same = False
+        try:
+            on_branch = _gh_json("api", f"repos/{repo}/contents/{name}?ref={branch}") or {}
+        except ValueError:
+            on_branch = {}
+        try:
+            on_main = _gh_json("api", f"repos/{repo}/contents/{name}?ref={default}") or {}
+        except ValueError:
+            on_main = {}
+        same = on_branch.get("sha") == on_main.get("sha")  # both missing (a deleted file) counts as equal
+        if not same:
+            return False, ahead
+    return True, ahead
+
+
+def _recent(evs: list[dict], event: str, repo: str, ref: str, now: datetime) -> bool:
+    """The same item was already reported in the last 24 h: the daily sweep says it once."""
+    for e in reversed(evs):
+        v = e.get("value") or {}
+        if e.get("event") == event and v.get("repo") == repo and v.get("ref") == ref:
+            try:
+                return (now - parse_at(e["at"])).total_seconds() < 24 * 3600
+            except (KeyError, ValueError):
+                return False
+    return False
+
+
+def sweep(repos: list[str], hours: float = 48, apply: bool = False, actor: str = "kanban-sweep",
+          now: datetime | None = None) -> dict:
+    """Open PRs and branches older than `hours`. Read only unless `apply`: then a PR whose content is already in main is
+    closed, a remote branch already in main is deleted, and the rest is recorded (item.aged; decision.requested for a
+    merge that publishes and for a branch with work outside main). Unmerged work is never deleted and nothing is ever
+    merged; a repo whose main deploys only gets decision.requested."""
+    now = now or _now()
+    past = events() if apply else []
+    items: list[dict] = []
+    errors: list[str] = []
+    for repo in repos:
+        try:
+            default = str((_gh_json("api", f"repos/{repo}") or {}).get("default_branch") or "main")
+            prs = open_prs(repo)
+            pr_heads = {x["headRefName"] for x in prs}
+            guarded = deploys(repo)
+            for x in prs:
+                age = _age_h(x["createdAt"], now)
+                if age < hours:
+                    continue
+                landed, _ = _in_main(repo, default, x["headRefName"])
+                items.append({"repo": repo, "kind": "pr", "ref": f"#{x['number']} {x['headRefName']}", "number": x["number"],
+                              "branch": x["headRefName"], "age_h": age, "in_main": landed, "deploys": guarded,
+                              "title": x["title"]})
+            branches = _gh_json("api", f"repos/{repo}/branches?per_page=100") or []
+            for b in branches:
+                name = b["name"]
+                if name == default or name in pr_heads:
+                    continue
+                commit = _gh_json("api", f"repos/{repo}/commits/{name}") or {}
+                age = _age_h(commit["commit"]["committer"]["date"], now)
+                if age < hours:
+                    continue
+                landed, ahead = _in_main(repo, default, name)
+                items.append({"repo": repo, "kind": "branch", "ref": name, "age_h": age, "in_main": landed, "ahead": ahead,
+                              "deploys": guarded})
+        except (ValueError, KeyError) as err:
+            errors.append(f"{repo}: {err}")
+    for it in items:
+        if it["deploys"]:
+            it["action"] = "decision"
+            it["reason"] = "the repo's main deploys: a merge publishes; only the owner decides"
+        elif it["in_main"]:
+            it["action"] = "close" if it["kind"] == "pr" else "delete"
+        elif it["kind"] == "branch":
+            it["action"] = "decision"
+            it["reason"] = "a branch with work that is not in main"
+        else:
+            it["action"] = "aged"
+    if apply:
+        for it in items:
+            repo, ref = it["repo"], it["ref"]
+            try:
+                if it["action"] == "close":
+                    _gh("pr", "close", str(it["number"]), "-R", repo, "--comment",
+                        "Closed by the kanban sweep: this content is already in main.")
+                    it["done"] = "closed"
+                elif it["action"] == "delete":
+                    _gh("api", "-X", "DELETE", f"repos/{repo}/git/refs/heads/{ref}")
+                    it["done"] = "deleted"
+                else:
+                    if not _recent(past, "item.aged", repo, ref, now):
+                        emit("item.aged", {"repo": repo, "kind": it["kind"], "ref": ref, "age_h": it["age_h"]}, actor=actor)
+                        it["recorded"] = ["item.aged"]
+                    if it["action"] == "decision" and not _recent(past, "decision.requested", repo, ref, now):
+                        emit("decision.requested", {"text": f"{repo} {ref}: {it.get('reason')}", "repo": repo, "ref": ref,
+                                                    "reason": it["reason"]}, actor=actor)
+                        it.setdefault("recorded", []).append("decision.requested")
+            except ValueError as err:
+                errors.append(f"{repo} {ref}: {err}")
+    # a PR closed above turns its branch into a branch in main: the next sweep deletes it (one thing at a time)
+    return {"hours": hours, "applied": apply, "items": items, "errors": errors}
+
+
+def _print_wip(w: dict) -> None:
+    flag = "AT OR OVER THE LIMIT" if w["over"] else "ok"
+    print(f"{w['repo']}: {w['open']} open PR(s), limit {w['limit']}: {flag}")
+    for x in w["prs"]:
+        print(f"  #{x['number']:<5}{x['branch']:<40}{x['title']}")
+
+
+def _print_sweep(r: dict) -> None:
+    by: dict[str, int] = {}
+    for it in r["items"]:
+        by[it["action"]] = by.get(it["action"], 0) + 1
+        extra = f"  [{it.get('done') or ','.join(it.get('recorded', []))}]" if r["applied"] else ""
+        print(f"{it['repo']:<28}{it['kind']:<7}{it['age_h']:>7.1f} h  {it['action']:<9}{it['ref']}{extra}")
+    for e in r["errors"]:
+        print(f"error: {e}", file=sys.stderr)
+    total = ", ".join(f"{n} {a}" for a, n in sorted(by.items())) or "nothing"
+    print(f"sweep >{r['hours']:g} h ({'applied' if r['applied'] else 'dry run'}): {len(r['items'])} item(s): {total}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="kanban.sh", description="The Kanban journal's only writer, and the board read from it.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -667,6 +896,14 @@ def main(argv: list[str] | None = None) -> int:
     sh.add_argument("--json", action="store_true")
     mo = sub.add_parser("money", help="the band (Hoje, Semana, Mês) and each card's Upstream money")
     mo.add_argument("--json", action="store_true")
+    wp = sub.add_parser("wip", help="open PRs of a repo against the WIP limit; exit 3 at or over it")
+    wp.add_argument("--repo", help="owner/name (default: the current directory's repo)")
+    wp.add_argument("--json", action="store_true")
+    sw = sub.add_parser("sweep", help="open PRs and branches older than N hours; --apply closes what is already in main")
+    sw.add_argument("--hours", type=float, default=48)
+    sw.add_argument("--repos", required=True, help="owner/name,owner/name")
+    sw.add_argument("--apply", action="store_true")
+    sw.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     try:
         if a.cmd == "create":
@@ -681,6 +918,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(as_json([asdict(m) for col in b.columns if stage is None or col.stage is stage for m in col.cards]))
             else:
                 _print_list(b, stage)
+        elif a.cmd == "wip":
+            w = wip(a.repo)
+            print(json.dumps(w, ensure_ascii=False)) if a.json else _print_wip(w)
+            return WIP_EXIT if w["over"] else 0
+        elif a.cmd == "sweep":
+            r = sweep([x.strip() for x in a.repos.split(",") if x.strip()], a.hours, a.apply)
+            print(json.dumps(r, ensure_ascii=False)) if a.json else _print_sweep(r)
+            return 1 if r["errors"] else 0
         elif a.cmd == "show":
             now = _now()
             cm = read_card(find(a.card, cards_from(events())).id, now)

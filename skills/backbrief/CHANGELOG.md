@@ -2,6 +2,18 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-11-06
+
+### Added
+
+- `workspace.cleaned` `{text, branch, worktree, pr_url, repo}` after `pull_request.merged`, and `tasks.sh clean --task <id> [--repo R]`: checks with real git and gh that no worktree of the task, no remote branch and no open PR is left, removes the worktree with `wt remove` (never forced) and the remote branch if its PR merged, then records the event. The task status is `done` only after it (`merged` before).
+- `tasks.sh branch --task <id> --slug <slug>` prints `task/<id8>-<slug>`, the name of every branch the skill creates.
+- Step 9: run `kanban.sh wip` before opening a PR; step 13: done = merged + cleaned.
+
+### Changed
+
+- `merge` prints the `clean` command (stderr, so stdout stays JSON).
+
 ## [0.16.3] - 2026-11-06
 
 ### Changed

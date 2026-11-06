@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0] - 2026-11-06
+
+### Added
+
+- **`devc`**, the app's own CLI (`scripts/devc` + `devc.py`, PEP 723, stdlib): `domains`, `show <slug>` (lanes, transitions, events as a small git-log graph), `events <slug> [--tail] [-n N]`, `focus`, `open`, `shot`, `now`, `history`, `eval`, `start`, `stop`, `list`, `check`, `install`; `--port` and `--json`. The older scripts stay and `devc` calls them. `test_devc.py` uses a fake console.
+- `.sesskey` in `.gitignore`.
+
 ## [0.23.0] - 2026-11-06
 
 ### Added

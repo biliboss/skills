@@ -6,7 +6,8 @@
 """Drive Hermes profiles from Claude Code or pi. Thin over the `hermes` CLI; stdlib only.
 
 Exit codes: spawn/resume pass hermes -z's (0 ok, 1 no text, 2 partial/failed, 130 interrupted); 124 timeout;
-3 profile busy (lock); 4 profile refused (per-token provider); 5 unknown profile; 64 usage.
+3 profile busy (lock); 4 profile refused (per-token provider); 5 unknown profile; 6 WIP limit reached (spawn of
+a code profile with --repo); 64 usage.
 """
 import argparse
 import json
@@ -194,7 +195,23 @@ def cmd_list(a):
         print(f"{p['profile']:<12} {p['model']:<20} {p['description']}{flag}")
 
 
+def wip_check(repo):
+    """A code profile (the one `code` routes to) opens PRs: with --repo, `kanban.sh wip` must say there is room. Exit 3
+    of kanban (at or over the limit) refuses the spawn; any other failure (no gh, no network) only warns."""
+    kanban = Path(os.environ.get("HERMES_KANBAN") or Path(__file__).resolve().parents[2] / "kanban" / "scripts" / "kanban.sh")
+    if not kanban.exists():
+        print(f"hermes.sh: warning: {kanban} not found, WIP limit not checked", file=sys.stderr)
+        return
+    r = subprocess.run(["bash", str(kanban), "wip", "--repo", repo], capture_output=True, text=True)
+    if r.returncode == 3:
+        die(f"WIP limit reached, not spawning {ROUTES['code']}: finish or merge an open PR first.\n{r.stdout.strip()}", 6)
+    if r.returncode != 0:
+        print(f"hermes.sh: warning: WIP check failed ({r.stderr.strip() or r.returncode}), spawning anyway", file=sys.stderr)
+
+
 def cmd_spawn(a):
+    if a.repo and a.profile == ROUTES["code"]:
+        wip_check(a.repo)
     execute(a.profile, [], a.task, a.cwd, a.timeout)
 
 
@@ -254,7 +271,9 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("list"); s.add_argument("--json", action="store_true"); s.set_defaults(f=cmd_list)
     s = sub.add_parser("spawn"); s.add_argument("profile"); s.add_argument("task")
-    s.add_argument("--cwd"); s.add_argument("--timeout", type=int); s.set_defaults(f=cmd_spawn)
+    s.add_argument("--cwd"); s.add_argument("--timeout", type=int)
+    s.add_argument("--repo", help="owner/name the work will open a PR on (code profile: refused at the WIP limit)")
+    s.set_defaults(f=cmd_spawn)
     s = sub.add_parser("resume"); s.add_argument("profile"); s.add_argument("session"); s.add_argument("msg")
     s.add_argument("--cwd"); s.add_argument("--timeout", type=int); s.set_defaults(f=cmd_resume)
     s = sub.add_parser("sessions"); s.add_argument("profile"); s.add_argument("--limit", type=int, default=10)

@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.16.3
+  version: 0.17.0
 ---
 
 # backbrief
@@ -30,6 +30,7 @@ assignment at school, a ticket in a software team).
 | `task.verified` | `verify` | a fresh context (IV&V) checked the delivery against the confirmed request |
 | `task.delivered` | `deliver` | the verified work was handed over: a PR, a direct change, or nothing to hand over |
 | `pull_request.merged` / `pull_request.review_requested` | `merge` / `request-review` | the Human's decision on a delivered PR |
+| `workspace.cleaned` | `clean` | after the merge the worktree, the remote branch and the PR are really gone; only then is the task done |
 
 The practice is **teach-back** (health literacy: "explain it back in your own words"); the loop it closes is
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
@@ -123,7 +124,11 @@ shows which kinds of task each model does well and with what quality.
    (`option.generated` x3). Show the three to the Human, each with its style name.
 8. The Human picks one: `... choose --task <id> --option <option id>` records `option.chosen` (that text becomes
    the repetition to confirm) and scores (+1) its style. Wait for the confirmation as in step 4.
-9. Once the Human confirms (`understanding.confirmed`), execute.
+9. Once the Human confirms (`understanding.confirmed`), execute. **Before opening a new PR in a repo, run
+   `skills/kanban/scripts/kanban.sh wip --repo <owner/name>`**: exit 3 means the repo is at its WIP limit (3 open PRs
+   by default): finish or merge one first, do not open a fourth. `hermes.sh spawn hacker ... --repo <owner/name>`
+   runs the same check and refuses. Every branch you create is named `task/<id8>-<slug>`
+   (`scripts/tasks.sh branch --task <id> --slug <slug>` prints it; the pi runs use the model id as the slug).
    - **First, a task with an owning profile: Hermes.** `skills/hermes/scripts/hermes.sh route <kind>` names the profile
      (research, ui, infra, search/ads, upkeep, coordination; code with a PR has none). If it prints one, run
      `skills/hermes/scripts/hermes.sh spawn <profile> "<confirmed teach-back + learnings>" --cwd <repo>`: the profile
@@ -169,12 +174,12 @@ shows which kinds of task each model does well and with what quality.
     the recommended first by the weight of the work: prototype or experiment → **Fazer o merge direto**; product or
     client code → **Revisar antes do merge**; then **Deixar aberto**.
     - *Fazer o merge direto*: run `gh pr merge` yourself, then `... merge --task <id>` records `pull_request.merged`
-      (it only records; the url comes from the delivery).
+      (it only records; the url comes from the delivery) and prints the next command, `clean` (step 13).
     - *Revisar antes do merge*: `... request-review --task <id> --text "<why>"` records
       `pull_request.review_requested` and the task goes back to `confirmed`: run `execute` again; the run is told
       the reason. After the changes, verify and deliver again.
     - *Deixar aberto*: no event; the PR stays as delivered.
-13. **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c <task> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `wt remove <task>`: it deletes the worktree and the branch only when its content is already in main (`⊂`), so it is the "safe to delete" check; never `-D` (an unmerged branch is the owner's call). `wt list` shows what is left. A task done by hand works the same way; only the design stage (a draft in the console's clone) has no worktree.
+13. **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c task/<id8>-<slug> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `scripts/tasks.sh clean --task <id> [--repo <clone>]`. It checks for real (`git worktree list` has no worktree of the branch, `git ls-remote --heads origin <branch>` is empty, `gh pr list --head <branch> --state open` is empty), removes what is left with `wt remove` (it deletes the worktree and the branch only when its content is already in main, `⊂`; never `-D`, never forced: an unmerged branch is the owner's call), deletes the remote branch only when its PR merged, and records `workspace.cleaned` `{text, branch, worktree, pr_url, repo}`. **Done = merged + cleaned**: the task's status is `merged` until then and `done` after; if a check fails, nothing is recorded and the command says what is left. `wt list` shows what is left in any repo. A task done by hand works the same way; only the design stage (a draft in the console's clone) has no worktree. Tests may override the tools with `TASKS_GH`, `TASKS_WT` and `TASKS_PUSH`.
     - **Parallel tasks may touch the same file**: run them anyway, each in its worktree, and land them one at a time.
       The next one rebases on `origin/main` in its own worktree; resolve each conflict **by meaning, never by side**
       (two rules on one line become one line that keeps both; a `version:` clash becomes one above both), then
