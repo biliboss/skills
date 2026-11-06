@@ -2,6 +2,11 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.63.0
+
+- dev-console 0.29.0: `devc delegated` / `devc done` / `devc board`, every delegated subagent is a Kanban card
+  (Downstream, then Feito). hermes 0.2.3: the spawn step says so.
+
 ## 0.62.0
 
 - dev-console 0.28.0: two fingers pan the graph, a pinch or ⌘ + scroll zooms; no graph label under 14 px
