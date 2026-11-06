@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.3] - 2026-11-06
+
+### Fixed
+
+- The home module (`CONSOLE_HOME`, the Kanban's Quadro) is in ⌘P on every page, first, not only on `/domain/kanban`: `_modules` and `/api/palette` add it through `_home_module()` (no duplicate on its own domain). `/api/palette` lists Browser too, like the web list. Test: `test_console_palette.py`.
+
 ## [0.30.2] - 2026-11-06
 
 ### Changed
