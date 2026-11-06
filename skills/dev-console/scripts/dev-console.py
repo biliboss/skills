@@ -1184,17 +1184,21 @@ function fuzzy(q, s) {  // every letter of q, in order, inside s; a lower score 
 }
 function domRender() {
   const q = $('dom-q').value.trim();
-  domHits = D.domains.map(d => ({d, m: fuzzy(q, d.name)})).filter(x => x.m).sort((a, b) => a.m.score - b.m.score);
+  domHits = D.domains.map(d => ({d: {...d, href: `/domain/${d.slug}`}, m: fuzzy(q, d.name)})).filter(x => x.m).sort((a, b) => a.m.score - b.m.score);
+  for (const mod of (D.modules || []).filter(x => x.name !== 'Domain')) {  // a module (Playground) is a fixed last row
+    const m = fuzzy(q, mod.name);
+    if (m) domHits.push({d: {name: mod.name, href: mod.href, entity: 'módulo', module: true}, m});
+  }
   domSel = Math.min(domSel, Math.max(domHits.length - 1, 0));
   $('dom-list').innerHTML = domHits.length ? domHits.map(({d, m}, i) => {
     const name = [...d.name].map((ch, k) => m.at.includes(k) ? `<b class="text-neutral-900 dark:text-neutral-100">${esc(ch)}</b>` : esc(ch)).join('');
     return `<div class="dom-row flex items-center justify-between gap-4 px-4 h-9 cursor-pointer ${i === domSel ? 'bg-neutral-100 dark:bg-neutral-900' : ''}" data-i="${i}">
-      <span class="text-neutral-600 dark:text-neutral-400">${name}${d.slug === D.base.split('/').pop() ? '<span class="ml-2 text-neutral-400">· atual</span>' : ''}</span>
+      <span class="text-neutral-600 dark:text-neutral-400">${name}${d.module ? (d.href === D.module ? '<span class="ml-2 text-neutral-400">· atual</span>' : '') : (D.module ? '' : (d.slug === D.base.split('/').pop() ? '<span class="ml-2 text-neutral-400">· atual</span>' : ''))}</span>
       <span class="text-neutral-400">${esc(d.entity)}</span></div>`;
   }).join('') : '<p class="px-4 h-9 leading-9 text-neutral-400">nenhum domínio</p>';
   $('dom-list').querySelectorAll('.dom-row').forEach(r => { r.onclick = () => { domSel = +r.dataset.i; domGo(); }; r.onmousemove = () => { if (domSel !== +r.dataset.i) { domSel = +r.dataset.i; domRender(); } }; });
 }
-const domGo = () => { const h = domHits[domSel]; if (h) location.href = `/domain/${h.d.slug}`; };
+const domGo = () => { const h = domHits[domSel]; if (h) location.href = h.d.href; };
 const domIsOpen = () => !$('dom').classList.contains('hidden');
 function domOpen() { $('dom').classList.remove('hidden'); $('dom').classList.add('flex'); $('dom-q').value = ''; domSel = 0; domRender(); $('dom-q').focus(); }
 function domClose() { if (Q.get('embed') === 'switcher') return; $('dom').classList.add('hidden'); $('dom').classList.remove('flex'); }
@@ -1552,6 +1556,8 @@ def _now():
 
 
 def _center_of(slug: str) -> str | None:
+    if slug == PLAYGROUND_SLUG and slug not in DOMAINS:  # the Playground has no domain: its center is this console's config
+        return C.center_of(slug, PLAYGROUND_COST_CENTER) if C else None
     return C.center_of(slug, getattr(DOMAINS[slug], "COST_CENTER", None)) if C else None
 
 
@@ -1623,7 +1629,7 @@ def _json(data, status: int = 200):
 @rt("/domain/{slug}/time")
 def time_state(slug: str):
     """Today's numbers for the domain's bar (read only)."""
-    if not use(slug):
+    if not _known(slug):
         return _json({"error": "no such domain"}, 404)
     _settle() if C else None
     state = _money_state(slug)
@@ -1643,7 +1649,7 @@ def time_enter(slug: str):
 @rt("/domain/{slug}/time/start", methods=["POST"])
 def time_start(slug: str):
     """Start a stretch (the only way the clock runs); one at a time, another domain's ends first (domain_change)."""
-    if not use(slug):
+    if not _known(slug):
         return _json({"error": "no such domain"}, 404)
     center = _center_of(slug)
     rate = C.rate_hour(center) if center else None
@@ -1663,7 +1669,7 @@ def time_start(slug: str):
 @rt("/domain/{slug}/time/beat", methods=["POST"])
 def time_beat(slug: str):
     """The page is alive: a stretch nobody pings for a while is closed (ended_by close)."""
-    if not use(slug):
+    if not _known(slug):
         return _json({"error": "no such domain"}, 404)
     if C:
         _settle()
@@ -1676,7 +1682,7 @@ def time_beat(slug: str):
 @rt("/domain/{slug}/time/stop", methods=["POST"])
 def time_stop(slug: str, ended_by: str = "pause", trim_seconds: float = 0):
     """End the running stretch (pause | domain_change | hidden | idle | close); idempotent."""
-    if not use(slug):
+    if not _known(slug):
         return _json({"error": "no such domain"}, 404)
     if C:
         _close_run(ended_by, trim=min(max(trim_seconds, 0), 86400))
@@ -1758,6 +1764,8 @@ def index():
 
 @rt("/domain/{slug}")
 def domain(slug: str, req):
+    if slug == PLAYGROUND_SLUG and slug not in DOMAINS:
+        return RedirectResponse("/playground", status_code=303)
     if not use(slug):
         return Title("não encontrado"), Div(f"Domínio {slug} não existe. Há: {', '.join(DOMAINS)}.", cls="p-8 font-mono text-sm")
     entities = journal.read()
@@ -1807,7 +1815,7 @@ def tension(slug: str, tid: str, embed: str = ""):
     fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
     tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
-    payload = json.dumps({"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
+    payload = json.dumps({"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(slug), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
@@ -1852,15 +1860,7 @@ def tension(slug: str, tid: str, embed: str = ""):
             id="pop", cls="hidden fixed inset-0 z-[10000] items-center justify-center bg-black/40 backdrop-blur-[1px]",
         ),
         # Domain Switcher: a fuzzy finder (fzf, the editors' command palette) over an overlay
-        Div(
-            Div(NotStr('<input id="dom-q" autocomplete="off" spellcheck="false" placeholder="domínio…" '
-                       'class="w-full h-11 px-4 bg-transparent border-0 border-b border-neutral-200 dark:border-neutral-800 '
-                       'font-mono text-sm text-neutral-900 dark:text-neutral-100 outline-none">'),
-                Div(id="dom-list", cls="max-h-[50vh] overflow-y-auto py-1"),
-                Div("↑↓ escolher · Enter abrir · Esc fechar", cls="px-4 h-8 leading-8 border-t border-neutral-200 dark:border-neutral-800 text-neutral-400"),
-                cls="w-[min(560px,92vw)] rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl"),
-            id="dom", cls="hidden fixed inset-0 z-[10001] items-start justify-center pt-[16vh] bg-black/40 backdrop-blur-[1px]",
-        ),
+        _switcher(),
         Script(payload, type="application/json", id="data"),
         Script(src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"),
         # fCoSE (Balci & Dogrusoz 2022): force-directed with constraints; the Human is pinned in the centre
@@ -1868,6 +1868,109 @@ def tension(slug: str, tid: str, embed: str = ""):
         Script(src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"),
         Script(src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js"),
         Script(JS, type="module"),
+        Script(MONEY_JS, type="module"),
+        cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
+    )
+
+# --- the Playground: a mode beside Domain, not tied to any domain. The design-playground's canvas is composed (an
+# iframe on its web), never copied; its chat comes with it (the web has no canvas-only mode) ------------------------
+PLAYGROUND_SLUG = "playground"
+PLAYGROUND_URL = os.environ.get("DEV_CONSOLE_PLAYGROUND_URL", "http://127.0.0.1:5317").rstrip("/")
+PLAYGROUND_COST_CENTER = os.environ.get("DEV_CONSOLE_PLAYGROUND_COST_CENTER", "biliboss-skills")  # its time is counted too
+PLAYGROUND_START = "scripts/motor.sh http --servidor"  # in the design skill; starts the design-playground's server
+
+
+def _known(slug: str) -> bool:
+    """A domain, or the Playground (the money routes answer for both)."""
+    return bool(use(slug)) or (slug == PLAYGROUND_SLUG and slug not in DOMAINS)
+
+
+def _modules(current: str) -> list[dict]:
+    """The modes of the console, for the switcher (and the ⌘P one that comes next): Domain, Playground."""
+    return [{"name": "Domain", "href": f"/domain/{current}" if current in DOMAINS else "/"},
+            {"name": "Playground", "href": "/playground"}]
+
+
+def _switcher():
+    """The Domain Switcher overlay: a fuzzy finder (fzf, the editors' command palette) over a dim layer."""
+    return Div(
+        Div(NotStr('<input id="dom-q" autocomplete="off" spellcheck="false" placeholder="domínio…" '
+                   'class="w-full h-11 px-4 bg-transparent border-0 border-b border-neutral-200 dark:border-neutral-800 '
+                   'font-mono text-sm text-neutral-900 dark:text-neutral-100 outline-none">'),
+            Div(id="dom-list", cls="max-h-[50vh] overflow-y-auto py-1"),
+            Div("↑↓ escolher · Enter abrir · Esc fechar", cls="px-4 h-8 leading-8 border-t border-neutral-200 dark:border-neutral-800 text-neutral-400"),
+            cls="w-[min(560px,92vw)] rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl"),
+        id="dom", cls="hidden fixed inset-0 z-[10001] items-start justify-center pt-[16vh] bg-black/40 backdrop-blur-[1px]",
+    )
+
+
+# the switcher script is the main page's own, cut out of JS (one copy), plus the three names it needs
+SWITCHER_JS = JS[JS.index("// --- Domain Switcher"):JS.index("function wireRows")]
+PLAYGROUND_JS = (r"""
+const $ = id => document.getElementById(id);
+const D = JSON.parse($('data').textContent), Q = new URLSearchParams(location.search);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+D.module = '/playground';
+""" + SWITCHER_JS + r"""
+if ($('down')) {  // the canvas is not up yet: look again every 3 s and open it as soon as it answers
+  setInterval(() => fetch('/playground/up').then(r => r.json()).then(j => { if (j.up) location.reload(); }).catch(() => {}), 3000);
+}
+""")
+
+
+def _playground_up() -> bool:
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(PLAYGROUND_URL + "/", timeout=1.5) as r:
+            return r.status < 500
+    except Exception:
+        return False
+
+
+@rt("/playground/up")
+def playground_up():
+    return _json({"up": _playground_up(), "url": PLAYGROUND_URL})
+
+
+@rt("/playground")
+def playground():
+    """The Playground: the console's bar and the design-playground's canvas filling the rest."""
+    money = None
+    if C:
+        try:  # the money bar is a bonus: it never breaks the page
+            _leave(PLAYGROUND_SLUG)
+            money = _money_state(PLAYGROUND_SLUG)
+        except Exception:
+            money = None
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    payload = json.dumps({"money": money, "base": f"/domain/{PLAYGROUND_SLUG}", "name": "Playground", "domains": domains,
+                          "modules": _modules(PLAYGROUND_SLUG), "url": PLAYGROUND_URL}, ensure_ascii=False).replace("</", "<\\/")
+    line = "border-neutral-200 dark:border-neutral-800"
+    if _playground_up():
+        body = NotStr(f'<iframe id="canvas" src="{PLAYGROUND_URL}/" title="design-playground" '
+                      'class="flex-1 w-full min-h-0 border-0 bg-white"></iframe>')
+    else:
+        body = Div(Div(f"O design-playground não responde em {PLAYGROUND_URL}.", cls="text-neutral-800 dark:text-neutral-200"),
+                   Div(Span("Suba com ", cls="text-neutral-500"), Span(PLAYGROUND_START, cls="text-neutral-800 dark:text-neutral-200"),
+                       Span(" (skill design); esta página abre sozinha quando ele responder.", cls="text-neutral-500")),
+                   id="down", cls="p-8 font-mono text-sm space-y-1")
+    return Title("dev-console · Playground"), Style(CSS), Div(
+        Div(
+            Div("dev-console", cls="shrink-0 pl-4 pr-3 font-semibold text-neutral-900 dark:text-neutral-100"),
+            Div(cls="flex-1 min-w-0"),
+            *([Div(id="money", cls=f"shrink-0 h-full flex items-center gap-3 px-3 whitespace-nowrap border-l {line}")] if money else []),
+            Div(Span("módulo ", cls="text-neutral-400"),
+                Span("Playground", cls="ml-1 font-semibold text-neutral-800 dark:text-neutral-200"),
+                Span("⌘K", cls="ml-2 px-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-400"),
+                id="dom-open", title="trocar de domínio ou módulo (⌘K)",
+                cls="shrink-0 px-4 truncate cursor-pointer hover:text-neutral-900 dark:hover:text-neutral-100"),
+            id="bar", cls=f"h-10 shrink-0 flex items-center border-b {line}",
+        ),
+        body,
+        _switcher(),
+        Script(payload, type="application/json", id="data"),
+        Script(PLAYGROUND_JS, type="module"),
         Script(MONEY_JS, type="module"),
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )

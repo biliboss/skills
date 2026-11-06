@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0] - 2026-11-06
+
+### Added
+- The Playground mode, `/playground`: the console's bar plus the design-playground's canvas in an iframe (composed, not copied; its chat comes with it, its web has no canvas-only mode). `DEV_CONSOLE_PLAYGROUND_URL` (default `http://127.0.0.1:5317`); when it does not answer the page says so in one line with the command that starts it and opens the canvas by itself when it does (`GET /playground/up`).
+- The Playground's money bar: `PLAYGROUND_COST_CENTER` (env `DEV_CONSOLE_PLAYGROUND_COST_CENTER`, default `biliboss-skills`), served by the existing `/domain/playground/time*` routes.
+- `D.modules` (`{name, href}`) on every page; ⌘K lists each module but Domain as a fixed last row ("Playground"). The Domain Switcher script and overlay are now shared by both pages (`SWITCHER_JS`, `_switcher()`).
+
 ## [0.9.0] - 2026-11-06
 
 ### Added

@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.24.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.10.0: the Playground mode (`/playground`), the design-playground's canvas composed in an iframe beside
+  Domain and tied to no domain, with its own cost center on the money bar and a fixed last row in ⌘K.
+
 ## [0.23.0] - 2026-11-06
 
 ### Added
