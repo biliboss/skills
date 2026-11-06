@@ -43,6 +43,10 @@ USAGE = """usage: devc [--port N] [--json] <command>
   stop <port> [--force]            stop one (5057 needs --force)
   list [port]                      running instances (console.sh list)
   check <url> [--shot f.png ...]   headless check of a page (check.sh)
+  board [kanban args...]           the Kanban: passthrough to kanban.sh (devc board list, devc board move ...)
+  delegated "<goal>" --domain D [--parent CARD] [--by bili-local]
+                                   a subagent was dispatched: a card in Downstream (idempotent while open)
+  done <card> [--note text]        the subagent reported: the card goes to Feito
   install                          symlink devc into ~/.local/bin"""
 
 
@@ -474,10 +478,118 @@ def cmd_install(a: dict) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- kanban
+
+
+TITLE_MAX = 80
+
+
+def kanban_path() -> Path:
+    env = os.environ.get("DEVC_KANBAN_SH")
+    return Path(env) if env else Path(__file__).resolve().parent.parent.parent / "kanban" / "scripts" / "kanban.sh"
+
+
+def run_kanban(args: list[str], passthrough: bool = False) -> subprocess.CompletedProcess:
+    path = kanban_path()
+    if not path.exists():
+        raise DevcError(f"kanban.sh not found ({path}); set DEVC_KANBAN_SH")
+    try:
+        if passthrough:
+            return subprocess.run([str(path), *args])
+        return subprocess.run([str(path), *args], capture_output=True, text=True, timeout=SCRIPT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise DevcError(f"kanban.sh {' '.join(args)[:40]} took over {SCRIPT_TIMEOUT} s")
+
+
+def kanban_out(args: list[str]) -> str:
+    p = run_kanban(args)
+    if p.returncode != 0:
+        raise DevcError((p.stderr or p.stdout).strip() or f"kanban.sh failed ({p.returncode})", p.returncode)
+    return p.stdout
+
+
+def board_cards() -> list[dict]:
+    return [r["card"] for r in json.loads(kanban_out(["list", "--json"]) or "[]")]
+
+
+def card_title(goal: str, parent_title: str = "") -> str:
+    goal = " ".join(goal.split())
+    title = f"{parent_title.strip()} · {goal}" if parent_title.strip() else goal
+    return title if len(title) <= TITLE_MAX else title[: TITLE_MAX - 1].rstrip() + "…"
+
+
+def cmd_board(a: dict) -> int:
+    # --json is global in devc but kanban's list/show/money take it too: hand it back
+    args = list(a["args"])
+    if a["json"] and args[:1] in (["list"], ["show"], ["money"]) and "--json" not in args:
+        args.append("--json")
+    return run_kanban(args, passthrough=True).returncode
+
+
+def flag_values(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict]:
+    pos, got, i = [], {}, 0
+    while i < len(args):
+        x = args[i]
+        if x in names:
+            if i + 1 >= len(args):
+                raise DevcError(f"{x} needs a value", 2)
+            got[x] = args[i + 1]
+            i += 1
+        elif any(x.startswith(n + "=") for n in names):
+            n, _, v = x.partition("=")
+            got[n] = v
+        else:
+            pos.append(x)
+        i += 1
+    return pos, got
+
+
+def cmd_delegated(a: dict) -> int:
+    usage = 'usage: devc delegated "<goal>" --domain <slug> [--parent <card>] [--by bili-local]'
+    pos, f = flag_values(a["args"], ("--domain", "--parent", "--by"))
+    if len(pos) != 1 or not pos[0].strip() or not f.get("--domain"):
+        raise DevcError(usage, 2)
+    cards = board_cards()
+    parent_title = ""
+    if f.get("--parent"):
+        q = f["--parent"]
+        hits = [c for c in cards if c["id"].startswith(q) or c["title"] == q]
+        if len(hits) != 1:
+            raise DevcError(f"parent card {q!r}: {'no match' if not hits else 'more than one match'}")
+        parent_title = hits[0]["title"]
+    title, domain = card_title(pos[0], parent_title), f["--domain"]
+    twin = next((c for c in cards if c["title"] == title and c["domain"] == domain and c["stage"] != "Feito"), None)
+    created = twin is None
+    if twin:
+        card_id = twin["id"]
+    else:
+        out = kanban_out(["create", title, "--domain", domain, "--stage", "Downstream", "--actor", f.get("--by", "bili-local")])
+        card_id = json.loads(out)["card_id"]
+    if a["json"]:
+        print(json.dumps({"card": card_id, "title": title, "domain": domain, "stage": "Downstream", "created": created}, ensure_ascii=False))
+    else:
+        print(card_id)
+    return 0
+
+
+def cmd_done(a: dict) -> int:
+    pos, f = flag_values(a["args"], ("--note", "--by"))
+    if len(pos) != 1:
+        raise DevcError("usage: devc done <card> [--note text]", 2)
+    kanban_out(["move", pos[0], "Feito", "--actor", f.get("--by", "bili-local")])
+    note = f.get("--note", "")
+    if a["json"]:
+        print(json.dumps({"card": pos[0], "stage": "Feito", "note": note}, ensure_ascii=False))
+    else:
+        print(f"{pos[0]} -> Feito" + (f" ({note})" if note else ""))
+    return 0
+
+
 COMMANDS = {
     "domains": cmd_domains, "show": cmd_show, "events": cmd_events, "focus": cmd_focus, "open": cmd_open,
     "shot": cmd_shot, "now": cmd_now, "history": cmd_history, "eval": cmd_eval, "start": cmd_start,
     "stop": cmd_stop, "list": cmd_list, "check": cmd_check, "install": cmd_install,
+    "board": cmd_board, "delegated": cmd_delegated, "done": cmd_done,
 }
 
 

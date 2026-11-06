@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.0
+
+- devc gains the Kanban: `devc delegated "<goal>" --domain D [--parent CARD] [--by bili-local]` creates a card in
+  Downstream the moment a subagent is dispatched (title trimmed to 80 characters, prefixed by the parent's title;
+  idempotent per title and domain while the card is open), `devc done <card> [--note]` moves it to Feito, and
+  `devc board [args]` is the passthrough to `kanban.sh`. All through `kanban.sh`; devc never writes the journal.
+
 ## 0.28.0
 
 - The graph moves like a map: two fingers on the trackpad (or a mouse wheel) pan it, a pinch or ⌘ + scroll zooms around
