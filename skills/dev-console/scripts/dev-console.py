@@ -2165,6 +2165,16 @@ def index():
     return RedirectResponse(f"/domain/{_first_domain()}", status_code=303)
 
 
+def _home_module() -> tuple[str, str] | None:
+    """(slug, name) of the first domain that names a CONSOLE_HOME module (the Kanban's Quadro), as `index()` finds it.
+    Listing needs no entity check: the module opens even on an empty journal."""
+    for slug, mod in DOMAINS.items():
+        home = getattr(mod, "CONSOLE_HOME", None)
+        if home:
+            return slug, home
+    return None
+
+
 def _first_domain() -> str:
     """The first domain of this console (its first --project, else the registry's first line)."""
     return next(iter(DOMAINS))
@@ -2235,8 +2245,12 @@ def api_palette(domain: str = ""):
         modules = [{"id": t, "title": t, "url": f"/domain/{domain}?tab={quote(t)}"} for t in _tabs()]
     else:  # the first domain, as "/" used to open (the home may be another domain's module now)
         modules = [{"id": "Domain", "title": "Domain", "url": f"/domain/{_first_domain()}"}]
+    home = _home_module()  # the home module is listed from any page, first; on its own domain it is already a tab
+    if home and not any(m["title"] == home[1] for m in modules):
+        modules.insert(0, {"id": home[1], "title": home[1], "url": f"/domain/{home[0]}?tab={quote(home[1])}"})
     modules += [{"id": "playground", "title": "Playground", "url": "/playground"},
-                {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]}]
+                {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]},
+                {"id": BROWSER_MODULE["name"].lower(), "title": BROWSER_MODULE["name"], "url": BROWSER_MODULE["href"]}]
     return _json({"domains": domains, "modules": modules})
 
 
@@ -2393,9 +2407,12 @@ def _modules(tabs: list[str] | None = None) -> list[dict]:
     """The one module model both pages ship as D.modules, listed by ⌘P: `{name, href}`. On a domain page: Domain and the
     project's TABS (href null: shown in place), then Playground (href: navigates). On the Playground: Domain (the first
     domain, where "/" used to go; "/" is the home now) and Playground. ⌘K never lists these: it lists domains only."""
+    home = _home_module()
+    # the home module (CONSOLE_HOME) is listed on every page, first; on its own domain page it is already a tab
+    lead = [{"name": home[1], "href": f"/domain/{home[0]}?tab={quote(home[1])}"}] if home and home[1] not in (tabs or ()) else []
     if tabs is None:
-        return [{"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
-    return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
+        return [*lead, {"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
+    return [*lead, *({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE, BROWSER_MODULE]
 
 
 def _status_bar(name: str, money: bool, module: bool = True):

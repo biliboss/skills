@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.2
+  version: 0.30.3
 ---
 
 # dev-console
@@ -248,7 +248,8 @@ into the browser's Print). The two key handlers listen in the capture phase so t
   `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
 - **Modules.** Every page carries `D.modules` (`{name, href}`), built by one server function (`_modules`): Domain and the
   project's `TABS` (`href: null`, shown in place), then Playground (`/playground`, navigates). ⌘P lists them (the current
-  one marked "· atual"); ⌘K lists **domains only**. The switcher script is the same on both pages (`SWITCHER_JS` is cut out
+  one marked "· atual"); ⌘K lists **domains only**. The home module (`CONSOLE_HOME`, the Kanban's Quadro) is in ⌘P on
+  every page, first (also in `/api/palette`, which lists Browser too). The switcher script is the same on both pages (`SWITCHER_JS` is cut out
   of the main page's JS, one copy). The Playground page has the same bottom status line (`_status_bar`, its name there is
   "Playground") and ⌘P. Loading `/playground` never ends a running stretch: its script posts `enter` on the first trusted
   gesture like a domain page.
