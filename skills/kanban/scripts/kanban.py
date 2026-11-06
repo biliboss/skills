@@ -290,11 +290,14 @@ def cards_from(events: list[dict]) -> list[Card]:
 
 
 def ranks_from(events: list[dict]) -> dict[str, int]:
-    """The owner's order, replayed: each stage keeps a list of explicitly ranked cards; card.prioritized takes the card
-    out and puts it at its position (0 = top); a move to another stage drops it from the old list (the rank is cleared).
-    A prioritize naming a stage the card is no longer in is ignored. Returns the index of each ranked card."""
+    """The owner's order, replayed. Each stage has its queue as the board shows it: the ranked cards first, then the
+    rest by arrival. card.prioritized takes the card out of that queue and puts it at its position (0 = top), so `rank N`
+    lands at N on screen; the queue it leaves is kept as the explicit order. A move to another stage drops the card from
+    the old order (the rank is cleared) and it arrives last in the new one. A prioritize naming a stage the card is no
+    longer in is ignored. Returns the index of each ranked card."""
     where: dict[str, str] = {}
-    lists: dict[str, list[str]] = {}
+    arrival: dict[str, list[str]] = {}  # every card of the stage, by arrival
+    ranked: dict[str, list[str]] = {}
     for e in events:
         cid, v, kind = e.get("card_id"), e.get("value") or {}, e.get("event")
         if not cid:
@@ -305,20 +308,25 @@ def ranks_from(events: list[dict]) -> dict[str, int]:
             continue
         if kind == "card.created" and cid not in where:
             where[cid] = stage
+            arrival.setdefault(stage, []).append(cid)
         elif kind == "card.moved" and cid in where and where[cid] != stage:
-            if cid in lists.get(where[cid], []):
-                lists[where[cid]].remove(cid)
+            old = where[cid]
+            arrival[old].remove(cid)
+            if cid in ranked.get(old, []):
+                ranked[old].remove(cid)
             where[cid] = stage
+            arrival.setdefault(stage, []).append(cid)
         elif kind == "card.prioritized" and where.get(cid) == stage:
             try:
                 pos = max(0, int(v.get("position")))
             except (TypeError, ValueError):
                 continue
-            ranked = lists.setdefault(stage, [])
-            if cid in ranked:
-                ranked.remove(cid)
-            ranked.insert(min(pos, len(ranked)), cid)
-    return {cid: i for ranked in lists.values() for i, cid in enumerate(ranked)}
+            first = ranked.setdefault(stage, [])
+            queue = first + [c for c in arrival[stage] if c not in first]
+            queue.remove(cid)
+            queue.insert(min(pos, len(queue)), cid)
+            ranked[stage] = queue
+    return {cid: i for queue in ranked.values() for i, cid in enumerate(queue)}
 
 
 def time_entries(cost_events: list[dict], running: dict | None, now: datetime) -> list[TimeEntry]:

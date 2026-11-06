@@ -219,6 +219,11 @@ class BoardTest(unittest.TestCase):
         self.assertEqual(order(evs), ["d", "c", "a", "b"])
         evs.append(ev("card.prioritized", "a", "2026-11-06 09:02", position=1, stage="Upstream"))
         self.assertEqual(order(evs), ["d", "a", "c", "b"])  # the latest explicit order wins
+        # rank N is N on screen, also past the ranked cards (here a and d are ranked, c and b after them)
+        evs.append(ev("card.prioritized", "b", "2026-11-06 09:02", position=2, stage="Upstream"))
+        self.assertEqual(order(evs), ["d", "a", "b", "c"])
+        evs.append(ev("card.prioritized", "c", "2026-11-06 09:02", position=2, stage="Upstream"))
+        self.assertEqual(order(evs), ["d", "a", "c", "b"])
         # moving out clears the rank there; coming back it is unranked again, by arrival
         evs.append(ev("card.moved", "d", "2026-11-06 09:03", stage="Todo", previous="Upstream"))
         evs.append(ev("card.moved", "d", "2026-11-06 09:04", stage="Upstream", previous="Todo"))
