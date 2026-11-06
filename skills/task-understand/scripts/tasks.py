@@ -106,6 +106,7 @@ class Method(StrEnum):
     PRINT = "print"  # one shot: the harness gets the task, runs and exits
     INTERACTIVE = "interactive"  # a session someone can follow and steer
     BY_HAND = "by_hand"  # the agent did it itself, no executor
+    PI = "pi"  # a pi run (0.11.0, `execute` per model); the journal also carries it as method
 
 
 class Harness(StrEnum):
@@ -300,10 +301,26 @@ def result_from(value: dict) -> ExecutionResult | None:
         return None
     pic = lambda p: Picture(p["src"], p.get("caption", ""))  # noqa: E731
     pr = value.get("pull_request")
-    s = value.get("session") or {}
+    if isinstance(pr, str):  # older writers kept just the URL: the number is its tail, the state what the delivery says
+        tail = pr.rstrip("/").rsplit("/", 1)[-1]
+        closed = "fechado" in str(value.get("delivery", "")).lower() or value.get("delivery") == "pr_closed"
+        pr = {"number": int(tail) if tail.isdigit() else 0, "url": pr, "state": "closed" if closed else "open"}
+    s = value.get("session")
+    s = s if isinstance(s, dict) else {}
 
     def one_of(enum, key):  # a field older runs always carried; a pi run may not have it
-        return enum(value[key]) if key in value else None
+        if key not in value:
+            return None
+        try:
+            return enum(value[key])
+        except ValueError:  # a value an older or newer writer used ("claude-code" as a method): kept as the text it is, never a 500
+            return value[key]
+
+    def harness_of(name):  # a Harness, or the text an older writer used
+        try:
+            return Harness(name)
+        except ValueError:
+            return name
 
     def model_of(key):  # a Model family of the older runs, or the registry id as-is (glm, glm-flash, one from config)
         try:
@@ -316,7 +333,7 @@ def result_from(value: dict) -> ExecutionResult | None:
         model=model_of("model") if "model" in value else None, effort=one_of(Effort, "effort"),
         cycle_time_s=int(value["cycle_time_s"]) if "cycle_time_s" in value else None,
         delivery=one_of(Delivery, "delivery"),
-        session=SessionRef(Harness(s.get("harness", value["harness"])), s.get("id"), s.get("log", "")) if full else None,
+        session=SessionRef(harness_of(s.get("harness", value["harness"])), s.get("id"), s.get("log", "")) if full else None,
         pull_request=PullRequest(pr["number"], pr["url"], PullRequestState(pr["state"])) if pr else None,
         commits=tuple(Commit(c["sha"], c["message"], c["repo"]) for c in value.get("commits", [])),
         before_afters=tuple(BeforeAfter(b["title"], pic(b["before"]), pic(b["after"])) for b in value.get("before_afters", [])),

@@ -5,7 +5,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 
 | Name | What it is |
 |---|---|
-| `NAME` | the project's name on the bar |
+| `NAME` | the project's name in the status line and in ⌘K |
 | `SLUG` | optional: the domain's URL, `/domain/<slug>` (default: the skill folder name) |
 | `BASE` | set by the console (`/domain/<slug>`): build every link to the console with it (`f"{BASE}/do/..."`) |
 | `SOURCE` | path of the file that holds `EVENTS` (read live with `ast`) |

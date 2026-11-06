@@ -131,12 +131,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         add("Edit", [("Cut", #selector(NSText.cut(_:)), "x"), ("Copy", #selector(NSText.copy(_:)), "c"),
                      ("Paste", #selector(NSText.paste(_:)), "v"), ("Select All", #selector(NSText.selectAll(_:)), "a")])
         add("View", [("Reload", #selector(reloadAction), "r")])
+        // ⌘P is Print in AppKit and the page's module switcher here; ⌘K is the domain switcher. No Print item exists, and the
+        // menu owns both keys, so the page's overlays open and no print panel can.
+        let overlays = NSMenuItem()
+        let overlayMenu = NSMenu(title: "Go")
+        for o in [PageOverlay.domains, PageOverlay.modules] {
+            let item = NSMenuItem(title: o.title, action: #selector(openOverlay(_:)), keyEquivalent: o.keyEquivalent)
+            item.target = self
+            item.representedObject = o.rawValue
+            overlayMenu.addItem(item)
+        }
+        overlays.submenu = overlayMenu
+        main.addItem(overlays)
         add("Window", [("Close", #selector(NSWindow.performClose(_:)), "w"),
                        ("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m")])
         NSApp.mainMenu = main
     }
 
     @objc private func reloadAction() { webView.reload() }
+
+    @objc private func openOverlay(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let overlay = PageOverlay(rawValue: raw) else { return }
+        webView.evaluateJavaScript(overlay.script, completionHandler: nil)
+    }
 
     // MARK: state out (the app is the only writer)
 

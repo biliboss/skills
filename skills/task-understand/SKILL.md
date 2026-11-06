@@ -5,7 +5,7 @@ description: >-
   something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
   Questions and one-line commands skip the gate.
 metadata:
-  version: 0.13.1
+  version: 0.13.2
 ---
 
 # task-understand

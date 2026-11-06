@@ -9,7 +9,8 @@ Each project file is one domain, served in its own context at /domain/<slug> (SL
 A project file says what to show (see the skill's references/project-contract.md):
   NAME, SOURCE (file with the EVENTS registry {category: {command: event}}), ENTITY, ENTITY_PLURAL,
   ENTITIES ({category: entity name}), PROJECTOR (the fold function), journal (.read(query)), title_of(), WIDGETS.
-Layout: tabs first; the entity rail on the left; the selected record on the right. Domain (first tab) = the
+Layout: the work area (entity rail on the left, the selected record on the right) and one status line at the bottom
+(domain · module · money); ⌘K switches the domain, ⌘P the module (no tab bar). Domain (first tab) = the
 domain model (DDD: aggregate root, entities, commands, events); Model = the state machine.
 Keys (vim-style goto): g d Domain, g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
 g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. All UI state lives in the query.
@@ -90,7 +91,7 @@ class _Live:
 
 
 PROJECT = _Live(CURRENT.get)
-from fasthtml.common import A, Div, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+from fasthtml.common import H2, A, Button, Div, Iframe, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
@@ -419,7 +420,40 @@ def render_widget_list(slug: str, event: str, eid: str | None = None):
         CURRENT.reset(token)
 
 
+def render_screens(steps: list[dict], title: str = "", width: int = 390, height: int = 844, scale: float = 0.62):
+    """The product's real screens, composed (never redrawn): each step {name, url, event?, note?} is an iframe of the
+    product's own URL (a Storybook story, a prototype, the app) in a phone frame, stepped with ← → and the dots; the
+    step's event (the one the screen leads to) shows beside its name. A widget of an event passes the steps around it."""
+    if not steps:
+        return _empty("nenhuma tela")
+    data = json.dumps([{k: st.get(k) for k in ("name", "url", "event", "note")} for st in steps], ensure_ascii=False)
+    w, h = round(width * scale), round(height * scale)
+    go = ("(function(b,d){var r=b.closest('[data-screens]'),S=JSON.parse(r.dataset.screens),"
+          "i=Math.max(0,Math.min(S.length-1,(d==null?+b.dataset.i:+r.dataset.i+d)));r.dataset.i=i;var s=S[i];"
+          "r.querySelector('iframe').src=s.url;r.querySelector('[data-n]').textContent=(i+1)+'/'+S.length+' · '+s.name;"
+          "r.querySelector('[data-e]').textContent=s.event||'';r.querySelector('[data-note]').textContent=s.note||'';"
+          "r.querySelectorAll('[data-dot]').forEach(function(x,j){x.style.opacity=j===i?1:.35});})")
+    btn = "px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+    first = steps[0]
+    return Div(
+        H2(title, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else "",
+        Div(Button("←", type="button", cls=btn, onclick=f"{go}(this,-1)"),
+            Span(f"1/{len(steps)} · {first.get('name', '')}", data_n="1", cls="flex-1 min-w-0 truncate text-neutral-700 dark:text-neutral-300"),
+            Span(first.get("event") or "", data_e="1", cls="shrink-0 font-mono text-xs text-amber-600 dark:text-amber-400"),
+            Button("→", type="button", cls=btn, onclick=f"{go}(this,1)"), cls="flex items-center gap-2"),
+        Div(Iframe(src=first.get("url", ""), style=f"width:{width}px;height:{height}px;border:0;transform:scale({scale});transform-origin:0 0"),
+            style=f"width:{w}px;height:{h}px;overflow:hidden",
+            cls="mt-3"),  # the product draws its own device frame (a Storybook story does)
+        Div(*[Span(cls="inline-block w-2 h-2 rounded-full bg-neutral-500 cursor-pointer", data_dot="1", data_i=str(i),
+                   style=f"opacity:{1 if i == 0 else .35}", onclick=f"{go}(this)") for i in range(len(steps))],
+            cls="mt-2 flex gap-1.5"),
+        P(first.get("note") or "", data_note="1", cls="mt-2 text-sm text-neutral-500"),
+        data_screens=data, data_i="0",
+    )
+
+
 for _mod in DOMAINS.values():
+    _mod.render_screens = render_screens  # the product's real screens, composed (an iframe of its own URL)
     _mod.render_expected = render_expected  # actions may render an expected spec too
     _mod.render_widget_list = render_widget_list  # WidgetList, composable: the right menu's own list
 
@@ -547,21 +581,21 @@ html[data-embed=side] #ev-side { width: 100% !important; border-left: 0; }
 html[data-embed=code] #ev-side { width: 100% !important; border-left: 0; }
 html[data-embed=code] #ev-body > details:not([data-part=Code]), html[data-embed=code] #ev-body > details > summary { display: none !important; }
 /* ?embed=switcher: the Domain Switcher alone, open (DomainSwitcher widget) */
-html[data-embed=switcher] #bar, html[data-embed=switcher] #bar ~ :not(#dom) { visibility: hidden; }
+html[data-embed=switcher] #bar, html[data-embed=switcher] #work { visibility: hidden; }
 html[data-embed=switcher] #dom { padding-top: 24px; }
-/* ?embed=toolbar: the real tab bar alone (Toolbar widget) */
-html[data-embed=toolbar] #bar ~ * { display: none !important; }
-html[data-embed=toolbar] #bar { border-bottom: 0; }
-.tab.on{color:rgb(23 23 23);border-color:rgb(23 23 23)} .dark .tab.on{color:rgb(245 245 245);border-color:rgb(245 245 245)}
+/* ?embed=toolbar: the real status line alone (Toolbar widget) */
+html[data-embed=toolbar] #work, html[data-embed=money] #work { display: none !important; }
+html[data-embed=toolbar] #bar, html[data-embed=money] #bar { border-top: 0; }
+/* the status line: one thin row at the bottom (VS Code, vim); the hint on the right is faint */
+#bar [data-ov]{cursor:pointer} #bar [data-ov]:hover{color:rgb(23 23 23)} .dark #bar [data-ov]:hover{color:rgb(245 245 245)}
 .rec.sel{background:rgb(229 229 229)} .dark .rec.sel{background:rgb(38 38 38)}
 .mermaid svg{max-width:100%}
 /* the money bar: one number ticks, the rest is still; an embed never shows it */
 #money [data-act]{cursor:pointer} #money [data-act]:focus-visible{outline:1px solid currentColor;outline-offset:2px}
 #money .over{color:rgb(220 38 38)} html[data-embed]:not([data-embed=money]) #money{display:none !important}
 /* ?embed=money: the money bar alone (CostToolbar widget) */
-html[data-embed=money] #bar ~ * { display: none !important; }
 html[data-embed=money] #bar > :not(#money) { display: none !important; }
-html[data-embed=money] #bar { border-bottom: 0; } html[data-embed=money] #money { border-left: 0; }
+html[data-embed=money] #money { border-left: 0; }
 /* the right menu's expandable parts: no Pico margins, the chevron right after the title */
 #ev-body details { margin: 0; padding: 0; } #ev-body details summary { margin: 0; list-style: none; }
 #ev-body details summary::after { float: none; margin-left: .25rem; }
@@ -873,22 +907,40 @@ function drawGraph() {
         if (a !== 'human' && a !== b && kindOf(a, b) === 'branch') (groups[`${a}|${Math.sign(pos[b].y - pos[a].y)}`] ??= {a, bs: []}).bs.push(b); });
       const gutter = {};
       Object.values(groups).forEach(({a, bs}) => bs.sort((p, q) => Math.abs(pos[q].y - pos[a].y) - Math.abs(pos[p].y - pos[a].y))
-        .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(70 + i * 10, COL - 58); }));
+        .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(46 + i * 26, COL - 40); }));  // a full track apart: 10 px read as one line
       const branchRoute = (a, b) => { const S = pos[a], T = pos[b], dy = T.y - S.y, dx = T.x - S.x, s = Math.sign(dy);
         if (a === 'human') return Math.abs(dy) >= dx ? [{x: 0, y: T.y - s * dx}] : spurRoute(a, b);
         const h = gutter[`${a}>${b}`];
         if (Math.abs(dy) < COL || dx < COL - 1 || h == null) return spurRoute(a, b);
         const Bs = [{x: S.x + h, y: S.y + s * h}, {x: S.x + h, y: T.y - s * (COL - h)}, {x: S.x + COL, y: T.y}];
         if (dx - COL < 1) Bs.pop(); return Bs; };
+      // the interchange: lines leaving one station down (or up) a 45° leg are ranked by the leg's length; rank k leaves
+      // k·PAR lower-left of the centre (source-endpoint) and turns 2·k·PAR earlier, so the legs are parallel tracks
+      const PAR = 9, legs = {}, rank = {};
+      const rawBs = (a, b) => { const k = kindOf(a, b); return k === 'merge' || a === 'human' || a === b ? [] : k === 'inlane' ? spurRoute(a, b) : branchRoute(a, b); };
+      edges.forEach(e => { const a = e.data.source, b = e.data.target, B = rawBs(a, b)[0]; if (!B) return;
+        const lx = B.x - pos[a].x, ly = B.y - pos[a].y; if (lx < 1 || Math.abs(Math.abs(ly) - lx) > 1) return;
+        (legs[`${a}|${Math.sign(ly)}`] ??= []).push({b, lx}); });
+      Object.entries(legs).forEach(([key, ls]) => { const a = key.split('|')[0];
+        ls.sort((p, q) => q.lx - p.lx).forEach((l, k) => { rank[`${a}>${l.b}`] = k; }); });
+      const shifted = (a, b, Bs) => { const k = rank[`${a}>${b}`] || 0; if (!k || !Bs.length) return Bs;
+        const sg = Math.sign(Bs[0].y - pos[a].y) || 1, d = 2 * k * PAR, nx = Bs[1] || pos[b];
+        const horiz = Math.abs(nx.y - Bs[0].y) < 1;  // a leg that then runs along a row turns earlier; one that drops, lower
+        return [horiz ? {x: Bs[0].x - d, y: Bs[0].y} : {x: Bs[0].x, y: Bs[0].y + sg * d}, ...Bs.slice(1)]; };
       const done = new Set(), born = new Set();
       edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
         if (a === b) return;
         const kind = kindOf(a, b); done.add(`${a}>${b}`); let Bs = [];
-        if (kind === 'merge') { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); Bs = B ? [B] : []; DASH_POINTS.push([pos[a], ...Bs, pos[b]]); }
-        else { Bs = kind === 'inlane' ? spurRoute(a, b) : branchRoute(a, b); e.data.label = '';
+        if (kind === 'merge' && back.has(`${a}>${b}`)) {  // a loop runs leftwards: an arc above the rows, never along a line
+          const dx = Math.abs(pos[b].x - pos[a].x), dy = pos[b].y - pos[a].y;
+          e.classes = `${cl} cross backloop`; e.data.cpd = (pos[b].x <= pos[a].x ? 1 : -1) * (SPURY * 0.9 + Math.min(dx, 4 * COL) * 0.12 + Math.abs(dy) * 0.1); }
+        else if (kind === 'merge') { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); Bs = B ? [B] : []; DASH_POINTS.push([pos[a], ...Bs, pos[b]]); }
+        else { Bs = shifted(a, b, kind === 'inlane' ? spurRoute(a, b) : branchRoute(a, b)); e.data.label = '';
+          const k = rank[`${a}>${b}`] || 0, sg = Math.sign(pos[b].y - pos[a].y) || 1;
+          if (k) e.data.sep = `${-k * PAR}px ${sg * k * PAR}px`;
           const spine = a === 'human' && Math.abs(pos[b].y - pos[a].y) >= 1;
-          e.classes = `${cl} ${spine ? 'spine' : 'line'}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
-          LINE_POINTS.push([pos[a], ...Bs, pos[b]]); }
+          e.classes = `${cl} ${spine ? 'spine' : 'line'}${e.data.sep ? ' parallel' : ''}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
+          LINE_POINTS.push([k ? {x: pos[a].x - k * PAR, y: pos[a].y + sg * k * PAR} : pos[a], ...Bs, pos[b]]); }  // the shifted start, for the label test
         if (Bs.length) e.data.route = route(pos[a], pos[b], Bs); });
       // a lane is continuous: where the model has no edge between a station and the one before it, a faint rail carries the
       // line on; a lane nothing leads into hangs from the Human on the grey spine
@@ -968,6 +1020,8 @@ function drawGraph() {
           'font-family': 'ui-sans-serif, system-ui', color: soft, 'text-opacity': 0.85, events: 'no', 'z-index': 0}},
         {selector: 'edge.spine', style: {width: 4, 'line-color': soft, 'line-opacity': 0.55, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
         {selector: 'edge.rail', style: {width: 6, 'line-color': 'data(color)', 'line-opacity': 0.5, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
+        {selector: 'edge.parallel', style: {'source-endpoint': 'data(sep)'}},
+        {selector: 'edge.backloop', style: {'curve-style': 'unbundled-bezier', 'control-point-distances': 'data(cpd)', 'control-point-weights': 0.5, 'z-index': 1}},
         {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
           'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
       ] : []),
@@ -1180,34 +1234,46 @@ function renderSide() {
 }
 
 const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
-// --- Domain Switcher: fuzzy subsequence match (fzf-style), matched letters in bold, Enter opens /domain/<slug> ----------
-let domSel = 0, domHits = [];
+// --- Switcher overlay: fuzzy subsequence match (fzf-style), matched letters in bold. One finder, two lists:
+// ⌘K the domains only (Enter opens /domain/<slug>), ⌘P the modules (D.modules: Domain, TABS, Playground) ---------
+let domSel = 0, domHits = [], ovMode = 'domain';
 function fuzzy(q, s) {  // every letter of q, in order, inside s; a lower score is a tighter match
   q = q.toLowerCase(); const low = s.toLowerCase(); let i = -1, last = -1, gaps = 0; const at = [];
   for (const ch of q) { i = low.indexOf(ch, i + 1); if (i < 0) return null; if (last >= 0) gaps += i - last - 1; at.push(i); last = i; }
   return {score: gaps + (at[0] || 0), at};
 }
+const ovItems = () => ovMode === 'module'
+  ? D.modules.map(m => ({name: m.name, href: m.href, tag: m.href ? '' : [COUNT[m.name] ? COUNT[m.name]() : '', KEYS[m.name] ? 'g ' + KEYS[m.name] : ''].filter(Boolean).join('  '),
+      cur: m.href ? m.href === D.module : m.name === tab}))
+  : D.domains.map(d => ({name: d.name, href: `/domain/${d.slug}`, tag: d.entity, cur: d.slug === D.base.split('/').pop()}));
 function domRender() {
   const q = $('dom-q').value.trim();
-  domHits = D.domains.map(d => ({d: {...d, href: `/domain/${d.slug}`}, m: fuzzy(q, d.name)})).filter(x => x.m).sort((a, b) => a.m.score - b.m.score);
-  for (const mod of (D.modules || []).filter(x => x.name !== 'Domain')) {  // a module (Playground) is a fixed last row
-    const m = fuzzy(q, mod.name);
-    if (m) domHits.push({d: {name: mod.name, href: mod.href, entity: 'módulo', module: true}, m});
-  }
+  domHits = ovItems().map(d => ({d, m: fuzzy(q, d.name)})).filter(x => x.m).sort((a, b) => a.m.score - b.m.score);
   domSel = Math.min(domSel, Math.max(domHits.length - 1, 0));
   $('dom-list').innerHTML = domHits.length ? domHits.map(({d, m}, i) => {
     const name = [...d.name].map((ch, k) => m.at.includes(k) ? `<b class="text-neutral-900 dark:text-neutral-100">${esc(ch)}</b>` : esc(ch)).join('');
     return `<div class="dom-row flex items-center justify-between gap-4 px-4 h-9 cursor-pointer ${i === domSel ? 'bg-neutral-100 dark:bg-neutral-900' : ''}" data-i="${i}">
-      <span class="text-neutral-600 dark:text-neutral-400">${name}${d.module ? (d.href === D.module ? '<span class="ml-2 text-neutral-400">· atual</span>' : '') : (D.module ? '' : (d.slug === D.base.split('/').pop() ? '<span class="ml-2 text-neutral-400">· atual</span>' : ''))}</span>
-      <span class="text-neutral-400">${esc(d.entity)}</span></div>`;
-  }).join('') : '<p class="px-4 h-9 leading-9 text-neutral-400">nenhum domínio</p>';
+      <span class="text-neutral-600 dark:text-neutral-400">${name}${d.cur ? '<span class="ml-2 text-neutral-400">· atual</span>' : ''}</span>
+      <span class="text-neutral-400">${esc(d.tag)}</span></div>`;
+  }).join('') : `<p class="px-4 h-9 leading-9 text-neutral-400">nenhum ${ovMode === 'module' ? 'módulo' : 'domínio'}</p>`;
   $('dom-list').querySelectorAll('.dom-row').forEach(r => { r.onclick = () => { domSel = +r.dataset.i; domGo(); }; r.onmousemove = () => { if (domSel !== +r.dataset.i) { domSel = +r.dataset.i; domRender(); } }; });
 }
-const domGo = () => { const h = domHits[domSel]; if (h) location.href = h.d.href; };
+const domGo = () => {  // an href navigates; a module with none (a tab of this domain) is shown in place
+  const h = domHits[domSel]; if (!h) return;
+  if (h.d.href) { location.href = h.d.href; return; }
+  domClose(); show(h.d.name);
+};
 const domIsOpen = () => !$('dom').classList.contains('hidden');
-function domOpen() { $('dom').classList.remove('hidden'); $('dom').classList.add('flex'); $('dom-q').value = ''; domSel = 0; domRender(); $('dom-q').focus(); }
+function domOpen(mode = 'domain') {
+  ovMode = mode; $('dom-q').placeholder = mode === 'module' ? 'módulo…' : 'domínio…';
+  $('dom').classList.remove('hidden'); $('dom').classList.add('flex'); $('dom-q').value = ''; domSel = 0; domRender(); $('dom-q').focus();
+}
 function domClose() { if (Q.get('embed') === 'switcher') return; $('dom').classList.add('hidden'); $('dom').classList.remove('flex'); }
-$('dom-open').onclick = domOpen;
+const ovToggle = mode => { if (domIsOpen() && ovMode === mode) domClose(); else domOpen(mode); };
+window.devconsoleModules = () => ovToggle('module');  // the native app's ⌘P menu item (⌘P is Print in AppKit) calls these
+window.devconsoleDomains = () => ovToggle('domain');
+$('dom-open').onclick = () => domOpen('domain');
+if ($('mod-open')) $('mod-open').onclick = () => domOpen('module');
 $('dom').onclick = e => { if (e.target === $('dom')) domClose(); };
 $('dom-q').oninput = () => { domSel = 0; domRender(); };
 $('dom-q').onkeydown = e => {
@@ -1216,7 +1282,16 @@ $('dom-q').onkeydown = e => {
   else if (e.key === 'Enter') { domGo(); e.preventDefault(); }
   else if (e.key === 'Escape') { domClose(); e.preventDefault(); e.stopPropagation(); }
 };
-document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { domIsOpen() ? domClose() : domOpen(); e.preventDefault(); } });
+document.addEventListener('keydown', e => {
+  if (!(e.metaKey || e.ctrlKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'k') { ovToggle('domain'); e.preventDefault(); }
+  else if (k === 'p') {
+    e.preventDefault();  // never the browser's print panel
+    if (e.ctrlKey && !e.metaKey && e.target === $('dom-q')) return;  // inside the finder Ctrl+P is "up"
+    if (!Q.get('embed')) ovToggle('module');
+  }
+});
 function wireRows(el, ev) {  // a WidgetList row opens its widget: click anywhere on it, or Enter / Space when focused
   el.querySelectorAll('.w-row').forEach(r => {
     const go = () => openWidget(ev || r.dataset.ev, r.dataset.w, ev ? D.base : r.dataset.base);
@@ -1368,9 +1443,7 @@ if (!(tab in TABS) || !D.tabs.includes(tab)) tab = 'Domain';
 function show(name) {
   if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); side.id = null; }
   tab = name; setQ('tab', name === 'Domain' ? '' : name);
-  $('tabs').innerHTML = Object.keys(TABS).filter(t => D.tabs.includes(t)).map((t, i) =>
-    `<a role="tab" title="g ${KEYS[t] || ''}" class="tab shrink-0 whitespace-nowrap px-2 h-9 leading-9 cursor-pointer select-none border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 ${t === tab ? 'on' : ''}" data-t="${t}">${nf(t)}<span>${keyed(t)}</span>${COUNT[t] ? `<span class="ml-1.5 text-neutral-400">${COUNT[t]()}</span>` : ''}</a>`).join('');
-  $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.t));
+  $('mod-name').textContent = Q.get('embed') === 'toolbar' && Q.get('sim_tab') ? Q.get('sim_tab') : tab;  // SIMULADO: an example module
   const wide = GRAPH(tab) || tab === 'Task Results';  // full width: no entity rail, no JSON inspector
   $('rail').style.display = $('side').style.display = wide ? 'none' : '';
   $('main').innerHTML = TABS[tab]();
@@ -1404,8 +1477,7 @@ document.addEventListener('keydown', e => {
   if (popOpen()) return;
 });
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
-if (Q.get('embed') && !['toolbar', 'money'].includes(Q.get('embed'))) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
-if (Q.get('embed') === 'toolbar' && Q.get('sim_tab')) D.tabs.push(Q.get('sim_tab'));  // SIMULADO: an example tab, nothing recorded
+if (Q.get('embed') && !['toolbar', 'money'].includes(Q.get('embed'))) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the status line
 show(tab);
 if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');
 if (Q.get('embed') === 'switcher') domOpen();  // the DomainSwitcher widget: the real switcher, open  // CSS hides what an embed leaves out
@@ -1425,8 +1497,9 @@ MONEY_JS = r"""
 const $ = id => document.getElementById(id);
 const D = JSON.parse($('data').textContent), Q = new URLSearchParams(location.search);
 const box = $('money');
-if (box && D.money && !Q.get('embed')) {
-  let S = D.money, t0 = performance.now(), last = Date.now(), leaving = false, native = null, popOpen = false;
+const EMB = Q.get('embed') === 'money';  // the CostToolbar widget: it shows the bar and the ▶ works on click, but it never enters, beats or stops by itself
+if (box && D.money && (!Q.get('embed') || EMB)) {
+  let mine = false, S = D.money, t0 = performance.now(), last = Date.now(), leaving = false, native = null, popOpen = false;
   const brl = (v, d = 2) => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: d, maximumFractionDigits: d});
   const hm = sec => { const m = Math.floor(sec / 60); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
   const units = ['min', 'hora', 'dia'];
@@ -1450,9 +1523,9 @@ if (box && D.money && !Q.get('embed')) {
       box.innerHTML = `${name()}
         <div class="flex flex-col"><div>
           <span class="tabular-nums font-semibold ${over ? 'over' : strong}">${brl(spent)}</span>
-          <span class="tabular-nums ${dim}">de ${brl(S.budget)}</span></div>
-          <div class="mt-0.5 h-[2px] bg-neutral-200 dark:bg-neutral-800"><div class="h-full ${over ? 'bg-red-600' : S.running ? 'bg-neutral-800 dark:bg-neutral-200' : 'bg-neutral-400'}" style="width:${pct}%"></div></div>
-          ${over && eff ? `<div class="mt-0.5 text-[10px] leading-3"><span class="over">passou do orçamento</span><span class="${dim}"> · hoje a ${S.name} pagou ${brl(eff, 0)}/h</span></div>` : ''}</div>
+          <span class="tabular-nums ${dim}">de ${brl(S.budget)}</span>
+          ${over && eff ? `<span class="ml-2 text-[10px]"><span class="over">passou do orçamento</span><span class="${dim}"> · hoje a ${S.name} pagou ${brl(eff, 0)}/h</span></span>` : ''}</div>
+          <div class="mt-0.5 h-[2px] bg-neutral-200 dark:bg-neutral-800"><div class="h-full ${over ? 'bg-red-600' : S.running ? 'bg-neutral-800 dark:bg-neutral-200' : 'bg-neutral-400'}" style="width:${pct}%"></div></div></div>
         <span data-act="rate" tabindex="0" title="min · hora · dia" class="tabular-nums ${mute} hover:text-neutral-900">${rateText()}</span>${button()}`;
     }
     if (popOpen) drawPop();
@@ -1460,7 +1533,7 @@ if (box && D.money && !Q.get('embed')) {
   // the popover: today per cost center and the total (the DayCost numbers); the running stretch counts live
   const pop = document.createElement('div');
   pop.id = 'money-pop';
-  pop.className = 'hidden fixed top-10 right-0 z-[9999] min-w-[18rem] px-4 py-3 rounded-b-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl font-sans text-sm';
+  pop.className = 'hidden fixed bottom-7 right-0 z-[9999] min-w-[18rem] px-4 py-3 rounded-t-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl font-sans text-sm';
   document.body.appendChild(pop);
   function drawPop() {
     const rows = S.days.map(d => d.id === S.center ? {...d, seconds: secondsNow(), cost: spentNow()} : d).filter(d => d.seconds > 0 || d.id === S.center);
@@ -1478,7 +1551,8 @@ if (box && D.money && !Q.get('embed')) {
   const post = (path, body = {}) => fetch(`${D.base}/time/${path}`, {method: 'POST', body: new URLSearchParams(body)})
     .then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); } return s; }).catch(() => {});
   const stop = (by, trim = 0) => { if (!S.running) return; S.closed_money = spentNow(); S.closed_seconds = secondsNow(); S.running = false; draw(); return post('stop', {ended_by: by, trim_seconds: trim}); };
-  const start = () => post('start').then(() => { last = Date.now(); });
+  const start = () => { entered = true; return post('start').then(() => { last = Date.now(); mine = true; }); };
+  const auto = () => !EMB || mine;  // an embed stops, beats and enters only for a stretch its own click started
   const act = el => {
     const a = el && el.closest && el.closest('[data-act]'); if (!a) return;
     if (a.dataset.act === 'rate') { localStorage.setItem('dc.rate', units[(units.indexOf(unit()) + 1) % 3]); draw(); }
@@ -1491,24 +1565,24 @@ if (box && D.money && !Q.get('embed')) {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && popOpen) togglePop(false); });
   let entered = false;  // the first gesture of a person here ends a stretch running in another domain (agents' clicks are not trusted)
   for (const t of ['keydown', 'click', 'scroll', 'pointermove', 'wheel']) addEventListener(t, e => { last = Date.now();
-    if (!entered && e.isTrusted) { entered = true; post('enter'); } }, {capture: true, passive: true});
+    if (!EMB && !entered && e.isTrusted) { entered = true; post('enter'); } }, {capture: true, passive: true});
   // the native app calls this every 5 s with the seconds since the Mac's last input of any kind
   window.devconsoleIdle = seconds => { native = {seconds, at: Date.now()}; };
   const idleSeconds = () => native ? native.seconds + (Date.now() - native.at) / 1000 : (Date.now() - last) / 1000;
   addEventListener('pagehide', () => { leaving = true; });  // navigating inside the domain or reloading: the server keeps the stretch
-  addEventListener('pageshow', e => { leaving = false; if (e.persisted) post('beat'); });
+  addEventListener('pageshow', e => { leaving = false; if (e.persisted && auto()) post('beat'); });
   // the native app feeds the Mac's idle (devconsoleIdle): there a covered window or a reload behind the chat is not
   // leaving, and only 5 min idle stops; a browser tab still stops when hidden
   const NATIVE = /DevConsole/.test(navigator.userAgent) || !!window.webkit?.messageHandlers?.devconsole;
-  document.addEventListener('visibilitychange', () => { if (document.hidden && !leaving && !NATIVE && !native) stop('hidden'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && entered && !leaving && !NATIVE && !native && auto()) stop('hidden'); });  // only a page a person used
   setInterval(() => {
     const idle = idleSeconds();
-    if (S.running && idle > S.idle_minutes * 60) stop('idle', idle);
+    if (S.running && auto() && idle > S.idle_minutes * 60) stop('idle', idle);
     else draw();
   }, 1000);
-  setInterval(() => { if (S.running) post('beat'); }, 10000);
+  setInterval(() => { if (S.running && auto()) post('beat'); }, 10000);
   draw();
-  if (S.running && document.hidden && !NATIVE) stop('hidden');  // a browser tab reloaded in the background: it does not run
+  // a page load never stops the clock (an agent's or a background tab's load is not a person leaving)
 }
 """
 
@@ -1644,7 +1718,7 @@ def time_state(slug: str):
 @rt("/domain/{slug}/time/enter", methods=["POST"])
 def time_enter(slug: str):
     """A person acted on this domain's page (a trusted gesture): a stretch running in another domain ends."""
-    if not use(slug):
+    if not _known(slug):
         return _json({"error": "no such domain"}, 404)
     if C:
         _leave(slug)
@@ -1796,7 +1870,7 @@ def _page_data(slug: str, tid: str, money=None):
     fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
     tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
-    return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(slug), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}
+    return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}
 
 
 def _default_entity() -> str | None:
@@ -1834,7 +1908,7 @@ def tension(slug: str, tid: str, embed: str = ""):
     if not use(slug):
         return RedirectResponse("/", status_code=303)
     money = None
-    if C and not embed:  # an embed (a widget's iframe) neither runs the clock nor ends another domain's stretch
+    if C and embed in ("", "money"):  # an embed (a widget's iframe) neither runs the clock nor ends another domain's stretch; ?embed=money only shows the bar
         try:  # the money bar is a bonus: it never breaks the page (loading it never ends a stretch: a gesture does)
             money = _money_state(slug)
         except Exception:
@@ -1865,30 +1939,17 @@ def tension(slug: str, tid: str, embed: str = ""):
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
+    bar = _status_bar(PROJECT.NAME, bool(money))
     return Title(f"dev-console · {title}"), Style(CSS), Div(
-        Div(
-            Div("dev-console", cls="shrink-0 pl-4 pr-3 font-semibold text-neutral-900 dark:text-neutral-100"),
-            Div(id="tabs", cls="flex-1 min-w-0 flex overflow-x-auto [scrollbar-width:none]"),
-            Div(id="keyhint", cls="shrink-0 w-8 text-neutral-400"),
-            *([Div(id="money", cls=f"shrink-0 h-full flex items-center gap-3 px-3 whitespace-nowrap border-l {line}")] if money else []),
-            # dev-console works at the level of a Project
-            # dev-console works at the level of a Domain: each one in its own context, /domain/<slug>
-            # the current domain; a click or ⌘K opens the Domain Switcher (fuzzy search over an overlay)
-            Div(Span("domain ", cls="text-neutral-400"),
-                Span(PROJECT.NAME, cls="ml-1 font-semibold text-neutral-800 dark:text-neutral-200"),
-                Span("⌘K", cls="ml-2 px-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-400"),
-                id="dom-open", title="trocar de domínio (⌘K)",
-                cls="shrink-0 px-4 truncate cursor-pointer hover:text-neutral-900 dark:hover:text-neutral-100"),
-            id="bar", cls=f"h-10 shrink-0 flex items-center border-b {line}",
-        ),
         Div(
             Div(Div(PROJECT.ENTITY_PLURAL, cls=head), *rail, id="rail", cls=f"w-56 shrink-0 overflow-y-auto border-r {line}"),
             Div(id="main", cls="flex-1 min-w-0 min-h-0 overflow-y-auto"),
             Div(Div("inspector", cls=head),
                 Div(id="inspector", cls="px-4 pb-4 whitespace-pre-wrap break-words text-neutral-600 dark:text-neutral-400"),
                 id="side", cls=f"w-80 shrink-0 overflow-y-auto border-l {line}"),
-            cls="flex-1 min-h-0 flex",
+            id="work", cls="flex-1 min-h-0 flex",
         ),
+        bar,
         Div(
             Div(
                 Div(Div(Div(id="pop-name", cls="font-sans text-lg font-semibold text-neutral-900 dark:text-neutral-100"),
@@ -1931,10 +1992,30 @@ def _known(slug: str) -> bool:
     return bool(use(slug)) or (slug == PLAYGROUND_SLUG and slug not in DOMAINS)
 
 
-def _modules(current: str) -> list[dict]:
-    """The modes of the console, for the switcher (and the ⌘P one that comes next): Domain, Playground."""
-    return [{"name": "Domain", "href": f"/domain/{current}" if current in DOMAINS else "/"},
-            {"name": "Playground", "href": "/playground"}]
+def _modules(tabs: list[str] | None = None) -> list[dict]:
+    """The one module model both pages ship as D.modules, listed by ⌘P: `{name, href}`. On a domain page: Domain and the
+    project's TABS (href null: shown in place), then Playground (href: navigates). On the Playground: Domain (href "/", the
+    first domain) and Playground. ⌘K never lists these: it lists domains only."""
+    if tabs is None:
+        return [{"name": "Domain", "href": "/"}, {"name": "Playground", "href": "/playground"}]
+    return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}]
+
+
+def _status_bar(name: str, money: bool, module: bool = True):
+    """The status line at the bottom of both pages (VS Code, vim): the name (click = ⌘K), · module (click = ⌘P; the page's JS
+    fills #mod-name), the money bar, a faint hint on the right. One markup, so the two pages cannot drift."""
+    line = "border-neutral-200 dark:border-neutral-800"
+    return Div(
+        Span(name, id="dom-open", data_ov="domain", title="trocar de domínio (⌘K)",
+             cls="shrink-0 pl-3 pr-1 max-w-[16rem] truncate font-semibold text-neutral-800 dark:text-neutral-200"),
+        *([Span(Span("·", cls="mr-1 text-neutral-400"), Span(id="mod-name"),
+                id="mod-open", data_ov="module", title="trocar de módulo (⌘P)",
+                cls="shrink-0 px-1 text-neutral-500")] if module else []),
+        Div(id="keyhint", cls="shrink-0 w-8 text-neutral-400"),
+        *([Div(id="money", cls=f"shrink-0 h-full flex items-center gap-3 px-3 whitespace-nowrap border-l {line}")] if money else []),
+        Div("⌘K domínio · ⌘P módulo", cls="ml-auto shrink-0 pr-3 whitespace-nowrap text-neutral-300 dark:text-neutral-700"),
+        id="bar", cls=f"h-7 shrink-0 flex items-center border-t {line} text-neutral-500",
+    )
 
 
 def _switcher():
@@ -1951,12 +2032,15 @@ def _switcher():
 
 
 # the switcher script is the main page's own, cut out of JS (one copy), plus the three names it needs
-SWITCHER_JS = JS[JS.index("// --- Domain Switcher"):JS.index("function wireRows")]
+SWITCHER_JS = JS[JS.index("// --- Switcher overlay"):JS.index("function wireRows")]
 PLAYGROUND_JS = (r"""
 const $ = id => document.getElementById(id);
 const D = JSON.parse($('data').textContent), Q = new URLSearchParams(location.search);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-D.module = '/playground';
+D.module = '/playground';  // the current module, for ⌘P's "· atual"
+let tab = '';
+const COUNT = {}, KEYS = {};  // the switcher's tags exist on a domain page only
+const show = () => {};  // a module with no href is a tab: the Playground has none
 """ + SWITCHER_JS + r"""
 if ($('down')) {  // the canvas is not up yet: look again every 3 s and open it as soon as it answers
   setInterval(() => fetch('/playground/up').then(r => r.json()).then(j => { if (j.up) location.reload(); }).catch(() => {}), 3000);
@@ -1985,14 +2069,12 @@ def playground():
     money = None
     if C:
         try:  # the money bar is a bonus: it never breaks the page
-            _leave(PLAYGROUND_SLUG)
-            money = _money_state(PLAYGROUND_SLUG)
+            money = _money_state(PLAYGROUND_SLUG)  # loading never ends a stretch: the first trusted gesture does (time_enter)
         except Exception:
             money = None
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
     payload = json.dumps({"money": money, "base": f"/domain/{PLAYGROUND_SLUG}", "name": "Playground", "domains": domains,
-                          "modules": _modules(PLAYGROUND_SLUG), "url": PLAYGROUND_URL}, ensure_ascii=False).replace("</", "<\\/")
-    line = "border-neutral-200 dark:border-neutral-800"
+                          "modules": _modules(), "url": PLAYGROUND_URL}, ensure_ascii=False).replace("</", "<\\/")
     if _playground_up():
         body = NotStr(f'<iframe id="canvas" src="{PLAYGROUND_URL}/" title="design-playground" '
                       'class="flex-1 w-full min-h-0 border-0 bg-white"></iframe>')
@@ -2000,20 +2082,10 @@ def playground():
         body = Div(Div(f"O design-playground não responde em {PLAYGROUND_URL}.", cls="text-neutral-800 dark:text-neutral-200"),
                    Div(Span("Suba com ", cls="text-neutral-500"), Span(PLAYGROUND_START, cls="text-neutral-800 dark:text-neutral-200"),
                        Span(" (skill design); esta página abre sozinha quando ele responder.", cls="text-neutral-500")),
-                   id="down", cls="p-8 font-mono text-sm space-y-1")
+                   id="down", cls="flex-1 min-h-0 p-8 font-mono text-sm space-y-1")
     return Title("dev-console · Playground"), Style(CSS), Div(
-        Div(
-            Div("dev-console", cls="shrink-0 pl-4 pr-3 font-semibold text-neutral-900 dark:text-neutral-100"),
-            Div(cls="flex-1 min-w-0"),
-            *([Div(id="money", cls=f"shrink-0 h-full flex items-center gap-3 px-3 whitespace-nowrap border-l {line}")] if money else []),
-            Div(Span("módulo ", cls="text-neutral-400"),
-                Span("Playground", cls="ml-1 font-semibold text-neutral-800 dark:text-neutral-200"),
-                Span("⌘K", cls="ml-2 px-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-400"),
-                id="dom-open", title="trocar de domínio ou módulo (⌘K)",
-                cls="shrink-0 px-4 truncate cursor-pointer hover:text-neutral-900 dark:hover:text-neutral-100"),
-            id="bar", cls=f"h-10 shrink-0 flex items-center border-b {line}",
-        ),
         body,
+        _status_bar("Playground", bool(money), module=False),
         _switcher(),
         Script(payload, type="application/json", id="data"),
         Script(PLAYGROUND_JS, type="module"),

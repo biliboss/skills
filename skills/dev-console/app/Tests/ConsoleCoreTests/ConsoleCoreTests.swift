@@ -162,3 +162,15 @@ private func cmd(_ json: String) -> WindowCommand? { WindowCommand.decode(Data(j
         #expect(s < 30 * 24 * 3600)  // `.null` answers with the time since boot; the any-input type does not
     }
 }
+
+@Suite struct PageOverlayTests {
+    @Test func modulesTakeCommandPAndDomainsCommandK() {
+        #expect(PageOverlay.modules.keyEquivalent == "p")
+        #expect(PageOverlay.domains.keyEquivalent == "k")
+    }
+
+    @Test func eachScriptCallsThePageOnlyIfItHasTheFunction() {
+        #expect(PageOverlay.modules.script == "typeof window.devconsoleModules === 'function' && window.devconsoleModules()")
+        #expect(PageOverlay.domains.script == "typeof window.devconsoleDomains === 'function' && window.devconsoleDomains()")
+    }
+}

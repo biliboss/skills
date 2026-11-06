@@ -249,3 +249,16 @@ public func idleScript(seconds: Double) -> String {
     let s = seconds.isFinite ? max(0, seconds) : 0
     return "typeof window.devconsoleIdle === 'function' && window.devconsoleIdle(\(Int(s.rounded())))"
 }
+
+/// The two page overlays the menu owns: ⌘P is Print in AppKit, so the app takes it for the module switcher (and ⌘K for
+/// the domain switcher); each item evaluates the page's own function, and a page without it does nothing.
+public enum PageOverlay: String, CaseIterable, Sendable {
+    case modules, domains
+
+    public var title: String { self == .modules ? "Módulos" : "Domínios" }
+    public var keyEquivalent: String { self == .modules ? "p" : "k" }
+    public var script: String {
+        let f = self == .modules ? "devconsoleModules" : "devconsoleDomains"
+        return "typeof window.\(f) === 'function' && window.\(f)()"
+    }
+}

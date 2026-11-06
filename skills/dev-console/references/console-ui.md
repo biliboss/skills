@@ -21,29 +21,30 @@ why and the numbers, read when changing a part of the screen.
 
 ## Shape
 
-- One full-screen screen, mono `text-xs`. Tab bar first: `dev-console` · tabs ·
-  `domain <every NAME as a link, the current one bold> · <journal file>` on the right.
+- One full-screen screen, mono `text-xs`. No top bar: one thin status line (`#bar`, `h-7`, `border-t`) at the bottom:
+  `<domain NAME>` (`#dom-open`, click = ⌘K) · `<module>` (`#mod-open`, click = ⌘P) · the money bar (`#money`, its popover
+  opens upward) · a faint `⌘K domínio · ⌘P módulo` on the right. The work area (`#work`) takes the rest of the height.
   The entity's title lives in the rail, not in a header.
-- Tabs as `<a role=tab>` with `whitespace-nowrap shrink-0` in a scrollbar-less strip
-  (`<button>` gets MonsterUI focus rings and wraps). Measure `#tabs` `scrollWidth` vs
-  `clientWidth` at 1440 px and ~1000 px (the user's preview width): when it clips, the
-  bar must compress (letter-only tabs), never hide tabs.
-- Goto keys: `g`, then the tab's letter (underlined, in `title`), a `g…` hint while
+- One overlay (`#dom`), two lists: ⌘K the domains only, ⌘P `D.modules` (`{name, href}`: Domain, `TABS` with `href: null` shown in place, and
+  Playground, which navigates). The Playground page ships the same status line and overlay. Open it with `domOpen('domain' | 'module')`; `window.devconsoleModules()` /
+  `devconsoleDomains()` toggle it for the native menu (⌘P is Print in AppKit). In the browser `keydown` ⌘P / Ctrl+P
+  `preventDefault`s the print panel; inside the finder Ctrl+P is "up".
+- Goto keys: `g`, then the module's letter (shown in the ⌘P overlay), a `g…` hint in the status line while
   pending, 1.2 s timeout, ignored in inputs and with modifiers. No number keys.
 - `Domain` (first, default) and `Model` hide the rail and inspector; both are drawn by
   `drawGraph` (`GRAPH(tab)`): one graph function, one style.
 - `INITIAL` (project file, optional): the events the Human may start with. The first is the
   root; each other one sits beside it, near the Human, and leads to the root's next step.
-- `?embed=1` hides the tab bar: a widget that shows a console screen embeds it in an iframe
+- `?embed=1` hides the status line: a widget that shows a console screen embeds it in an iframe
   (`DomainView` = the Domain tab), never a copy of its markup.
   `?embed=graph` = the graph alone (`StateGraph`): no bar, a click opens no sidebar.
   `?embed=side&ev=<event>` = the right menu alone (`RightMenu`): the event's sidebar, full width.
   `?embed=code&ev=<event>&side=Code` = the Code tab alone (`Code`).
-  `?embed=toolbar` = the real tab bar alone (`Toolbar`); `&sim_tab=<name>` adds an example tab in SIMULADO.
+  `?embed=toolbar` = the real status line alone (`Toolbar`); `&sim_tab=<name>` names an example module in SIMULADO.
   Every embed is laid out by CSS on `html[data-embed=…]`, set before `show()`.
 - `HUB` (project file, optional): every start leads to it and it opens every other category.
-  `TABS` (project file, optional): the tabs after the fixed Domain tab; the bar and the goto keys
-  show only those.
+  `TABS` (project file, optional): the modules after the fixed Domain one; the ⌘P overlay and the goto keys
+  list only those.
 
 ## Domains and URLs
 
