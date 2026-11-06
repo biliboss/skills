@@ -2,7 +2,7 @@
 name: tmux
 description: Faz tudo o que um agente precisa nos panes e janelas do tmux por scripts, sem montar comando na mão. Lê as últimas linhas de um pane, lista sessões, janelas e panes com comando e pasta, manda texto (inclusive um comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, e espera um pane mostrar um texto, com prazo. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "o que a janela bili-sonnet está mostrando", "renomeia a janela". Para abas e sessões do herdr use a `herdr-agentes`; esta é só do tmux.
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # tmux: panes e janelas por script
@@ -34,6 +34,7 @@ Códigos de saída: 0 ok, 124 prazo esgotado (`send` sem ver o texto, `wait`), 1
 
 ## Armadilhas, em cada passo
 
+- **Leia o pane antes de mandar tecla.** Uma janela que você abriu pode ter virado do dono: ele entra nela e o agente dela (uma TUI do Hermes, um Claude Code) passa a ser a conversa dele, às vezes a mesma em que você roda. Antes de `send` ou `key`, `read` o pane: se há um agente vivo (prompt de TUI, barra de status, turno em curso), não mande comando de sair (`/quit`, `/exit`, `C-c`, `C-d`) nem um comando de shell, porque vira mensagem ou fecha a sessão dele. Para reabrir, abra uma janela nova (`win.sh new`) e deixe a antiga para ele.
 - **O alias.** No shell do dono, `tmux` é `tmux new-session -A -s main` e quebra qualquer subcomando (sem terminal, vira `open terminal failed: not a terminal`). Se for chamar o tmux à mão, use `command tmux`. Os scripts chamam o binário pelo caminho (`$TMUX_BIN`, senão `/opt/homebrew/bin/tmux`, senão `command -v tmux`). Nunca rode `tmux` sem caminho. `TMUX_SOCKET=nome` troca para outro servidor (`-L nome`): é como os testes ficam longe do servidor do dono.
 - **`-t` explícito.** Sem `-t`, comandos como `display-message -p` falham fora de um terminal ("not a terminal") ou miram o pane errado. Os scripts passam sempre o `%id`; faça igual se chamar o tmux à mão. O `-t` do próprio tmux aceita prefixo (`bili` acertaria `bili-sonnet`), por isso a resolução é feita antes, por igualdade exata.
 - **`send` = texto, conferir, Enter.** O texto vai com `send-keys -l` (literal), o script espera o FIM do texto aparecer no pane (até `--timeout`) e só então manda o Enter, em outra chamada. Texto e Enter na mesma chamada perdeu as primeiras letras de um comando com barra num Claude Code (`/reload-plugins` chegou `ad-plugins`). Se o fim não aparece, sai 124 sem Enter, com o texto talvez digitado: olhe com `read`, limpe com `key C-u`. Pane sem eco (senha) ou que redesenha o texto: use `--no-verify`.
