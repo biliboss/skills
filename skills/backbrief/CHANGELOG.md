@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.2] - 2026-11-06
+
+### Changed
+
+- The `Implementar` option names the Hermes profile from the routing table (`Implementar com hacker (Hermes)`, `com designer`, `com sre`, `com researcher`).
+
 ## [0.16.1] - 2026-11-06
 
 ### Changed

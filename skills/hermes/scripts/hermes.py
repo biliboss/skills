@@ -28,6 +28,7 @@ FLAT_PREFIXES = ("claude-subscription", "zai", "openai-codex")
 
 # Task kind -> owning profile (references/routing.md is the human copy; keep both in step).
 ROUTES = {
+    "code": "hacker", "build": "hacker", "feature": "hacker", "fix": "hacker", "pr": "hacker",
     "research": "researcher",
     "ui": "designer", "screen": "designer", "widget": "designer", "layout": "designer", "css": "designer",
     "swift": "designer",
@@ -36,7 +37,7 @@ ROUTES = {
     "disk": "mantainer", "mac": "mantainer", "upkeep": "mantainer",
     "coordination": "bili", "coordinate": "bili",
 }
-NO_ROUTE = "no owning profile: code with a PR stays in a worktree with a subagent (backbrief step 9)"
+NO_ROUTE = "no owning profile: run it with a subagent of the session (backbrief step 9)"
 EXIT_NOTE = {0: "ok", 1: "no text returned", 2: "partial or failed", 130: "interrupted", 124: "timeout"}
 
 
