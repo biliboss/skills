@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from console_domain import ConsoleJournal  # noqa: E402
-from fasthtml.common import Div, Iframe, Li, P, Span, Ul  # noqa: E402
+from fasthtml.common import Div, Iframe, Li, NotStr, P, Span, Ul  # noqa: E402
 
 NAME = "dev-console"
 SLUG = "dev-console"
@@ -103,13 +103,24 @@ def code(ctx):
 code.fake = True  # drawn from the code, so it exists before any event is recorded
 
 
+def logo(ctx):
+    """The console's mark, the `</>` tag (tournament logo-devconsole): the one widget the Home starts with (table `home`)."""
+    return Div(NotStr('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="96" height="96" aria-label="dev-console">'
+                      '<path d="M4.82 4.25 L1.24 8.00 L4.82 11.75 M6.82 12.35 L9.18 3.65 M11.18 4.25 L14.76 8.00 L11.18 11.75" '
+                      'fill="none" stroke="currentColor" stroke-width="1.70" stroke-linecap="round" stroke-linejoin="round"/></svg>'),
+               cls="flex items-center justify-center")
+
+
+logo.fake = True  # a mark: it renders before any event is recorded
+
+
 HOME = ("domain.updated", "DomainView")
 INITIAL = ["domain.designed", "domain.imported"]  # Human -> Domain.Designed (new) or Domain.Imported (existing)
 HUB = "domain.updated"  # both starts lead to Domain.Updated, and it links every other category
 
 WIDGETS = {
     # the Domain's widgets hang on Domain.Updated only: Designed and Imported are starts, with nothing to show
-    "domain.updated": [domain_view, state_graph, right_menu, code, domain_switcher],
+    "domain.updated": [domain_view, state_graph, right_menu, code, domain_switcher, logo],
     "event.updated": [event_list],
     "widget.updated": [widget_list],
     "tab.updated": [toolbar],

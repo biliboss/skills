@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.6
+  version: 0.31.0
 ---
 
 # dev-console
@@ -830,16 +830,30 @@ browser.
 
 ## Home: the Dynamic View
 
-`/` is an empty canvas with the `</>` logo in the centre (tournament `logo-devconsole`, option T-tag) until an agent
-puts widgets on it; they appear live (SSE, `/api/home/stream`), with no reload, in a grid. `g h` goes home from any page.
-Agents manage it only through `devc home` (never the journal by hand):
+`/` is the **`home` table of SQLite**, drawn live: it starts with ONE row, the logo widget (`</>`, the widget `dev-console/domain.updated/Logo` of the console's own project; alone it sits centred in the empty canvas), and lists every
+widget placed on the home with its position and composition. Agents put widgets there with `devc`; the owner may also edit
+the rows in any SQLite app (TablePro) and the page follows with no reload (SSE `/api/home/stream`). `g h` goes home from any page.
 
 ```sh
 devc home show <id> --html '<h2>…</h2>' | --html-file f.html | --url localhost:4321 | --widget <slug>/<event>/<Name> [--task T]
-     [--title T] [--span 1-3] [--height PX]      # same id = replace in place
-devc home list [--json] | rm <id> | clear        # clear = back to the logo
+     [--title T] [--span 1-3] [--height PX] [--position N] [--parent ID]     # same id = replace in place
+devc home list [--json] | rm <id> | clear        # clear = back to only the logo row; rm of a parent removes what is inside it
 ```
 
-The journal is `~/.local/share/dev-console/home/events.jsonl` (`DEV_CONSOLE_HOME_DIR`; outside the registry's folder,
-which restarts the console on a write), written only by the server (`console_home.py`) through `POST /api/home/show|rm|clear`;
-`DEVC_ACTOR` names the actor. `html` is drawn in a sandboxed frame (scripts allowed, no same origin).
+**One file**, `~/.local/share/dev-console/dev-console.sqlite` (`DEV_CONSOLE_DB`; WAL), `scripts/console_store.py`. Keep it
+outside the registry's folder (the reloader restarts the console on any write there; tests put the registry in a folder of its own).
+
+- **`widgets`**: the catalogue. One row per widget of every loaded project: `id` = `<domain>/<event>/<Name>` (the URL `/w/<entity>/<event>/<Name>`
+  and `devc home --widget`), `domain, event, name, kind (widget|expected), position, function, module, file, line, fake, roles`
+  (JSON: `home`, `module:X`, `entity_part:Y`), `code` (`inspect.getsource`), `code_sha256`, `project`, `exported_at`. The console rewrites it from the
+  loaded projects at start and on every hot reload, only when something differs: the code files stay the source of the code.
+- **`home`**: one row per placement. `id` (what `devc home show <id>` uses), `widget_id` (a `widgets.id`; null for raw html/url), `source`
+  (`widget|html|url`), `content` (the html or the url), `task` (the entity a widget renders), `title`, `position` (grid order),
+  `span`, `height`, `parent_id` (composition: a placement drawn inside another; a missing parent or a loop falls back to the top),
+  `created_at`, `updated_at`, `actor` (`DEVC_ACTOR`). Seeded once with the logo; the logo row has no frame.
+- **Writers**: from code, only the server (`console_home.py` -> `console_store.py`) through `POST /api/home/show|rm|clear`; the owner by hand.
+  External edits are noticed by watchfiles on the db and its `-wal` file (no polling loop), compared with the last snapshot, and pushed as the same SSE.
+- **The old JSONL** (`~/.local/share/dev-console/home/events.jsonl`, `DEV_CONSOLE_HOME_DIR`) is archive: read once, when `home` is first created,
+  to migrate its placements; never written or deleted after.
+- `html` is drawn in a sandboxed frame (scripts allowed, no same origin); `widget`/`url` in a frame of the route; the logo inline.
+- Tests: `uv run --script scripts/test_console_home.py` (temp database, a real console on `DEVC_TEST_PORT`, default 5097). Any test that starts a console sets `DEV_CONSOLE_DB` to a temp file.
