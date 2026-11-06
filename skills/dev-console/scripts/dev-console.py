@@ -278,7 +278,7 @@ def real_model() -> dict:
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
             "coverage": W.coverage(live_events()), "descriptions": descriptions(), "value_objects": value_objects(),
-            "layout": getattr(PROJECT, "LAYOUT", None), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+            "layout": getattr(PROJECT, "LAYOUT", None) or "metro", **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
                          getattr(PROJECT, "TRANSITIONS", None))}
 
 
@@ -709,6 +709,7 @@ function drawGraph() {
     const SIDE = ['r', 'r', 'b', 'r', 'l', 'l', 't', 'l'];   // N NE E SE S SW W NW: the label's side, fixed per direction
     const FAN = [1, 1, 1, -1, 1, 1, 1, -1];                    // which way a fanned track goes: +1 counter-clockwise, -1 clockwise (never the label's side)
     const cats = Object.keys(M().lifecycle), N = cats.length, dirOf = {}, group = {}, count = {};
+    // the clock as the sun's rays: the categories share the whole turn evenly from 12h, in EVENTS order
     cats.forEach((c, i) => { const d = Math.round(8 * i / N) % 8; dirOf[c] = d; group[c] = count[d] || 0; count[d] = group[c] + 1; });
     const BRANCH = HUMAN_R + 4, RING = BRANCH + (Math.max(...Object.values(count)) - 1) * TRACK + 110;   // the fan leaves the Human's rim, then runs straight
     const at = (c, k) => { const [dx, dy] = DIRS[dirOf[c]], o = FAN[dirOf[c]] * group[c] * TRACK, r = RING + k * STEP;   // ccw side = (dy, -dx)

@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.7.1
+  version: 0.8.0
 ---
 
 # dev-console
@@ -193,6 +193,9 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
    executor already implementing that feature and draw the domain; the implementation follows the approved drawing.
 2. **Name events after the story's own actors and verbs** (Task.Explained → Understanding.TaughtBack), not
    generic document nouns (Brief.Created → Narrative.Generated read as unrelated to the story and were rejected).
+   An event says the intent, not a CRUD change: List.ItemAdded / ItemRemoved (Segment's e-commerce spec: "Product
+   Added to Wishlist"), not List.Updated for a save; keep `Updated` for the thing itself changing (a rename). The
+   event starts with the entity of its line (List.ItemAdded, not Item.Saved inside the list line).
    Look up the literature's term for the practice (teach-back, closed-loop communication) and cite it in the
    module docstring. **The entity noun must be universal** (home, school, any company): Task, not Demand
    ("demand" reads as an imposition in English and is Brazilian work slang).
@@ -236,14 +239,34 @@ For a product whose code already records domain events (Domain.Imported):
    This is long work: give it to a subagent with the console contract and the read-only rule.
 2. `EVENTS` follows the code's own kinds, each line traceable (`# kind: ListingShared`), with the Portuguese comment
    taken from the code's docs; the journal returns one placeholder entity when production's journal is unreachable.
-3. A big import drawn at once is "bom mas complexo": set `LAYOUT = "metro"` (a big domain is always a metro map, see
+   **Start from the product's event catalogue and its emit call sites**, not from memory: the registry where each kind
+   is declared with its sentence and product question (Via: `visitor("Kind", stage, desc, question)` in
+   `events/core.ts`) and a grep of the emit calls (`fact(`, `appendTo(`) for where each one is born (file:line).
+   Keep apart **entity streams** (`list:<id>`: ListCreated, ListItemSaved; the entity's own facts) and **analytics
+   facts** on another stream (the visitor's ItemSaved, ListOpened): mixing them into one line misdraws the domain.
+   Before proposing a new event name, check whether the code already has one; a code comment like "nothing is
+   updated" vetoes a proposed `Updated`. A renamed kind stays a draft here; the rename in the product is a card for
+   whoever owns that repo.
+   A code-graph tool (graphify: `uv tool install graphifyy`, then `graphify update . --no-cluster` and
+   `graphify cluster-only . --no-label`, code-only and no LLM; `GRAPHIFY_QUERY_LOG_DISABLE=1`) parses symbols with
+   tree-sitter, so it does not see event kinds written as strings: use it for impact (`affected`, `path`) and
+   navigation, with an ignore list for `.claude`, `.data`, `vault`, `archive` (about half the nodes otherwise).
+3. Every domain is drawn as a metro map by default (no `LAYOUT` needed; he asked for it as the console's standard,
+   not one project's); a big import drawn at once is "bom mas complexo" without it (see
    the contract; `"clock"` still works for the plain clock), keep only the first hand in `EVENTS`
    (the north at 12 o'clock is the access to the system by a Human with no role yet; then where the Human takes a
    role) and park the other categories, as imported, in `EVENTS_BACKLOG` in the same file until he orders the next
    hand. The clock order is the order of `EVENTS`: never a list in the project file nor a number in the console.
    The map's order is the order of `EVENTS`: the first category leaves the Human at 12 o'clock, the others follow
    clockwise, each category is a line and its events are the stations in the order written.
-4. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
+4. **A metro line follows `TRANSITIONS`, not adjacency in `EVENTS`**: a station's parent is its earliest in-line
+   predecessor by a forward edge; where it forks, the longest path stays the trunk and the others leave as 45°
+   branches; a backward edge (reactivation) stays a dashed cross edge. When reviewing an imported category, ask
+   "sequence or fork?": usually only activation is a sequence (sign up → verify), then the active entity forks into
+   repeatable acts (edit, change slug, come back), and silence loops back to a session.
+   **The categories spread evenly around the Human, like sun rays** (`round(8 * i / N)`): he preferred it over one
+   clock hour per category or one direction each. Ask before changing the spread rule.
+5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
 
 ## Design a widget with the user
@@ -378,7 +401,12 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   `SLUG` for its process events): pointing at `ctx.entity_id` opened another domain without that
   event ("comando undefined").
 - Edit the console with small patcher scripts that assert each replacement: sed misses JS
-  with quotes and backslashes without saying so.
+  with quotes and backslashes without saying so. Never add a `#` comment in the middle of a Python expression line
+  (a dict entry followed by `**derive(...)`): it swallows the rest of the line. After every patch to
+  `dev-console.py` run `uv run --with python-fasthtml python -m py_compile <file>`: the hot reload restarts on save,
+  and a syntax error kills the console for every domain, his native window included.
+- While the money clock runs in his window, do not open another domain's page anywhere (curl, `fetch`, headless):
+  a page GET of another domain closes the running stretch (`domain_change`). Check other domains on a test console.
 - The user iterates fast on the look: one change, screenshot at his width (~1000 px, dark
   mode), short report; spacing moves by small steps (too tight and too loose both get
   rejected).

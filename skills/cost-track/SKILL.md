@@ -46,6 +46,14 @@ slug, else `None`), `rate_hour(center)` (a client at `value_month`, an investmen
 A domain joins a center with `COST_CENTER = "<id>"` in its project file, or by being in the center's `domains` list in
 `cost_center.updated`. The Costs domain itself declares `biliboss-skills`.
 
+## Widgets
+
+On the journal's real data, each starting with its title: **Worth** (the hour now and at the goal, per min and month),
+**CostCenters** (each center, kind, day budget or "sem teto", cost), **DayCost** (`HOME`: today per center with hours,
+cost, "de R$ <budget>" or "investido", red over budget, and the total), **TimeEntries** (each stretch as its sentence)
+and **CostToolbar** ("Relógio de custo": the console's real money bar as an `Iframe` of `?embed=money`, `fake = True`;
+never a copy of the bar). A new event worth seeing gets its widget in the same change as the event.
+
 ## Journal
 
 Global and append-only, `~/.local/share/costs/events.jsonl` (override `COSTS_DIR`), a JSONL he may edit by hand while
