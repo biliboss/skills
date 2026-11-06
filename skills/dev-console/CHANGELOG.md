@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0] - 2026-11-06
+
+### Added
+- ⌘P (Ctrl+P in a browser) opens the **module switcher** on every page: the ⌘K overlay (same look and keys, fzf-style typing) over `D.modules`, one list of `{name, href}` built by one server function (`_modules`): Domain and the project's `TABS` (`href: null`, shown in place), then Playground (`/playground`, navigates). The current module reads "· atual". ⌘K lists **domains only** (the Playground row is gone from it). The page exposes `window.devconsoleModules()` (and `devconsoleDomains()`); the key never opens the browser's print panel.
+- Native app: a "Go" menu with "Domínios" (⌘K) and "Módulos" (⌘P) that evaluate those functions in the page, so AppKit's ⌘P (Print) never opens a panel (`PageOverlay` in `ConsoleCore`, tested).
+- The Playground page has the same bottom status line (`_status_bar`) and ⌘P; its name in the status line is "Playground". The switcher script stays one copy (`SWITCHER_JS`, cut from the page's JS).
+
+### Changed
+- The tab bar is gone. One thin status line (28 px) at the bottom replaces the toolbar: `<domain>` (click = ⌘K), `· <module>` (click = ⌘P), the money bar (unchanged; its popover opens upward and the over-budget note rides on the first row), and a faint `⌘K domínio · ⌘P módulo`. The graph takes the full height. `?embed=toolbar` and `?embed=money` render the status line and the money piece alone.
+
+### Fixed
+- Loading `/playground` no longer ends a stretch running elsewhere: only `POST time/enter` on a person's first trusted gesture does, there as on a domain page (`time_enter` answers for the Playground too).
+- `?embed=money` showed an empty line: it now shows the bar (read-only state; the ▶ works on click). An embed still never enters, beats or stops the clock on its own, except for a stretch its own click started.
+
 ## [0.10.0] - 2026-11-06
 
 ### Added
