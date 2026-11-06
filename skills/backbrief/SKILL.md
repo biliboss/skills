@@ -1,18 +1,21 @@
 ---
-name: task-understand
+name: backbrief
 description: >-
-  Gate before any build or write request. When the user asks you to create, write, build, implement or change
-  something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
-  Questions and one-line commands skip the gate.
+  Formerly task-understand (so "/task-understand" and "task understand" still land here). Gate before any build or
+  write request. When the user asks you to create, write, build, implement or change something, do not start: first
+  brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
+  one-line commands skip the gate.
 metadata:
-  version: 0.13.4
+  version: 0.14.0
 ---
 
-# task-understand
+# backbrief
+
+The name is the US Army's backbrief: the subordinate briefs back the plan he received before executing (formerly `task-understand`). The practices it uses are the teach-back and closed-loop communication.
 
 One command runs the whole workflow, from `task.explained` to `pull_request.merged`, including adjustments, feedback and styles, the independent verification and the delivery. The domain is
 **Tasks** (plural: the set of tasks), shown in the dev-console as Biliboss Skills - Tasks at `/domain/tasks`;
-other workflows of the domain come as `task-<action>` skills.
+other workflows of the domain come as their own skills.
 
 **One Entity:** Task, a piece of work explained to someone (the most universal name: a to-do at home, an
 assignment at school, a ticket in a software team).
@@ -149,6 +152,13 @@ shows which kinds of task each model does well and with what quality.
       the reason. After the changes, verify and deliver again.
     - *Deixar aberto*: no event; the PR stays as delivered.
 13. **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c <task> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `wt remove <task>`: it deletes the worktree and the branch only when its content is already in main (`⊂`), so it is the "safe to delete" check; never `-D` (an unmerged branch is the owner's call). `wt list` shows what is left. A task done by hand works the same way; only the design stage (a draft in the console's clone) has no worktree.
+    - **Parallel tasks may touch the same file**: run them anyway, each in its worktree, and land them one at a time.
+      The next one rebases on `origin/main` in its own worktree; resolve each conflict **by meaning, never by side**
+      (two rules on one line become one line that keeps both; a `version:` clash becomes one above both), then
+      compile and run the tests before the merge: picking a side silently drops the other task's fix.
+    - **The owner changes direction while a subagent runs**: steer it (`delegate_task` action `steer`, the new rule
+      in one directive message) instead of killing and relaunching; a file-based brief to a running executor is
+      not re-read, so a small addition is done by hand when it returns.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`

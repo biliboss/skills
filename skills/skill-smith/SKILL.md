@@ -2,7 +2,7 @@
 name: skill-smith
 description: Create, update or adapt an agent skill (SKILL.md) so the next session does the task right on the first try. CREATE turns a workflow from this session (or notes, or a fresh idea) into a skill; UPDATE folds a correction or lesson into every skill it affects, with a diff per file; ADAPT ports an external skill (GitHub, local disk, pasted) with a license check and attribution. Prefers patching an existing skill over making a new one. Use when the user says "skill-smith", "skillify", "make this a skill", "turn this into a skill", "update the X skill", "remember this in the skill", "propagate this lesson", "port/adapt this skill", or corrects how a class of task should be done.
 metadata:
-  version: 0.4.0
+  version: 0.4.1
   license: MIT
 ---
 
@@ -70,7 +70,7 @@ Take the **first** option that fits ([Hermes' preference order](https://github.c
 1. **A skill that was loaded this session** and covers the lesson. It was in play, so extend it.
 2. **An existing broad skill** for the class of task. Find it with `rg -l -i '<terms>' .claude/skills ~/.claude/skills --glob 'SKILL.md'`, then read it.
 3. **A support file** under an existing skill: `references/<topic>.md` (depth needed only sometimes), `templates/` (files to copy), `scripts/` (re-runnable actions). Add a one-line pointer in its SKILL.md.
-4. **A new class-level skill**, only when nothing above covers the class. Name it for the class (`deploy-vps`), not the incident (`fix-tuesday-deploy`). Check the name against the harnesses' built-in slash commands (Claude Code, Hermes, pi) before creating it: a skill named like a built-in (`tasks` vs Claude Code's `/tasks`) loses its short command and gets a fallback such as `/skill tasks`. A workflow over a domain is one skill named `<entity>-<action>` (`task-understand`): one command runs the whole workflow, never one skill per command (they would each repeat the contract and the journal); the domain itself keeps its plural name.
+4. **A new class-level skill**, only when nothing above covers the class. Name it for the class (`deploy-vps`), not the incident (`fix-tuesday-deploy`). Check the name against the harnesses' built-in slash commands (Claude Code, Hermes, pi) before creating it: a skill named like a built-in (`tasks` vs Claude Code's `/tasks`) loses its short command and gets a fallback such as `/skill tasks`. A workflow over a domain is one skill named `<entity>-<action>`, or, when the practice has its own short name in the literature, that name (`backbrief`, `retro`), since short names are preferred: one command runs the whole workflow, never one skill per command (they would each repeat the contract and the journal); the domain itself keeps its plural name.
 
 **Read before you write.** Open the current SKILL.md (and any file you will overwrite) in this session before editing it. Hermes [enforces this in code](https://github.com/NousResearch/hermes-agent/blob/bf0203a794a07aac3ff764972ab9087baa4e4f4e/tools/skill_manager_guards.py); here it is a rule.
 

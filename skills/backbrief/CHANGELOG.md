@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-11-06
+
+### Changed
+
+- Renamed from `task-understand` to `backbrief` (US Army: the subordinate briefs back the plan before executing). The Tasks domain keeps its name, slug, journal and scripts.
+
 ## [0.13.4] - 2026-11-06
 
 ### Added

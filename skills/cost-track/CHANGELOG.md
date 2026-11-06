@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-11-06
+
+### Changed
+
+- Mentions `backbrief` (renamed from task-understand).
+
 ## [0.3.1] - 2026-11-06
 
 ### Changed

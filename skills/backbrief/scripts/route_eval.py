@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Routing eval of task-understand descriptions on pi (see references/evals.md).
+"""Routing eval of backbrief descriptions on pi (see references/evals.md).
 
 Each variant is a copy of the skill with only the description changed, loaded beside the other real skills
 (`--no-skills` + one `--skill` each) so it competes as in real use. Each run gets a work request in its own temp
@@ -42,9 +42,9 @@ PROMPTS = [  # (prompt, the file it asks for)
 
 
 def variant(name: str, desc: str | None) -> Path:
-    dst = OUT / "skills" / name / "task-understand"
+    dst = OUT / "skills" / name / "backbrief"
     shutil.rmtree(dst, ignore_errors=True)
-    shutil.copytree(SKILLS / "task-understand", dst)
+    shutil.copytree(SKILLS / "backbrief", dst)
     if desc is not None:
         s = (dst / "SKILL.md").read_text()
         a, b = s.index("description: >-\n"), s.index("metadata:\n")
@@ -57,7 +57,7 @@ def run(model: str, name: str, skill: Path, k: int) -> dict:
     work = Path(tempfile.mkdtemp(prefix=f"{name}-{k}-", dir=OUT))
     prompt, target = PROMPTS[k]
     args = ["bash", str(PI), "mukutu", "-p", "--no-session", "--mode", "json", "--model", MODELS[model], "--no-skills"]
-    for p in [p for p in SKILLS.iterdir() if (p / "SKILL.md").exists() and p.name != "task-understand"] + [skill]:
+    for p in [p for p in SKILLS.iterdir() if (p / "SKILL.md").exists() and p.name != "backbrief"] + [skill]:
         args += ["--skill", str(p)]
     args.append(prompt.format(d=work))
     log = work.with_suffix(".jsonl")
