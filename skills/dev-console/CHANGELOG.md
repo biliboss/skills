@@ -2,6 +2,19 @@
 
 ## [0.25.0] - 2026-11-06
 
+### Added
+
+- **Focus + context on a big domain's branch layout** (more than 15 events; Furnas 1986). It opens with one lane drawn
+  whole (the journal's latest event's lane, else the `HOME` event's, else the first) and the others folded to one line:
+  dots, no labels, nothing dashed, and the lane's name and count as a frozen row header at the window's left edge. A click
+  on a folded lane, or its number key (1-9), opens it and folds the previous; `0` opens all; the legend is the same
+  switcher; `?lane=<cat>|all` keeps it. A column with no open-lane station narrows to 44 px, a stage band never below its
+  header, so the open lane stays readable; the fit fits the open lane, not everything. Via: the session lane at 0.87, the
+  others one line each; Zap: the account lane (its `HOME`) and ten named rows, where every lane born right of the window
+  had no visible name before.
+- **Labels never below 16 px at 1140×1074**: the branch zoom floor is 0.81 (every branch label 20 px, the dashed edges'
+  too, were 17), and `min-zoomed-font-size` 16 hides a label a hand zoom-out would shrink below that.
+
 ### Fixed
 
 - **`render_screens` shows the product's screen with its own frame only, scaled to fit.** A step may say where the

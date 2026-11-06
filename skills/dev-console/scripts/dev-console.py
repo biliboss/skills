@@ -787,6 +787,116 @@ function toggleLayout() {  // `L` only (no button): branch <-> metro (rays), rem
   clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1200);
 }
 
+// --- focus + context on the branch layout (Furnas 1986, "Generalized fisheye views"; Card, Mackinlay & Shneiderman
+// 1999). A domain with more than FOCUS_MIN events opens with ONE lane drawn whole and every other lane folded to one
+// labelled line with its count; a click on a folded lane (or its number key) opens it and folds the one open before;
+// 0 opens them all. `lane` in the query keeps the choice (`all` = every lane open). The columns keep their order (the
+// mental map stays): a column with no station of an open lane narrows to FOLD_COL (a rubber sheet), so the open lane
+// keeps its labels readable at the window's zoom instead of the whole map shrinking to fit it.
+const FOCUS_MIN = 15, LABEL_MIN_PX = 16, BRANCH_FONT = 20, FOLD_COL = 44, BAND_MIN = 170;
+const FOLD_ABOVE = 46, FOLD_BELOW = 24;   // a folded lane's band: its label above the line, the line, a little air
+function laneDefault(cats) {  // the lane of the journal's latest event, else of the project's HOME, else the north (the first)
+  const latest = E.filter(e => cats.includes(String(e.event || '').split('.')[0]))
+    .reduce((a, e) => (!a || String(e.at || '') >= String(a.at || '') ? e : a), null);
+  const home = (D.home || []).length ? String(D.home[0]).split('.')[0] : null;
+  return latest ? latest.event.split('.')[0] : cats.includes(home) ? home : cats[0];
+}
+function laneFocus(cats) {  // null: a small domain, every lane open as before
+  const n = cats.reduce((s, c) => s + M().lifecycle[c].length, 0);
+  if (n <= FOCUS_MIN || cats.length < 2) return null;
+  const q = Q.get('lane'), evc = (Q.get('ev') || '').split('.')[0];
+  const open = q === 'all' ? null : cats.includes(q) ? q : cats.includes(evc) ? evc : laneDefault(cats);
+  return {open, cats, folded: new Set(open ? cats.filter(c => c !== open) : [])};
+}
+function openLane(c) { setQ('lane', c || 'all'); drawGraph(); }   // c: a lane, or null for all of them
+function laneKey(e) {  // 1-9 open that lane (EVENTS order), 0 opens every lane; only on a focused branch drawing
+  const info = window.__cy && window.__cy.scratch('branch'), F = info && info.focus;
+  if (!F || e.metaKey || e.ctrlKey || e.altKey || !/^[0-9]$/.test(e.key)) return false;
+  const i = +e.key; if (i && !F.cats[i - 1]) return false;
+  openLane(i ? F.cats[i - 1] : null); e.preventDefault(); return true;
+}
+// the columns, left to right: centre x of each global column (0 = the Human's) and each stage band's x1..x2. Focused,
+// a column with no station of an open lane is FOLD_COL wide and a band never narrower than its header; unfocused,
+// every column is COL (the plain grid of before)
+function foldGrid(SO, width, bandStart, wide, COL, GAP, labels) {
+  const n = Math.max(1, ...SO.map((s, i) => bandStart[i] + width[i])), w = [], stageAt = [0];
+  for (let g = 0; g < n; g++) w[g] = !wide || g === 0 || wide.has(g) ? COL : FOLD_COL;
+  SO.forEach((s, i) => { for (let g = bandStart[i]; g < bandStart[i] + width[i]; g++) stageAt[g] = i;
+    if (!wide || !width[i]) return;
+    const need = Math.max(BAND_MIN, String(labels[s] ?? s).length * 12 + 48);
+    let have = 0; for (let g = bandStart[i]; g < bandStart[i] + width[i]; g++) have += w[g];
+    if (have < need) for (let g = bandStart[i]; g < bandStart[i] + width[i]; g++) w[g] += (need - have) / width[i]; });
+  const x = []; let left = 0;
+  for (let g = 0; g < n; g++) { x[g] = left + w[g] / 2 - w[0] / 2 + (stageAt[g] || 0) * GAP; left += w[g]; }
+  return {x, band: i => width[i] ? {x1: x[bandStart[i]] - w[bandStart[i]] / 2, x2: x[bandStart[i] + width[i] - 1] + w[bandStart[i] + width[i] - 1] / 2}
+                                 : {x1: 0, x2: 0}};
+}
+// a folded lane: its stations are dots on its row with no label (its name is a row header, laneHeads), and what is
+// dashed there (merges, loops, jumps into it) waits until it opens. Every element of it opens it
+function foldLanes(F, lanes, nodes, edges, laneOf) {
+  if (!F) return;
+  const folded = id => laneOf[id] != null && lanes[laneOf[id]].fold;
+  nodes.forEach(n => { const id = n.data.id; if (!folded(id)) return;
+    n.data.mlabel = ''; n.data.fold = lanes[laneOf[id]].c; n.classes = `${n.classes || ''} folded`; });
+  edges.forEach(e => { const d = e.data, a = d.from || d.source, b = d.target, cl = e.classes || '';
+    const dashed = /\b(cross|stub|backloop)\b/.test(cl);
+    if (dashed && (folded(b) || (!/\bstub\b/.test(cl) && folded(a)))) { e.classes = `${cl} foldhide`; d.label = ''; return; }
+    if (folded(b) && folded(a)) d.fold = lanes[laneOf[b]].c; });
+}
+// the home view of a branch drawing: the Human at the top left, the zoom fitting the height but never below what keeps
+// a label at LABEL_MIN_PX; a focused drawing fits its open lane, never everything (the rest is a scroll away), from the
+// Human's column so the left edge stays put across lanes, unless the lane starts past the window's middle
+function laneView(cy, info) {
+  const m = 40, W = cy.width(), H = cy.height(), zmin = (LABEL_MIN_PX + 0.2) / BRANCH_FONT;
+  const opt = {includeLabels: true, includeOverlays: false}, bb = cy.elements(':visible').boundingBox(opt);
+  const F = info && info.focus, li = F && F.open ? F.cats.indexOf(F.open) : -1;
+  const lane = li < 0 ? null : cy.nodes('.station').filter(n => n.data('lane') === li), ob = lane && lane.nonempty() ? lane.boundingBox(opt) : null;
+  let z = Math.min(1, (H - 2 * m) / Math.max(bb.h, 1), ob ? (W - 2 * m) / Math.max(ob.x2 - bb.x1, 1) : 1);
+  z = Math.max(z, zmin);
+  const pan = {x: m - bb.x1 * z, y: m - bb.y1 * z};
+  if (ob && (ob.x1 - bb.x1) * z > (W - 2 * m) / 2) pan.x = m - (ob.x1 - 2 * m) * z;   // a lane born far right: from its start
+  if (ob && (ob.y2 - bb.y1) * z > H - 2 * m) pan.y = m - Math.max(bb.y1, ob.y1 - 3 * m) * z;
+  return {zoom: z, pan};
+}
+// the legend of a focused drawing is the lanes' switcher: console text (spans, tabindex 0), the open lane underlined
+function laneLegend(info, PATH) {
+  const F = info && info.focus, el = $('legend'); if (!F || !el) return;
+  const span = (c, text, on) => `<span tabindex="0" data-lane="${esc(c)}" class="cursor-pointer ${on ? 'underline underline-offset-4 font-semibold' : 'opacity-70 hover:opacity-100'}"${c ? ` style="color:${PATH[c]}"` : ''}>${text}</span>`;
+  el.innerHTML = F.cats.map((c, i) => span(c, `${i < 9 ? i + 1 + ' ' : ''}${esc(c)}`, F.open === c)).join('') + span('', '0 todas', !F.open);
+  el.querySelectorAll('[data-lane]').forEach(s => { const go = () => openLane(s.dataset.lane || null);
+    s.onclick = go; s.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+}
+// a folded lane's name stays on screen like a frozen row header: HTML over the drawing at the window's left edge, just
+// above the lane's line, in its colour, knocking out what runs under it; never smaller than LABEL_MIN_PX. A lane born
+// far right (most of the Zap's) had its name cut off or off screen when the name sat at its first station
+function laneHeads(cy, info, PATH, title, bg) {
+  const old = $('lane-heads'); if (old) old.remove();
+  const F = info && info.focus, host = $('cy'); if (!F || !host) return;
+  const box = document.createElement('div'); box.id = 'lane-heads'; box.className = 'absolute inset-0 pointer-events-none overflow-hidden';
+  host.parentElement.appendChild(box);
+  const rows = info.lanes.filter(l => l.fold).map(l => { const k = F.cats.indexOf(l.cat) + 1, n = l.ids.length, el = document.createElement('span');
+    el.tabIndex = 0; el.dataset.lane = l.cat; el.setAttribute('aria-label', `abrir ${title(l.cat)}`);
+    el.className = 'absolute pointer-events-auto cursor-pointer font-mono font-semibold whitespace-nowrap px-1 rounded hover:underline';
+    el.style.color = PATH[l.cat]; el.style.background = bg;
+    el.textContent = `${k <= 9 ? k + '  ' : ''}${title(l.cat)} · ${n} ${n === 1 ? 'evento' : 'eventos'}`;
+    const go = () => openLane(l.cat); el.onclick = go;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+    box.appendChild(el); return {el, row: l.row}; });
+  const place = () => { const z = cy.zoom(), p = cy.pan(), fs = Math.max(LABEL_MIN_PX, BRANCH_FONT * z), lh = Math.round(fs * 1.25);
+    const hb = cy.$('#human').nonempty() ? cy.$('#human').renderedBoundingBox({includeLabels: false}) : null;
+    rows.forEach(r => { const top = r.row * z + p.y - lh - 5 * z;
+      r.el.style.fontSize = `${fs}px`; r.el.style.lineHeight = `${lh}px`; r.el.style.top = `${top}px`;
+      // never on the Human: a header on its rows starts right of it
+      r.el.style.left = `${hb && top < hb.y2 && top + lh > hb.y1 && hb.x2 > 0 ? Math.round(hb.x2 + 10) : 12}px`;
+      r.el.style.display = top < -lh || top > cy.height() ? 'none' : ''; }); };
+  cy.on('viewport resize', place); place();
+}
+function laneTaps(cy) {  // a folded lane opens on a click anywhere on it; the pointer says so
+  cy.on('tap', '[fold]', ev => { const c = ev.target.data('fold'); setTimeout(() => openLane(c), 0); });   // not inside cy's own event
+  cy.on('mouseover', '[fold]', () => { cy.container().style.cursor = 'pointer'; });
+  cy.on('mouseout', '[fold]', () => { cy.container().style.cursor = ''; });
+}
+
 function drawGraph() {
   if (graphRO) graphRO.disconnect();
   if (window.__cy) { try { window.__cy.destroy(); } catch (e) {} window.__cy = null; }
@@ -938,6 +1048,7 @@ function drawGraph() {
     const branchLayout = () => {
       const lanes = cats.map(c => ({c, ids: M().lifecycle[c].map(v => `${c}.${v}`)})), laneOf = {};
       lanes.forEach((l, i) => l.ids.forEach(id => { laneOf[id] = i; }));
+      const FOC = laneFocus(cats); lanes.forEach(l => { l.fold = !!FOC && FOC.folded.has(l.c); });
       const adj = {}; edges.forEach(e => { (adj[e.data.source] ??= []).push(e.data.target); });
       // reverse post-order of a depth-first walk from the Human (then from what it does not reach, in lane order): every
       // edge but the back edges (loops) points forward, so a longest path gives the columns
@@ -987,12 +1098,16 @@ function drawGraph() {
         occ.add(key(base)); local[id] = base; });
       const width = SO.map(() => 0); Object.keys(local).forEach(id => { width[stage[id]] = Math.max(width[stage[id]], local[id] + 1); });
       const bandStart = []; let cc = 1; SO.forEach((s, i) => { bandStart[i] = cc; cc += width[i]; });
-      const xOf = id => (bandStart[stage[id]] + local[id]) * COL + stage[id] * GAP;
+      const wide = FOC ? new Set(Object.keys(local).filter(id => !lanes[laneOf[id]].fold).map(id => bandStart[stage[id]] + local[id])) : null;
+      const GX = foldGrid(SO, width, bandStart, wide, COL, GAP, M().stage_labels || {});
+      const xOf = id => GX.x[bandStart[stage[id]] + local[id]];
       // the lanes, top to bottom in EVENTS order; the Human sits on the first lane's row
       let y = 0; lanes.forEach(l => { const ss = l.ids.map(id => slot[id]), lo = Math.min(...ss), hi = Math.max(...ss);
-        l.top = y; l.row = y + (lo < 0 ? -lo * SPURY + LANE_ABOVE : LANE_PAD); l.bottom = l.row + hi * SPURY + LANE_BELOW; y = l.bottom + LANE_SKIP; });
+        l.top = y; l.row = y + (lo < 0 ? -lo * SPURY + LANE_ABOVE : LANE_PAD); l.bottom = l.row + hi * SPURY + LANE_BELOW;
+        if (l.fold) { l.row = y + FOLD_ABOVE; l.bottom = l.row + FOLD_BELOW; }   // folded: one row, its label above
+        y = l.bottom + LANE_SKIP; });
       const y0 = lanes[0].row;
-      lanes.forEach(l => { l.top -= y0; l.row -= y0; l.bottom -= y0; l.ids.forEach(id => { pos[id] = {x: xOf(id), y: l.row + slot[id] * SPURY}; }); });
+      lanes.forEach(l => { l.top -= y0; l.row -= y0; l.bottom -= y0; l.ids.forEach(id => { pos[id] = {x: xOf(id), y: l.row + (l.fold ? 0 : slot[id] * SPURY)}; }); });
       const headOf = id => { const l = lanes[laneOf[id]]; return l && l.ids.find(x => !parentOf[x]) === id; };
       nodes.forEach(n => { const id = n.data.id; if (id === 'human') return;
         n.position = pos[id]; n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id, !headOf(id));
@@ -1004,11 +1119,12 @@ function drawGraph() {
         n.data.lbg = staged ? mix(bg, ink, stage[id] % 2 ? 0.05 : 0.025) : bg;
         n.data.dir = 2; n.data.lane = laneOf[id]; n.data.stage = SO[stage[id]]; });
       const top = lanes[0].top - (staged ? HEADER : 0), bottom = lanes[lanes.length - 1].bottom;
-      const bands = SO.map((s, i) => ({stage: s, x1: bandStart[i] * COL + i * GAP - COL / 2, x2: (bandStart[i] + width[i]) * COL + i * GAP - COL / 2}));
+      const bands = SO.map((s, i) => ({stage: s, ...GX.band(i)}));
       if (staged) bands.forEach((b, i) => { if (!width[i]) return;
         nodes.unshift({data: {id: `stage:${i}`, label: (M().stage_labels || {})[b.stage] ?? b.stage, w: b.x2 - b.x1, h: bottom - top, tone: i % 2 ? 0.05 : 0.025},
           position: {x: (b.x1 + b.x2) / 2, y: (top + bottom) / 2}, classes: 'stagehdr', selectable: false, grabbable: false}); });
-      BRINFO = {lanes: lanes.map(l => ({cat: l.c, y1: l.top, y2: l.bottom, row: l.row, ids: l.ids})), bands: staged ? bands.filter((b, i) => width[i]) : [],
+      BRINFO = {lanes: lanes.map(l => ({cat: l.c, y1: l.top, y2: l.bottom, row: l.row, ids: l.ids, fold: l.fold})), bands: staged ? bands.filter((b, i) => width[i]) : [],
+        focus: FOC ? {open: FOC.open, cats: FOC.cats} : null,
         stage: Object.fromEntries(Object.entries(stage).map(([id, i]) => [id, SO[i]]))};
       // the edges. A lane's birth: the transition into its first station from the leftmost source outside the lane
       lanes.forEach(l => { l.first = l.ids.find(id => !parentOf[id]); });
@@ -1092,6 +1208,7 @@ function drawGraph() {
         if (!born.has(l.first)) pairs.unshift(['human', l.first]);
         pairs.forEach(([a, b]) => { if (a === 'human') { const far = Math.abs(pos[b].y) >= 1; rail(a, b, far ? soft : PATH[l.c], far ? 'spine' : 'rail', far ? branchRoute(a, b) : []); }
           else rail(a, b, PATH[l.c], 'rail', spurRoute(a, b)); }); });
+      foldLanes(FOC, lanes, nodes, edges, laneOf);
     };
     if (BR) branchLayout();
     (BR ? [] : edges).forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
@@ -1171,6 +1288,13 @@ function drawGraph() {
         // a jump (branch): the whole edge stays in the model, hidden; its stub draws the end
         {selector: 'edge.jump', style: {display: 'none'}},
         {selector: 'node.stubend', style: {width: 1, height: 1, 'background-opacity': 0, 'border-width': 0, label: '', events: 'no'}},
+        ...(BR ? [
+          {selector: 'node.station.folded', style: {width: 11, height: 11, 'border-width': 2.5}},
+          {selector: 'node.station.used.folded', style: {width: 11, height: 11, 'border-width': 0}},
+          {selector: 'edge.foldhide', style: {display: 'none'}},
+          {selector: 'edge.cross', style: {'font-size': BRANCH_FONT}},
+          {selector: 'node, edge', style: {'min-zoomed-font-size': LABEL_MIN_PX}},
+        ] : []),
       ] : []),
       {selector: ':selected', style: {'border-width': 4, 'border-color': ink, 'border-opacity': 1}},
     ],
@@ -1236,11 +1360,7 @@ function drawGraph() {
   graphRO.observe($('cy'));
   // open centred on the Human (fit keeps the zoom, then the Human goes to the middle); off centre, a button brings it back
   // branch: the Human at the top left with a margin, the zoom fitting the height (scroll or zoom right to read on)
-  function homeView() {
-    const bb = cy.elements().boundingBox({includeLabels: true, includeOverlays: false}), m = 40;
-    const zoom = Math.min(1, (cy.height() - 2 * m) / Math.max(bb.y2 - bb.y1, 1));
-    return {zoom, pan: {x: m - bb.x1 * zoom, y: m - bb.y1 * zoom}};
-  }
+  function homeView() { return laneView(cy, BRINFO); }
   function centreHuman() {
     const h = cy.$('#human'); if (h.empty()) { offCentre(); return; }
     if (BR) { const v = homeView(); cy.zoom(v.zoom); cy.pan(v.pan); offCentre(); return; }
@@ -1266,7 +1386,9 @@ function drawGraph() {
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
     + '';
   cy.on('tap', ev => { if (ev.target === cy) closeSide(); });
-  cy.on('tap', 'node', ev => { if (Q.get('embed') !== 'graph') openSide(ev.target.id()); });  // embed=graph: the graph alone
+  cy.on('tap', 'node[!fold]', ev => { if (Q.get('embed') !== 'graph') openSide(ev.target.id()); });  // embed=graph: the graph alone
+  if (BR) { laneTaps(cy); laneLegend(BRINFO, PATH); }
+  laneHeads(cy, BR ? BRINFO : null, PATH, c => ENT[c] || pascal(c), bg);
   window.__cy = cy;
 }
 
@@ -1681,6 +1803,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'g') { $('keyhint').textContent = 'g…'; pending = setTimeout(() => { pending = null; $('keyhint').textContent = ''; }, 1200); return; }
   if ((e.key === 'l' || e.key === 'L') && GRAPH(tab) && !popOpen()) { toggleLayout(); e.preventDefault(); return; }
+  if (GRAPH(tab) && !popOpen() && laneKey(e)) return;   // 1-9 open a lane, 0 all (a focused branch drawing)
   if (e.key === 'Escape') { popOpen() ? closeWidget() : closeSide(); return; }
   if (popOpen()) return;
 });

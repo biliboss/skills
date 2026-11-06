@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.24.0
+  version: 0.25.0
 ---
 
 # dev-console
@@ -556,13 +556,25 @@ For a product whose code already records domain events (Domain.Imported):
    zoom fits the height), the entity is named once at the lane's first station and the others carry the event words only
    (a metro line does not repeat its name per station), a spur that ends at its station carries the label on its right, a
    station nothing in its lane leads into continues its own row, and every label knocks out what runs under it in its
-   stage band's tone. Check `labelPx` = font × zoom ≥ 12 at 1440×900. **Columns are funnel stages** when the project declares them: `STAGES =
+   stage band's tone. Check `labelPx` = font × zoom ≥ 16 at 1140×1074 (his window). **Columns are funnel stages** when the project declares them: `STAGES =
    {"cat.event": "stage"}`, `STAGE_ORDER = [...]` (and `STAGE_LABELS = {stage: text}` for the header); a stage is a band of
    columns with a faint header at the top, and an edge that would go back to an earlier stage is drawn as a loop (dashed),
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
    input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
-   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
-   until zoomed: scroll or zoom right to read on). **No two lines share a segment**: lines leaving one station down the
+   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height, **never below 0.81**:
+   every label is 20 px, so it renders at 16 px or more at his 1140×1074 window, and a label the person's own zoom-out
+   would shrink below 16 px is not drawn (`min-zoomed-font-size`); the rest is a scroll away.
+   **Focus + context on a big domain** (more than 15 events; Furnas 1986, fisheye views): it opens with ONE lane drawn
+   whole (the lane of the journal's latest event, else the project's `HOME` event, else the first lane; an `ev` in the
+   query opens its own lane) and every other lane folded to one line: its stations as dots, no labels, nothing dashed,
+   its name and count (`2  Chat · 11 eventos`) as a frozen row header at the window's left edge (HTML over the drawing,
+   knocking out the lines under it), so a lane born far right is still named. A click on a folded lane (its header, a
+   dot, its line), or its number key (1-9, `EVENTS` order), opens it and folds the one before; `0` opens them all; the
+   legend is the same switcher as console text. `lane` in the query keeps it (`all` = every lane). The columns keep
+   their order, so the mental map holds; a column with no station of an open lane narrows to 44 px (a rubber sheet)
+   and a stage band never below its header. The fit keeps the open lane readable, not everything: from the Human's
+   column, unless the lane starts past the window's middle. The code is in functions of their own (`laneFocus`,
+   `foldGrid`, `foldLanes`, `laneView`, `laneHeads`, `laneLegend`, `laneKey`, `laneTaps`); a small domain never folds. **No two lines share a segment**: lines leaving one station down the
    same 45° slope are an interchange, ranked by leg length, each next one leaving a step lower-left
    (`source-endpoint`) and turning earlier, so the legs run parallel; a back edge (loop, stage regress) is an
    `unbundled-bezier` arc above the rows, never routed along a line. Cytoscape's segment weights are relative to the
