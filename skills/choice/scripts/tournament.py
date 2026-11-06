@@ -154,14 +154,31 @@ def draw_round(state: dict) -> None:
     v["artifacts"] = [{"key": f"{i:02d}", "name": o["name"], "state": "ready", "path": o["path"], "pct": o["pct"]}
                       for i, o in enumerate(state["options"], 1)]
     # Edges as fixed keys (muscle memory): the same key always walks the same edge, in every round.
-    v["decision"] = {"text": f"Rodada {state['round']}. Campeão: {champ}.", "cmd": None, "options": [],
-                     "keys": [{"key": "enter", "label": f"outra rodada: {champ} contra 3 novos", "send": f"torneio {state['id']}: outra rodada"},
-                              {"key": "a", "label": f"aceitar {champ}", "send": f"torneio {state['id']}: aceito o campeão"},
-                              {"key": "f", "label": "feedback para a próxima rodada", "send": f"torneio {state['id']} feedback: ", "type": True}]}
+    v["decision"] = {"text": f"Rodada {state['round']}. Campeão: {champ}.", "cmd": None, "options": [], "tournament": state["id"],
+                     "keys": [{"key": "enter", "label": f"outra rodada: {champ} contra 3 novos", "send": f"torneio {state['id']}: outra rodada (resposta já registrada; desenhe os 3 desafiantes)", "answer": "another"},
+                              {"key": "a", "label": f"aceitar {champ}", "send": f"torneio {state['id']}: aceito o campeão (já registrado)", "answer": "accept"},
+                              {"key": "f", "label": "feedback para a próxima rodada", "send": f"torneio {state['id']} feedback (já registrado; desenhe os 3 desafiantes): ", "type": True, "answer": "feedback"}]}
     v["pulse"] = f"torneio {state['id']} · rodada {state['round']} · esperando você"
     _view(sid, "put", stdin=json.dumps(v, ensure_ascii=False))
     url = _view_get(sid).get("url")
     if url and shutil.which("devc"):  # the showcase opens by itself in the dev-console, when it is installed
+        subprocess.run(["devc", "open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
+def draw_pending(state: dict, why: str) -> None:
+    """Between rounds: the champion stays, 3 slots are being drawn (the screen moves until the round arrives)."""
+    sid = state["thread"]
+    v = _view_get(sid)
+    if not v:
+        return
+    champ = state["options"][0]
+    v["artifacts"] = [{"key": "01", "name": champ["name"], "state": "ready", "path": champ["path"], "pct": champ["pct"]}] + \
+                     [{"key": f"{i:02d}", "name": "desafiante", "state": "drawing"} for i in (2, 3, 4)]
+    v["decision"] = None
+    v["pulse"] = f"desenhando 3 desafiantes contra {champ['name']}" + (f" · critério: {why}" if why else "")
+    _view(sid, "put", stdin=json.dumps(v, ensure_ascii=False))
+    url = _view_get(sid).get("url")
+    if url and shutil.which("devc"):
         subprocess.run(["devc", "open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 
@@ -220,6 +237,8 @@ def main(a: list[str]) -> None:
         if rest[0] == "feedback" and not val["text"]:
             die("feedback needs the owner's words")
         emit("round.answered", val, slug, actor="owner")
+        if rest[0] in ("another", "feedback"):
+            draw_pending(state, val["text"])
         if rest[0] == "accept":
             emit("tournament.won", {"champion": state["champion"], "rounds": state["round"]}, slug, actor="owner")
             v = _view_get(state["thread"])

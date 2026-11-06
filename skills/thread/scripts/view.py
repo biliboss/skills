@@ -43,7 +43,7 @@ def save(sid, v):
 def gallery(sid, v):
     """Full-screen grid of the artifacts in the dev-console look; opened in the DevConsole window.
     Each image is isolated (<img src=data:>), so SVG ids never collide. Confidence comes from the decision."""
-    arts = [a for a in v.get("artifacts", []) if a.get("path")]
+    arts = [a for a in v.get("artifacts", []) if a.get("path") or a.get("state") == "drawing"]
     if not arts: v.pop("url", None); return
     import html, base64, mimetypes
     pct = {}
@@ -56,8 +56,10 @@ def gallery(sid, v):
     top = max(pct.values()) if pct else None
     cells = []
     for a in arts:
-        p = os.path.expanduser(a["path"])
-        if os.path.exists(p):
+        p = os.path.expanduser(a.get("path") or "")
+        if a.get("state") == "drawing":
+            img = '<div class=ghost><i></i></div><div class=sizes><span>desenhando…</span></div>'
+        elif os.path.exists(p):
             mt = "image/svg+xml" if p.endswith(".svg") else (mimetypes.guess_type(p)[0] or "image/png")
             src = f"data:{mt};base64,{base64.b64encode(open(p, 'rb').read()).decode()}"
             img = f'<img class=big src="{src}"><div class=sizes><img src="{src}" style="width:16px;height:16px"><img src="{src}" style="width:32px;height:32px"><span>16 · 32 px</span></div>'
@@ -65,12 +67,13 @@ def gallery(sid, v):
         k = a.get("key", ""); n = a.get("name", "").split(":")[0].split("(")[0].strip()
         pc = pct.get(k); rec = pc is not None and pc == top
         bar = f'<div class=bar><i style="width:{pc}%"></i></div><b class=pct>{pc}%</b>' if pc is not None else ""
-        cells.append(f'<section class="{"rec" if rec else ""}"><div class=stage>{img}</div>'
+        cells.append(f'<section class="{"rec" if rec else ""}{" drawing" if a.get("state") == "drawing" else ""}"><div class=stage>{img}</div>'
                      f'<footer><span class=k>{html.escape(k)}</span><span class=n>{html.escape(n)}</span>'
                      f'{"<span class=tag>recomendado</span>" if rec else ""}{bar}</footer></section>')
     g = v.get("goal") or {}
     cols = 2 if len(cells) <= 4 else 3
-    doc = f"""<!doctype html><meta charset=utf-8><title>{html.escape(g.get("title","thread"))}</title>
+    drawing = any(a.get("state") == "drawing" for a in arts)
+    doc = f"""<!doctype html><meta charset=utf-8>{'<meta http-equiv=refresh content=2>' if drawing else ''}<title>{html.escape(g.get("title","thread"))}</title>
 <style>
 *{{box-sizing:border-box;margin:0}}
 html,body{{height:100%;background:#0a0a0a;color:#e8e8e8;font:14px ui-monospace,"SF Mono",Menlo,monospace;overflow:hidden}}
@@ -90,6 +93,13 @@ footer{{display:flex;gap:12px;align-items:center;padding:14px 22px;border-top:1p
 .bar i{{display:block;height:100%;background:#555}} .rec .bar i{{background:#4ade80}}
 .pct{{width:44px;text-align:right;color:#777}} .rec .pct{{color:#4ade80}}
 .miss{{color:#555}}
+.ghost{{width:min(26vh,26vw);height:min(26vh,26vw);border-radius:22%;position:relative;overflow:hidden;background:#141414}}
+.ghost i{{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#2a2a2a 50%,transparent 70%);animation:sh 1.4s ease-in-out infinite}}
+section.drawing:nth-child(3) .ghost i{{animation-delay:.2s}} section.drawing:nth-child(4) .ghost i{{animation-delay:.4s}}
+@keyframes sh{{from{{transform:translateX(-100%)}}to{{transform:translateX(100%)}}}}
+section.drawing footer .n{{color:#555}} section.drawing{{animation:pulse 2s ease-in-out infinite}}
+@keyframes pulse{{50%{{background:#0e0e0e}}}}
+section{{animation:in .5s ease-out both}} @keyframes in{{from{{opacity:0;transform:scale(.97)}}}}
 </style>
 <header><h1>{html.escape(g.get("title",""))}</h1><p>{html.escape(g.get("subtitle",""))}</p></header>
 <main>{"".join(cells)}</main>"""

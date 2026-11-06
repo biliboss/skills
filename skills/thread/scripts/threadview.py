@@ -34,7 +34,7 @@ Você é o agente normal desta thread e pode fazer qualquer coisa, mas a priorid
 - O seu turno tem que acabar em até 10 segundos. Atualize a tela primeiro.
 - Trabalho que passa de 10 s (gerar, codar, buildar) vai para um worker: registre com `worker add <id> "<o que faz>"`, rode em background desacoplado (nohup … &) e faça o comando terminar chamando `worker done <id> "<resultado>"` (ou `worker fail`). Ele aparece na fila Agentes, no topo da tela.
 - No texto, fale das opções pelo NOME (nunca letra nem número: a numeração muda pelo ranking). Sem artefato "comparativo": a galeria já compara.
-- Escolher entre opções (logo, tela, nome, texto) é um torneio: siga a skill choice (rode python3 {tourn} …, com --thread {sid}). Mensagem "torneio <slug>: …" é a resposta do dono a uma rodada.
+- Escolher entre opções (logo, tela, nome, texto) é um torneio: siga a skill choice (rode python3 {tourn} …, com --thread {sid}). Mensagem "torneio <slug>: …" é a resposta do dono a uma rodada, já registrada pela tela: não rode answer de novo; desenhe a próxima rodada (worker) e chame round.
 - Opção da decisão = "<key do artefato> · <nome>". O view.py renumera tudo por ranking: 01 é sempre a mais recomendada, e os artefatos seguem o mesmo número.
 - Decisão com opções: cada opção leva o seu % de certeza, somando 100 (--option "<rótulo>" <pct>); a primeira é sempre a recomendada.
 - Artefato com "path" ganha galeria HTML sozinho; a URL aparece na tela.
@@ -96,7 +96,11 @@ def body(v, flash={}):
         cells = []
         keys = {o["label"].split("·")[0].strip() for o in ((v.get("decision") or {}).get("options") or []) if isinstance(o, dict)}
         for a in sorted([a for a in v["artifacts"] if not keys or a.get("key", "") in keys], key=lambda a: a.get("key", "")):
-            fill = ("▓▓", "green") if a.get("state") == "ready" else ("░░", DIM)
+            if a.get("state") == "drawing":  # a wave across the slots while the challengers are drawn
+                ph = int(time.time() * 6) + 2 * cells.__len__()
+                fill = ("░▒▓█▓▒"[ph % 6] + "░▒▓█▓▒"[(ph + 1) % 6], ACC)
+            else:
+                fill = ("▓▓", "green") if a.get("state") == "ready" else ("░░", DIM)
             name = a.get("name", "").split(":")[0].split("(")[0].strip()[:12]
             rec = "recomend" in a.get("name", "").lower()
             cells.append(Text.assemble(("┌────┐\n│ ", ACC if rec else DIM), fill, (" │\n└────┘\n", ACC if rec else DIM),
@@ -116,7 +120,7 @@ def body(v, flash={}):
             t.append("\n\n")
             for i, o in enumerate(d["options"], 1): t.append(f" {i} {label(o)} ", style="black on cyan" if i > 1 else "black on green"); t.append("  ")
         parts += [tag(Panel(t, title="◆ com você" + (" · novo" if "decision" in flash else ""), title_align="left", border_style=BORDO, box=box.HEAVY, padding=(0, 1)), "Decision"), Text()]
-    if v.get("pulse"):
+    if v.get("pulse") and not drawing(v):
         parts.append(tag(Text.assemble(("◌ ", ACC if "pulse" in flash else DIM), (v["pulse"], ACC if "pulse" in flash else DIM)), "Pulse"))
     return Group(*parts)
 
@@ -166,6 +170,13 @@ def open_url(url):
 
 KEYNAME = {"enter": "⏎"}
 
+def record(d, hit, text=""):
+    """A tournament edge is deterministic: the screen records the answer at once (and draws the in-between state);
+    the agent only draws the next round."""
+    if d.get("tournament") and hit.get("answer") and os.path.exists(TOURNAMENT):
+        subprocess.Popen([sys.executable, TOURNAMENT, "answer", d["tournament"], hit["answer"], *([text] if text else [])],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 def poll_of(v):
     d = v.get("decision")
     if not d or not (d.get("options") or d.get("keys")): return None
@@ -212,7 +223,26 @@ def poll_panel(d, v):
     return Panel(t, title="◆ com você", title_align="left", subtitle=keys, subtitle_align="left",
                  border_style=BORDO, box=box.HEAVY, padding=(0, 1))
 
+PEND = {"since": None}
+
+def drawing(v): return any(a.get("state") == "drawing" for a in (v or {}).get("artifacts", []))
+
+def waiting_panel(v):
+    """Between rounds the input is the moment itself: what is being drawn, moving, with its time."""
+    if not PEND["since"]: PEND["since"] = time.time()
+    el = time.time() - PEND["since"]
+    spin = "◐◓◑◒"[int(time.time() * 4) % 4]
+    dots = "·" * (int(time.time() * 2) % 4)
+    t = Text.assemble((f"{spin} ", f"bold {ACC}"), ((v.get("pulse") or "desenhando a próxima rodada"), "bold bright_white"),
+                      (f" {dots:<3}", ACC), (f"  {ago(el)}", ACC if el > BUDGET else DIM))
+    t.append("\nnada a decidir agora · a rodada nova aparece aqui sozinha · digite para outra coisa", style=DIM)
+    return Panel(t, box=box.ROUNDED, border_style=ACC, padding=(0, 1))
+
 def footer(buf, q, v=None):
+    if drawing(v) and not buf and not POLL["prefix"]:
+        return Group(*([stack(q)] if q else []), tag(waiting_panel(v), "Waiting"),
+                     tag(Text.assemble((SID[-6:], "cyan"), (f"  {PROFILE}", DIM), justify="right"), "Hints"))
+    PEND["since"] = None if not drawing(v) else PEND["since"]
     d = poll_of(v or {}) if not buf else None
     POLL["live"] = bool(poll_of(v or {}))
     if d:
@@ -226,6 +256,7 @@ def footer(buf, q, v=None):
     return Group(*([stack(q)] if q else []), tag(inp, "Input"), tag(hint, "Hints"))
 
 def footer_height(q, v=None, buf=""):
+    if drawing(v) and not buf and not POLL["prefix"]: return len(q) + 4 + 1
     d = poll_of(v or {}) if not buf else None
     if d and d.get("keys"): return len(q) + 2 + 1 + 1 + len(d["keys"]) + (1 if (v or {}).get("url") else 0) + 1
     if d: return len(q) + 2 + 1 + (1 if d.get("cmd") else 0) + 1 + len(d["options"]) + 1
@@ -268,8 +299,9 @@ try:
                 elif d and data == "o" and v.get("url"): open_url(v["url"]); data = ""
                 elif d and d.get("keys"):  # edges: a fixed key per edge
                     hit = next((k for k in d["keys"] if (k["key"] == "enter" and data in ("\r", "\n")) or k["key"] == data), None)
-                    if hit and hit.get("type"): POLL["prefix"] = hit["send"]; data = ""
+                    if hit and hit.get("type"): POLL["prefix"] = hit["send"]; POLL["edge"] = (d, hit); data = ""
                     elif hit:
+                        record(d, hit)
                         q.append({"msg": hit["send"], "at": time.time(), "state": "queued"})
                         POLL["answered"] = json.dumps(d, sort_keys=True); persist(q); data = ""
                     else: data = ""
@@ -287,6 +319,7 @@ try:
                     if ch in ("\n", "\r"):
                         if buf.strip():
                             q.append({"msg": (POLL["prefix"].strip() + " " + buf.strip()).strip(), "at": time.time(), "state": "queued"})
+                            if POLL.get("edge"): record(POLL["edge"][0], POLL["edge"][1], buf.strip()); POLL["edge"] = None
                             if POLL["prefix"] and poll_of(v): POLL["answered"] = json.dumps(v["decision"], sort_keys=True)
                             buf = ""; POLL["prefix"] = ""; persist(q)
                     elif ch in ("\x7f", "\b"): buf = buf[:-1]
