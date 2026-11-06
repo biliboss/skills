@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.74.0
+
+- dev-console 0.30.3: the Kanban's Quadro (`CONSOLE_HOME`) is in ⌘P from every page and in `/api/palette`, first in the list.
+
 ## 0.73.0
 
 - thread 0.1.0: a card's topic thread in one call: tmux window + Hermes session (`/branch` of the card's session or new) named `<card> · <topic>`, brief inline by argument, stdin heredoc or gzip+base64 (bracketed paste, no temp file).
