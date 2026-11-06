@@ -92,8 +92,10 @@ class BoardHtmlTest(unittest.TestCase):
 
     def test_the_ranked_card_is_first_and_there_are_four_columns(self):
         html, _ = self.render(rate=0.0)
-        self.assertLess(html.index("Via Blog"), html.index("Outro"))
-        self.assertEqual([m for m in re.findall(r'data-stage="(\w+)"', html)], ["Todo", "Upstream", "Downstream", "Feito"])
+        # the card titled "Outro" (not the lane "Outros"): the ranked card comes first
+        self.assertLess(html.index('aria-label="abrir Via Blog"'), html.index('aria-label="abrir Outro"'))
+        # one header row of stages (each lane repeats the stages as its cells)
+        self.assertEqual(re.findall(r'data-stage="(\w+)"', html)[:4], ["Todo", "Upstream", "Downstream", "Feito"])
 
     def test_the_header_shows_count_over_limit_and_marks_what_is_over(self):
         os.environ["KANBAN_CONFIG"] = str(Path(tempfile.gettempdir()) / "no-such-kanban-config.json")  # the default limits
