@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0] - 2026-11-06
+
+### Changed
+
+- The clock reads the card from the ACTIVE WINDOW's `@card` first (a card id or prefix, open Upstream/Downstream), then falls back to the session name. The hooks pass `#{session_name} --card=#{@card}`; `tmux-focus`/`simulate` accept `--card=<id>`; the `hook` and `decision` log lines carry `window_card`.
+- New hook `session-window-changed` (alongside `client-session-changed`, `client-attached`, `client-detached`): a window change inside one session moves the clock. Re-run `costs.sh tmux-install` to get it.
+
 ## [0.4.1] - 2026-11-06
 
 ### Added

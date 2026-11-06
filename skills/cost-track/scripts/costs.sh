@@ -55,7 +55,7 @@ command -v uv >/dev/null 2>&1 || { echo "costs.sh: uv not found (install: https:
 [ $# -gt 0 ] || set -- --help
 
 case "$1" in
-  simulate) shift; export COSTS_SH="$DIR/costs.sh" CLOCK_SOURCE=simulate; exec uv run --quiet --script "$DIR/tmux_focus.py" tmux-focus "${1:--}" ;;
+  simulate) shift; export COSTS_SH="$DIR/costs.sh" CLOCK_SOURCE=simulate; exec uv run --quiet --script "$DIR/tmux_focus.py" tmux-focus "${1:--}" "${@:2}" ;;
   tmux-focus|tmux-install|tmux-uninstall|status) export COSTS_SH="$DIR/costs.sh"; exec uv run --quiet --script "$DIR/tmux_focus.py" "$@" ;;
 esac
 

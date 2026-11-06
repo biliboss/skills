@@ -4,16 +4,17 @@
 # ///
 """The cost clock follows the tmux session the owner is attached to (the only writer of the clock).
 
-    costs.sh tmux-focus <session-name|->   attach / switch / detach (hooks call this); silent, idempotent, exit 0
+    costs.sh tmux-focus <session-name|-> [--card=<id>]   attach / switch / detach / window change (hooks call this); silent, idempotent, exit 0
     costs.sh tmux-install                  hooks in ~/.tmux.conf (marked block) and live in the running tmux
     costs.sh tmux-uninstall                the opposite
     costs.sh status                        the running entry, one line
-    costs.sh simulate <session|->          exactly what the hook runs, with no tmux switch (logged source=simulate)
+    costs.sh simulate <session|-> [--card=<id>]   exactly what the hook runs, with no tmux switch (logged source=simulate)
     costs.sh trace [n]                     the last n lines of ~/.local/state/clock.log (bash, no uv)
     costs.sh check [session|--tmux]        running.json vs the owner's session; exit 0 if consistent (bash, no uv)
 
-A session named like an open Kanban card (Upstream or Downstream; the slug of its title, or its domain) runs the
-clock in that card's domain, counting for the domain's cost center. Any other session, or '-' (detach), stops it.
+The card comes from the ACTIVE WINDOW first: its `@card` option (a card id, set by thread.sh / kanban.sh pull; the hook passes
+`#{@card}` as --card=). Without one, from the session name (an open card's title slug, or its domain). An open card runs the
+clock in its domain, counting for the domain's cost center. Anything else, or '-' (detach), stops it.
 Stdlib only; reads the Kanban journal (KANBAN_DIR) and writes the Costs journal (COSTS_DIR) through costs.py.
 """
 from __future__ import annotations
@@ -31,7 +32,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BEGIN, END = "# >>> cost-track tmux-focus >>>", "# <<< cost-track tmux-focus <<<"
-HOOKS = {"client-session-changed": "#{session_name}", "client-attached": "#{session_name}", "client-detached": "-"}
+WIN = "#{session_name} --card=#{@card}"
+HOOKS = {"client-session-changed": WIN, "client-attached": WIN, "session-window-changed": WIN, "client-detached": "-"}
 HOOK_INDEX = 90  # an indexed hook never clobbers the owner's own set-hook
 OPEN_STAGES = ("Upstream", "Downstream")
 ACTOR = "tmux-focus"
@@ -53,8 +55,9 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", t).strip("-")
 
 
-def open_card(session: str):
-    """The open card a session name stands for (slug of its title first, then its domain), or None."""
+def open_card(session: str, card_id: str = ""):
+    """The open card the active window's @card names (id or id prefix), else the one a session name stands for
+    (slug of its title first, then its domain), or None."""
     path = HERE.parent.parent / "kanban" / "scripts" / "kanban.py"
     if not path.exists() or not session:
         return None
@@ -63,6 +66,10 @@ def open_card(session: str):
         cards = [c for c in K.cards_from(K.events()) if str(c.stage) in OPEN_STAGES]
     except Exception:  # noqa: BLE001 - a broken neighbour must not break the clock
         return None
+    if card_id:
+        hit = [c for c in cards if c.id == card_id or c.id.startswith(card_id)]
+        if len(hit) == 1:
+            return hit[0]
     want = slug(session)
     for pick in (lambda c: slug(c.title) == want, lambda c: slug(c.domain) == want):
         hit = sorted((c for c in cards if pick(c)), key=lambda c: c.since, reverse=True)
@@ -119,25 +126,27 @@ def start(card, session: str = "") -> bool:
     return True
 
 
-def focus(session: str) -> None:
+def focus(session: str, card_id: str = "") -> None:
     """Under a lock: two hooks firing together (attached + session-changed) must not both start an entry."""
     C.costs_dir().mkdir(parents=True, exist_ok=True)
     with (C.costs_dir() / "focus.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        _focus(session)
+        _focus(session, card_id)
 
 
-def _focus(session: str) -> None:
-    card = open_card(session) if session and session != "-" else None
+def _focus(session: str, card_id: str = "") -> None:
+    card = open_card(session, card_id) if session and session != "-" else None
     run = C.running()
     who = {"session": session, "card": card.id if card else None, "domain": card.domain if card else None}
+    if card_id:
+        who["window_card"] = card_id
     if card and run and run.get("card") == card.id and run.get("domain") == card.domain:
         C.clog("decision", **who, action="noop", reason="already running for this card", running=True)
         return  # already the running entry
     stopped = stop()
     started = start(card, session) if card else False
     action = "start" if started else "stop" if stopped else "noop"
-    reason = ("session is an open card" if started else "card has no cost center" if card else
+    reason = (("window's card is open" if card_id and card.id.startswith(card_id) else "session is an open card") if started else "card has no cost center" if card else
               "detached" if session in ("", "-") else "session is not an open card")
     C.clog("decision", **who, action=action, reason=reason, running=started)
 
@@ -186,9 +195,12 @@ def main(argv: list[str]) -> int:
     conf = Path(os.environ.get("TMUX_CONF", "~/.tmux.conf")).expanduser()
     sh = os.environ.get("COSTS_SH") or str(HERE / "costs.sh")
     if cmd == "tmux-focus":
-        C.clog("hook", session=rest[0] if rest else "-", source=os.environ.get("CLOCK_SOURCE", "tmux"))
+        card_id = next((a.split("=", 1)[1] for a in rest if a.startswith("--card=")), "")
+        pos = [a for a in rest if not a.startswith("--card=")]
+        sess = pos[0] if pos else "-"
+        C.clog("hook", session=sess, source=os.environ.get("CLOCK_SOURCE", "tmux"), **({"window_card": card_id} if card_id else {}))
         try:
-            focus(rest[0] if rest else "-")
+            focus(sess, card_id)
         except Exception as err:  # noqa: BLE001 - a hook never fails; the message carries no values
             print(f"costs tmux-focus: {type(err).__name__}", file=sys.stderr)
         return 0

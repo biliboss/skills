@@ -7,7 +7,7 @@ description: >-
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
   backbrief (tasks).
 metadata:
-  version: 0.4.2
+  version: 0.5.0
 ---
 
 # cost-track
@@ -51,9 +51,7 @@ A domain joins a center with `COST_CENTER = "<id>"` in its project file, or by b
 ## The clock follows tmux
 
 The clock has ONE writer besides manual commands: `costs.sh tmux-focus <session|->`, run by tmux hooks (`costs.sh tmux-install`
-puts them in `~/.tmux.conf`; `tmux-uninstall` removes; `costs.sh status` shows the running entry). Attached to (or switched by
-sesh to) a session named like an open Kanban card (Upstream/Downstream; slug of its title or its domain) starts an entry in that
-card's domain (card id in the value); any other session or a detach stops it. Closing a session = losing focus. Idempotent, silent.
+puts them in `~/.tmux.conf`; `tmux-uninstall` removes; `costs.sh status` shows the running entry). The card is read from the ACTIVE WINDOW first: its `@card` option (card id, set by thread.sh and `kanban.sh pull`; the hook passes `#{@card}` as `--card=`). With none, from the session name (slug of an open card's title, or its domain). An open card (Upstream/Downstream) starts an entry in its domain (card id in the value); anything else or a detach stops it. Hooks: `client-session-changed`, `client-attached`, `session-window-changed`, `client-detached`; moving between windows of one session moves the clock. Closing a session = losing focus. Idempotent, silent.
 
 ### The clock log: `~/.local/state/clock.log`
 
@@ -62,7 +60,7 @@ Every hop of "sesh change -> timer -> screen" appends one JSON line (`ts`, `ms`,
 `running_written` / `running_removed` -> `console_pushed` {kind, clients} -> `page_applied` {push_ms, lag_ms} (the page POSTs a
 beacon to the console). Subtract the `ms` of two lines to get a hop's latency.
 
-- `costs.sh simulate <session|->` runs exactly what the hook runs, with no tmux switch (`source: simulate`).
+- `costs.sh simulate <session|-> [--card=<id>]` runs exactly what the hook runs, with no tmux switch (`source: simulate`).
 - `costs.sh trace [n]` the last n lines (bash, `tail`, no uv, ~9 ms: most of it is the shell starting).
 - `costs.sh check [session|--tmux]` running.json vs the owner session (the newest `hook` line, ~10 ms; `--tmux` asks tmux, ~20 ms); exit 0 consistent, 1 not (bash, no uv).
 

@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.75.0
+
+- thread 0.2.0: the tab opens in the tmux session where the skill was invoked, right after the invoking agent's window, as a /branch of $HERMES_SESSION_ID (client-latest session outside tmux, `--session` overrides), never a session per card; the card is `@card` on the window. cost-track 0.5.0: the clock reads the active window's `@card` first, new `session-window-changed` hook. kanban 0.7.1: docs.
+
 ## 0.74.0
 
 - dev-console 0.30.3: the Kanban's Quadro (`CONSOLE_HOME`) is in ⌘P from every page and in `/api/palette`, first in the list.

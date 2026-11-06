@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-06
+
+### Changed
+
+- "A card's workspace": the card is a link (`@card`) on the window of the session where the work started, not a session of its own; the cost clock reads the active window's card first.
+
 ## [0.7.0] - 2026-11-06
 
 ### Added

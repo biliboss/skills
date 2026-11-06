@@ -35,7 +35,9 @@ if args[:2] == ["sessions", "rename"]:
     sys.exit(0)
 
 # TUI
-cont = args[1] if args[:1] == ["--continue"] else None
+cont = args[1] if args[:1] in (["--continue"], ["--resume"]) else None
+if cont:
+    open(os.path.join(D, "resumed"), "a").write(" ".join(args) + "\n")
 os.makedirs(os.path.join(D, "msgs"), exist_ok=True)
 fd = sys.stdin.fileno()
 old = termios.tcgetattr(fd)
@@ -63,6 +65,7 @@ try:
                 text = line.decode(); line = b""
                 if text.startswith("/branch "):
                     r = rows(); r.append([f"branch-{len(r)+1}", text[8:]]); save(r); made = True
+                    os.write(1, b"\r\nbranched \xe2\x86\x92 " + text[8:].encode() + b"\r\n")
                 elif text:
                     n = len(glob.glob(os.path.join(D, "msgs", "*")))
                     open(os.path.join(D, "msgs", str(n + 1)), "wb").write(text.encode())
