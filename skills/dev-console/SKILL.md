@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.5.4
+  version: 0.6.0
 ---
 
 # dev-console
@@ -267,6 +267,33 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
   old branch conflicts, and `gh-app` refuses force push (a PR already CONFLICTING: commit, then `git checkout -B
   <branch>-2 origin/main && git cherry-pick <sha>`, push, close the old PR, open the new one). Stage only `skills/dev-console` (and the
   project files you touched); other sessions leave changes in the same repo.
+
+## Money bar
+
+Everything is monetary, so every domain belongs to a cost center (see `cost-track`); a domain with one shows the money
+bar in its toolbar. Nothing is stored by the console: the Costs journal is the only storage and cost-track's
+`scripts/costs.py` (found at `../../cost-track/scripts/costs.py`; missing means no bar) its only writer.
+
+- **The bar:** the center name; what it spent today in R$, ticking every second; for a client `de R$ <budget>` with a
+  thin progress line, red over budget, plus `hoje a <cliente> pagou R$ X/h`; for an investment `<nome> · R$ X hoje`,
+  no budget; the rate (R$/min; a click cycles min, hora, dia, kept in localStorage); ▶ / ⏸. A click on the center name
+  opens a popover with today per center and the total.
+- **The center of a domain:** `COST_CENTER = "<id>"` in its project file, else the center whose `domains` lists the
+  slug in the journal (`costs.center_of`). The Costs domain declares `biliboss-skills`; Tasks and dev-console are in
+  that center's `domains`. A project that lives outside (Via Corretor) is listed in the journal, never declared here.
+- **The record:** `POST /domain/<slug>/time/start` and `/time/stop` (`ended_by`) emit `time_entry.started` and
+  `time_entry.stopped` (`text`, `domain`, `seconds`, `rate_hour`, `cost`, `ended_by`); the server is the only writer
+  (through `costs.py`). The rate in force is stored on each entry, so a price change never rewrites the past. The
+  running stretch sits in `running.json` in the costs folder (`COSTS_DIR`), so a hot reload keeps it; the page pings
+  `time/beat` every 10 s and a stretch silent for 45 s is closed (`close`). `GET /domain/<slug>/time` reads the numbers.
+- **What stops the clock:** Pause, switching domain, the page hidden (`visibilitychange`), and 5 min idle on the Mac.
+  **Never** window blur and never `document.hasFocus()`. In the native app, every 5 s it calls
+  `window.devconsoleIdle(seconds)` with the Mac's idle time (`systemIdleSeconds()` in `ConsoleCore`: the any-input event
+  type `~0`, because `.null` answers with the time since boot); a normal browser falls back to its own input idle.
+  Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never shows the bar, runs the
+  clock or ends another domain's stretch.
+- **Testing it:** a second console on another port with `COSTS_DIR=<temp copy of events.jsonl>` and
+  `DEV_CONSOLE_REGISTRY=<empty file>`, never the real journal.
 
 ## Pitfalls
 

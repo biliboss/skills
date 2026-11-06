@@ -145,3 +145,20 @@ private func cmd(_ json: String) -> WindowCommand? { WindowCommand.decode(Data(j
         #expect(f.size == CGSize(width: 300, height: 250))
     }
 }
+
+@Suite struct IdleTests {
+    @Test func scriptCallsThePageOnlyIfItHasTheFunction() {
+        #expect(idleScript(seconds: 12.4) == "typeof window.devconsoleIdle === 'function' && window.devconsoleIdle(12)")
+    }
+
+    @Test func scriptNeverCarriesANegativeOrBrokenNumber() {
+        #expect(idleScript(seconds: -3).hasSuffix("devconsoleIdle(0)"))
+        #expect(idleScript(seconds: .infinity).hasSuffix("devconsoleIdle(0)"))
+    }
+
+    @Test func systemIdleIsASmallRealNumberNotTimeSinceBoot() {
+        let s = systemIdleSeconds()
+        #expect(s >= 0)
+        #expect(s < 30 * 24 * 3600)  // `.null` answers with the time since boot; the any-input type does not
+    }
+}

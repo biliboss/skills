@@ -23,6 +23,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 | `TRANSITIONS` | optional `{"cat.event": ["cat.event", ...]}`: the edges, when the process branches or loops (UML statechart transitions); replaces the derived chain; a target may be a dict `{"cat.event": "command"}` to name the command of each edge when one event has several commands |
 | `HUB` | optional `"cat.event"`: every start leads to it and it opens every other category (Domain.Updated) |
 | `DOMAIN_DRAFT` | optional path of the domain draft (default `<SOURCE stem>_draft.py`) |
+| `COST_CENTER` | optional: the id of the cost center this domain's time is billed to (a center of the Costs journal); it turns on the money bar (see the skill's Money bar); without it the journal's `domains` lists decide |
 | `HOME` | optional `("category.event", "WidgetName")`: the widget the Visão tab opens with |
 | `ACTIONS` | optional `{name: fn(event, dry=False)}`: the only write path, `POST /do/<event_id>/<name>` |
 | `EXPECTED_WIDGETS` | optional `{name: fn(data)}`: dummy views a proposal's `expected` may name |

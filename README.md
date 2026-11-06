@@ -6,8 +6,8 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 |---|---|
 | `tensions` | registra eventos de domínio significativos no JSONL global, com Python stdlib e recipes `just` opcionais |
 | `task-understand` | em desenho, domínio Tasks: um comando para a tarefa explicada a alguém e repetida de volta do jeito que foi entendida (teach-back) |
-| `cost-track` | em desenho, domínio Costs: tudo tem custo; cada domínio pertence a um centro de custo e o tempo ligado vira dinheiro |
-| `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script |
+| `cost-track` | domínio Costs: tudo tem custo; cada domínio pertence a um centro de custo e o tempo ligado vira dinheiro; único escritor do diário de custos |
+| `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `skill-smith` | cria, atualiza e porta skills |
@@ -21,7 +21,6 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP |
 | `interview` | formulários de perguntas ricos (pi-interview) numa janela única com fila; rascunho salvo a cada mudança, e o tempo limite não perde respostas |
-| `timer` | um cronômetro na barra de menus do Mac, controlado pelo agente por um script; o app só mostra |
 
 ## Instalar
 

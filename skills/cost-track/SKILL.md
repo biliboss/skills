@@ -3,15 +3,16 @@ name: cost-track
 description: >-
   Use when pricing where the owner's time goes: everything is monetary, everything has a cost. Every domain belongs
   to a cost center (a client with a day budget, or an investment with no budget but a cost), and a running clock in
-  a domain becomes a time entry priced at what he is worth. Design stage, drawn in the dev-console as the Costs
-  domain. Not task-understand (tasks) and not the dev-console's money bar code itself.
+  a domain becomes a time entry priced at what he is worth. The only writer of the Costs journal (`costs.py emit`),
+  drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
+  task-understand (tasks).
 metadata:
-  version: 0.2.0
+  version: 0.3.0
 ---
 
 # cost-track
 
-**Design stage.** The domain is **Costs** (`/domain/costs` in the dev-console, "Biliboss Skills - Costs"); the code is
+The domain is **Costs** (`/domain/costs` in the dev-console, "Biliboss Skills - Costs"); the code is
 `scripts/costs.py` (`EVENTS`, `TRANSITIONS`, the projector, the journal) and `scripts/dev_console_project.py`.
 
 **Entity:** CostCenter (accounting's term). **Value:** TimeEntry (the timesheet's term), one focus stretch.
@@ -26,6 +27,24 @@ metadata:
 The descriptions for humans are the comments on each command in `EVENTS`. The rule behind it: a client is charged at
 the current value and has a day budget (`pays_month / work_days_month`); an investment is charged at the goal price
 and has no budget; each entry stores the rate it used, so a later price change never rewrites the past.
+
+## The one writer
+
+`scripts/costs.py` is the only writer of the journal (stdlib only, `uv run --script`):
+
+```
+uv run --script scripts/costs.py emit <event> '<json value>' --cost-center <id> --actor <who>
+```
+
+It appends one line (id and `at` generated; `worth.updated` needs no center, every other event does). The module API
+the dev-console imports: `worth()` (latest `worth.updated` value), `centers()` (latest value per center),
+`center_of(slug, declared=None)` (the `COST_CENTER` a project declares, else the center whose `domains` lists the
+slug, else `None`), `rate_hour(center)` (a client at `value_month`, an investment at `goal_month`, over
+`paid_hours_day × work_days_month`), `budget_day(center)` (client only: `pays_month / work_days_month`) and
+`today(center)` (seconds and cost of today's `time_entry.stopped`). Tests: `uv run --script scripts/test_costs.py`.
+
+A domain joins a center with `COST_CENTER = "<id>"` in its project file, or by being in the center's `domains` list in
+`cost_center.updated`. The Costs domain itself declares `biliboss-skills`.
 
 ## Journal
 

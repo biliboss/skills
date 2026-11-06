@@ -548,6 +548,13 @@ html[data-embed=toolbar] #bar { border-bottom: 0; }
 .tab.on{color:rgb(23 23 23);border-color:rgb(23 23 23)} .dark .tab.on{color:rgb(245 245 245);border-color:rgb(245 245 245)}
 .rec.sel{background:rgb(229 229 229)} .dark .rec.sel{background:rgb(38 38 38)}
 .mermaid svg{max-width:100%}
+/* the money bar: one number ticks, the rest is still; an embed never shows it */
+#money [data-act]{cursor:pointer} #money [data-act]:focus-visible{outline:1px solid currentColor;outline-offset:2px}
+#money .over{color:rgb(220 38 38)} html[data-embed]:not([data-embed=money]) #money{display:none !important}
+/* ?embed=money: the money bar alone (CostToolbar widget) */
+html[data-embed=money] #bar ~ * { display: none !important; }
+html[data-embed=money] #bar > :not(#money) { display: none !important; }
+html[data-embed=money] #bar { border-bottom: 0; } html[data-embed=money] #money { border-left: 0; }
 /* the right menu's expandable parts: no Pico margins, the chevron right after the title */
 #ev-body details { margin: 0; padding: 0; } #ev-body details summary { margin: 0; list-style: none; }
 #ev-body details summary::after { float: none; margin-left: .25rem; }
@@ -1073,7 +1080,7 @@ document.addEventListener('keydown', e => {
   if (popOpen()) return;
 });
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
-if (Q.get('embed') && Q.get('embed') !== 'toolbar') $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
+if (Q.get('embed') && !['toolbar', 'money'].includes(Q.get('embed'))) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
 if (Q.get('embed') === 'toolbar' && Q.get('sim_tab')) D.tabs.push(Q.get('sim_tab'));  // SIMULADO: an example tab, nothing recorded
 show(tab);
 if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');
@@ -1082,6 +1089,97 @@ if (GRAPH(tab) && Q.get('ev')) {
   const ev = Q.get('ev'), w = Q.get('w');
   openSide(ev);
   if (w) openWidget(ev, w);
+}
+"""
+
+
+MONEY_JS = r"""
+// The money bar: spent today in the cost center ticks every second while the clock runs; Start / Pause is explicit.
+// The clock stops by itself on Pause, another domain's page (the server ends that one), the page hidden, and 5 min
+// idle on the Mac (the native app reports it through window.devconsoleIdle; a browser falls back to its own input).
+// Never on window blur. Coming back does not restart it. The server is the only writer of the Costs journal.
+const $ = id => document.getElementById(id);
+const D = JSON.parse($('data').textContent), Q = new URLSearchParams(location.search);
+const box = $('money');
+if (box && D.money && !Q.get('embed')) {
+  let S = D.money, t0 = performance.now(), last = Date.now(), leaving = false, native = null, popOpen = false;
+  const brl = (v, d = 2) => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: d, maximumFractionDigits: d});
+  const hm = sec => { const m = Math.floor(sec / 60); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
+  const units = ['min', 'hora', 'dia'];
+  const unit = () => { const u = localStorage.getItem('dc.rate'); return units.includes(u) ? u : 'min'; };
+  const rateText = () => ({min: brl(S.rate.minute) + '/min', hora: brl(S.rate.hour) + '/h', dia: brl(S.rate.day) + '/dia'})[unit()];
+  const live = () => S.running ? S.elapsed + (performance.now() - t0) / 1000 : 0;
+  const spentNow = () => S.closed_money + live() * S.rate_hour_running / 3600;
+  const secondsNow = () => S.closed_seconds + live();
+  const dim = 'text-neutral-400', mute = 'text-neutral-500 dark:text-neutral-400', strong = 'text-neutral-800 dark:text-neutral-200';
+  const button = () => `<span data-act="toggle" tabindex="0" aria-label="${S.running ? 'pausar' : 'iniciar'}" title="${S.running ? 'pausar' : 'iniciar'}"
+    class="px-1.5 select-none ${strong} hover:text-neutral-500">${S.running ? '⏸' : '▶'}</span>`;
+  const name = () => `<span data-act="center" tabindex="0" title="hoje, por centro de custo" class="${mute} hover:text-neutral-900 dark:hover:text-neutral-100">${S.name}</span>`;
+  function draw() {
+    const spent = spentNow(), secs = secondsNow();
+    if (S.investment) {
+      box.innerHTML = `${name()}<span class="${dim}">·</span><span class="tabular-nums font-semibold ${strong}">${brl(spent)} hoje</span>
+        <span data-act="rate" tabindex="0" title="min · hora · dia" class="tabular-nums ${mute} hover:text-neutral-900">${rateText()}</span>${button()}`;
+    } else {
+      const over = spent > S.budget, pct = Math.min(100, spent / S.budget * 100);
+      const eff = secs > 0 ? S.budget / (secs / 3600) : null;
+      box.innerHTML = `${name()}
+        <div class="flex flex-col"><div>
+          <span class="tabular-nums font-semibold ${over ? 'over' : strong}">${brl(spent)}</span>
+          <span class="tabular-nums ${dim}">de ${brl(S.budget)}</span></div>
+          <div class="mt-0.5 h-[2px] bg-neutral-200 dark:bg-neutral-800"><div class="h-full ${over ? 'bg-red-600' : S.running ? 'bg-neutral-800 dark:bg-neutral-200' : 'bg-neutral-400'}" style="width:${pct}%"></div></div>
+          ${over && eff ? `<div class="mt-0.5 text-[10px] leading-3"><span class="over">passou do orçamento</span><span class="${dim}"> · hoje a ${S.name} pagou ${brl(eff, 0)}/h</span></div>` : ''}</div>
+        <span data-act="rate" tabindex="0" title="min · hora · dia" class="tabular-nums ${mute} hover:text-neutral-900">${rateText()}</span>${button()}`;
+    }
+    if (popOpen) drawPop();
+  }
+  // the popover: today per cost center and the total (the DayCost numbers); the running stretch counts live
+  const pop = document.createElement('div');
+  pop.id = 'money-pop';
+  pop.className = 'hidden fixed top-10 right-0 z-[9999] min-w-[18rem] px-4 py-3 rounded-b-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-2xl font-sans text-sm';
+  document.body.appendChild(pop);
+  function drawPop() {
+    const rows = S.days.map(d => d.id === S.center ? {...d, seconds: secondsNow(), cost: spentNow()} : d).filter(d => d.seconds > 0 || d.id === S.center);
+    const row = (n, sec, cost, bud) => `<div class="grid grid-cols-[8rem_3.5rem_6.5rem_auto] gap-2 py-0.5">
+      <span class="${strong}">${n}</span><span class="tabular-nums ${dim}">${hm(sec)}</span>
+      <span class="tabular-nums text-right font-semibold ${bud && cost > bud ? 'over' : strong}">${brl(cost)}</span>
+      <span class="tabular-nums ${dim}">${bud ? 'de ' + brl(bud) : 'investido'}</span></div>`;
+    pop.innerHTML = `<div class="mb-1 text-[11px] uppercase tracking-widest ${mute}">hoje, por centro de custo</div>` +
+      rows.map(d => row(d.name, d.seconds, d.cost, d.budget_day)).join('') +
+      `<div class="mt-1 pt-1 border-t border-neutral-200 dark:border-neutral-800 grid grid-cols-[8rem_3.5rem_6.5rem_auto] gap-2">
+        <span class="${mute}">total</span><span class="tabular-nums ${dim}">${hm(rows.reduce((a, d) => a + d.seconds, 0))}</span>
+        <span class="tabular-nums text-right font-semibold ${strong}">${brl(rows.reduce((a, d) => a + d.cost, 0))}</span></div>`;
+  }
+  const togglePop = open => { popOpen = open ?? !popOpen; pop.classList.toggle('hidden', !popOpen); if (popOpen) drawPop(); };
+  const post = (path, body = {}) => fetch(`${D.base}/time/${path}`, {method: 'POST', body: new URLSearchParams(body)})
+    .then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); } return s; }).catch(() => {});
+  const stop = (by, trim = 0) => { if (!S.running) return; S.closed_money = spentNow(); S.closed_seconds = secondsNow(); S.running = false; draw(); return post('stop', {ended_by: by, trim_seconds: trim}); };
+  const start = () => post('start').then(() => { last = Date.now(); });
+  const act = el => {
+    const a = el && el.closest && el.closest('[data-act]'); if (!a) return;
+    if (a.dataset.act === 'rate') { localStorage.setItem('dc.rate', units[(units.indexOf(unit()) + 1) % 3]); draw(); }
+    else if (a.dataset.act === 'center') togglePop();
+    else if (S.running) stop('pause'); else start();
+  };
+  box.addEventListener('click', e => act(e.target));
+  box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { act(e.target); e.preventDefault(); } });
+  document.addEventListener('click', e => { if (popOpen && !box.contains(e.target) && !pop.contains(e.target)) togglePop(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && popOpen) togglePop(false); });
+  for (const t of ['keydown', 'click', 'scroll', 'pointermove', 'wheel']) addEventListener(t, () => { last = Date.now(); }, {capture: true, passive: true});
+  // the native app calls this every 5 s with the seconds since the Mac's last input of any kind
+  window.devconsoleIdle = seconds => { native = {seconds, at: Date.now()}; };
+  const idleSeconds = () => native ? native.seconds + (Date.now() - native.at) / 1000 : (Date.now() - last) / 1000;
+  addEventListener('pagehide', () => { leaving = true; });  // navigating inside the domain or reloading: the server keeps the stretch
+  addEventListener('pageshow', e => { leaving = false; if (e.persisted) post('beat'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !leaving) stop('hidden'); });
+  setInterval(() => {
+    const idle = idleSeconds();
+    if (S.running && idle > S.idle_minutes * 60) stop('idle', idle);
+    else draw();
+  }, 1000);
+  setInterval(() => { if (S.running) post('beat'); }, 10000);
+  draw();
+  if (S.running && document.hidden) stop('hidden');  // reloaded in the background: it does not run
 }
 """
 
@@ -1107,6 +1205,152 @@ async def source_stream(slug: str):
             await asyncio.sleep(1)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+# --- the money bar: the Costs domain's journal is the only storage (cost-track's costs.py is its only writer) --------
+def _load_costs():
+    """cost-track's costs.py, next to this skill in the skills folder; None (no bar) when it is not there."""
+    path = Path(__file__).resolve().parent.parent.parent / "cost-track" / "scripts" / "costs.py"
+    if not path.exists():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("dev_console_costs", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+C = _load_costs()
+ENDED_BY = ("pause", "domain_change", "hidden", "idle", "close")
+STALE_SECONDS = 45  # the page pings every ~10 s while running; silence this long means the page is gone
+
+
+def _now():
+    return datetime.now().astimezone()
+
+
+def _center_of(slug: str) -> str | None:
+    return C.center_of(slug, getattr(DOMAINS[slug], "COST_CENTER", None)) if C else None
+
+
+def _close_run(ended_by: str, now=None, trim: float = 0.0):
+    """End the running stretch: one time_entry.stopped (seconds, the rate it started with, the cost)."""
+    from datetime import timedelta
+
+    run = C.running() if C else None
+    if not run:
+        return None
+    started = datetime.fromisoformat(run["started_at"])
+    end = max((now or _now()) - timedelta(seconds=max(trim, 0)), started)
+    seconds = round((end - started).total_seconds())
+    cost = round(seconds * run["rate_hour"] / 3600, 2)
+    ev = C.emit("time_entry.stopped", {"text": C.stopped_text(run["center"], run["domain"], seconds, cost), "domain": run["domain"],
+                                       "seconds": seconds, "rate_hour": run["rate_hour"], "cost": cost,
+                                       "ended_by": ended_by if ended_by in ENDED_BY else "pause"},
+                cost_center=run["center"], actor="dev-console")
+    C.set_running(None)
+    return ev
+
+
+def _settle():
+    """Close a stretch whose page went quiet (ended_by close, ended at the last ping)."""
+    run = C.running() if C else None
+    if run and (_now() - datetime.fromisoformat(run["last_seen"])).total_seconds() > STALE_SECONDS:
+        _close_run("close", now=datetime.fromisoformat(run["last_seen"]))
+
+
+def _leave(slug: str):
+    """A page of another domain opened: a stretch running elsewhere ends (domain_change)."""
+    _settle()
+    run = C.running() if C else None
+    if run and run["domain"] != slug:
+        _close_run("domain_change")
+
+
+def _money_state(slug: str):
+    """What the domain's bar draws, or None when the domain has no cost center."""
+    center = _center_of(slug)
+    if not center:
+        return None
+    cs, w, now = C.centers(), C.worth(), _now()
+    c, rate = cs[center], C.rate_hour(center)
+    if not rate:
+        return None
+    per_day = w.get("paid_hours_day", 5)
+    seconds, cost = C.today(center)
+    run = C.running()
+    live = run if run and run["center"] == center else None
+    days = [{"id": cid, "name": cs.get(cid, {}).get("name", cid), "seconds": sec, "cost": cst, "budget_day": C.budget_day(cid)}
+            for cid, (sec, cst) in C.today_by_center().items()]
+    if center not in {d["id"] for d in days}:
+        days.append({"id": center, "name": c.get("name", center), "seconds": 0, "cost": 0.0, "budget_day": C.budget_day(center)})
+    investment = c.get("kind") == "investment" or C.budget_day(center) is None  # a client with no day budget has no cap to show
+    return {"center": center, "name": c.get("name", center), "investment": investment, "budget": C.budget_day(center),
+            "rate": {"minute": rate / 60, "hour": rate, "day": rate * per_day}, "running": bool(live),
+            "elapsed": (now - datetime.fromisoformat(live["started_at"])).total_seconds() if live else 0.0,
+            "rate_hour_running": live["rate_hour"] if live else rate, "closed_seconds": seconds, "closed_money": cost,
+            "idle_minutes": 5, "days": days}
+
+
+def _json(data, status: int = 200):
+    from starlette.responses import JSONResponse
+
+    return JSONResponse(data, status_code=status)
+
+
+@rt("/domain/{slug}/time")
+def time_state(slug: str):
+    """Today's numbers for the domain's bar (read only)."""
+    if not use(slug):
+        return _json({"error": "no such domain"}, 404)
+    _settle() if C else None
+    state = _money_state(slug)
+    return _json(state or {"error": "no cost center"}, 200 if state else 404)
+
+
+@rt("/domain/{slug}/time/start", methods=["POST"])
+def time_start(slug: str):
+    """Start a stretch (the only way the clock runs); one at a time, another domain's ends first (domain_change)."""
+    if not use(slug):
+        return _json({"error": "no such domain"}, 404)
+    center = _center_of(slug)
+    rate = C.rate_hour(center) if center else None
+    if not rate:
+        return _json({"error": "no cost center"}, 404)
+    _settle()
+    run = C.running()
+    if not (run and run["domain"] == slug and run["center"] == center):
+        if run:
+            _close_run("domain_change")
+        now = _now().isoformat(timespec="seconds")
+        C.emit("time_entry.started", {"text": C.started_text(center, slug), "domain": slug}, cost_center=center, actor="dev-console")
+        C.set_running({"center": center, "domain": slug, "started_at": now, "last_seen": now, "rate_hour": rate})
+    return _json(_money_state(slug))
+
+
+@rt("/domain/{slug}/time/beat", methods=["POST"])
+def time_beat(slug: str):
+    """The page is alive: a stretch nobody pings for a while is closed (ended_by close)."""
+    if not use(slug):
+        return _json({"error": "no such domain"}, 404)
+    if C:
+        _settle()
+        run = C.running()
+        if run:
+            C.set_running({**run, "last_seen": _now().isoformat(timespec="seconds")})
+    return _json(_money_state(slug) or {"error": "no cost center"})
+
+
+@rt("/domain/{slug}/time/stop", methods=["POST"])
+def time_stop(slug: str, ended_by: str = "pause", trim_seconds: float = 0):
+    """End the running stretch (pause | domain_change | hidden | idle | close); idempotent."""
+    if not use(slug):
+        return _json({"error": "no such domain"}, 404)
+    if C:
+        _close_run(ended_by, trim=min(max(trim_seconds, 0), 86400))
+    return _json(_money_state(slug) or {"error": "no cost center"})
 
 
 def _ctx(tid: str, event: str, eid: str | None = None, mode: str = "real", domain: str = ""):
@@ -1195,9 +1439,16 @@ def domain(slug: str, req):
 
 
 @rt("/domain/{slug}/t/{tid}")
-def tension(slug: str, tid: str):
+def tension(slug: str, tid: str, embed: str = ""):
     if not use(slug):
         return RedirectResponse("/", status_code=303)
+    money = None
+    if C and not embed:  # an embed (a widget's iframe) neither runs the clock nor ends another domain's stretch
+        try:  # the money bar is a bonus: it never breaks the page
+            _leave(slug)
+            money = _money_state(slug)
+        except Exception:
+            money = None
     base = PROJECT.BASE
     state = journal.read({"id": tid})
     if not state:
@@ -1227,7 +1478,7 @@ def tension(slug: str, tid: str):
     fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
     tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
-    payload = json.dumps({"base": base, "name": PROJECT.NAME, "tabs": tabs, "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
+    payload = json.dumps({"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
@@ -1236,6 +1487,7 @@ def tension(slug: str, tid: str):
             Div("dev-console", cls="shrink-0 pl-4 pr-3 font-semibold text-neutral-900 dark:text-neutral-100"),
             Div(id="tabs", cls="flex-1 min-w-0 flex overflow-x-auto [scrollbar-width:none]"),
             Div(id="keyhint", cls="shrink-0 w-8 text-neutral-400"),
+            *([Div(id="money", cls=f"shrink-0 h-full flex items-center gap-3 px-3 whitespace-nowrap border-l {line}")] if money else []),
             # dev-console works at the level of a Project
             # dev-console works at the level of a Domain: each one in its own context, /domain/<slug>
             # the current domain; a click or ⌘K opens the Domain Switcher (fuzzy search over an overlay)
@@ -1287,6 +1539,7 @@ def tension(slug: str, tid: str):
         Script(src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"),
         Script(src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js"),
         Script(JS, type="module"),
+        Script(MONEY_JS, type="module"),
         cls="h-screen flex flex-col font-mono text-xs bg-white dark:bg-neutral-950",
     )
 
