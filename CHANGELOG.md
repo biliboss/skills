@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.51.0] - 2026-11-06
+
+### Added
+
+- `design` 0.2.0: o design-playground (MCP e Web) mora na skill, em `playground/`, com herança, patches, modificadores e o log de carga, ao estilo do mod system do RimWorld; a Web leva a guarda de Host/Origin do `/mcp` (reaplica o PR #14).
+
 ## [0.50.0] - 2026-11-06
 
 ### Added

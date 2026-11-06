@@ -8,6 +8,7 @@ $DESIGN_PRODUTOS/<produto>/
   render.ts              a receita: tira o HTML e o CSS do código do produto
   componentes/<peça>/    os wrappers reais (gerados pelo build; não edite à mão)
   rascunhos/<peça>/      os componentes novos, escritos pelo agente
+  patches/*.json         remendos nos wrappers, aplicados na leitura e que sobrevivem ao build (formato: SKILL.md, "Mods")
 ```
 
 No casa.env, por produto: `PRODUTO_<P>_REPO` (o checkout local, só leitura), `PRODUTO_<P>_REMOTO` (o nome no GitHub, `dono/repo`) e, se o ramo não for `main`, `PRODUTO_<P>_RAMO`.
