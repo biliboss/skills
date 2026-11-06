@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.80.0
+
+- tmux 0.3.0: `agent-state.sh`, the thread's tab lights up (✓, bordô) when its Hermes agent finishes a turn and clears when the owner enters it, driven by Hermes shell hooks (no polling). thread 0.4.0: `thread.sh touch`, tabs by recency (Bili = 1, threads newest first, non-threads last, focus never moved). kanban 0.7.4 and dev-console 0.30.6 read `@agent`/`@done` first.
+
 ## 0.78.0
 
 - hustler 0.1.0: market vision for an idea (customer job, alternatives with sources, positioning map and the upper quadrant, business models incl. open-core, re-check list), with `render-map.sh`; first use on Zelito.

@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-06
+
+### Added
+
+- `thread.sh touch <tab>`: a thread becomes tab 2 (the session's first window, the Bili, stays tab 1; windows without `@thread` stay at the end). Never takes the owner's focus (`move-window -d`; when he is on that very tab, the tabs in front of it move behind it instead). One list, O(windows), no sleep. Called by the tmux skill's `agent-state.sh` on a prompt and on the end of a turn.
+
 ## [0.3.1] - 2026-11-06
 
 ### Fixed

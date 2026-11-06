@@ -170,12 +170,17 @@ def agent_state(card) -> dict | None:
         return None
     attached, activity = sessions[name][0] != "0", int(sessions[name][1] or 0)
     screen = tmux("capture-pane", "-p", "-t", f"{name}:1")
+    # tmux skill's agent-state.sh marks the window (@agent=working while a turn runs, @done=1 when it ended unseen):
+    # when present they win over reading the pane; the scrape stays the fallback and still supplies "waiting" + context.
+    marks = [l.split("\t") for l in tmux("list-windows", "-t", f"={name}", "-F", "#{@agent}\t#{@done}").splitlines()]
+    working = any(m[0] == "working" for m in marks)
+    done = any(len(m) > 1 and m[1] == "1" for m in marks)
     hit = next((m for m in map(STATUS_RE.search, reversed(screen.splitlines())) if m), None)
     if hit is None:
         state, ctx = "sem Hermes aberto", ""
     else:
         word = hit.group(1).strip()
-        state = "esperando você" if WAITING_RE.search(screen) else "pronto" if word == "ready" else "trabalhando"
+        state = "esperando você" if WAITING_RE.search(screen) else "trabalhando" if working else "pronto" if done or word == "ready" else "trabalhando"
         ctx = f"contexto {hit.group(3)} de {hit.group(4)}"
     return {"session": name, "state": state, "context": ctx, "attached": attached, "activity": activity}
 

@@ -3,6 +3,7 @@
 #   thread.sh open <topic> [--card C] [--session S] [--from SESSION_ID | --new] [--profile P] [--cwd DIR] [--brief TEXT | --brief - | --brief-gz B64]
 #   thread.sh list
 #   thread.sh close <topic> [--session S]
+#   thread.sh touch <tab>      a thread becomes tab 2 (Bili = first window stays 1, non-threads stay last); never moves the owner's focus
 # A thread is a /branch of the Hermes session that invoked the skill ($HERMES_SESSION_ID; --from overrides; --new only when asked).
 # The tab opens right after the invoking agent's window (tab 2 for a desktop caller: right after the session's first window).
 # The tab opens in the caller's tmux session ($TMUX_PANE's); outside tmux, in the session of the owner's most recently active client; --session overrides. Never a session per card.
@@ -19,7 +20,7 @@ READY_TIMEOUT="${THREAD_READY_TIMEOUT:-40}"
 
 tm() { if [ -n "${TMUX_SOCKET:-}" ]; then "$TMUX_BIN" -L "$TMUX_SOCKET" "$@"; else "$TMUX_BIN" "$@"; fi; }
 die() { echo "thread.sh: $*" >&2; exit 1; }
-usage() { sed -n '2,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { sed -n '2,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 
 # sessions as "id<TAB>title" lines (id = last column of `hermes sessions list`)
 sessions() {
@@ -168,6 +169,26 @@ cmd_list() { # session<TAB>topic<TAB>window id<TAB>card, every window marked @th
   tm list-windows -a -F "#{?@thread,$f,}" 2>/dev/null | awk -F'\t' 'NF>1' || true
 }
 
+cmd_touch() { # <tab>: a thread becomes tab 2, right after the session's first window (the Bili). Never moves the owner's focus.
+  [ $# -eq 1 ] || usage
+  local info sess wid isthread active cur i pos=-1 ids=()
+  info="$(tm display-message -p -t "$1" '#{session_name}|#{window_id}|#{window_active}|#{@thread}' 2>/dev/null)" || return 0
+  sess="${info%%|*}"; info="${info#*|}"; wid="${info%%|*}"; info="${info#*|}"; active="${info%%|*}"; isthread="${info#*|}"
+  [ -n "$isthread" ] || return 0                      # only threads move; zsh and friends keep their place
+  i=0
+  while IFS= read -r cur; do                          # one list, in tab order
+    ids[i]="$cur"; [ "$cur" != "$wid" ] || pos=$i; i=$((i + 1))
+  done < <(tm list-windows -t "=$sess" -F '#{window_id}' 2>/dev/null)
+  [ "$pos" -ge 2 ] || return 0                        # not found, the Bili (tab 1) or already tab 2
+  # Focus: tmux keeps the current window while others move (move-window -d), but moving the CURRENT window itself
+  # sends the focus elsewhere. So when the owner is on this very tab, move the tabs between it and slot 2 behind it.
+  if [ "$active" = 1 ]; then
+    for ((i = pos - 1; i >= 1; i--)); do tm move-window -d -a -s "${ids[i]}" -t "$wid" 2>/dev/null || return 0; done
+  else
+    tm move-window -d -b -s "$wid" -t "${ids[1]}" 2>/dev/null || true
+  fi
+}
+
 cmd_close() {
   [ $# -ge 1 ] || usage
   local topic="$1" session="" hits n; shift
@@ -189,6 +210,7 @@ case "$1" in
   open) shift; cmd_open "$@" ;;
   list) shift; cmd_list "$@" ;;
   close) shift; cmd_close "$@" ;;
+  touch) shift; cmd_touch "$@" ;;
   -h|--help|help) usage 0 ;;
   *) usage ;;
 esac

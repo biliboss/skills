@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.6] - 2026-11-06
+
+### Changed
+
+- Declares the dependency on the `tmux` skill for agent state: `agent-state.sh` marks the window (`@agent`, `@done`); where a view shows an agent's state it reads those first and scrapes the pane only as fallback (the Quadro's agent line, in `kanban`, does).
+
 ## [0.30.5] - 2026-11-06
 
 ### Changed

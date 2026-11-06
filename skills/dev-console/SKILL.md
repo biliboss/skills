@@ -9,10 +9,12 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.5
+  version: 0.30.6
 ---
 
 # dev-console
+
+**Depends on the skill `tmux` for agent state**: `tmux/scripts/agent-state.sh` (driven by the Hermes hooks) sets the window options `@agent=working` and `@done=1`. Any view of an agent's state (the Quadro's agent line) reads them first and scrapes the pane only when they are absent.
 
 ## devc: the one door
 
