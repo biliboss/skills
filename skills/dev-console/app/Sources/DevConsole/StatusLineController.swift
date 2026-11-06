@@ -16,6 +16,11 @@ final class StatusLineController {
     private let module = NSTextField(labelWithString: "")
     private var info: StatusInfo?
     private var refreshTimer: Timer?
+    /// The hour, first on the line, like iOS's status-bar clock: the system font (SF), semibold, digits that do not
+    /// jump, 24 h, the colon blinking on the half second.
+    private let clock = NSTextField(labelWithString: "")
+    private var clockTimer: Timer?
+    private var colonOn = true
     /// A click on the domain (left) or on the module (right) asks for the native palette in that mode.
     var onPalette: ((PaletteMode) -> Void)?
 
@@ -47,7 +52,11 @@ final class StatusLineController {
         bar.orientation = .horizontal
         bar.spacing = 8
         bar.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 10)
-        bar.setViews([button, center, money, spacer, module], in: .leading)
+        clock.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        clock.textColor = .labelColor
+        clock.setContentHuggingPriority(.required, for: .horizontal)
+        clock.setContentCompressionResistancePriority(.required, for: .horizontal)
+        bar.setViews([clock, button, center, money, spacer, module], in: .leading)
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.wantsLayer = true
         let line = NSBox(); line.boxType = .separator; line.translatesAutoresizingMaskIntoConstraints = false
@@ -67,6 +76,11 @@ final class StatusLineController {
             line.bottomAnchor.constraint(equalTo: bar.topAnchor),
         ])
         render()
+        tickClock()
+        clockTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickClock() }
+        }
+        clockTimer?.tolerance = 0.05
         // Fallback: a page that is loading, throttled or gone does not push; a slow refresh keeps the numbers honest.
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
@@ -137,5 +151,19 @@ final class StatusLineController {
                 }
             }
         }.resume()
+    }
+
+    /// Redraws the hour; the colon shows on the first half of each second and hides on the second (blinks).
+    private func tickClock() {
+        let now = Date()
+        let c = Calendar.current.dateComponents([.hour, .minute, .nanosecond], from: now)
+        colonOn = (c.nanosecond ?? 0) < 500_000_000
+        let hh = String(format: "%02d", c.hour ?? 0), mm = String(format: "%02d", c.minute ?? 0)
+        let font = clock.font ?? NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        let text = NSMutableAttributedString(string: hh, attributes: [.font: font, .foregroundColor: NSColor.labelColor])
+        text.append(NSAttributedString(string: ":", attributes: [
+            .font: font, .foregroundColor: colonOn ? NSColor.labelColor : NSColor.clear]))
+        text.append(NSAttributedString(string: mm, attributes: [.font: font, .foregroundColor: NSColor.labelColor]))
+        clock.attributedStringValue = text
     }
 }
