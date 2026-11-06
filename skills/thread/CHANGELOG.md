@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-11-06
+
+### Added
+
+- `thread.sh doctor [--json] [--verbose] [--profile P]`: read-only drift check of the thread invariant (own tmux session, live Hermes session, `--resume <hsid>`; card-only sessions), in the `doctor` skill protocol (dimension, check, status, evidence, action). Exit 0/1/2. `scripts/test-doctor.sh`.
+
+### Changed
+
+- First rule: open a thread only when the owner explicitly asks. The frontmatter description now says so.
+
 ## [0.9.0] - 2026-11-06
 
 ### Added

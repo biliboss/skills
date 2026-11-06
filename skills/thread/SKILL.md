@@ -1,8 +1,8 @@
 ---
 name: thread
-description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
+description: Use only when the owner asks for a thread. Opens a branch.
 metadata:
-  version: 0.9.0
+  version: 0.10.0
 ---
 
 # thread — a topic, in one call
@@ -30,6 +30,7 @@ EOF
 
 ## Rules
 
+- **Open a thread only when the owner explicitly asks for one** ("abre uma thread", "thread", "tópico"). Never on the agent's own initiative, never as the way to run long work: that goes to subagents. A skill or brief that suggests a thread does not count as asking.
 - **Uma thread começa em shape.** O brief colado em toda thread nova leva na frente uma linha mandando carregar a skill `shape` e registrar com `shape.sh emit request.received --shaping <topic>`. Por quê: regra do dono, o sistema TEM de experimentar; abrir uma thread já é começar um shape daquele contexto, e o domínio shape registra o shaping de cada thread. A linha some se o brief já cita shape ou com `--no-shape`.
 - **Never move the owner's focus: tabs open in the background with -d** (`new-window -d -a`; never `select-window`/`switch-client`; a restart is `respawn-window` alone). A thread must not take the owner off the window he is on.
 - Never put a secret in a brief: it lands in the session history.
@@ -37,6 +38,22 @@ EOF
 - The cost clock follows the active window's `@card` first, then the session name (cost-track); that is why the card is set on the window.
 - Readiness is polled on the pane (`ready`/`opus`/`sonnet`, 40 s max, `THREAD_READY_TIMEOUT`); on timeout the window stays open and the brief is not sent.
 - Don't touch other windows; `TMUX_SOCKET` selects another tmux server (tests use a private one).
+
+## Doctor
+
+`thread.sh doctor [--json] [--verbose] [--profile P]` states the invariant of a thread and checks it. Why: the pieces of a thread (tmux session and options, the Hermes DB, the hooks) are loosely coupled and drift apart with no single owner; nobody notices until a tab does not light up or two clients write to one chat. It follows the `doctor` skill protocol: each finding has dimension (environment|architecture|behavior|observability|agent), check, status (ok|warn|drift|fail), evidence (the raw fact) and action (the exact fix, never run by the doctor). It detects and reports; the fix is separate. Read-only: it never kills, renames, moves or selects anything.
+
+Invariant, per window with `@thread`:
+
+- `thread-has-own-session` (environment): the tmux session is named like the thread and the thread is its window.
+- `hsid-set` (observability): `@hsid` is set; without it the hooks cannot find the tab (no light, no sort).
+- `hsid-in-db` (environment): that id exists in `~/.hermes/profiles/<profile>/state.db` (`THREAD_STATE_DB` overrides; no db = a warn, Hermes checks skipped).
+- `hsid-live` (behavior): the session is not ended (`ended_at` NULL).
+- `resume-hsid` (environment): the pane's start command is `--resume <hsid>`, never `--continue` (that makes a second client of someone else's chat).
+- `card-not-a-session` (architecture): a session whose windows carry `@card` but no `@thread`: a card is a thread or a tab, never a session of its own.
+- `viewer-path` (environment, warn): the pane runs `threadview.py` from another checkout.
+
+Text line: `<status> <dimension> <check> <session>/<window-id>: <evidence> -> <action>`, then `ok N threads` or `drift K of N`. `--json`: one object per finding (`dimension, check, status, session, window, evidence, action`). `ok` findings only with `--verbose`. Exit 0 healthy, 1 drift/fail, 2 the doctor could not run (no tmux server). Tests: `scripts/test-doctor.sh` (private tmux server, fake state.db).
 
 Tests: `scripts/test.sh`. Credits: [README.md](README.md). History: [CHANGELOG.md](CHANGELOG.md).
 
