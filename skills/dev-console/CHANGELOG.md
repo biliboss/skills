@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0
+
+- Restores the domain page and the home to 0.24.0 (before the folded lanes of 0.25.0 and the focus home of 0.26.0): the owner lost the side panel and the event texts. devc stays.
+
 ## [0.26.0] - 2026-11-06
 
 ### Added
