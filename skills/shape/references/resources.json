@@ -21,7 +21,7 @@
  },
  "learn": {
   "alpha": 0.3,
-  "closed_seen": 0,
+  "closed_seen": 2,
   "every": 10
  },
  "request_kinds": {
@@ -491,12 +491,12 @@
   "skill:shape": {
    "kind": "skill",
    "what_for": "the default planning door: route, backbrief, delegate (the backbrief minutes are counted under skill:backbrief)",
-   "est_minutes": 1,
+   "est_minutes": 1.0,
    "est_tokens": 4000,
-   "est_cost_brl": 0.16,
+   "est_cost_brl": 0.14,
    "owner_involved": false,
-   "source": "estimate",
-   "learned_n": 0
+   "source": "journal:~/.local/share/shape/events.jsonl n=1",
+   "learned_n": 1
   },
   "skill:skill-smith": {
    "kind": "skill",
@@ -561,12 +561,12 @@
   "profile:hacker": {
    "kind": "profile",
    "what_for": "writes code, tests, delivers the PR",
-   "est_minutes": 5,
+   "est_minutes": 4.9,
    "est_tokens": 40000,
-   "est_cost_brl": 1.6,
+   "est_cost_brl": 1.41,
    "owner_involved": false,
-   "source": "estimate",
-   "learned_n": 0
+   "source": "journal:~/.local/share/shape/events.jsonl n=1",
+   "learned_n": 1
   },
   "profile:hipster": {
    "kind": "profile",
@@ -631,12 +631,12 @@
   "model:sonnet": {
    "kind": "model",
    "what_for": "the default worker: code, writing, most tasks",
-   "est_minutes": 3,
+   "est_minutes": 2.9,
    "est_tokens": 50000,
-   "est_cost_brl": 2.0,
+   "est_cost_brl": 1.76,
    "owner_involved": false,
-   "source": "estimate",
-   "learned_n": 0
+   "source": "journal:~/.local/share/shape/events.jsonl n=1",
+   "learned_n": 1
   },
   "model:opus": {
    "kind": "model",
@@ -651,12 +651,12 @@
   "form:subagent": {
    "kind": "form",
    "what_for": "a background subagent in its own worktree, delivers a PR",
-   "est_minutes": 4.9,
+   "est_minutes": 4.8,
    "est_tokens": 60000,
-   "est_cost_brl": 2.4,
+   "est_cost_brl": 2.11,
    "owner_involved": false,
-   "source": "journal:~/.hermes/profiles/bili/cache/delegation/live/*/task-*.log n=190",
-   "learned_n": 0
+   "source": "journal:~/.hermes/profiles/bili/cache/delegation/live/*/task-*.log n=190 + shape n=1",
+   "learned_n": 1
   },
   "form:thread": {
    "kind": "form",
