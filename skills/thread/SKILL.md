@@ -74,6 +74,7 @@ The agent of a thread follows this shape on every turn; `threadview.py` restates
 
 | Part | What the agent sets (`view.py <sid> …`) | Rule |
 |---|---|---|
+| Ready | `stage check add "<item>"`, `stage check <n> done` | the Definition of Ready (Scrum): 3-6 concrete things that must be true to start the Downstream; the % ready is items done / total; drawn under the stage line while in the Upstream |
 | Stage | `stage ready <0-100>`, `stage upstream done` | born in progress in the Upstream (the template), whose goal is to be ready for the Downstream: the agent keeps its % ready; only the owner moves it (D) |
 | Agents | `worker add|done|fail` + Hermes subagents (read by the screen) | N in parallel, one line each; the input never blocks: ⏎ always queues, "thinking" lives in the queue line |
 | Goal | `goal "<title>" "<subtitle>"` | one goal; the subtitle is the constraint that matters |

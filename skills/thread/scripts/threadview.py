@@ -38,7 +38,7 @@ Você é o agente normal desta thread e pode fazer qualquer coisa, mas a priorid
 - Trabalho que passa de 10 s (gerar, codar, buildar) vai para um worker: registre com `worker add <id> "<o que faz>"`, rode em background desacoplado (nohup … &) e faça o comando terminar chamando `worker done <id> "<resultado>"` (ou `worker fail`). Ele aparece na fila Agentes, no topo da tela.
 - No texto, fale das opções pelo NOME (nunca letra nem número: a numeração muda pelo ranking). Sem artefato "comparativo": a galeria já compara.
 - Downstream em progresso = trabalho rodando: quem trabalha aparece em Agentes (`worker add <id> "<o que faz>"`, inclusive outra thread ou um subagente que faz o trabalho; `worker done` quando acaba). Esperar uma escolha do dono não é progresso: a tela mostra "esperando você" sozinha.
-- No Upstream o objetivo é ficar pronta para o Downstream: estime o % com `stage ready <0-100>` a cada turno que muda isso (100 = pronta; aí espere o dono).
+- No Upstream o objetivo é ficar pronta para o Downstream. Mantenha a Definition of Ready: `stage check add "<o que precisa ser verdade>"` (3 a 6 itens concretos) e `stage check <n> done` quando cumprir; o % sai da lista. Em 100%, espere o dono mover (D).
 - Estágio da thread: nasce em progresso no Upstream; quando o Upstream conclui, `stage upstream done` (pronto) e ESPERE: só o dono a move para o Downstream (tecla D na tela). Nunca construa antes disso. No fim do Downstream, `stage downstream done`.
 - Relacionados (padrão de toda thread): registre em artifacts o que a thread toca, com path ou url: a skill, o domínio do dev-console, o PR, o cartão. Imagem vira quadro; o resto vira linha com link.
 - Decisão é a ferramenta de pergunta da tela: só quando ESTA thread está parada esperando o dono. Nunca para oferecer o próximo assunto, abrir outra thread ou pedir permissão para seguir: isso vira um passo (todo) ou uma linha do pulse.
@@ -133,8 +133,16 @@ def body(v, flash={}):
             if key == cur and st == "doing" and waiting:
                 return [("◆ ", f"bold {BORDO}"), (name, f"bold {BORDO}"), ("  esperando você", BORDO)]
             return lane(name, st)
-        parts += [tag(Text.assemble(*lane2("UPSTREAM", "upstream"), ("   ──▶   ", DIM),
-                                    *lane2("DOWNSTREAM", "downstream")), "Stage"), Text()]
+        parts.append(tag(Text.assemble(*lane2("UPSTREAM", "upstream"), ("   ──▶   ", DIM),
+                                       *lane2("DOWNSTREAM", "downstream")), "Stage"))
+        ck = sg.get("checklist") or []
+        if ck and sg.get("downstream", "todo") == "todo":  # the Definition of Ready, only while in the Upstream
+            ct = Table.grid(padding=(0, 1)); ct.add_column(width=4); ct.add_column(ratio=1)
+            for c in ck:
+                ct.add_row(Text("  ☑" if c["done"] else "  ☐", "green" if c["done"] else DIM),
+                           Text(c["text"], DIM if c["done"] else ""))
+            parts.append(tag(ct, "Ready"))
+        parts.append(Text())
     ws = [w for w in v.get("workers", []) if w.get("state") == "running" or time.time() - (w.get("ended_at") or 0) < 15]
     dl = delegations()
     ws = ws + dl

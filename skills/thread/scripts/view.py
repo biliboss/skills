@@ -15,6 +15,8 @@ The human never reads the agent's chat text; they read this screen.
   view.py <sid> stage upstream|downstream doing|done   the thread's lane: the agent marks the Upstream done (ready);
         only the owner moves it to the Downstream (the screen's D key: stage downstream doing --by owner)
   view.py <sid> stage ready <0-100>           how ready for the Downstream the agent thinks the thread is (100 = Upstream done)
+  view.py <sid> stage check add "<item>" | check <n> done|todo | check clear
+        the Definition of Ready: what must be true to start the Downstream; with a list, the % is items done / total
   view.py <sid> worker add <id> "<what it does>" [--pid PID]   register background work (Agentes queue)
   view.py <sid> worker done <id> ["<result>"]  |  worker fail <id> "<why>"
 
@@ -186,6 +188,24 @@ def main(a):
             if not w: die(f"no worker {wid}")
             w.update(state=sub, ended_at=time.time(), note=rest[2] if len(rest) > 2 else "")
         else: die("worker add|done|fail")
+    elif cmd == "stage" and rest[:1] == ["check"]:
+        # the Definition of Ready: what must be true to start the Downstream; with a list, the % comes from it
+        sg = v.setdefault("stage", {"upstream": "doing", "downstream": "todo"})
+        ck = sg.setdefault("checklist", [])
+        if rest[1:2] == ["add"] and len(rest) > 2:
+            ck.append({"text": rest[2], "done": False})
+        elif len(rest) > 2 and rest[1].isdigit() and rest[2] in ("done", "todo"):
+            n = int(rest[1])
+            if not 1 <= n <= len(ck): die(f"no item {n}; there are {len(ck)}")
+            ck[n - 1]["done"] = rest[2] == "done"
+        elif rest[1:2] == ["clear"]:
+            sg["checklist"] = ck = []
+        else:
+            die('stage check add "<item>" | stage check <n> done|todo | stage check clear')
+        if ck:
+            sg["ready"] = round(100 * sum(1 for c in ck if c["done"]) / len(ck))
+            if sg.get("downstream", "todo") == "todo":
+                sg["upstream"] = "done" if sg["ready"] == 100 else "doing"
     elif cmd == "stage" and rest[:1] == ["ready"]:
         # the Upstream's goal is to be ready for the Downstream: the agent's own estimate, 0-100
         pct = (rest + ["", ""])[1].rstrip("%")
