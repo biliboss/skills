@@ -16,6 +16,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `skill-smith` | cria, atualiza e porta skills |
 | `sync` | deixa cada repo que a sessão tocou igual ao remoto e sem sujeira, à mão |
+| `postmortem` | do problema relatado até a decisão que o causou, reconstruída dos eventos do NATS, e a mudança aplicada |
 | `lp-draft` | o rascunho de uma landing page num HTML só, no `.wiki/resources/` |
 | `bili` | falar com o Bili (o agente de vida longa) por um cartão do Linear: pedir, esperar, ler |
 | `linear` | o Linear do dono: ler um projeto, criar cartões, marcos e updates, subir imagens |

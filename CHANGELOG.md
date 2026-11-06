@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.50.0] - 2026-11-06
+
+### Added
+
+- `postmortem` 0.1.0: do problema relatado à decisão que o causou, reconstruída dos eventos do NATS (`scripts/timeline.sh`), com modelo de postmortem blameless (reaplica o PR #9).
+
 ## [0.49.0] - 2026-11-06
 
 ### Added
