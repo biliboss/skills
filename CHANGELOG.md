@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.44.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.22.0: API para agentes e gravador de voo. O DevConsole.app grava uma linha JSON por navegação (os últimos 20, com PNG feito pelo próprio app); rotas `/agent/now`, `/agent/history`, `/agent/shot` e `scripts/agent.sh`.
+
 ## [0.43.2] - 2026-11-06
 
 ### Changed

@@ -51,7 +51,7 @@ def _sibling(name: str):
     return mod
 
 
-for _name in ("console_agents", "console_playground"):
+for _name in ("console_agents", "console_playground", "console_recorder"):
     _sibling(_name)
 
 
@@ -2032,6 +2032,11 @@ def api_palette(domain: str = ""):
     modules += [{"id": "playground", "title": "Playground", "url": "/playground"},
                 {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]}]
     return _json({"domains": domains, "modules": modules})
+
+
+import console_recorder as REC  # noqa: E402  (the agent API: /agent/now, /agent/history, /agent/shot; read only)
+
+REC.register(rt, _json)
 
 
 @rt("/api/domains/{slug}/actions")

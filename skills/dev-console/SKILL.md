@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.21.1
+  version: 0.22.0
 ---
 
 # dev-console
@@ -167,6 +167,34 @@ is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/
   the layer-3 window, ~560 px wide) and capture just that window with `screencapture -x -l<window number>`.
   `tell application "DevConsole" to activate` does not reliably bring it to the front.
 - **Testing real keys:** synthetic keystrokes (`osascript ... keystroke`) go to whatever app is in front, and the owner may be working in another one. Send them only when the Mac is idle (HIDIdleTime over 60 s), bring DevConsole to the front with `set frontmost of process "DevConsole" to true`, check that it is still in front before every key, and stop at the first key that lands elsewhere; never type text or Enter blind.
+
+## Agent API (flight recorder)
+
+DevConsole.app keeps a ring of the last 20 navigations, so an agent can see what the window shows without moving it.
+On every navigation (a URL load, a module/tab, a selected event, an opened widget) the app appends ONE line to
+`${DEV_CONSOLE_RECORDER_DIR:-~/.local/state/dev-console/recorder}/events.jsonl` and saves a PNG it took itself with
+`WKWebView.takeSnapshot` (no focus, no domain switch, no cost-clock claim) as `shots/<at>.png`. Older lines and their
+PNGs are deleted. Nothing leaves the machine.
+
+```json
+{"at":"20261106T081829.224Z","url":"http://127.0.0.1:5057/agents","domain":null,"module":"Agents","event":null,"widget":null,"width":1520,"height":1024,"errors":[],"shot":"/abs/path/shots/20261106T081829.224Z.png"}
+```
+
+`at` is UTC, `domain` the slug, `event`/`widget` the `ev`/`w` of the URL, `errors` the page JS errors since the previous
+line (`pageerror:`, `unhandledrejection:`, `console:`; at most 20, 300 characters each), `width`/`height` the web view in
+points. The page script is injected by the app and reports through `messageHandlers.devconsole` (`type: "recorder"`,
+debounced 0.5 s, so a burst is one line; an unchanged state is not a new line).
+
+- **Routes** (read only, JSON): `GET /agent/now` (the last line; 404 when empty), `GET /agent/history?n=5` (the last n,
+  at most 20), `GET /agent/shot` (asks the app through `window.sh shot` and returns the new line with `source: "app"`;
+  when the app is not running, a headless `check.sh` shot of the last known page with `source: "headless"` and a `note`,
+  not added to the ring).
+- **`scripts/agent.sh now | history [n] | shot | open <url> | eval '<js>' | status`**: one door; prints url, domain,
+  module, event, widget, errors count and the shot path in a few lines, then look at the PNG. `open` goes through
+  `window.sh open` (no domain claim) and prints the new line; `eval`/`status` wrap `window.sh`. `--owner <name>` first
+  drives that owner's window.
+- Pure helpers (line encoding, ring trimming, error clipping) are in `ConsoleCore/Recorder.swift` (`RecorderTests`); the
+  routes are in `scripts/console_recorder.py` (`test_console_recorder.py`).
 
 ## Playground
 
