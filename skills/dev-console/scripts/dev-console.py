@@ -868,22 +868,40 @@ function drawGraph() {
         if (a !== 'human' && a !== b && kindOf(a, b) === 'branch') (groups[`${a}|${Math.sign(pos[b].y - pos[a].y)}`] ??= {a, bs: []}).bs.push(b); });
       const gutter = {};
       Object.values(groups).forEach(({a, bs}) => bs.sort((p, q) => Math.abs(pos[q].y - pos[a].y) - Math.abs(pos[p].y - pos[a].y))
-        .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(70 + i * 10, COL - 58); }));
+        .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(46 + i * 26, COL - 40); }));  // a full track apart: 10 px read as one line
       const branchRoute = (a, b) => { const S = pos[a], T = pos[b], dy = T.y - S.y, dx = T.x - S.x, s = Math.sign(dy);
         if (a === 'human') return Math.abs(dy) >= dx ? [{x: 0, y: T.y - s * dx}] : spurRoute(a, b);
         const h = gutter[`${a}>${b}`];
         if (Math.abs(dy) < COL || dx < COL - 1 || h == null) return spurRoute(a, b);
         const Bs = [{x: S.x + h, y: S.y + s * h}, {x: S.x + h, y: T.y - s * (COL - h)}, {x: S.x + COL, y: T.y}];
         if (dx - COL < 1) Bs.pop(); return Bs; };
+      // the interchange: lines leaving one station down (or up) a 45° leg are ranked by the leg's length; rank k leaves
+      // k·PAR lower-left of the centre (source-endpoint) and turns 2·k·PAR earlier, so the legs are parallel tracks
+      const PAR = 9, legs = {}, rank = {};
+      const rawBs = (a, b) => { const k = kindOf(a, b); return k === 'merge' || a === 'human' || a === b ? [] : k === 'inlane' ? spurRoute(a, b) : branchRoute(a, b); };
+      edges.forEach(e => { const a = e.data.source, b = e.data.target, B = rawBs(a, b)[0]; if (!B) return;
+        const lx = B.x - pos[a].x, ly = B.y - pos[a].y; if (lx < 1 || Math.abs(Math.abs(ly) - lx) > 1) return;
+        (legs[`${a}|${Math.sign(ly)}`] ??= []).push({b, lx}); });
+      Object.entries(legs).forEach(([key, ls]) => { const a = key.split('|')[0];
+        ls.sort((p, q) => q.lx - p.lx).forEach((l, k) => { rank[`${a}>${l.b}`] = k; }); });
+      const shifted = (a, b, Bs) => { const k = rank[`${a}>${b}`] || 0; if (!k || !Bs.length) return Bs;
+        const sg = Math.sign(Bs[0].y - pos[a].y) || 1, d = 2 * k * PAR, nx = Bs[1] || pos[b];
+        const horiz = Math.abs(nx.y - Bs[0].y) < 1;  // a leg that then runs along a row turns earlier; one that drops, lower
+        return [horiz ? {x: Bs[0].x - d, y: Bs[0].y} : {x: Bs[0].x, y: Bs[0].y + sg * d}, ...Bs.slice(1)]; };
       const done = new Set(), born = new Set();
       edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
         if (a === b) return;
         const kind = kindOf(a, b); done.add(`${a}>${b}`); let Bs = [];
-        if (kind === 'merge') { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); Bs = B ? [B] : []; DASH_POINTS.push([pos[a], ...Bs, pos[b]]); }
-        else { Bs = kind === 'inlane' ? spurRoute(a, b) : branchRoute(a, b); e.data.label = '';
+        if (kind === 'merge' && back.has(`${a}>${b}`)) {  // a loop runs leftwards: an arc above the rows, never along a line
+          const dx = Math.abs(pos[b].x - pos[a].x), dy = pos[b].y - pos[a].y;
+          e.classes = `${cl} cross backloop`; e.data.cpd = (pos[b].x <= pos[a].x ? 1 : -1) * (SPURY * 0.9 + Math.min(dx, 4 * COL) * 0.12 + Math.abs(dy) * 0.1); }
+        else if (kind === 'merge') { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); Bs = B ? [B] : []; DASH_POINTS.push([pos[a], ...Bs, pos[b]]); }
+        else { Bs = shifted(a, b, kind === 'inlane' ? spurRoute(a, b) : branchRoute(a, b)); e.data.label = '';
+          const k = rank[`${a}>${b}`] || 0, sg = Math.sign(pos[b].y - pos[a].y) || 1;
+          if (k) e.data.sep = `${-k * PAR}px ${sg * k * PAR}px`;
           const spine = a === 'human' && Math.abs(pos[b].y - pos[a].y) >= 1;
-          e.classes = `${cl} ${spine ? 'spine' : 'line'}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
-          LINE_POINTS.push([pos[a], ...Bs, pos[b]]); }
+          e.classes = `${cl} ${spine ? 'spine' : 'line'}${e.data.sep ? ' parallel' : ''}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
+          LINE_POINTS.push([k ? {x: pos[a].x - k * PAR, y: pos[a].y + sg * k * PAR} : pos[a], ...Bs, pos[b]]); }  // the shifted start, for the label test
         if (Bs.length) e.data.route = route(pos[a], pos[b], Bs); });
       // a lane is continuous: where the model has no edge between a station and the one before it, a faint rail carries the
       // line on; a lane nothing leads into hangs from the Human on the grey spine
@@ -963,6 +981,8 @@ function drawGraph() {
           'font-family': 'ui-sans-serif, system-ui', color: soft, 'text-opacity': 0.85, events: 'no', 'z-index': 0}},
         {selector: 'edge.spine', style: {width: 4, 'line-color': soft, 'line-opacity': 0.55, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
         {selector: 'edge.rail', style: {width: 6, 'line-color': 'data(color)', 'line-opacity': 0.5, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
+        {selector: 'edge.parallel', style: {'source-endpoint': 'data(sep)'}},
+        {selector: 'edge.backloop', style: {'curve-style': 'unbundled-bezier', 'control-point-distances': 'data(cpd)', 'control-point-weights': 0.5, 'z-index': 1}},
         {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
           'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
       ] : []),
@@ -1473,7 +1493,7 @@ if (box && D.money && !Q.get('embed')) {
   const post = (path, body = {}) => fetch(`${D.base}/time/${path}`, {method: 'POST', body: new URLSearchParams(body)})
     .then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); } return s; }).catch(() => {});
   const stop = (by, trim = 0) => { if (!S.running) return; S.closed_money = spentNow(); S.closed_seconds = secondsNow(); S.running = false; draw(); return post('stop', {ended_by: by, trim_seconds: trim}); };
-  const start = () => post('start').then(() => { last = Date.now(); });
+  const start = () => { entered = true; return post('start').then(() => { last = Date.now(); }); };
   const act = el => {
     const a = el && el.closest && el.closest('[data-act]'); if (!a) return;
     if (a.dataset.act === 'rate') { localStorage.setItem('dc.rate', units[(units.indexOf(unit()) + 1) % 3]); draw(); }
@@ -1495,7 +1515,7 @@ if (box && D.money && !Q.get('embed')) {
   // the native app feeds the Mac's idle (devconsoleIdle): there a covered window or a reload behind the chat is not
   // leaving, and only 5 min idle stops; a browser tab still stops when hidden
   const NATIVE = /DevConsole/.test(navigator.userAgent) || !!window.webkit?.messageHandlers?.devconsole;
-  document.addEventListener('visibilitychange', () => { if (document.hidden && !leaving && !NATIVE && !native) stop('hidden'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && entered && !leaving && !NATIVE && !native) stop('hidden'); });  // only a page a person used
   setInterval(() => {
     const idle = idleSeconds();
     if (S.running && idle > S.idle_minutes * 60) stop('idle', idle);
@@ -1503,7 +1523,7 @@ if (box && D.money && !Q.get('embed')) {
   }, 1000);
   setInterval(() => { if (S.running) post('beat'); }, 10000);
   draw();
-  if (S.running && document.hidden && !NATIVE) stop('hidden');  // a browser tab reloaded in the background: it does not run
+  // a page load never stops the clock (an agent's or a background tab's load is not a person leaving)
 }
 """
 
