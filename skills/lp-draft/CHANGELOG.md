@@ -1,7 +1,13 @@
 # Changelog
 
 All notable changes to lp-draft are recorded here.
-The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+
+## [0.3.0] - 2026-11-06
+
+### Changed
+
+- Showcase inside the LP (tabs + iframe), the LP in a plan, Publishing section with `references/publish.md` (self-hosted fonts, never migrate a live service without GO).
+
 
 ## [0.2.2] - 2026-11-06
 

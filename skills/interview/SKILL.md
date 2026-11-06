@@ -90,7 +90,7 @@ Defaults live in `settings.json` next to this file (falls back to pi's `~/.pi/ag
 
 - **Types:** `single` (radio), `multi` (checkbox), `text` (textarea), `image` (upload, paste, camera; answers are file paths you can Read), `info` (context only, no answer).
 - **Options:** strings, or `{ "label", "content"?: { "source", "lang"?, "file"?, "lines"?, "highlights"?, "title"?, "showSource"? } }`. The user can always type "Other" and add a note to a choice.
-- **`recommended`:** always set it, with `context` saying why. It shows a Recommended badge and pre-selects. `"conviction": "slight"` when unsure (no pre-select), `"strong"` when very sure.
+- **`recommended`:** always set it, with `context` saying why. It shows a Recommended badge and pre-selects. **Every form arrives fully pre-filled with your recommendation, so the owner can submit it untouched:** never `"conviction": "slight"` (it drops the pre-select and leaves the question open), and no `text` question without an answer (put "algo que eu não vi?" in the description, where his Other/note covers it). The owner's rule: an open field in a form is a decision handed back to him. `"strong"` when very sure.
 - **`weight`:** `"critical"` for key decisions, `"minor"` for low-stakes ones.
 - **`content`** on a question: code or Markdown shown above the options (`"lang": "md"` renders Markdown; `"lang": "diff"` for diffs).
 - **`media`** (one or a list): `{ "type": "image", "src", "alt", "caption" }`, `{ "type": "table", "table": { "headers", "rows", "highlights" } }`, `{ "type": "chart", "chart": { "type", "data", "options" } }` (Chart.js), `{ "type": "mermaid", "mermaid": "…" }`, `{ "type": "html", "html": "…" }`; `"position": "above"|"below"|"side"`.

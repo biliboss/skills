@@ -13,7 +13,7 @@ Onde mora cada credencial da casa e quem a usa está na página `segredos` do wi
 
 ## Passos
 
-1. **Ache o cofre e a chave, sem valor.** Rode a partir da raiz da pasta do cofre:
+1. **Ache o cofre e a chave, sem valor.** Não sabe em que cofre está? `sh scripts/acha-chave.sh '<regex>'` varre toda pasta com `.envless/` do Mac e lista só os nomes que casam, por ambiente (na VPS, o mesmo laço por `ssh`). Sabendo o cofre, rode a partir da raiz dele:
    ```sh
    cd <pasta-do-cofre>
    ls secrets/                    # os ambientes que existem
@@ -36,10 +36,16 @@ Onde mora cada credencial da casa e quem a usa está na página `segredos` do wi
    pbpaste | envless set CHAVE --env=<env>          # o dono copiou o valor
    envless set CHAVE --env=<env> < arquivo          # várias linhas (PEM)
    ```
+   - **Chave que só existe num segredo do GitHub Actions não volta para o envless:** o GitHub não devolve o valor (`gh secret list` mostra só o nome). Peça ao dono o `pbpaste | envless set` com o valor que ele guardou, ou com um token novo da mesma conta; o que não é segredo (ID de conta, subdomínio) sai do `gh variable list`. Peça isso no começo do trabalho e siga com o resto em paralelo, porque é caso de conta, só ele resolve.
    - O agente não digita nem gera o valor na conversa. Se é o dono quem tem o segredo, entregue a ele o comando exato para rodar com `!` no prompt (ou num terminal), e confira depois só com `envless list`.
    - Depois de guardar, anote em `.wiki/segredos.md` onde mora e quem usa, nunca o valor.
 4. **`get` quase nunca.** Ele imprime o valor e exige `--confirm`. Só quando um programa não aceita variável de ambiente, e sempre para um pipe que não volta à tela (`envless get CHAVE --confirm | pbcopy`). Na dúvida, é `exec`.
-5. **Um `.env` em texto puro que apareceu:** `envless migrate .env --env=<env>` cifra, põe o arquivo no `.gitignore` e apaga o original (`--keep` para conferir antes). Repo sem cofre: `envless init` na raiz cria a identidade (`.envless/identity.key`, nunca commitada) e o `recipients` (commitado).
+5. **Receber um segredo de outra pessoa (sem passar pelo chat).** O `set` recifra para **toda** chave pública em `.envless/recipients`, então:
+   - Do seu lado: `mkdir -p ~/.cofre-<tema> && cd ~/.cofre-<tema> && envless init`; o `recipients` tem a sua chave pública (`age1…`, não é segredo, pode ir no texto).
+   - Do lado dela: `envless init` num cofre próprio, `echo <sua age1…> >> .envless/recipients`, e o segredo entra pelo vigia do copiar: `uv run scripts/vigia-copiar.py --cofre <cofre> --nome <CHAVE> --env <env>` confere o copiar a cada 0,5 s, grava pelo stdin quando o conteúdo tem a forma da chave (`--formato hex32` ou `livre`), limpa o copiar e imprime só o status. Num Claude Code, rode o vigia **depois** de dizer à pessoa o que clicar, porque o comando prende a conversa (tempo limite de até 600000 ms).
+   - Ela manda `secrets/<env>.env.enc` por qualquer canal (é cifrado); você o põe em `~/.cofre-<tema>/secrets/` e confere com `list`/`exec`.
+   - Teste o caminho com uma chave falsa (`openssl rand -hex 16 | pbcopy`, guarde e devolva o copiar original numa variável) e confira por igualdade dentro do `exec`, nunca imprimindo.
+6. **Um `.env` em texto puro que apareceu:** `envless migrate .env --env=<env>` cifra, põe o arquivo no `.gitignore` e apaga o original (`--keep` para conferir antes). Repo sem cofre: `envless init` na raiz cria a identidade (`.envless/identity.key`, nunca commitada) e o `recipients` (commitado).
 
 ## Shell ou MCP
 

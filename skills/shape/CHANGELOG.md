@@ -2,6 +2,12 @@
 
 ## 0.4.0
 
+## [0.4.1] - 2026-11-06
+
+### Changed
+
+- Questions and backbrief as a clicked form; shaping a feedback file; principles enter the open backbrief; shaping naming and closing rules; `scripts/shape_draft.py`.
+
 - Shape stops at the choice: it never opens a thread, a subagent or a card; the caller executes and emits
   `work.delegated` (owner's rule: delegating is not the planner's job).
 

@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). Versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-11-06
+
+### Changed
+
+- Triage at the start of the turn; protocols described in parallel go whole in every brief; one-shot cap of 2 children; check disk after a crashed subagent; gh-app refuses merge by design.
+
 ## [0.3.3] - 2026-11-06
 
 ### Changed

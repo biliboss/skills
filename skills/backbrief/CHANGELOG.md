@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] - 2026-11-06
+
+### Changed
+
+- Teach-back text in short paragraphs; a false premise goes first as **Achado**; a request to obtain access starts by checking the premise.
+
 ## [0.18.0] - 2026-11-06
 
 ### Added

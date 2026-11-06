@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-11-06
+
+### Changed
+
+- Move without keys, `swap-window` without `-d`, live state published on write, session names without dots, ids as targets, option on a session needs `:`, Ctrl+K = Alt+K on Hermes tabs, stuck queue.
+
 ## [0.6.1] - 2026-11-06
 
 ### Changed

@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-06
+
+### Changed
+
+- Screens go in as PNGs (2x), four different ideas of the screen, champion by the product's design premise.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added
