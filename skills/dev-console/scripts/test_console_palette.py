@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.10"
 # ///
-"""The console home module (CONSOLE_HOME, the Kanban's Quadro) is in ⌘P from every page: D.modules of the web pages
+"""The console home module (CONSOLE_HOME, the Kanban module) is in ⌘P from every page: D.modules of the web pages
 and /api/palette of the native app. Starts a real console on a test port with two projects, an empty registry and a
 temp costs dir (never the owner's console or journal).
 Run: uv run --script test_console_palette.py   (env DEVC_TEST_PORT, default 5098)"""
@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("DEVC_TEST_PORT", "5098"))
 BASE = f"http://127.0.0.1:{PORT}"
-HOME = {"name": "Quadro", "href": "/domain/kanban?tab=Quadro"}
+HOME = {"name": "Kanban", "href": "/domain/kanban?tab=Kanban"}
 
 
 def get(path: str) -> str:
@@ -64,23 +64,29 @@ class HomeModuleInPalette(unittest.TestCase):
         for page in ("/playground", "/agents", "/browser"):
             mods = modules(page)
             self.assertEqual(mods[0], HOME, page)
-            self.assertEqual([m["name"] for m in mods].count("Quadro"), 1, page)
+            self.assertEqual([m["name"] for m in mods].count("Kanban"), 1, page)
 
     def test_modules_of_another_domain_page_lead_with_the_home(self):
         mods = modules("/domain/dev-console")
         self.assertEqual(mods[0], HOME)
-        self.assertEqual([m["name"] for m in mods].count("Quadro"), 1)
+        self.assertEqual([m["name"] for m in mods].count("Kanban"), 1)
 
     def test_kanban_page_does_not_duplicate_the_home(self):
         mods = modules("/domain/kanban")
-        self.assertEqual([m for m in mods if m["name"] == "Quadro"], [{"name": "Quadro", "href": None}])
+        self.assertEqual([m for m in mods if m["name"] == "Kanban"], [{"name": "Kanban", "href": None}])
 
     def test_api_palette_lists_the_home_once_with_or_without_domain(self):
         for query in ("", "?domain=dev-console", "?domain=kanban"):
             mods = palette(query)
-            quadro = [m for m in mods if m["title"] == "Quadro"]
-            self.assertEqual(quadro, [{"id": "Quadro", "title": "Quadro", "url": HOME["href"]}], query)
+            kanban = [m for m in mods if m["title"] == "Kanban"]
+            self.assertEqual(kanban, [{"id": "Kanban", "title": "Kanban", "url": HOME["href"]}], query)
             self.assertIn("/browser", [m["url"] for m in mods], query)  # same list as the web ⌘P
+
+    def test_old_tab_name_still_opens_the_board(self):
+        data = json.loads(re.search(r'<script[^>]*id="data"[^>]*>(.*?)</script>', get("/domain/kanban?tab=Quadro"), re.S).group(1))
+        self.assertEqual(data["module_aliases"], {"Quadro": "Kanban"})
+        self.assertIn("Kanban", data["tabs"])
+        self.assertEqual(data["module_widgets"]["Kanban"], ["card.created", "Board"])
 
 
 if __name__ == "__main__":

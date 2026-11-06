@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.4
+  version: 0.30.5
 ---
 
 # dev-console
@@ -65,7 +65,7 @@ adding a domain needs no restart: `console.sh domains add <path>` (it appends th
 `~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`, `ent`), so a reload or a shared link reopens the same view.
-**`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban's Quadro, skill `kanban`) when
+**`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban module, skill `kanban`) when
 that domain's journal has an entity; else the first domain, as before (a domain page with an empty journal is a dead
 end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
 `/api/palette` without a domain) point at the first domain by its URL.
@@ -248,7 +248,7 @@ into the browser's Print). The two key handlers listen in the capture phase so t
   `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
 - **Modules.** Every page carries `D.modules` (`{name, href}`), built by one server function (`_modules`): Domain and the
   project's `TABS` (`href: null`, shown in place), then Playground (`/playground`, navigates). ⌘P lists them (the current
-  one marked "· atual"); ⌘K lists **domains only**. The home module (`CONSOLE_HOME`, the Kanban's Quadro) is in ⌘P on
+  one marked "· atual"); ⌘K lists **domains only**. The home module (`CONSOLE_HOME`, the Kanban module) is in ⌘P on
   every page, first (also in `/api/palette`, which lists Browser too). The switcher script is the same on both pages (`SWITCHER_JS` is cut out
   of the main page's JS, one copy). The Playground page has the same bottom status line (`_status_bar`, its name there is
   "Playground") and ⌘P. Loading `/playground` never ends a running stretch: its script posts `enter` on the first trusted
@@ -383,7 +383,7 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   widget or a real component only when he says so. Proposing it as a per-domain "Esboço" tab was the misread.
 - **Modules per domain.** Domain is the one fixed module; a project lists the rest in `TABS` (absent =
   Domain only); they appear in the ⌘P overlay, never as a tab strip. Tension-shaped tabs live only in the tensions project's `TABS`.
-- **A module can be a project widget** (`MODULE_WIDGETS = {"Quadro": ("card.created", "Board")}`, the Kanban's board):
+- **A module can be a project widget** (`MODULE_WIDGETS = {"Kanban": ("card.created", "Board")}`, the Kanban's board):
   full width, its leading title hidden (the status line names it; the popup still shows it), its goto key the first free
   letter of its name, beside **the same contextual sidebar** (one `SIDE_HTML`, one `partHtml`). An element of it with
   `data-entity="<id>"` (plus `data-entity-name`, `data-entity-sub` for the header) opens that sidebar for the entity on

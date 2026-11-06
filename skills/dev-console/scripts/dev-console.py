@@ -15,7 +15,7 @@ domain model (DDD: aggregate root, entities, commands, events); Model = the stat
 Keys (vim-style goto): g d Domain, g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
 g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. All UI state lives in the query.
 A module may be a project widget (MODULE_WIDGETS), and / opens the module a domain names with CONSOLE_HOME (the
-Kanban's Quadro), else the first domain.
+Kanban module), else the first domain.
 """
 from __future__ import annotations
 
@@ -1520,7 +1520,7 @@ const ICON = {'Domain': '\uf0e8', 'Task Results': '\uf00c', 'Model': '\uf1b3', '
 const nf = t => ICON[t] ? `<i class="nf">${ICON[t]}</i>` : '';
 const keyed = t => { const k = KEYS[t]; if (!k) return t; const i = t.toLowerCase().indexOf(k);
   return i < 0 ? t : `${t.slice(0, i)}<span class="underline underline-offset-4">${t[i]}</span>${t.slice(i + 1)}`; };
-// --- a module drawn by one of the project's widgets (MODULE_WIDGETS: the Kanban's Quadro): full width, its leading
+// --- a module drawn by one of the project's widgets (MODULE_WIDGETS: the Kanban module): full width, its leading
 // title hidden (the status line names it), beside the same contextual sidebar. An element of it with data-entity opens
 // that sidebar for its entity (click, Enter, Space): the project's ENTITY_PARTS widgets rendered for it, then its JSON;
 // ?ent= keeps it open across a reload. Its goto key is the first free letter of its name.
@@ -1569,6 +1569,7 @@ function openEntity(id) {
       const body = $('ev-body').querySelector(`details[data-part="${CSS.escape(p)}"] .part-body`); if (body) inject(body, html); }));
 }
 let tab = Q.get('tab') || (location.hash ? decodeURIComponent(location.hash.slice(1)) : 'Domain');
+tab = (D.module_aliases || {})[tab] || tab;  // a module renamed by the project (MODULE_ALIASES): old links still open it
 if (!(tab in TABS) || !D.tabs.includes(tab)) tab = 'Domain';
 function show(name) {
   if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); setQ('ent', ''); markEntity(null); side.id = null; }
@@ -2150,7 +2151,7 @@ def event_widgets(slug: str, tid: str, event: str, e: str = ""):
 
 @rt("/")
 def index():
-    """The console's home: the module a domain names with CONSOLE_HOME (the Kanban's Quadro), when that domain has an
+    """The console's home: the module a domain names with CONSOLE_HOME (the Kanban module), when that domain has an
     entity to open; else the first domain, as before. The status line switches between them."""
     for slug, mod in DOMAINS.items():
         home = getattr(mod, "CONSOLE_HOME", None)
@@ -2166,7 +2167,7 @@ def index():
 
 
 def _home_module() -> tuple[str, str] | None:
-    """(slug, name) of the first domain that names a CONSOLE_HOME module (the Kanban's Quadro), as `index()` finds it.
+    """(slug, name) of the first domain that names a CONSOLE_HOME module (the Kanban module), as `index()` finds it.
     Listing needs no entity check: the module opens even on an empty journal."""
     for slug, mod in DOMAINS.items():
         home = getattr(mod, "CONSOLE_HOME", None)
@@ -2219,7 +2220,7 @@ def _page_data(slug: str, tid: str, money=None):
     # sidebar ({part title: widget}): see the project contract
     module_widgets = {n: list(v) for n, v in dict(getattr(PROJECT, "MODULE_WIDGETS", None) or {}).items() if n in tabs}
     return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ())),
-            "module_widgets": module_widgets, "entity_parts": dict(getattr(PROJECT, "ENTITY_PARTS", None) or {})}
+            "module_aliases": dict(getattr(PROJECT, "MODULE_ALIASES", None) or {}), "module_widgets": module_widgets, "entity_parts": dict(getattr(PROJECT, "ENTITY_PARTS", None) or {})}
 
 
 def _default_entity() -> str | None:
