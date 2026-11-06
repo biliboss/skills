@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Entry point of the task-understand skill: every harness calls this; the logic is tasks.py (uv, PEP 723).
+# Entry point of the backbrief skill: every harness calls this; the logic is tasks.py (uv, PEP 723).
 set -euo pipefail
 
 SOURCE="${BASH_SOURCE[0]}"

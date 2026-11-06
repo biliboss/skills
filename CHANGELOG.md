@@ -2,11 +2,23 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
-## [0.31.0] - 2026-11-06
+## [0.33.0] - 2026-11-06
 
 ### Added
 
 - `dev-console` 0.17.0: o módulo Agents (`/agents`, no ⌘P): os prompts digitados no Claude Code e o log das sessões em tempo real (watcher + SSE), inclusive os que entram no meio de um turno; `TrustedHostMiddleware` (400 para outro Host), sem CORS.
+
+## [0.32.0] - 2026-11-06
+
+### Changed
+
+- `task-understand` is now `backbrief` 0.14.0 (US Army backbrief; the Tasks domain keeps its name). Patch bumps: `advisor` 0.1.1, `cost-track` 0.3.2, `dev-console` 0.16.1, `skill-smith` 0.4.1.
+
+## [0.31.0] - 2026-11-06
+
+### Added
+
+- `diff-review` 0.1.0: revisão de código de um diff local (worktree contra a base) com prompt próprio, pelo pi no plano flat (Sonnet na assinatura ou GLM); achados em eventos JSONL; `task-understand` 0.13.4 a chama entre verify e deliver.
 
 ## [0.30.0] - 2026-11-06
 

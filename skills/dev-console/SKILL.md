@@ -29,8 +29,8 @@ uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_con
 ```
 
 Verify in the headless browser (`browser_exec local=true`: load, read `window.__cy` and the DOM, screenshot)
-or `curl`, then hand Gabriel the URL with `pbcopy`. Touch his Safari only when he asks (`open -a Safari <url>`):
-driving or capturing it on every change was rejected ("pare de usar o Safari").
+or `curl`, then show Gabriel the page as a tab in the Hermes desktop browser (`desktop_preview` open, with a label),
+or in the DevConsole window when it is his console. Never Safari: he asked for every link to open in the Hermes browser.
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
@@ -353,7 +353,7 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
    the new path. Leave the `/tmp` folder (deleting is his call). Ship as one PR.
    **Its events go to a global append-only JSONL**, like tensions: `~/.local/share/<name>/events.jsonl` (override
    `<NAME>_DIR`), written only by `scripts/<name>.py emit <event> '<json>' [--<entity> <id>] --actor <who>`;
-   no example journal inside the repo. **Name the skill `<entity>-<action>`** (task-understand): one command
+   no example journal inside the repo. **Name the skill for the work** (backbrief; `<entity>-<action>` when no short name exists): one command
    runs the whole workflow, never one skill per command, and it does not collide with harness built-ins
    (`/tasks` is Claude Code's). The domain keeps its plural set name (Tasks: `SLUG` tasks, the journal folder)
    and its console `NAME` says where it lives ("Biliboss Skills - Tasks").
@@ -488,7 +488,7 @@ For a product whose code already records domain events (Domain.Imported):
   reference (depth), via `skill-smith`; screenshots go to the conversation, not the repo.
 - Verify a change with the real page: load it, act (click, keys), screenshot, and read the
   DOM state when a screenshot cannot show it (`window.__cy` is the graph), in the headless browser.
-  Then copy the exact view's URL (`?ev=…&w=…`) with `pbcopy`; he opens it himself.
+  Then open the exact view's URL (`?ev=…&w=…`) as a Hermes browser tab (`desktop_preview`) for him.
 - Gabriel steers in short messages while you work: apply each one at once, verify, and ship each
   settled change as its own small PR. Start every PR branch from `origin/main` (`git stash push --
   skills/dev-console; git checkout -B <branch> origin/main; git stash pop`): after a squash merge an

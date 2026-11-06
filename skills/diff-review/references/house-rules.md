@@ -1,0 +1,6 @@
+- Code names (variables, functions, files, commits) are in English; owner-facing text is in Portuguese (Brazil).
+- Python is written as uv PEP 723 scripts (`# /// script`), stdlib first; no ad-hoc `python3 -c`.
+- A skill action is a `.sh` entry point in `scripts/`; the logic may live behind it in a uv script.
+- No secrets in code, logs, commits or fixtures; read them from the environment or the vault.
+- One writer per journal: only the skill's own script appends to its JSONL; everything else reads.
+- No telemetry to vendors; no per-token paid APIs where a flat plan exists.

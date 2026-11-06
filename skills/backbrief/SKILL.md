@@ -1,18 +1,21 @@
 ---
-name: task-understand
+name: backbrief
 description: >-
-  Gate before any build or write request. When the user asks you to create, write, build, implement or change
-  something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
-  Questions and one-line commands skip the gate.
+  Formerly task-understand (so "/task-understand" and "task understand" still land here). Gate before any build or
+  write request. When the user asks you to create, write, build, implement or change something, do not start: first
+  brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
+  one-line commands skip the gate.
 metadata:
-  version: 0.13.3
+  version: 0.14.0
 ---
 
-# task-understand
+# backbrief
+
+The name is the US Army's backbrief: the subordinate briefs back the plan he received before executing (formerly `task-understand`). The practices it uses are the teach-back and closed-loop communication.
 
 One command runs the whole workflow, from `task.explained` to `pull_request.merged`, including adjustments, feedback and styles, the independent verification and the delivery. The domain is
 **Tasks** (plural: the set of tasks), shown in the dev-console as Biliboss Skills - Tasks at `/domain/tasks`;
-other workflows of the domain come as `task-<action>` skills.
+other workflows of the domain come as their own skills.
 
 **One Entity:** Task, a piece of work explained to someone (the most universal name: a to-do at home, an
 assignment at school, a ticket in a software team).
@@ -61,7 +64,7 @@ claude-bridge, account chosen by `CLAUDE_CONFIG_DIR=~/.claude-mukutu`), `glm` = 
 process's `ZAI_API_KEY` only — never printed, logged or committed). Flat plans only: per-token providers
 (OpenRouter, `~anthropic/...`) are refused, in config as in `--models`. Override and extend in
 `~/.config/tasks/config.json` (`"models"` and `"default_model"`); the old `"execute"` command override is gone —
-pi is the only executor. `scripts/tasks.sh  models` prints the registry and, per model, whether pi
+pi is the only executor. `scripts/tasks.sh models` prints the registry and, per model, whether pi
 sees it right now (`pi --list-models` with the model's env; cheap, no model call).
 
 To read results per model: every run records its own `task.executed`, so the journal accumulates, task by task,
@@ -82,8 +85,11 @@ shows which kinds of task each model does well and with what quality.
    1. **Implementar <método recomendado>**: confirm and execute at once with the method the context calls for,
       named in the label. A small change whose context is already in this session (a draft in the graph, a design
       edit, a few lines) is done **by hand, here** (`Implementar aqui, à mão`): delegating it costs more than doing it.
-      Long or separable work goes to pi with the best model for it (step 9, e.g. `Implementar com pi · Claude
-      Sonnet (mukutu)`); the registry's default (`sonnet`) when nothing speaks for another one.
+      Long or separable work, **inside a Hermes session**, goes to the harness's own subagents (`delegate_task`,
+      `Implementar com subagente`): the owner wants it kept in the session he is watching, with the agent only
+      splitting, checking and merging. Elsewhere, or when he names pi, it goes to pi with the best model for it
+      (step 9, e.g. `Implementar com pi · Claude Sonnet (mukutu)`; the registry's default `sonnet` when nothing
+      speaks for another one). Either way each delegated task gets its own worktrunk worktree (step 13).
    2. **Pi · <recomendado> + <teste>, em paralelo**: only when the work is delegated: the recommended model plus one
       test model you pick (e.g. `Pi · Claude Sonnet + GLM 5.3, em paralelo`), each in its own worktree (step 9), to
       learn what this kind of task looks like on that model. Leave it out when option 1 is by hand.
@@ -130,6 +136,9 @@ shows which kinds of task each model does well and with what quality.
     it with the model, plan, duration and exit code. No parsable block, a failed check or a crashed verifier is
     `passed: false`. Failing sends the task back to `confirmed`: `execute` runs again (another model, or by hand), told
     which checks failed; then verify again. Pick the verifier model apart from the executor's when you can.
+10b. Review the code before delivering: `skills/diff-review/scripts/diff-review.sh <worktree> --task <id>` reviews the
+    delivery's diff against its base (only problems the diff introduced, each with a failure scenario). Exit 1 means an
+    open blocker: go back to `execute` (told the finding), or fix and `dismiss` with a reason, then review again.
 11. Deliver once it passed: `... deliver --task <id> --kind pr|direct|none [--url <link>] [--text "..."]` records
     `task.delivered`, refused unless the last verification passed. `pr` is one kind of delivery, not a mandatory step:
     `direct` is a change made in place (an issue created, a card moved), `none` is nothing to hand over.
@@ -143,6 +152,13 @@ shows which kinds of task each model does well and with what quality.
       the reason. After the changes, verify and deliver again.
     - *Deixar aberto*: no event; the PR stays as delivered.
 13. **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c <task> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `wt remove <task>`: it deletes the worktree and the branch only when its content is already in main (`⊂`), so it is the "safe to delete" check; never `-D` (an unmerged branch is the owner's call). `wt list` shows what is left. A task done by hand works the same way; only the design stage (a draft in the console's clone) has no worktree.
+    - **Parallel tasks may touch the same file**: run them anyway, each in its worktree, and land them one at a time.
+      The next one rebases on `origin/main` in its own worktree; resolve each conflict **by meaning, never by side**
+      (two rules on one line become one line that keeps both; a `version:` clash becomes one above both), then
+      compile and run the tests before the merge: picking a side silently drops the other task's fix.
+    - **The owner changes direction while a subagent runs**: steer it (`delegate_task` action `steer`, the new rule
+      in one directive message) instead of killing and relaunching; a file-based brief to a running executor is
+      not re-read, so a small addition is done by hand when it returns.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`
