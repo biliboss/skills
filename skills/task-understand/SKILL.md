@@ -5,7 +5,7 @@ description: >-
   something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
   Questions and one-line commands skip the gate.
 metadata:
-  version: 0.13.0
+  version: 0.13.1
 ---
 
 # task-understand
@@ -142,6 +142,7 @@ shows which kinds of task each model does well and with what quality.
       `pull_request.review_requested` and the task goes back to `confirmed`: run `execute` again; the run is told
       the reason. After the changes, verify and deliver again.
     - *Deixar aberto*: no event; the PR stays as delivered.
+13. **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c <task> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `wt remove <task>`: it deletes the worktree and the branch only when its content is already in main (`⊂`), so it is the "safe to delete" check; never `-D` (an unmerged branch is the owner's call). `wt list` shows what is left. A task done by hand works the same way; only the design stage (a draft in the console's clone) has no worktree.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`
@@ -166,6 +167,10 @@ before it starts.
   the draft goes in. The design stage is only design: no worktree, no PR, no merge, no tests and no delegating.
 - Record `task.executed` honestly: `--actor` is whoever did the work (the agent itself when it worked by hand,
   the executor when `execute` ran it).
+- "Concorda?" / "study and understand" asks for an opinion inside the teach-back: say where you agree and where not,
+  with the literature's term and its source, and before proposing any name **read what the code already calls it**
+  (an imported product's event catalogue and emit sites): proposing a name the code already settled otherwise, or an
+  event the code rules out, costs a second round.
 - When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
   repeating back and split the repetition into **what is already done** and **what is missing**: he asked for the
   verification to come inside the teach-back, not after it.

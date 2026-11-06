@@ -2,7 +2,7 @@
 name: design
 description: Desenhar telas de um produto no canvas do design-playground com os widgets reais do código dele. Acha o widget no repo do produto (só leitura, pelo origin/main), escreve o wrapper fino (componente.json, HTML, CSS por largura, sprite) com scripts/wrapper.sh, define o componente no MCP (componente_definir com a pasta), monta as telas com instâncias (tela_montar) e guarda o componente novo como rascunho até virar PR no produto. Também sobe o agente como motor do MCP (scripts/motor.sh). Use quando pedirem "desenha a tela X do produto", "monta a jornada no canvas", "seja o motor do design-playground", "cria o wrapper do cartão", "esse componente não existe, faz um rascunho", "os wrappers estão em dia?", "atualiza os componentes do produto". Não é a lp-draft (uma landing page num HTML só) nem a estudo-html (estudo em página).
 metadata:
-  version: 0.1.0
+  version: 0.1.1
   license: MIT
 ---
 
@@ -74,7 +74,7 @@ No motor: abra a Web (`web_abrir`), fique em `chat_aguardar`, conte cada passo c
 
 ## Mexer no próprio design-playground (o código do MCP e da Web)
 
-1. **Trabalhe num worktree a partir do `origin/main`** (`git worktree add -b <ramo> <pasta> origin/main`): o checkout principal costuma ter edições de outras sessões, e um commit nele leva junto o que não é seu.
+1. **Trabalhe num worktree a partir do `origin/main`**, pelo worktrunk (`wt switch -c <ramo> --base origin/main --no-cd`; com o PR juntado, `wt remove <ramo>`): o checkout principal costuma ter edições de outras sessões, e um commit nele leva junto o que não é seu.
 2. **Teste sem abrir janela:** `cd $DP_DIR && ABRIR_WEB=0 bun test`. Sem o `ABRIR_WEB=0`, cada teste abre o navegador na tela do Gabriel.
 3. **O repo de skills é público.** O que entra no código do MCP é genérico: os ids nos testes e nos exemplos são de produto inventado (`loja/…`, `acme/…`), sem nome de cliente, sem nome de repo privado em `fonte.repo`, sem `dados/` (a conversa e o canvas) nem raspador de produto. Antes do commit, procure os nomes de produto e os caminhos `/Users/…`. Atenção: o `componente_listar` ordena por id, então trocar o prefixo de um id de teste muda a ordem esperada no teste.
 4. **Com subagentes em paralelo, divida por arquivo:** cada um cria um módulo puro novo (com o próprio arquivo de teste) e não toca no de outro; um último subagente faz a integração (`componentes.ts`, `ferramentas.ts`, CONTRATO.md, esta SKILL.md). Nenhum deles faz commit: quem conduz roda o `bun test` inteiro e commita uma vez só. Assim ninguém pisa no `componentes.ts` de outro.

@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.8.1
+  version: 0.8.2
 ---
 
 # dev-console
@@ -126,6 +126,10 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
   A piece of the toolbar that belongs to a domain (the money bar) is also that domain's widget (CostToolbar on
   `time_entry.started`): an `Iframe` of `?embed=money`, an embed mode that shows only that piece of the bar.
+- **Playground is a mode, not a tab.** Free sketching with the agent (screens, dashboards, comparisons) lives in a
+  dev-console mode beside Domain, not tied to any domain: the agent operates a canvas (the design-playground's,
+  composed without its own chat, since the Hermes chat sits beside the window) and a sketch is promoted to a domain
+  widget or a real component only when he says so. Proposing it as a per-domain "Esboço" tab was the misread.
 - **Tabs per domain.** Domain is the one fixed tab; a project lists the rest in `TABS` (absent =
   Domain only). Tension-shaped tabs live only in the tensions project's `TABS`.
 - **A list row opens on click, Enter or Space** (tabindex 0, aria-label, the button stays), with the
@@ -266,6 +270,11 @@ For a product whose code already records domain events (Domain.Imported):
    repeatable acts (edit, change slug, come back), and silence loops back to a session.
    **The categories spread evenly around the Human, like sun rays** (`round(8 * i / N)`): he preferred it over one
    clock hour per category or one direction each. Ask before changing the spread rule.
+   **For a big imported domain he leans to a linear reading, like `git log --graph`**: the Human at the top left,
+   one horizontal lane per category in `EVENTS` order, a lane branching off the event that leads into it, edges into
+   another lane as dashed merges, and columns by funnel stage (AARRR: acquisition, onboarding, aha, usage, retention)
+   taken from the product's catalogue as `STAGES`. Rays stay for small domains (Tasks, Costs); offer a key to toggle
+   both so he compares on the real domain. When he asks "sugira algo" about layout, sketch it in ASCII first.
 5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
 
@@ -324,6 +333,7 @@ For a product whose code already records domain events (Domain.Imported):
   old branch conflicts, and `gh-app` refuses force push (a PR already CONFLICTING: commit, then `git checkout -B
   <branch>-2 origin/main && git cherry-pick <sha>`, push, close the old PR, open the new one). Stage only `skills/dev-console` (and the
   project files you touched); other sessions leave changes in the same repo.
+  **One task, one worktree, made and removed by worktrunk** (`wt`): `wt switch -c <task> --base origin/main --no-cd` to start, the PR from that worktree, and once the PR is merged `wt remove <task>`: it deletes the worktree and the branch only when its content is already in main (`⊂`), so it is the "safe to delete" check; never `-D` (an unmerged branch is the owner's call). `wt list` shows what is left.
   Before `git pull` on the clone the console reads (`~/src/skills`), commit what the background review left there
   (skill lessons, version bumps) as its own small PR: a pull over them aborts, and a stash pop conflicts on the
   `version:` line (resolve to one version above both).
@@ -346,8 +356,11 @@ bar in its toolbar. Nothing is stored by the console: the Costs journal is the o
   (through `costs.py`). The rate in force is stored on each entry, so a price change never rewrites the past. The
   running stretch sits in `running.json` in the costs folder (`COSTS_DIR`), so a hot reload keeps it; the page pings
   `time/beat` every 10 s and a stretch silent for 45 s is closed (`close`). `GET /domain/<slug>/time` reads the numbers.
-- **What stops the clock:** Pause, switching domain, the page hidden (`visibilitychange`), and 5 min idle on the Mac.
-  **Never** window blur and never `document.hasFocus()`. In the native app, every 5 s it calls
+- **What stops the clock:** Pause, switching domain, 5 min idle on the Mac, and, in a browser tab only, the page
+  hidden (`visibilitychange`). In the native app a hidden page never stops it: a window covered by the chat or hot-
+  reloaded behind it reports `document.hidden` while he is still working (detect the app by
+  `window.webkit.messageHandlers.devconsole`). **Never** window blur and never `document.hasFocus()`.
+  When he says to leave the clock running, re-check it after every console edit and restart it if it shows ▶. In the native app, every 5 s it calls
   `window.devconsoleIdle(seconds)` with the Mac's idle time (`systemIdleSeconds()` in `ConsoleCore`: the any-input event
   type `~0`, because `.null` answers with the time since boot); a normal browser falls back to its own input idle.
   Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never shows the bar, runs the
