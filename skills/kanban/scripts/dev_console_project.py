@@ -50,6 +50,12 @@ LABEL = "text-[11px] uppercase tracking-widest text-neutral-500"
 LINE = "border-neutral-200 dark:border-neutral-800"
 STRONG = "tabular-nums font-semibold text-neutral-800 dark:text-neutral-200"
 DIM = "text-neutral-400"
+ACCENT = "text-[#800020] dark:text-[#a3263f]"  # bordô: the one accent, only on what is moving (design-taste)
+
+def LIVE_DIRS():
+    """The folders whose writes the console pushes to open pages at once (the Kanban journal's)."""
+    return [journal_path().parent]
+
 
 WATCH = ["../../cost-track/scripts"]  # the console also watches cost-track's costs.py (read by kanban.py)
 
@@ -123,7 +129,7 @@ def _amount(seconds: float, money: float, rate: float, at: datetime, strong: boo
 def _band(tot: UpstreamTotals):
     """The thin band on top of the Quadro: Upstream, then Hoje, Semana and Mês in R$ and hours."""
     live = (Span("●", title=f"o relógio está ligado em {tot.live_domain}: os números sobem a cada segundo",
-                 cls="animate-pulse text-neutral-500") if tot.live_rate_hour else None)
+                 cls=f"animate-pulse {ACCENT}") if tot.live_rate_hour else None)
     group = lambda label, m: Span(Span(label, cls="text-neutral-500"),  # noqa: E731
                                   _amount(m.seconds, m.brl, tot.live_rate_hour, tot.at), cls="shrink-0 flex items-baseline gap-1.5")
     # one thin line (it fits beside the open sidebar at two thirds of a screen); bigger numbers in a narrower window
@@ -142,11 +148,15 @@ def _slug(text: str) -> str:
 # The Hermes TUI status line: "─ ready │ opus 5.5 │ 25k/1M │ [░░░] 2% ─ …" (a narrow pane drops the %); anything but
 # "ready" means it is working.
 STATUS_RE = re.compile(r"─\s+(.+?)\s+│\s+([^│]+?)\s+│\s+([\d.]+[kKmM]?)/([\d.]+[kKmM]?)")
+# Hermes asking for the owner while its status word stays "running…": the approval and clarify prompts of the TUI
+# (ui-tui/src/components/prompts.tsx) draw these hints under their choices.
+WAITING_RE = re.compile(r"↑/↓ select · Enter confirm|quick pick · Esc|\d+/\d+ answered ·")
 
 
 def agent_state(card) -> dict | None:
     """The card's agent: the tmux session named like the card (slug of its title, then its domain) and the state its
-    Hermes window shows. Read-only (tmux list/capture); None when the card has no session."""
+    Hermes window shows: pronto, trabalhando or esperando você (a prompt waits for an answer). Read-only (tmux
+    list/capture); None when the card has no session."""
     def tmux(*args: str) -> str:
         try:
             return subprocess.run(["tmux", *args], capture_output=True, text=True, timeout=1).stdout
@@ -164,36 +174,61 @@ def agent_state(card) -> dict | None:
         state, ctx = "sem Hermes aberto", ""
     else:
         word = hit.group(1).strip()
-        state = "pronto" if word == "ready" else "trabalhando"
+        state = "esperando você" if WAITING_RE.search(screen) else "pronto" if word == "ready" else "trabalhando"
         ctx = f"contexto {hit.group(3)} de {hit.group(4)}"
     return {"session": name, "state": state, "context": ctx, "attached": attached, "activity": activity}
 
 
+AGENT_MARK = {"trabalhando": "●", "esperando você": "◆", "pronto": "○", "sem Hermes aberto": "○"}
+
+
 def _agent(card):
-    """One line on the card: its agent's state, the context it carries and whether Gabriel is inside the session."""
+    """The third line of the card, only with a session: ● trabalhando (pulses), ◆ esperando você (the one bold state:
+    it asks for the owner) or ○ pronto. The context and the session are in the tooltip."""
     a = agent_state(card)
     if a is None:
         return None
-    bits = [f"agente {a['state']}"] + ([a["context"]] if a["context"] else []) + (["você está nela"] if a["attached"] else [])
-    return P(Span("●" if a["state"] == "trabalhando" else "○", cls="mr-1 " + ("animate-pulse" if a["state"] == "trabalhando" else "")),
-             " · ".join(bits), title=f"sessão {a['session']}: sesh connect {a['session']}", data_agent=a["state"],
-             cls="mt-0.5 truncate font-sans text-[14px] text-neutral-600 dark:text-neutral-400")
+    s = a["state"]
+    return P(Span(AGENT_MARK[s], cls="mr-1 " + (f"animate-pulse {ACCENT}" if s == "trabalhando" else "")), s,
+             title=f"sessão {a['session']}: sesh connect {a['session']}" + (f" · {a['context']}" if a["context"] else ""),
+             data_agent=s, cls=f"mt-0.5 truncate font-sans text-[14px] {'font-bold text-neutral-800 dark:text-neutral-200' if s == 'esperando você' else 'text-neutral-600 dark:text-neutral-400'}")
+
+
+AGING_DAYS = 2  # a card this long in one stage ages (Kanban Method): its stage line turns bold
+
+
+def _in_stage(seconds: float, stage: str) -> str:
+    """Static, for a person: "há 3 min no Upstream" (the server draws it; the 10 s refresh updates it)."""
+    s = int(max(seconds, 0))
+    m, h = s // 60, s // 3600
+    n = f"{s} s" if s < 60 else f"{m} min" if m < 60 else f"{h} h" if h < 24 else f"{h // 24} dia{'s' if h // 24 > 1 else ''}"
+    return f"há {n} no {stage}"
+
+
+def _clock(m: CardMoney, now: datetime):
+    """The second line, the timer everyone knows: ▶ running (ticks), ⏸ paused (cost, still, gray), nothing for a card that
+    never ran (dim)."""
+    if m.live_rate_hour:
+        return Div(Span("▶", cls=ACCENT), _amount(m.total.seconds, m.total.brl, m.live_rate_hour, now), cls=f"mt-1 flex items-baseline gap-1.5 {ACCENT} [&_*]:!text-inherit")
+    paused = bool(m.total.seconds)
+    return Div(Span("⏸", cls=DIM) if paused else None, _amount(m.total.seconds, m.total.brl, 0, now, strong=False),
+               data_clock="paused" if paused else "never", cls="mt-1 flex items-baseline gap-1.5")
 
 
 def _card(m: CardMoney, now: datetime):
     """A card in its column: the title, what it cost in Upstream, its domain and how long it has been in the stage, and
     the state of its agent when it has a session. A click (Enter, Space) opens the console's sidebar (data-entity)."""
     c = m.card
-    age = stage_age((now - c.since).total_seconds())
-    spent = bool(m.total.seconds or m.live_rate_hour)
+    secs = (now - c.since).total_seconds()
+    age = _in_stage(secs, c.stage.value)
     return Div(
         P(c.title, cls="font-sans text-sm leading-5 text-neutral-900 dark:text-neutral-100 [overflow-wrap:anywhere]"),
-        Div(_amount(m.total.seconds, m.total.brl, m.live_rate_hour, now, strong=spent), cls="mt-1"),
-        # the time in the stage first: in a narrow column only the domain is cut (the sidebar repeats both)
-        P(f"{age} · {c.domain}", title=f"{age}, domínio {c.domain}", data_since=_ms(c.since), data_domain=c.domain,
-          cls=f"mt-0.5 truncate {DIM}"),
+        _clock(m, now),
         _agent(c) if c.stage.value in ("Upstream", "Downstream") else None,
-        tabindex="0", data_entity=c.id, data_entity_name=c.title, data_entity_sub=f"{c.stage.value} · {age} · {c.domain}",
+        # the time in the stage last and still: in a narrow column only the domain is cut (the sidebar repeats both)
+        P(f"{age} · {c.domain}", title=f"{age}, domínio {c.domain}", data_aging="1" if secs >= AGING_DAYS * 86400 else None,
+          cls=f"mt-0.5 truncate {'font-bold text-neutral-700 dark:text-neutral-300' if secs >= AGING_DAYS * 86400 else DIM}"),
+        tabindex="0", data_entity=c.id, data_entity_name=c.title, data_entity_sub=f"{c.stage.value} · {stage_age(secs)} · {c.domain}",
         aria_label=f"abrir {c.title}",
         cls="px-4 py-2.5 cursor-pointer border-b border-l-2 border-l-transparent border-b-neutral-100 dark:border-b-neutral-900 "
             "hover:bg-neutral-100 dark:hover:bg-neutral-900 focus:outline-none focus-visible:bg-neutral-100 "
@@ -223,7 +258,7 @@ def board(ctx):
                # a fresh snapshot every 10 s (a move by an agent, the clock started elsewhere) and at once when the money
                # bar starts, stops or enters on this page (devconsole-money); never while it is hidden
                hx_get=f"{BASE}/w/_/card.created/Board", hx_swap="outerHTML",
-               hx_trigger="every 10s [this.offsetParent], devconsole-money from:document, kanban-journal",
+               hx_trigger="every 10s [this.offsetParent], devconsole-money from:document, devconsole-journal from:document, kanban-journal",
                data_board="1", data_stamp=_stamp(), cls="h-full min-h-[24rem] flex flex-col")
 
 
@@ -289,3 +324,4 @@ WIDGETS = {
     "card.renamed": [card_history],
 }
 HOME = ("card.created", "Board")
+

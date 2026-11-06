@@ -1734,12 +1734,14 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
     else draw();
   }, 1000);
   setInterval(() => { if (S.running && auto()) post('beat'); }, 10000);
-  // the Costs journal changed on disk (a tmux focus switch): read the state again and tell the modules at once
-  if (!EMB) { let first = true; const es = new EventSource('/costs/stream'); es.onmessage = ev => {
-    if (first) { first = false; return; }
-    if (!ev.data.startsWith('change')) return;
-    fetch(`${D.base}/time`, {cache: 'no-store'}).then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); }
-      document.dispatchEvent(new CustomEvent('devconsole-money', {detail: {path: 'costs', running: !!(s && s.running)}})); }).catch(() => {}); }; }
+  // a journal changed on disk (a tmux focus switch, a card moved): the modules swap their fragment at once (the event
+  // first, no round trip), then the bar reads the clock again
+  if (!EMB) { new EventSource('/live/stream').onmessage = ev => {
+    const kind = ev.data.split(' ')[0];
+    if (kind === 'journal') document.dispatchEvent(new CustomEvent('devconsole-journal'));
+    if (kind !== 'costs') return;
+    document.dispatchEvent(new CustomEvent('devconsole-money', {detail: {path: 'costs'}}));
+    fetch(`${D.base}/time`, {cache: 'no-store'}).then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); } }).catch(() => {}); }; }
   draw();
   // a page load never stops the clock (an agent's or a background tab's load is not a person leaving)
 }
@@ -1769,25 +1771,30 @@ async def source_stream(slug: str):
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-@rt("/costs/stream")
-async def costs_stream():
-    """Server-sent events: one `change` the moment the Costs journal or running.json is written (a tmux focus switch
-    starts or stops a stretch), watched by watchfiles like the code; pages redraw the money at once, the 10 s poll stays
-    as a fallback."""
+@rt("/live/stream")
+async def live_stream():
+    """Server-sent events, one line the instant a journal is written: `costs` (the Costs journal or running.json,
+    COSTS_DIR) or `journal` (a folder a project lists in `LIVE_DIRS()`, the Kanban's). watchfiles follows them with no
+    debounce (FSEvents on macOS), so the page swaps its fragment within milliseconds; code changes reload the page
+    (run_process). The pages' own 10 s refresh stays as a fallback."""
     from starlette.responses import StreamingResponse
     from watchfiles import awatch
 
-    folder = Path(os.environ.get("COSTS_DIR", "~/.local/share/costs")).expanduser()
+    costs = Path(os.environ.get("COSTS_DIR", "~/.local/share/costs")).expanduser()
+    folders = {costs: "costs"}
+    for mod in DOMAINS.values():
+        for d in getattr(mod, "LIVE_DIRS", lambda: [])():
+            folders.setdefault(Path(d).expanduser(), "journal")
+    folders = {d: k for d, k in folders.items() if d.is_dir()}
 
     async def gen():
         yield "data: hello\n\n"
-        if not folder.is_dir():
+        if not folders:
             return
-        async for changes in awatch(folder, debounce=50, step=20, rust_timeout=1000, yield_on_timeout=True):
-            if any(Path(p).name in ("events.jsonl", "running.json") for _, p in changes):
-                yield f"data: change {int(time.time() * 1000)}\n\n"
-            else:
-                yield ": keepalive\n\n"
+        async for changes in awatch(*folders, debounce=1, step=1, rust_timeout=1000, yield_on_timeout=True):
+            kinds = {k for _, p in changes for d, k in folders.items() if Path(p).parent == d and Path(p).suffix in (".jsonl", ".json")}
+            for kind in sorted(kinds) or [None]:
+                yield f"data: {kind} {time.time_ns() // 1000000}\n\n" if kind else ": keepalive\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -2426,7 +2433,7 @@ if __name__ == "__main__":
 
     # also what the projects import (sys.path folders, loaded modules) and the folders a project lists in WATCH
     _extra = [d for ds in PROJECT_PATHS.values() for d in ds] + [
-        (Path(pp).parent / w).resolve() for pp, m in zip(DOMAINS, DOMAINS.values()) for w in getattr(m, "WATCH", ())]
+        (Path(m.__file__).parent / w).resolve() for m in DOMAINS.values() for w in getattr(m, "WATCH", ())]
     _dirs = _reload.watch_dirs(projects, extra_paths=_extra) | {Path(__file__).parent}
     run_process(*_dirs, REGISTRY.parent, target=_serve, args=(args.port,),
-                callback=_registry_changed)
+                callback=_registry_changed, debounce=100, step=20)
