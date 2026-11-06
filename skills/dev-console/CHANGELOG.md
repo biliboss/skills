@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0] - 2026-11-06
+
+### Added
+- `scripts/console.sh`, the agent's one door: `list`, `start` (a herdr tab `dev-console:<port>` by default, `--no-tab` for the foreground, `--dry-run`, next free port when none is given), `stop`, `claim`, `domains [port]` / `domains add|remove`, `state`, `url`, `actions`.
+- One append-only journal of instance owners, `~/.local/state/dev-console/instances.jsonl` (`instance.started`, `instance.claimed`, `instance.stopped`); `list` projects the owner from it.
+- Read-only JSON routes: `GET /api/domains`, `GET /api/domains/<slug>/actions`, `GET /domain/<slug>/state.json[?task=<id>]`. The page and `state.json` share `_page_data`.
+- `window.sh --owner <name>` (a state directory per owner) and `window.sh --owner <name> launch [url]` (a second native window); the app saves its frame per state directory.
+
+### Changed
+- `list` shows every domain of an instance, the registry's too (they were hidden).
+- `instances.sh` and `second.sh` are thin wrappers over `console.sh`; the per-port owner files are gone (the journal replaces them).
+
 ## [0.12.0] - 2026-11-06
 
 ### Added

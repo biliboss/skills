@@ -61,11 +61,13 @@ if not os.environ.get("DEV_CONSOLE_PROJECT"):
 from contextvars import ContextVar  # noqa: E402
 
 DOMAINS: dict = {}
+ORIGIN: dict = {}  # slug -> "--project" (a flag of this instance) or "registry" (domains.txt); GET /api/domains says it
 for _path in os.environ["DEV_CONSOLE_PROJECT"].split(os.pathsep):
     _mod = load_project(_path)
     _slug = getattr(_mod, "SLUG", None) or Path(_path).resolve().parent.parent.name
     _mod.SLUG, _mod.BASE = _slug, f"/domain/{_slug}"  # BASE: the domain's URL prefix (actions build links with it)
     DOMAINS[_slug] = _mod
+    ORIGIN[_slug] = "--project" if _path in _all else "registry"
 CURRENT: ContextVar = ContextVar("domain", default=next(iter(DOMAINS.values())))
 
 
@@ -1774,9 +1776,57 @@ def domain(slug: str, req):
     entities = journal.read()
     if not entities:
         return Title(PROJECT.NAME), Div(f"Nenhum(a) {PROJECT.ENTITY} no diário.", cls="p-8 font-mono text-sm")
-    pick = next((t for t in reversed(entities) if t.get("status") == "open"), entities[-1])
     q = f"?{req.url.query}" if req.url.query else ""  # keep the view (?tab=…&ev=…) across the redirect
-    return RedirectResponse(f"/domain/{slug}/t/{pick['id']}{q}", status_code=303)
+    return RedirectResponse(f"/domain/{slug}/t/{_default_entity()}{q}", status_code=303)
+
+
+def _page_data(slug: str, tid: str, money=None):
+    """What a domain page embeds as <script id="data">, as a dict (None when the entity is unknown). The page and
+    GET /domain/<slug>/state.json share it, so an agent reads exactly what the screen is drawn from. The current
+    domain must already be set (use(slug)); `money` is the page's own bar and is left out of the API."""
+    base = PROJECT.BASE
+    state = journal.read({"id": tid})
+    if not state:
+        return None
+    history = journal.read({"id": tid, "history": True})
+    journal_types: dict[str, int] = {}
+    for e in journal.read({"history": True}):
+        journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
+    # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
+    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
+    tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
+    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
+    return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(slug), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}
+
+
+def _default_entity() -> str | None:
+    """The entity the domain's own page opens: the newest open one, else the last."""
+    entities = journal.read()
+    return next((t["id"] for t in reversed(entities) if t.get("status") == "open"), entities[-1]["id"]) if entities else None
+
+
+@rt("/api/domains")
+def api_domains():
+    """Every domain this instance shows, for agents: slug, name, project file, and where it came from."""
+    return _json([{"slug": s, "name": m.NAME, "path": str(Path(m.__file__).resolve()), "origin": ORIGIN[s]}
+                  for s, m in DOMAINS.items()])
+
+
+@rt("/api/domains/{slug}/actions")
+def api_actions(slug: str):
+    """The names in PROJECT.ACTIONS (the write path, /domain/<slug>/do/<eid>/<name>) of one domain."""
+    if not use(slug):
+        return _json({"error": f"domain {slug} does not exist"}, 404)
+    return _json(sorted(getattr(PROJECT, "ACTIONS", {})))
+
+
+@rt("/domain/{slug}/state.json")
+def state_json(slug: str, task: str = ""):
+    """The page's data as JSON (?task=<entity id>, default the entity the page opens)."""
+    if not use(slug):
+        return _json({"error": f"domain {slug} does not exist", "domains": list(DOMAINS)}, 404)
+    data = _page_data(slug, task or _default_entity() or "")
+    return _json(data if data else {"error": "no such entity (or an empty journal)"}, 200 if data else 404)
 
 
 @rt("/domain/{slug}/t/{tid}")
@@ -1790,10 +1840,10 @@ def tension(slug: str, tid: str, embed: str = ""):
         except Exception:
             money = None
     base = PROJECT.BASE
-    state = journal.read({"id": tid})
-    if not state:
+    data = _page_data(slug, tid, money)
+    if not data:
         return Title("não encontrado"), Div(f"{PROJECT.ENTITY} não encontrado(a).", cls="p-8 font-mono text-sm")
-    history = journal.read({"id": tid, "history": True})
+    state, history = data["state"], data["events"]
     title = title_of(history, state)
     ctx = state.get("context") or {}
 
@@ -1811,14 +1861,7 @@ def tension(slug: str, tid: str, embed: str = ""):
                 else "border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-900"),
         ))
 
-    journal_types: dict[str, int] = {}
-    for e in journal.read({"history": True}):
-        journal_types[e["event"]] = journal_types.get(e["event"], 0) + 1
-    # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
-    fixed = ["Domain", *(["Task Results"] if "tasks" in DOMAINS else [])]
-    tabs = [*fixed, *[t for t in getattr(PROJECT, "TABS", []) if t not in fixed]]
-    domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
-    payload = json.dumps({"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(slug), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}, ensure_ascii=False).replace("</", "<\\/")
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     sub = " · ".join(str(ctx[k]) for k in ("project", "version") if k in ctx)
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"

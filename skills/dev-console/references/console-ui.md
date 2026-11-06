@@ -61,6 +61,11 @@ why and the numbers, read when changing a part of the screen.
 sidebar (`ev`), the widget popup (`w`). Switching tab or closing the
 sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
 
+Read-only JSON for agents (`scripts/console.sh` wraps them): `GET /api/domains` (`slug, name, path, origin`),
+`GET /api/domains/<slug>/actions` (names in `PROJECT.ACTIONS`) and `GET /domain/<slug>/state.json?task=<entity id>`
+(what the page embeds as `<script id="data">`, same builder, `money` left out). A view's URL is
+`/domain/<slug>[/t/<entity id>]?tab=&ev=&side=&w=&e=`; without `/t/…` the server redirects to the entity it opens.
+
 ## Sidebar and widgets
 
 - Click a node: a ~420 px sidebar with name, command, count here and widget names, and

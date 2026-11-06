@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # dev-console
@@ -33,49 +33,45 @@ driving or capturing it on every change was rejected ("pare de usar o Safari").
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
-adding a domain needs no restart: append its `dev_console_project.py` path to
-`~/.local/state/dev-console/domains.txt` and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
+adding a domain needs no restart: `console.sh domains add <path>` (it appends the `dev_console_project.py` path to
+`~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`), so a reload or a shared link reopens the same view.
 
-## Two independent instances
+## Agents: console.sh
 
-The screen state lives in the URL, so two windows on one server already navigate apart. What they share is the
-live reload: the server runs with `live=True` and reloads **every** open page on each saved file, so when one agent
-saves, the other agent's window reloads.
-
-For two agents on the same project (Hermes on one window, Claude Code on the other), manage the instances with
-`scripts/instances.sh`:
+One door, `scripts/console.sh`, so an agent never scrapes the HTML, builds a URL by hand or edits `domains.txt`.
 
 ```sh
-I=<skill>/scripts/instances.sh
-$I list                                          # every running instance: port, owner, code, domains, live, started
-$I start [port] --owner <name> [--from 5057]     # default 5058: the domains of :5057, no live reload; foreground
-$I stop <port> [--force]                         # kills that instance's process tree; 5057 needs --force
+C=<skill>/scripts/console.sh
+$C list                                              # every instance: owner, code, ALL domains, live, start
+$C start [port] --owner <name> [--from 5057] [--no-tab] [--dry-run]   # no port = next free from 5058
+$C stop <port> [--force]                             # 5057 needs --force
+$C claim <port> --owner <name>                       # an instance console.sh did not start (the owner runs it for 5057)
+$C domains [port]                                    # slug, origin (--project | registry), path
+$C domains add <path> | remove <path|slug>           # edit the registry; a running console sees an add by itself
+$C state <slug> [--port N] [--task <id>] | jq keys   # the JSON the page is drawn from
+$C url <slug> [--port N] [--task <id>] [--tab X] [--ev X] [--side X] [--w X] [--e X]   # | xargs open
+$C actions [<slug>] [--port N]                       # PROJECT.ACTIONS names per domain
 ```
 
-`second.sh [port] [--from 5057] --owner <name>` still works: it only runs `instances.sh start`.
-
-- `list` finds instances by the listening TCP ports whose process tree runs `dev-console.py` (the listener is often
-  a multiprocessing child of `python dev-console.py`, a child of `uv run --script`). Per instance: the port, the
-  owner, the repo or worktree the code comes from, the domains (the `--project` paths, short: the skill folder),
-  live reload on or off (`--no-live` in its command line), and the start time with the pid. A reload of the server
-  can leave its port unbound for a moment, so an instance may be missing from one `list` and back in the next.
-- The owner is the reason `start` requires `--owner`: renaming a terminal tab is awkward and an instance has no name.
-  It is one file per port, `~/.local/state/dev-console/instances/<port>.json` with
-  `{"port", "owner", "pid", "started_at", "from"}`, written by `start`, removed by `stop`; `list` drops (and
-  deletes) files whose pid is dead and ignores a file whose pid is not the process on that port. An instance with no
-  owner file (the first one, or one started by hand) shows where it runs instead: the herdr pane (workspace / tab /
-  pane label, found by `HERDR_PANE_ID` in the process environment), the tmux `session:window.pane`, else the tty.
-- `start` copies the `--project` flags of the instance on `--from` (read from its command line) and reads the same
-  `domains.txt`, so both show the same domains; only the port differs. With nothing on `--from`, only this skill's
-  own domain. It refuses a taken port.
-- `--no-live` (or `DEV_CONSOLE_LIVE=0`) is what turns the reload off. The server still restarts itself when code
-  changes, so the new code is served, but the page changes only when its owner reloads it.
-- One instance per agent: the first keeps 5057, the other takes 5058 and opens it in a browser tab or window
-  of its own. The native window (below) is a single one, on 5057 by default.
-- `start` runs in the foreground: put it in a terminal tab of its own like the first one, never as an agent's
-  background process. `stop` is the way out when the tab is gone.
+- **Owners are a journal**, `~/.local/state/dev-console/instances.jsonl` (`DEV_CONSOLE_STATE` moves it): append-only,
+  `{"id","event","at","actor","value"}` with `instance.started {port, owner, pid, from}`, `instance.claimed {port, owner,
+  pid}`, `instance.stopped {port}`. `list` projects the owner per port (the last started/claimed whose pid is still that
+  port's process; stopped or dead pid = none, shown as where it runs instead: herdr pane, tmux, tty). Never edit the file.
+- **`start` opens a herdr tab** `dev-console:<port>` in the current workspace (`HERDR_WORKSPACE_ID`) and runs the server
+  there (never an agent's background process); `--no-tab`, or no herdr, runs in the foreground. It copies the
+  `--project` flags of `--from`, reads the same registry, has no live reload (`--no-live`: another agent's save does not
+  reload this window) and refuses a taken port. `--dry-run` prints the plan and writes nothing.
+- **`list` and `domains` show every domain**, registry ones too. Slugs come from the server's `GET /api/domains`
+  (`slug, name, path, origin`); an instance on older code has no such route, so they are derived from its command line
+  and the registry with the same rule (`SLUG` in the file, else the skill folder's name).
+- **Read routes** (GET, JSON): `/api/domains`, `/api/domains/<slug>/actions`, `/domain/<slug>/state.json?task=<entity id>`
+  (the payload of the page's `<script id="data">`, built by the same function, without the money bar so reading never
+  touches the clock). Writing stays `PROJECT.ACTIONS` at `/domain/<slug>/do/<eid>/<name>`.
+- `instances.sh` and `second.sh` are wrappers (`console.sh "$@"` / `console.sh start "$@"`).
+- One instance per agent: the first keeps 5057; each other agent starts its own, opens it in its own browser window
+  (`console.sh url <slug> --port N | xargs open`) or its own native window (below).
 
 ## A native window
 
@@ -102,6 +98,19 @@ $W wait                                         # blocks until last_command_id i
 $W status                                       # prints state.json
 $W install                                      # builds app/build-app.sh, copies to ~/Applications, opens it; $W quit stops it
 ```
+
+**One window per agent.** The app already reads its state directory (`DEV_CONSOLE_WINDOW_STATE_DIR`) and start page
+(`DEV_CONSOLE_URL`) from the environment, and keeps its saved frame per state directory, so a second window is a second
+process, no rewrite:
+
+```sh
+$W --owner <name> launch http://127.0.0.1:5058/domain/tasks   # open -n: a window of its own, state in .../dev-console-window/<name>/
+$W --owner <name> open <url>      # any command with --owner drives that window; without it, the original one
+$W --owner <name> quit            # stops only that window (install/quit without --owner touch only the original)
+```
+
+`launch` needs the app installed (`$W install` once). It was written against `open -n --env`, which this guide could
+not exercise without putting a window on the owner's screen: the first `launch` is the check.
 
 A page button talks back with `window.webkit.messageHandlers.devconsole.postMessage({...})`: the object is written to
 `state.json` as `last_message`. That is the only native feature.

@@ -6,7 +6,7 @@ import WebKit
 /// `scripts/window.sh`) and is the only writer of `state.json`.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
-    private static let autosaveName = "DevConsoleWindow"
+    private static let baseAutosaveName = "DevConsoleWindow"
 
     private var window: NSWindow!
     private var webView: WKWebView!
@@ -24,6 +24,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/state/dev-console-window", isDirectory: true)
     }()
+    /// One saved frame per state directory: a second window (an agent's own, window.sh --owner) must not
+    /// inherit or overwrite the first one's place. The default directory keeps the original name.
+    private var autosaveName: String {
+        stateDir.lastPathComponent == "dev-console-window" ? Self.baseAutosaveName
+            : "\(Self.baseAutosaveName).\(stateDir.lastPathComponent)"
+    }
     private var stateFile: URL { stateDir.appendingPathComponent("state.json") }
     private var commandFile: URL { stateDir.appendingPathComponent("command.json") }
 
@@ -82,10 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         window.title = "Dev Console"
         window.contentView = webView
         // First launch only (no saved frame): two thirds of the screen, docked to the right.
-        if !window.setFrameUsingName(Self.autosaveName) {
+        if !window.setFrameUsingName(autosaveName) {
             applyDock(.right)
         }
-        window.setFrameAutosaveName(Self.autosaveName)
+        window.setFrameAutosaveName(autosaveName)
 
         let nc = NotificationCenter.default
         for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification] {
