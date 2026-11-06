@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # thread — a topic, in one call
@@ -50,6 +50,15 @@ Tests: `scripts/test.sh`. Credits: [README.md](README.md). History: [CHANGELOG.m
 - **Every close writes one line** to `~/.local/state/threads.log` (`THREAD_LOG`): `when<TAB>topic<TAB>card<TAB>session id<TAB>summary<TAB>self|owner|bili`.
 - **The brief ends with**: `Ao terminar: se for tarefa e estiver entregue (merge feito), rode thread.sh close --self --summary "<o que mudou>"; se esperar o Gabriel, não feche.`
 
-## Tabs by recency
+## Tabs: MRU with an attention band
 
-`thread.sh touch <tab>` puts a thread at tab 2 (tab 1 is the Bili, the session's first window; windows without `@thread` stay last). The tmux skill's `agent-state.sh` calls it when a prompt arrives in a thread and when its turn ends, from the Hermes hooks. It never moves the owner's focus.
+The order is an **MRU list** (most recently used first: the term of the cache literature, and the order of macOS's ⌘Tab), with an **attention band** in front. `thread.sh sort [<tab>] [--now]` applies it to the tab's session in one go: it computes the wanted order and moves only what is out of place.
+
+1. **Tab 1 is the Bili** (the session's first window). **Windows without `@thread`** (zsh…) stay **last**, in their own order.
+2. Between them, three bands: **needs the owner** (`@ask` ◆ open question, `@done` ✓ finished and not seen), then **working** (`@agent=working` or `@subagents` > 0), then **idle and seen**.
+3. Inside a band, **the highest `@touched` first** (ms; ties keep the current order). `sort <tab>` stamps `@touched` on that tab when it is a thread.
+4. **The owner's tab never moves**: it keeps its index and the focus (`move-window -d` around it).
+5. **Debounce** of ~2 s (`THREAD_SORT_DEBOUNCE`, `0` = inline): a burst of events is one sort, so tabs do not jump on every hook. `--now` skips it.
+6. **Numbers stay 1..N** (`move-window -r` at the end; `renumber-windows on` covers closes).
+
+The state lives in window options (`@ask`, `@done`, `@agent`, `@subagents`, `@touched`; the session's `@sortreq` is the debounce token), no extra file. The tmux skill's `agent-state.sh` calls `thread.sh sort <pane>` from the Hermes hooks: `pre_llm_call`, `post_llm_call`, `subagent_start/stop`, and `on_human_input_request/resolved` (◆ `ask`/`answered`). `thread.sh touch <tab>` is the old name: `sort <tab> --now`. Tests: `scripts/test-sort.sh` (private tmux server).

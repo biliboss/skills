@@ -3,6 +3,7 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 unset TMUX TMUX_PANE
+export THREAD_SORT_DEBOUNCE=0   # sort inline: the debounce has its own test in thread/scripts/test-sort.sh
 export TMUX_SOCKET="agentstate-$$" TMUX_BIN="${TMUX_BIN:-/opt/homebrew/bin/tmux}"
 [ -x "$TMUX_BIN" ] || TMUX_BIN=$(command -v tmux); export TMUX_BIN
 export TMUX_CONF; TMUX_CONF=$(mktemp "${TMPDIR:-/tmp}/agent-state-conf.XXXXXX")
@@ -67,11 +68,16 @@ t "focus still on c" "$(act)" c1
 TMUX_PANE=$(pane z) "$AS" working
 t "non-thread window stays last" "$(order)" "bili a b c z "
 TMUX_PANE=$(pane c) "$AS" working
-t "the focused thread moves too, and keeps the focus" "$(order)$(act)" "bili c a b z c1"
+t "the focused thread never moves, and keeps the focus" "$(order)$(act)" "bili a b c z c1"
 TMUX_PANE=$(pane bili) "$AS" working
-t "the Bili stays tab 1" "$(order)" "bili c a b z "
+t "the Bili stays tab 1" "$(order)" "bili a b c z "
+TMUX_PANE=$(pane b) "$AS" ask
+t "ask: ◆ on b, bordô, @ask" "$(opt o:b @ask)|$(opt o:b window-status-format)" "1| ◆ #W "
+t "ask: b (needs the owner, newest) jumps ahead of a" "$(order)" "bili b a c z "
+TMUX_PANE=$(pane b) "$AS" answered
+t "answered: @ask and the glyph gone" "$(opt o:b @ask)|$(opt o:b window-status-format)" "|"
 "$HERE/../../thread/scripts/thread.sh" touch "$(pane b)"
-t "thread.sh touch <tab> alone" "$(order)" "bili b c a z "
+t "thread.sh touch <tab> alone (a still ✓ unseen: first)" "$(order)" "bili a b c z "
 
 # running subagents: the hook payload names the PARENT in parent_session_id; count on @hsid's window
 tm new-window -d -t s -n sub 'sleep 600'; tm set-option -w -t s:sub @hsid parent-1; tm set-option -w -t s:sub @thread sub
