@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-11-06
+
+### Changed
+
+- Step 10: a delivery that runs (server, page, CLI) is verified running, started on a test port and called where it changed. Step 13: a conflict resolved by hand gets `diff-review` on the merged branch and a running check before the final merge.
+
 ## [0.15.0] - 2026-11-06
 
 ### Changed

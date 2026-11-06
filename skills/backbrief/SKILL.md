@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.15.0
+  version: 0.16.0
 ---
 
 # backbrief
@@ -144,6 +144,9 @@ shows which kinds of task each model does well and with what quality.
     it with the model, plan, duration and exit code. No parsable block, a failed check or a crashed verifier is
     `passed: false`. Failing sends the task back to `confirmed`: `execute` runs again (another model, or by hand), told
     which checks failed; then verify again. Pick the verifier model apart from the executor's when you can.
+    A delivery that runs (a server, a page, a CLI) is verified **running**: start it on a test port of its own,
+    call what changed (the route, the page, the command) and stop it; green unit tests prove the parts, not that they
+    still fit together once merged with what changed around them.
 10b. Review the code before delivering: `skills/diff-review/scripts/diff-review.sh <worktree> --task <id>` reviews the
     delivery's diff against its base (only problems the diff introduced, each with a failure scenario). Exit 1 means an
     open blocker: go back to `execute` (told the finding), or fix and `dismiss` with a reason, then review again.
@@ -163,7 +166,9 @@ shows which kinds of task each model does well and with what quality.
     - **Parallel tasks may touch the same file**: run them anyway, each in its worktree, and land them one at a time.
       The next one rebases on `origin/main` in its own worktree; resolve each conflict **by meaning, never by side**
       (two rules on one line become one line that keeps both; a `version:` clash becomes one above both), then
-      compile and run the tests before the merge: picking a side silently drops the other task's fix.
+      compile and run the tests before the merge: picking a side silently drops the other task's fix. A conflict
+      resolved by hand is new code nobody reviewed: run `diff-review` on the merged branch and start what runs
+      (step 10) before the final merge, because the other side may have removed what this one still uses.
     - **The owner changes direction while a subagent runs**: steer it (`delegate_task` action `steer`, the new rule
       in one directive message) instead of killing and relaunching; a file-based brief to a running executor is
       not re-read, so a small addition is done by hand when it returns.
