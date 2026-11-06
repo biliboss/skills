@@ -41,6 +41,15 @@ class Reload(unittest.TestCase):
         self.assertEqual(cr.purge([self.dir / "elsewhere"]), [])
         self.assertIn("os", sys.modules)  # the stdlib is never purged
 
+    def test_purge_never_drops_the_console_itself(self):
+        main = type(sys)("__main__x")
+        main.__file__ = str(self.dir / "dev-console.py")
+        sys.modules["__main__x"] = main
+        try:
+            self.assertEqual(cr.purge([self.dir]), [])
+        finally:
+            sys.modules.pop("__main__x")
+
     def test_watch_dirs_has_project_extra_and_loaded_module_folders(self):
         import helper_x
         extra = self.dir / "extra"
