@@ -7,7 +7,7 @@ description: >-
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
   task-understand (tasks).
 metadata:
-  version: 0.3.0
+  version: 0.3.1
 ---
 
 # cost-track
@@ -30,10 +30,10 @@ and has no budget; each entry stores the rate it used, so a later price change n
 
 ## The one writer
 
-`scripts/costs.py` is the only writer of the journal (stdlib only, `uv run --script`):
+`scripts/costs.py` is the only writer of the journal (stdlib only, run through `scripts/costs.sh`):
 
 ```
-uv run --script scripts/costs.py emit <event> '<json value>' --cost-center <id> --actor <who>
+scripts/costs.sh  emit <event> '<json value>' --cost-center <id> --actor <who>
 ```
 
 It appends one line (id and `at` generated; `worth.updated` needs no center, every other event does). The module API

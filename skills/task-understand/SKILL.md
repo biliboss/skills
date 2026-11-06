@@ -5,7 +5,7 @@ description: >-
   something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
   Questions and one-line commands skip the gate.
 metadata:
-  version: 0.13.2
+  version: 0.13.3
 ---
 
 # task-understand
@@ -61,7 +61,7 @@ claude-bridge, account chosen by `CLAUDE_CONFIG_DIR=~/.claude-mukutu`), `glm` = 
 process's `ZAI_API_KEY` only — never printed, logged or committed). Flat plans only: per-token providers
 (OpenRouter, `~anthropic/...`) are refused, in config as in `--models`. Override and extend in
 `~/.config/tasks/config.json` (`"models"` and `"default_model"`); the old `"execute"` command override is gone —
-pi is the only executor. `uv run --script scripts/tasks.py models` prints the registry and, per model, whether pi
+pi is the only executor. `scripts/tasks.sh  models` prints the registry and, per model, whether pi
 sees it right now (`pi --list-models` with the model's env; cheap, no model call).
 
 To read results per model: every run records its own `task.executed`, so the journal accumulates, task by task,
@@ -101,26 +101,26 @@ shows which kinds of task each model does well and with what quality.
    event, their words verbatim), repeat back again, and wait for the confirmation. A reply with no words in it (a
    stray `\`, an empty row) is neither: record nothing, re-ask in one line with the repetition in two bullets and the
    words that move it ("segue", "paralelo"), because a noise learning would be reused on later tasks.
-6. Before repeating back, look for the learnings that apply and use them: `uv run --script scripts/tasks.py
+6. Before repeating back, look for the learnings that apply and use them: `scripts/tasks.sh 
    use-learnings --task <id>` records `learning.used` (a value event) with the learnings recorded on this task, or on
    another that shares two or more words with it, and prints them; apply what it prints. Nothing applies, nothing is
-   recorded. Give the repetition in the current default style: `uv run --script scripts/tasks.py styles`, and
+   recorded. Give the repetition in the current default style: `scripts/tasks.sh  styles`, and
    pass `"style": "<name>"` in `understanding.taught_back`.
-7. If the reply says the repetition was not good (feedback, not an adjustment of the task): `uv run --script
-   scripts/tasks.py feedback --task <id> --text "<their words>"` records `feedback.given`, downscores (-1) the style
+7. If the reply says the repetition was not good (feedback, not an adjustment of the task): `scripts/tasks.sh
+    feedback --task <id> --text "<their words>"` records `feedback.given`, downscores (-1) the style
    of that repetition (`style.scored`) and prints the three styles with their guides. Write one repetition in each
    style and record them with `... options --task <id> '{"direto": "...", "passo-a-passo": "...", "exemplo": "..."}'`
    (`option.generated` x3). Show the three to the Human, each with its style name.
 8. The Human picks one: `... choose --task <id> --option <option id>` records `option.chosen` (that text becomes
    the repetition to confirm) and scores (+1) its style. Wait for the confirmation as in step 4.
-9. Once the Human confirms (`understanding.confirmed`), execute: `uv run --script scripts/tasks.py execute --task <id>
+9. Once the Human confirms (`understanding.confirmed`), execute: `scripts/tasks.sh  execute --task <id>
    [--models sonnet,glm] [--cwd <repo>]` runs **pi** on each chosen model, in parallel, each in its own git worktree
    (`<repo>/../<repo>.task-<id8>-<model>`, branch `task/<id8>-<model>`, from the repo's HEAD), and records one
    `task.executed` per model: the run's answer, model, provider, plan, harness, exit code, duration, worktree, branch
    and what pi's JSON reports (turns, tokens, cost). No `--models` runs the registry's default. After the runs,
    review each worktree's diff and open the PR from the one that came out best.
-10. Verify before delivering, with eyes that did not do the work (independent verification, IV&V): `uv run --script
-    scripts/tasks.py verify --task <id> [--model sonnet] [--executed <event id>] [--cwd <dir>]`, only after a
+10. Verify before delivering, with eyes that did not do the work (independent verification, IV&V): `scripts/tasks.sh
+     verify --task <id> [--model sonnet] [--executed <event id>] [--cwd <dir>]`, only after a
     `task.executed`. It runs pi in a **fresh context** (`--no-session`, a flat-plan model from the registry, from the
     delivery's worktree) whose prompt holds only the task's `text`, the last confirmed teach-back and the delivery under
     test (worktree, branch, pull request and the executor's report): never the executor's transcript or its learnings.
@@ -183,7 +183,7 @@ before it starts.
 
 - The code is `scripts/tasks.py` (`EVENTS`, the projector `_project`, `TasksJournal`). The journal is global and
   append-only, shared by every agent: `~/.local/share/tasks/events.jsonl` (override `TASKS_DIR`). Write it only
-  through `uv run --script scripts/tasks.py emit <event> '<json>' [--task <id>] --actor <who>`.
+  through `scripts/tasks.sh  emit <event> '<json>' [--task <id>] --actor <who>`.
 - The comment above each command in `EVENTS` is the event's description for humans (the dev-console shows it).
 - See it in the dev-console: add `scripts/dev_console_project.py` to `~/.local/state/dev-console/domains.txt`
   and open `/domain/tasks`. Change events in `EVENTS`, never in the console.

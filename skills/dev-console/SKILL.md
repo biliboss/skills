@@ -209,6 +209,14 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   for create, change and delete; every start leads to one hub (`HUB`); a configuration value (the
   home widget) rides in an event's value, never as its own event; keep out of the domain what
   belongs to a widget (Action was cut). Fix a prototype fact by editing the JSONL, not with code.
+- **An event's first widget is the real screen where it happens** (Event Modeling: the screen above the event), the
+  numbers come after. `render_screens(steps, title)` (set on every project module like `render_widget_list`) takes
+  `{name, url, event, note}` steps, each an iframe of the product's own URL (a Storybook story's
+  `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → and dots, the event each screen
+  leads to beside its name; mark the widget `fake = True`. Never redraw a product's screen. For an imported product,
+  serve its Storybook from the detached read-only worktree (`pnpm install`, the design system's `storybook dev`),
+  check which port answers with **its** stories (another project's Storybook may already hold 6006), and list the
+  screens per step with the event they lead to (a subagent's job: find the stories, screenshot at 390×844).
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
@@ -363,8 +371,12 @@ For a product whose code already records domain events (Domain.Imported):
    clock hour per category or one direction each. Ask before changing the spread rule.
    **For a big imported domain he leans to a linear reading, like `git log --graph`**: the Human at the top left,
    one horizontal lane per category in `EVENTS` order, a lane branching off the event that leads into it, edges into
-   another lane as dashed merges, and columns by funnel stage (AARRR: acquisition, onboarding, aha, usage, retention)
-   taken from the product's catalogue as `STAGES`. Rays stay for small domains (Tasks, Costs); offer a key to toggle
+   another lane as dashed merges, and columns by funnel stage taken **whole** from the product's own stage list
+   (Via: `STAGES = [acquisition, onboarding, aha, usage, retention, revenue]` in `events/core.ts`), never a subset:
+   dropping revenue hid the stage he cares most about ("o pagamento, o fechamento"). Revenue is the goal stage
+   (`STAGE_GOAL`): the destination every lane is read against; a lane that never reaches it is an open question.
+   Portuguese headers via `STAGE_LABELS`. Pick each event's stage so its lane reads left to right (a broker's
+   first share is his onboarding; questions after the first collection are usage). Rays stay for small domains (Tasks, Costs); offer a key to toggle
    both so he compares on the real domain. When he asks "sugira algo" about layout, sketch it in ASCII first.
 5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
    The native window hot-reloads like the browser when the project file changes.
@@ -379,9 +391,14 @@ For a product whose code already records domain events (Domain.Imported):
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
    input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
    domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
-   until zoomed: scroll or zoom right to read on). Check in the headless browser (`window.__cy`, `cy.scratch('branch')` has the lanes'
+   until zoomed: scroll or zoom right to read on). **No two lines share a segment**: lines leaving one station down the
+   same 45° slope are an interchange, ranked by leg length, each next one leaving a step lower-left
+   (`source-endpoint`) and turning earlier, so the legs run parallel; a back edge (loop, stage regress) is an
+   `unbundled-bezier` arc above the rows, never routed along a line. Cytoscape's segment weights are relative to the
+   endpoints, so compute every route from the shifted start. Check in the headless browser (`window.__cy`, `cy.scratch('branch')` has the lanes'
    y bands and the stages' x bands): every lane's stations inside one y band, no station left of an earlier stage's band, no two
-   rendered label boxes overlapping, the toggle switching and persisting after a reload. Serve the check from a folder the
+   rendered label boxes overlapping, the toggle switching and persisting after a reload, and **zoom in (≈1.1) on every
+   fork** (the first station, activation, the lane ends) and look: label-box counts never catch a line on a line. Serve the check from a folder the
    console does not watch for screenshots (it watches the registry's folder and the project folders: a file written there reloads it).
 
 ## Design a widget with the user
@@ -462,15 +479,18 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   (through `costs.py`). The rate in force is stored on each entry, so a price change never rewrites the past. The
   running stretch sits in `running.json` in the costs folder (`COSTS_DIR`), so a hot reload keeps it; the page pings
   `time/beat` every 10 s and a stretch silent for 45 s is closed (`close`). `GET /domain/<slug>/time` reads the numbers.
-- **What stops the clock:** Pause, switching domain, 5 min idle on the Mac, and, in a browser tab only, the page
-  hidden (`visibilitychange`). In the native app a hidden page never stops it: a window covered by the chat or hot-
+- **What stops the clock:** Pause, switching domain (a person's first trusted gesture on another domain's page), 5 min
+  idle on the Mac, and, in a browser tab only and only on a page a person used or started the clock on, the page
+  hidden (`visibilitychange`). **A page load never stops it** (an agent's headless read, a curl, a background tab,
+  the Playground opening): the clock stopped five times in one session from such loads. In the native app a hidden page never stops it: a window covered by the chat or hot-
   reloaded behind it reports `document.hidden` while he is still working (detect the app by
   `window.webkit.messageHandlers.devconsole`). **Never** window blur and never `document.hasFocus()`.
   When he says to leave the clock running, re-check it after every console edit and restart it if it shows ▶. In the native app, every 5 s it calls
   `window.devconsoleIdle(seconds)` with the Mac's idle time (`systemIdleSeconds()` in `ConsoleCore`: the any-input event
   type `~0`, because `.null` answers with the time since boot); a normal browser falls back to its own input idle.
-  Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never shows the bar, runs the
-  clock or ends another domain's stretch.
+  Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never runs the clock on load nor
+  ends another domain's stretch; `?embed=money` shows the bar (CostToolbar) and acts only for a stretch its own click
+  started.
 - **Testing it:** a second console on another port with `COSTS_DIR=<temp copy of events.jsonl>` and
   `DEV_CONSOLE_REGISTRY=<empty file>`, never the real journal.
 
@@ -524,6 +544,9 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   (a dict entry followed by `**derive(...)`): it swallows the rest of the line. After every patch to
   `dev-console.py` run `uv run --with python-fasthtml python -m py_compile <file>`: the hot reload restarts on save,
   and a syntax error kills the console for every domain, his native window included.
+- Generate Python for a project file with `repr`/`pprint`, never `json.dumps` (`null` is a `NameError`), and
+  `py_compile` the project file after writing it: a registered project file that fails to import kills every console
+  that watches it, the test one included.
 - A domain change is a person's gesture, never a page load: loading another domain's page (curl, an agent, a headless
   browser) must not close the running stretch; the page's first trusted input (`e.isTrusted` on keydown/click/pointer)
   posts `time/enter`, which ends a stretch running elsewhere (`domain_change`). Agents' synthetic clicks are not
