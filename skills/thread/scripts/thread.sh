@@ -59,7 +59,7 @@ wait_ready() { # pane
 }
 
 find_window() { # session topic -> window id
-  tm list-windows -t "=$1" -F '#{window_id} #{@thread}' 2>/dev/null | awk -v t="$2" '$2==t {print $1; exit}'
+  tm list-windows -t "=$1" -F '#{window_id}|#{@thread}' 2>/dev/null | awk -F'|' -v t="$2" '$2==t {print $1; exit}'  # names may hold spaces
 }
 
 target_session() { # explicit -> caller's session -> session of the most recently active client
@@ -76,10 +76,10 @@ target_session() { # explicit -> caller's session -> session of the most recentl
 }
 
 # The Value Object `thread`: ONE name for a thread, used as is everywhere (tmux session, its tab, @thread, the Hermes
-# session title). Lowercase ASCII, words joined by '-': "Sygnal 0.2" -> "sygnal-0-2", "Ação Já" -> "acao-ja".
+# session title). Lowercase ASCII; spaces, dots and - stay: "Sygnal 0.2" -> "sygnal 0.2", "Ação Já!" -> "acao ja". (tmux itself shows a dot in a SESSION name as _.)
 thread() { # raw text -> the thread name (empty when nothing is left)
-  printf '%s' "$1" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | tr '[:upper:]' '[:lower:]' |
-    sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+  printf '%s' "$1" | perl -CS -MUnicode::Normalize -pe '$_ = lc NFD($_); s/\pM//g' |
+    sed -E 's/[^a-z0-9 .-]+/ /g; s/ +/ /g; s/^ //; s/ $//'
 }
 
 cmd_open() {
