@@ -1,12 +1,13 @@
 ---
 name: domain-plan
 description: >-
-  Use when a card enters Upstream, or someone says "plan", "planejar", "nova tarefa", "desenha o que a gente quer",
-  "tem drift?". Planning a task = draw its domain in the dev-console (events, and above each event a person sees, its
-  real screen), mark each element draft or real, and detect drift between the drawing and the code; the drift list is
-  what Downstream builds. Not backbrief (the task taught back) nor brainstorm (the idea still open).
+  A piece of `shape` (only by /domain-plan): draw the task's domain in the dev-console (events, and above
+  each event the screen a person sees), mark draft or real, and detect drift between drawing and code; the
+  drift list is what Downstream builds. `shape` calls it when the request is a screen, a flow or a
+  service; also run on a card entering Upstream.
+disable-model-invocation: true
 metadata:
-  version: 0.2.0
+  version: 0.3.0
 ---
 
 # domain-plan
