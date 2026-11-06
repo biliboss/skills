@@ -18,6 +18,8 @@ final class StatusLineController {
     private var refreshTimer: Timer?
     /// The hour, first on the line, like iOS's status-bar clock: the system font (SF), semibold, digits that do not
     /// jump, 24 h, the colon blinking on the half second.
+    /// The app's mark, first on the line: the tag </> (chosen in the logo-devconsole tournament), a template image.
+    private let logoView = NSImageView(image: StatusLineController.logo())
     private let clock = NSTextField(labelWithString: "")
     private var clockTimer: Timer?
     private var colonOn = true
@@ -62,7 +64,13 @@ final class StatusLineController {
         usage.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         usage.textColor = .tertiaryLabelColor
         usage.setContentHuggingPriority(.required, for: .horizontal)
-        bar.setViews([clock, button, center, money, spacer, usage, module], in: .leading)
+        logoView.imageScaling = .scaleProportionallyUpOrDown
+        logoView.contentTintColor = .labelColor
+        logoView.toolTip = "DevConsole"
+        logoView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([logoView.widthAnchor.constraint(equalToConstant: 16),
+                                     logoView.heightAnchor.constraint(equalToConstant: 16)])
+        bar.setViews([logoView, clock, button, center, money, spacer, usage, module], in: .leading)
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.wantsLayer = true
         let line = NSBox(); line.boxType = .separator; line.translatesAutoresizingMaskIntoConstraints = false
@@ -206,5 +214,25 @@ final class StatusLineController {
                 }
             }
         }.resume()
+    }
+
+    /// The tag </> on the logo's 16-unit grid (golden-ratio proportions), stroked round like SF Symbols.
+    /// isTemplate: AppKit paints it in the label colour, so it follows light and dark mode with no extra code.
+    static func logo() -> NSImage {
+        let image = NSImage(size: NSSize(width: 16, height: 16), flipped: true) { _ in
+            let path = NSBezierPath()
+            path.lineWidth = 1.7
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.move(to: NSPoint(x: 4.82, y: 4.25)); path.line(to: NSPoint(x: 1.24, y: 8.0)); path.line(to: NSPoint(x: 4.82, y: 11.75))
+            path.move(to: NSPoint(x: 6.82, y: 12.35)); path.line(to: NSPoint(x: 9.18, y: 3.65))
+            path.move(to: NSPoint(x: 11.18, y: 4.25)); path.line(to: NSPoint(x: 14.76, y: 8.0)); path.line(to: NSPoint(x: 11.18, y: 11.75))
+            NSColor.black.setStroke()
+            path.stroke()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "DevConsole"
+        return image
     }
 }
