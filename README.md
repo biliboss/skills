@@ -10,6 +10,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `kanban` | o quadro do dono (Todo, Upstream, Downstream, Feito; o topo da coluna é o card em foco), cada card ligado a um domínio do dev-console; o Quadro é a página inicial do console, com o que o tempo em Upstream custou hoje, na semana e no mês; limite de WIP por repo (3 PRs abertos) e a varredura diária do que passou de 48 h |
 | `domain-plan` | planejar a tarefa em Upstream: desenhar o domínio no dev-console (eventos e a tela de cada um), marcar rascunho ou real e detectar o drift entre o desenho e o código, que vira a lista do Downstream |
 | `brainstorm` | pensar junto quando a ideia ainda está aberta, antes do backbrief: Double Diamond com pensamento sistêmico (Cynefin, iceberg, laço causal desenhado no dev-console, pontos de alavanca); termina numa nota "Decidi X porque Y" |
+| `hustler` | a visão de mercado de uma ideia: o trabalho do cliente, as alternativas reais com fonte, o mapa de posicionamento (quadrante superior) e os modelos de negócio, open-core incluído; refeito a cada rodada, sempre indo além |
 | `retro` | a revisão da sessão (after-action review): as correções do dono viram regras nos skills certos, escolhidas por ele e aplicadas num PR |
 | `diff-review` | a revisão de código de um diff local, com prompt próprio no plano flat: só problemas que o diff introduziu, cada um com cenário de falha; bloqueio aberto volta para a execução |
 | `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
@@ -28,6 +29,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP; leva o design-playground (`playground/`) dentro e mods ao estilo RimWorld (herdar, patch, modificadores) |
 | `hermes` | o Claude Code e o pi comandam os perfis locais do Hermes (researcher, designer, sre, via-ads, mantainer) como agentes com memória própria |
+| `modifier-here` | `--here` no fim do pedido: o agente faz na própria sessão, sem subagente |
 | `interview` | formulários de perguntas ricos (pi-interview) numa janela única com fila; com o dev-console no ar, a fila abre no módulo Browser dele em vez de uma janela própria (`devc browse`); rascunho salvo a cada mudança, e o tempo limite não perde respostas |
 | `copywriting` | a escrita do Gabriel que vende uma ideia: post do LinkedIn, o Diário e o artigo, com a voz e as métricas de prosa da wiki |
 | `faceless-art` | a arte sem rosto do Gabriel gerada pelo Codex, com os prompts de referência |

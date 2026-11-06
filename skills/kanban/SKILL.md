@@ -3,12 +3,12 @@ name: kanban
 description: >-
   Use when the owner's work moves across his Kanban board (Upstream, Downstream, Feito), each card tied to a
   dev-console domain, or when he asks what a card or the Upstream work cost. The only writer of the Kanban journal
-  (`kanban.sh create`, `move`), drawn in the dev-console as the Kanban domain whose Quadro module is the console's
+  (`kanban.sh create`, `move`), drawn in the dev-console as the Kanban domain whose Kanban module is the console's
   home, with a money band (today, week, month) priced from the Costs journal. Use when he says "cria um card",
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.7.3
+  version: 0.7.4
 ---
 
 # kanban
@@ -230,9 +230,9 @@ journals and call them. The widgets and the CLI draw only these, so the screen, 
 
 ## In the dev-console
 
-- **The Quadro is the console's home.** `TABS = ["Quadro"]`, `MODULE_WIDGETS = {"Quadro": ("card.created", "Board")}`
-  and `CONSOLE_HOME = "Quadro"`: `/` opens it when the journal has a card (else the first domain, as before); ⌘P lists it
-  (`g q`). The status line is the console's: `Biliboss Skills - Kanban · Quadro · money bar`.
+- **The Quadro is the console's home.** `TABS = ["Kanban"]`, `MODULE_WIDGETS = {"Kanban": ("card.created", "Board")}`
+  and `CONSOLE_HOME = "Kanban"`: `/` opens it when the journal has a card (else the first domain, as before); ⌘P lists it
+  (`g q`). The status line is the console's: `Biliboss Skills - Kanban · Kanban · money bar`.
 - **The board**: the money band on top, one header row of stages (Todo, Upstream, Downstream, Feito), then one
   **swimlane** per client cost center he named (`LANES`, Mukutu first) and `Outros` for the rest. A card's lane is its
   domain's cost center (`costs.center_of`), never a field on the card: to move a card to a lane, bind its domain to

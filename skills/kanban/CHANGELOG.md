@@ -2,11 +2,17 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.3] - 2026-11-06
+## [0.7.4] - 2026-11-06
 
 ### Changed
 
 - The Quadro's agent line prefers the window options of the `tmux` skill (`@agent=working`, `@done=1`, set by `agent-state.sh` from the Hermes hooks) over scraping the pane; the scrape stays the fallback and still gives "waiting for you" and the context.
+
+## [0.7.3] - 2026-11-06
+
+### Changed
+
+- The console module is named `Kanban` (was `Quadro`): ⌘P and the domain's tab; `MODULE_ALIASES` keeps `?tab=Quadro` links working. The board widget's title stays "Quadro".
 
 ## [0.7.2] - 2026-11-06
 

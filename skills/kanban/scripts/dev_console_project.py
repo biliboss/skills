@@ -33,10 +33,11 @@ journal = KanbanJournal()
 
 # The Human puts a card on the board.
 INITIAL = ["card.created"]
-# The Quadro is a module of this domain (⌘P lists it), drawn by the Board widget, and the console opens it at /.
-TABS = ["Quadro"]
-MODULE_WIDGETS = {"Quadro": ("card.created", "Board")}
-CONSOLE_HOME = "Quadro"
+# The Kanban module (once the Quadro) is in this domain (⌘P lists it), drawn by the Board widget, and the console opens it at /.
+TABS = ["Kanban"]
+MODULE_ALIASES = {"Quadro": "Kanban"}  # the module's old name: ?tab=Quadro links still open the board
+MODULE_WIDGETS = {"Kanban": ("card.created", "Board")}
+CONSOLE_HOME = "Kanban"
 # A click on a card opens the console's contextual sidebar: these widgets are its parts (then the card's JSON).
 ENTITY_PARTS = {"Histórico": "CardHistory", "Tempo": "CardTime"}
 

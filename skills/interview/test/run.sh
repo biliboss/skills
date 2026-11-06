@@ -103,7 +103,7 @@ echo '{"url":"http://127.0.0.1:'"$CPORT"'/browser?url=http%3A%2F%2F127.0.0.1%3A'
 INTERVIEW_CONSOLE_URL="http://127.0.0.1:$CPORT/" node "$HERE/test/open.ts" "$QURL"
 check "console up, its window shows the queue: nothing opens ($(tr '\n' '|' < "$DEVC_LOG"))" '[ "$(lines "$OPENS")" = "$O1" ] && [ "$(cat "$DEVC_LOG")" = "--port $CPORT now --json" ]'
 : > "$DEVC_LOG"
-echo '{"url":"http://127.0.0.1:'"$CPORT"'/domain/kanban/t/x?tab=Quadro&agent=1"}' > "$DEVC_NOW"
+echo '{"url":"http://127.0.0.1:'"$CPORT"'/domain/kanban/t/x?tab=Kanban&agent=1"}' > "$DEVC_NOW"
 INTERVIEW_CONSOLE_URL="http://127.0.0.1:$CPORT/" node "$HERE/test/open.ts" "$QURL"
 check "console up, queue not on screen: devc browse the queue ($(tr '\n' '|' < "$DEVC_LOG"))" '[ "$(lines "$OPENS")" = "$O1" ] && [ "$(tail -1 "$DEVC_LOG")" = "--port $CPORT browse $QURL" ]'
 kill $PCON 2>/dev/null; wait $PCON 2>/dev/null
