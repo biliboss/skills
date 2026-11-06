@@ -121,7 +121,7 @@ class DevcTest(unittest.TestCase):
         code, _, err = run(*self.p(), "show", "zzz")
         self.assertEqual(code, 1)
         self.assertIn("'zzz' on port", err)
-        self.assertIn("no such domain", err)
+        self.assertIn("nope", err)
 
     def test_nothing_answers(self):
         self.srv.shutdown()
@@ -156,6 +156,12 @@ class DevcTest(unittest.TestCase):
         Fake.routes["/domain/demo/state.json"] = (200, STATE)
         self.assertEqual(run(*self.p(), "events", "demo", "--task", "abc", "-n", "1")[0], 0)
         self.assertEqual(run("--port=abc", "domains")[0], 2)
+
+    def test_follow_with_n_does_not_replay_older(self):
+        more = dict(STATE, events=STATE["events"] + [{"id": "e3", "event": "task.verified", "at": "2026-11-06T09:00:09Z", "actor": "x"}])
+        threading.Timer(0.3, lambda: Fake.routes.__setitem__("/domain/demo/state.json", (200, more))).start()
+        _, out, _ = run(*self.p(), "events", "demo", "--tail", "-n", "1", "--max-polls", "2")
+        self.assertEqual(len(out.strip().splitlines()), 2)  # the last one, then only e3
 
     def test_events_json_lines(self):
         _, out, _ = run(*self.p(), "--json", "events", "demo")

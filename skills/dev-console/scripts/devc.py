@@ -274,16 +274,21 @@ def parse_events_args(args: list[str]) -> tuple[str, bool, int | None, int | Non
     return slug, tail, n, max_polls, task
 
 
+def key_of(e: dict) -> str:
+    return e.get("id") or json.dumps(e, sort_keys=True)
+
+
 def cmd_events(a: dict) -> int:
     slug, tail, n, max_polls, task = parse_events_args(a["args"])
     seen: set[str] = set()
 
     def emit(events: list[dict]) -> None:
         for e in events:
-            seen.add(e.get("id") or json.dumps(e, sort_keys=True))
+            seen.add(key_of(e))
             print(json.dumps(e, ensure_ascii=False) if a["json"] else ev_line(e), flush=True)
 
     events = state_of(a["port"], slug, task).get("events") or []
+    seen.update(key_of(e) for e in events)  # everything older than the last N counts as seen, so --tail never replays it
     emit(events[-n:] if n else events)
     if not tail:
         return 0
@@ -296,7 +301,7 @@ def cmd_events(a: dict) -> int:
                 events = state_of(a["port"], slug, task).get("events") or []
             except DevcError:
                 continue  # the console may be reloading; the next second tries again
-            emit([e for e in events if (e.get("id") or json.dumps(e, sort_keys=True)) not in seen])
+            emit([e for e in events if key_of(e) not in seen])
     except KeyboardInterrupt:
         pass
     return 0
