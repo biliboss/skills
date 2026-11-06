@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.68.0
+
+- domain-plan 0.1.0: planning in Upstream; the task's domain drawn in the dev-console as drafts (events, the real screen above each), a hand-editable `.plan/<slug>.jsonl` in the repo and `plan.sh drift` (to build, built, unplanned). kanban 0.5.1: `pull` opens the card's plan.
+
 ## 0.67.0
 
 - kanban 0.5.0: `kanban.sh pull`, one gesture to start a task (card, Hermes + tmux session named slug, client switched, cost center bound); hermes 0.3.0: `workspace`; cost-track 0.4.1: `costs.py bind`.

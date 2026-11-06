@@ -632,6 +632,14 @@ class PullTest(JournalTest):
         self.assertEqual([json.loads(x)["event"] for x in K.journal_path().read_text().splitlines()], ["card.created"])
         self.assertIn("workspace sygnal-0-2 --repo", (self.d / "hermes.log").read_text())
 
+    def test_pull_opens_the_plan_in_the_repo(self):
+        code, r, _ = self.pull("--domain", "sygnal", "--no-switch")
+        self.assertEqual(code, 0)
+        self.assertTrue(r["plan"]["started"], r["plan"])
+        self.assertTrue((Path(self.tmp.name) / ".plan" / "sygnal-0-2.jsonl").exists())
+        code, again, _ = self.pull("--domain", "sygnal", "--no-switch")
+        self.assertIn("already open", again["plan"]["note"])
+
     def test_a_todo_card_is_pulled_to_upstream(self):
         c = K.create("Sygnal 0.2", "sygnal")
         code, r, _ = self.pull()
