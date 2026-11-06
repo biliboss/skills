@@ -1,0 +1,189 @@
+/* O canvas do Playground dentro do dev-console: as variáveis e as formas do design-playground, sem o layout
+   (a página é do console) e sem o chat. O canvas é claro mesmo no tema escuro do console. */
+
+:root {
+  --fundo: #ffffff;
+  --superficie: #f7f7f8;
+  --borda: #e4e4e7;
+  --texto: #18181b;
+  --texto-suave: #71717a;
+}
+
+#canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color-scheme: light;
+  color: var(--texto);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* o tldraw ocupa todo o centro */
+#canvas > .canvas-raiz {
+  position: absolute;
+  inset: 0;
+}
+
+/* aviso quando o canvas não carrega */
+.canvas-aviso {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  color: var(--texto-suave);
+  background: var(--superficie);
+}
+
+.canvas-aviso strong { color: var(--texto); font-weight: 600; }
+.canvas-aviso code {
+  font: 12px/1.4 ui-monospace, Menlo, monospace;
+  max-width: 60ch;
+  word-break: break-word;
+}
+
+/* a forma "tela" do canvas: prancheta com nome e o HTML num iframe */
+.tela {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #d5d8de;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+.tela-nome {
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font: 500 12px/1 system-ui, sans-serif;
+  color: #3b3f47;
+  background: #f4f5f7;
+  border-bottom: 1px solid #e3e5e9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tela-quadro { border: 0; display: block; background: #fff; }
+
+/* a forma "widget": uma instância de componente num shadow DOM (o CSS da definição fica lá dentro) */
+.widget { overflow: hidden; background: transparent; }
+.widget-host { display: block; width: 100%; height: 100%; }
+/* a faixa de rascunho fica fora do shadow DOM: o CSS do componente não a alcança */
+.widget-rascunho {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  padding: 2px 8px 3px;
+  border-bottom-left-radius: 6px;
+  background: #f59e0b;
+  color: #451a03;
+  font: 600 10px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+/* a paleta: os componentes por produto, no canto superior esquerdo do canvas (abaixo do menu do tldraw) */
+.paleta {
+  position: absolute;
+  top: 52px;
+  left: 8px;
+  z-index: 400;
+  width: 248px;
+  max-height: calc(100% - 52px - 72px);
+  display: flex;
+  flex-direction: column;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.06);
+  overflow: hidden;
+  font-size: 13px;
+}
+.paleta-cab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--texto);
+  font: 600 12px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+.paleta-cab:hover { background: var(--superficie); }
+.paleta-cab:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.paleta-seta {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--texto-suave);
+  border-bottom: 1.5px solid var(--texto-suave);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 120ms ease;
+}
+.paleta:not(.is-aberta) .paleta-seta { transform: translateY(1px) rotate(-135deg); }
+.paleta-corpo {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--borda);
+  padding: 4px 0 6px;
+}
+.paleta-corpo[hidden] { display: none; }
+.paleta-aviso { margin: 0; padding: 10px 12px; color: var(--texto-suave); }
+.paleta-kit + .paleta-kit { border-top: 1px solid var(--borda); margin-top: 4px; padding-top: 4px; }
+.paleta-kit-nome {
+  margin: 0;
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+}
+.paleta-pecas { list-style: none; margin: 0; padding: 0 4px; }
+.paleta-peca {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+}
+.paleta-peca:hover { background: var(--superficie); }
+.paleta-peca:active { cursor: grabbing; }
+.paleta-peca:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.paleta-peca.is-arrastando { opacity: 0.5; }
+.paleta-peca-linha { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.paleta-peca-nome { font-weight: 500; line-height: 1.3; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.paleta-selo {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+.paleta-peca-desc { color: var(--texto-suave); font-size: 12px; line-height: 1.35; }

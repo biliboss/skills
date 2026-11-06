@@ -442,6 +442,16 @@ cmd_actions() {
   done
 }
 
+# playground import [<dados dir>] [--force]: copy canvas.json and componentes/ from the design-playground's data folder
+# into the console's own (DEV_CONSOLE_PLAYGROUND_DIR, default ~/.local/state/dev-console/playground). One-shot; the
+# copy is plain files, so the module does it (it needs no packages: system python3 is enough).
+cmd_playground() {
+  case "${1:-}" in
+    import) shift; python3 "$here/console_playground.py" import "$@" ;;
+    *) die "usage: console.sh playground import [<dados dir>] [--force]" ;;
+  esac
+}
+
 case "${1:-}" in
   list) shift; cmd_list "$@" ;;
   start) shift; cmd_start "$@" ;;
@@ -451,5 +461,6 @@ case "${1:-}" in
   state) shift; cmd_state "$@" ;;
   url) shift; cmd_url "$@" ;;
   actions) shift; cmd_actions "$@" ;;
-  *) echo "usage: console.sh list | start [port] --owner <n> [--from 5057] [--no-tab] [--dry-run] | stop <port> [--force] | claim <port> --owner <n> | domains [port] | domains add <path> | domains remove <path|slug> | state <slug> | url <slug> | actions [<slug>]" >&2; exit 2 ;;
+  playground) shift; cmd_playground "$@" ;;
+  *) echo "usage: console.sh list | start [port] --owner <n> [--from 5057] [--no-tab] [--dry-run] | stop <port> [--force] | claim <port> --owner <n> | domains [port] | domains add <path> | domains remove <path|slug> | state <slug> | url <slug> | actions [<slug>] | playground import [<dados dir>] [--force]" >&2; exit 2 ;;
 esac

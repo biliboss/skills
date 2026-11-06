@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.14.0] - 2026-11-06
+
+### Added
+- The Playground is served by the console itself: the design-playground's canvas web (`scripts/playground/`: `canvas.js`, `widgets.js`, `paleta.js`, `app.css`, plus `eventos.js`) same-origin, no iframe, no chat. ⌘K and ⌘P now work with the canvas focused (the key handlers listen in the capture phase).
+- `scripts/console_playground.py`: the Python port of the design-playground's server (canvas mirror, component validation and wrapper-folder reader, operations on the open page, SSE) and its routes `/playground/api/{canvas,canvas/diff,canvas/resposta,componentes,eventos}`, with the TS's JSON.
+- Data in `~/.local/state/dev-console/playground/` (`DEV_CONSOLE_PLAYGROUND_DIR`), same format as before; `console.sh playground import [<dados dir>] [--force]` copies it from the design-playground once.
+
+### Removed
+- The iframe, `DEV_CONSOLE_PLAYGROUND_URL`, `GET /playground/up` and the "design-playground não responde" page.
+
 ## [0.13.0] - 2026-11-06
 
 ### Added

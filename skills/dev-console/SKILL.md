@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.13.0
+  version: 0.14.0
 ---
 
 # dev-console
@@ -134,14 +134,21 @@ for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsol
 
 ## Playground
 
-`/playground` (no slug) is a **mode** beside Domain, tied to no domain: the console's top bar and, filling the rest,
-the design-playground's web (a tldraw canvas, `~/biliboss/dev/design-playground`) in an `iframe`. The canvas is composed,
-never copied, and the console adds nothing to that project. **Its web has no canvas-only mode, so its chat shows on the
-right as it is**; hiding it is a change in the design-playground, the owner's call.
+`/playground` (no slug) is a **mode** beside Domain, tied to no domain: a tldraw canvas filling the page above the status
+line, with the component palette. It is **the console's own now** (the design-playground, a Bun server, was absorbed):
+same origin, no iframe, no chat, so ⌘K and ⌘P work even with the canvas focused (the old cross-origin iframe turned ⌘P
+into the browser's Print). The two key handlers listen in the capture phase so tldraw cannot swallow them.
 
-- `DEV_CONSOLE_PLAYGROUND_URL` (default `http://127.0.0.1:5317`) is the web. When it does not answer the page says so in
-  one line with the command that starts it (`scripts/motor.sh http --servidor`, skill `design`), looks again every 3 s
-  through `GET /playground/up` and opens the canvas as soon as it answers; never a broken frame.
+- **Code.** `scripts/playground/` is the canvas web (`canvas.js`, `widgets.js`, `paleta.js`, `app.css` from the
+  design-playground; `eventos.js` is the small SSE relay the chat used to be), served at `/playground/web/*`.
+  `scripts/console_playground.py` is the server side, a sibling module the script imports: the canvas mirror, the
+  component definitions (validation, wrapper folder reader, versions), the operations on the open page, and the routes
+  `/playground/api/{canvas,canvas/diff,canvas/resposta,componentes,eventos}` (same JSON as the TS). Each operation is a
+  function or method (`Canvas.aplicar`, `Componentes.definir/definir_da_pasta/listar/conferir`, `Operacoes.executar`),
+  never code inside a route, so `console.sh` commands can call them. There is no `/api/estado` or `/api/mensagens`: they were the chat's.
+- **Data** lives in `~/.local/state/dev-console/playground/` (`DEV_CONSOLE_PLAYGROUND_DIR` moves it): `canvas.json` and
+  `componentes/<produto>/<peça>.json`, the design-playground's format. `console.sh playground import [<dados dir>]
+  [--force]` copies them once from `~/biliboss/dev/design-playground/dados` and refuses to overwrite without `--force`.
 - **The money bar**: no domain, so `PLAYGROUND_COST_CENTER` (env `DEV_CONSOLE_PLAYGROUND_COST_CENTER`, default
   `biliboss-skills`) names the cost center; the same bar and the same records (`domain: playground`), through
   `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
@@ -155,9 +162,8 @@ right as it is**; hiding it is a change in the design-playground, the owner's ca
   same floating fuzzy overlay; the tab bar goes away and a thin **status line at the bottom** carries `domain · module ·
   money bar` (a click on each opens its switcher), so the graph or canvas gets the full height. In the native app ⌘P
   is Print: the app menu takes it for the page.
-- Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`), pointing the env at a
-  closed port for the "not running" line and at a design-playground started on another port (`PORT=5318 ABRIR_WEB=0
-  DADOS_DIR=<temp> bun run src/main.ts --servidor`) for the canvas; never at the owner's 5317. Keep the registry
+- Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`) with
+  `DEV_CONSOLE_PLAYGROUND_DIR=<temp>` after a `playground import` into it; never write the design-playground's `dados`. Keep the registry
   in a folder of its own: the watcher restarts the console on any write beside it (the money clock writes `running.json`).
 
 ## Hook up a project
@@ -209,8 +215,7 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   A piece of the status line that belongs to a domain (the money bar) is also that domain's widget (CostToolbar on
   `time_entry.started`): an `Iframe` of `?embed=money`, an embed mode that shows only that piece of the line.
 - **Playground is a mode, not a tab** (a module of ⌘P, beside Domain, when its route exists). Free sketching with the agent (screens, dashboards, comparisons) lives in a
-  dev-console mode beside Domain, not tied to any domain: the agent operates a canvas (the design-playground's,
-  composed without its own chat, since the Hermes chat sits beside the window) and a sketch is promoted to a domain
+  dev-console mode beside Domain, not tied to any domain: the agent operates a canvas (the design-playground's, absorbed into the console without its chat) and a sketch is promoted to a domain
   widget or a real component only when he says so. Proposing it as a per-domain "Esboço" tab was the misread.
 - **Modules per domain.** Domain is the one fixed module; a project lists the rest in `TABS` (absent =
   Domain only); they appear in the ⌘P overlay, never as a tab strip. Tension-shaped tabs live only in the tensions project's `TABS`.
