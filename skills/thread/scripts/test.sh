@@ -24,6 +24,15 @@ for a in "\$@"; do [ "\$a" = list-clients ] && { cat "$FAKE_DIR/clients" 2>/dev/
 exec "$TMUXB" "\$@"
 EOF
 chmod +x "$FAKEBIN/tmux"
+# the offline fork: records "<source> <title> <profile>", adds the branch row, prints its id (fails when the source is 'broken')
+cat >"$FAKEBIN/fork" <<'EOF'
+#!/usr/bin/env bash
+[ "$1" = broken ] && { echo "no such session" >&2; exit 1; }
+echo "$1|$2|$4" >>"$FAKE_DIR/forks"
+n=$(( $(wc -l <"$FAKE_DIR/sessions.tsv" 2>/dev/null || echo 0) + 1 ))
+printf 'fork-%s\t%s\n' "$n" "$2" >>"$FAKE_DIR/sessions.tsv"; echo "fork-$n"
+EOF
+chmod +x "$FAKEBIN/fork"; export THREAD_FORK="$FAKEBIN/fork"
 T="$HERE/thread.sh"
 cleanup() { "$TMUXB" -L "$TMUX_SOCKET" kill-server 2>/dev/null; rm -rf "$FAKE_DIR"; }
 trap cleanup EXIT
@@ -39,11 +48,13 @@ out="$(tm run-shell -t other:agent1 "TMUX_PANE=$(tm display-message -p -t other:
 # the invoking agent was window agent1: the new tab is right after it, the others pushed right
 echo "  order: $(tm list-windows -t =other -F "#{window_name}" | paste -sd, -)"
 [ "$(tm list-windows -t =other -F '#{window_name}' | paste -sd, -)" = "agent0,agent1,acesso-bubble,agent2" ]; ok $? "placement: right after the invoking agent's window"
-grep -qx -- '--resume local-39c1abc' "$FAKE_DIR/resumed"; ok $? "starts as --resume \$HERMES_SESSION_ID"
+grep -qx 'local-39c1abc|unicred · acesso-bubble|bili' "$FAKE_DIR/forks"; ok $? "forks \$HERMES_SESSION_ID offline, titled '<card> · <topic>', profile passed"
+grep -q -- '--resume fork-' "$FAKE_DIR/resumed" && ! grep -q 'local-39c1abc' "$FAKE_DIR/resumed"; ok $? "the window resumes the NEW session, never the live source"
+tm capture-pane -p -t other:acesso-bubble | grep -q '/branch'; [ $? -ne 0 ]; ok $? "no /branch typed into any window"
 tm list-sessions -F '#{session_name}' | grep -qx unicred; [ $? -ne 0 ]; ok $? "no session per card"
 sleep 0.5
 grep -q "line two with 'quotes' and \"double\" and \$VAR" "$FAKE_DIR/msgs/1"; ok $? "multi-line brief intact, one message"
-grep -q "unicred · acesso-bubble" "$FAKE_DIR/sessions.tsv"; ok $? "/branch named it '<card> · <topic>' (wait for 'branched', then the brief)"
+grep -q "unicred · acesso-bubble" "$FAKE_DIR/sessions.tsv"; ok $? "branch row titled '<card> · <topic>'"
 [ "$(tm show-options -wv -t 'other:acesso-bubble' @thread)" = acesso-bubble ]; ok $? "@thread on the window"
 [ "$(tm show-options -wv -t 'other:acesso-bubble' @card)" = 8dbbe594 ]; ok $? "@card resolved by slug via kanban"
 
@@ -67,11 +78,13 @@ TMUX_BIN="$FAKEBIN/tmux" "$T" open nada --new >/dev/null 2>&1; [ $? -ne 0 ]; ok 
 # 4. branch: explicit title, and default when a session titled like the card exists
 printf 'unicred-1\tunicred\n' >>"$FAKE_DIR/sessions.tsv"
 "$T" open ramo --session work --from unicred-1 --brief 'oi branch' >/dev/null
-grep -qx -- '--resume unicred-1' "$FAKE_DIR/resumed"; ok $? "--from overrides the invoking session"
-grep -q "^.*\tramo$" "$FAKE_DIR/sessions.tsv"; ok $? "--from: /branch named the session"
+grep -qx 'unicred-1|ramo|bili' "$FAKE_DIR/forks"; ok $? "--from overrides the invoking session"
+! grep -qx -- '--resume unicred-1' "$FAKE_DIR/resumed"; ok $? "--from: the source is never resumed"
 sleep 0.5; grep -qx 'oi branch' "$FAKE_DIR/msgs/"* 2>/dev/null; ok $? "branch: brief arrived"
 "$T" open padrao --session work --card unicred >/dev/null
 grep -q "unicred · padrao" "$FAKE_DIR/sessions.tsv"; ok $? "default is a branch of the invoking session"
+"$T" open quebrado --session work --from broken >"$FAKE_DIR/err" 2>&1; rc=$?
+[ $rc -ne 0 ] && ! tm list-windows -t =work -F '#{window_name}' | grep -qx quebrado; ok $? "fork failure: refused, nothing opened"
 env -u HERMES_SESSION_ID "$T" open recusado --session work >"$FAKE_DIR/err" 2>&1; rc=$?
 [ $rc -ne 0 ] && grep -q HERMES_SESSION_ID "$FAKE_DIR/err" && ! tm list-windows -t =work -F '#{window_name}' | grep -qx recusado; ok $? "no HERMES_SESSION_ID, no --from: refused with a clear message, nothing opened"
 env -u HERMES_SESSION_ID "$T" open livre --session work --new >/dev/null; ok $? "--new works without HERMES_SESSION_ID"
