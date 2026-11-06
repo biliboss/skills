@@ -88,6 +88,17 @@ public enum PaletteMode: String, Sendable {
 
     public var title: String { self == .domains ? "Domínios" : "Módulos" }
     public var placeholder: String { self == .domains ? "domínio…" : "módulo…" }
+
+    /// The palette a key press asks for: ⌘K domains, ⌘P modules, with ⌘ alone (no ⇧ ⌥ ⌃). The app reads the key
+    /// before the web view does, because a WKWebView reports ⌘K/⌘P as handled and the menu's key equivalents never fire.
+    public static func forShortcut(_ key: String?, command: Bool, otherModifiers: Bool) -> PaletteMode? {
+        guard command, !otherModifiers else { return nil }
+        switch key?.lowercased() {
+        case "k": return .domains
+        case "p": return .modules
+        default: return nil
+        }
+    }
 }
 
 public struct PaletteItem: Equatable, Sendable {
