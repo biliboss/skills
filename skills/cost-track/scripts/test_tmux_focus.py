@@ -59,6 +59,30 @@ class TmuxFocusTest(unittest.TestCase):
         self.assertEqual(len(self.entries("started")), 2)
         self.assertIsNotNone(costs.running())
 
+    def test_window_card_wins_over_the_session_name(self):
+        tf.focus("bili", self.card[:8])  # the session is not a card; the active window's @card is
+        run = costs.running()
+        self.assertEqual((run["domain"], run["card"]), ("via-blog", self.card))
+        tf.focus("bili", "")  # window without @card, session not a card: stops
+        self.assertIsNone(costs.running())
+
+    def test_window_change_inside_one_session_switches_the_clock(self):
+        tf.focus("work", self.card[:8])
+        self.assertIsNotNone(costs.running())
+        tf.focus("work", "")
+        self.assertIsNone(costs.running())
+        self.assertEqual(len(self.entries("started")), 1)
+
+    def test_unknown_window_card_falls_back_to_the_session_name(self):
+        tf.focus("via-blog", "deadbeef")
+        self.assertEqual(costs.running()["card"], self.card)
+
+    def test_main_parses_card_flag_and_hooks_include_window_change(self):
+        tf.main(["tmux-focus", "bili", f"--card={self.card[:8]}"])
+        self.assertEqual(costs.running()["card"], self.card)
+        self.assertIn("session-window-changed", tf.HOOKS)
+        self.assertIn("--card=#{@card}", tf._cmd("costs.sh", tf.WIN))
+
     def test_detach_stops(self):
         tf.focus("via-blog")
         tf.focus("-")
@@ -99,6 +123,7 @@ class TmuxFocusTest(unittest.TestCase):
         for h in tf.HOOKS:
             self.assertIn(f"set-hook -g {h}[{tf.HOOK_INDEX}]", text)
         self.assertIn("tmux-focus -", text)
+        self.assertIn("session-window-changed[", text)
         tf.main(["tmux-uninstall"])
         self.assertEqual(conf.read_text().strip(), "set -g mouse on")
 

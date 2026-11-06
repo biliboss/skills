@@ -1,36 +1,39 @@
 ---
 name: thread
-description: Use when opening a topic/thread of a card in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão do card". Opens a tmux window in the card's session running a Hermes session (a /branch of the card's session, or a new one) named '<card> · <topic>', with the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
+description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
-# thread — a topic of a card, in one call
+# thread — a topic, in one call
 
-One call = tmux window `<topic>` in session `<card-slug>` + Hermes session titled `<card-slug> · <topic>` + the brief delivered. No file in temp: the brief is pasted from stdin into a tmux buffer (bracketed paste, so multi-line text is ONE message; no ARG_MAX or send-keys limit).
+One call = a tmux window `<topic>` **in the session where you are**, right after the invoking agent's window (so the newest thread is always tab 2) + a Hermes session titled `<card> · <topic>` (just `<topic>` without a card) + the brief delivered. The card is a link on the window (`@card=<id>`, which the cost clock reads), never a session of its own. No file in temp: the brief is pasted from stdin into a tmux buffer (bracketed paste, so multi-line text is ONE message; no ARG_MAX or send-keys limit).
 
 ## Use
 
 ```bash
 T=<this skill>/scripts/thread.sh
-$T open unicred acesso-bubble --brief - <<'EOF'
+$T open <topic> [--card C] [--session S] [--from SESSION_ID | --new] [--brief TEXT | --brief - | --brief-gz B64]
+$T open acesso-bubble --card unicred --brief - <<'EOF'
 Context, goal, what to return. Any size, any quotes.
 EOF
 ```
 
-- `--branch` (default when a Hermes session titled `<card-slug>` exists): `hermes --continue <card>` then `/branch <card> · <topic>`, so the thread inherits the card's context.
-- `--new`: a fresh session, renamed `<card> · <topic>` once its id appears (the one created after the window opened).
-- `--brief TEXT` inline; `--brief -` stdin (use a quoted heredoc `<<'EOF'` so the shell expands nothing); `--brief-gz B64` = base64 of gzip, when your tool parameter is size-limited (`gzip -c f | base64`).
+- **Where the tab opens**: the caller's session (`$TMUX_PANE`'s, i.e. `tmux display-message -p '#S'`). Not inside tmux (the Hermes desktop agent): the session of the owner's most recently active client (`tmux list-clients -F '#{client_activity} #{client_session}' | sort -rn | head -1`). `--session S` overrides. No client and no `--session`: refused. Never a session per card.
+- `--card C`: slug or id, resolved by kanban; the window gets `@card=<id>`, the Hermes title is `<C> · <topic>`. Without it the title is `<topic>` and the window has no `@card`.
+- **A thread is ALWAYS a `/branch` of the Hermes session that invoked the skill**: `$HERMES_SESSION_ID` (set in every Hermes agent's environment). The window starts `hermes -p <profile> --resume "$HERMES_SESSION_ID"`, waits for `ready`, sends `/branch <title>`, waits for `branched` in the pane, then pastes the brief. `--from SESSION_ID` branches from another session. `--new` (fresh session, renamed once its id appears) only when explicitly asked. `HERMES_SESSION_ID` empty and no `--from`: refused with a message, nothing opened.
+- **Placement**: `tmux new-window -a` right after the invoking agent's window (the window of `$TMUX_PANE` when it is in the target session; for the desktop caller, the session's first window), pushing the others right.
+- `--brief TEXT` inline; `--brief -` stdin (quoted heredoc `<<'EOF'` so the shell expands nothing); `--brief-gz B64` = base64 of gzip, when your tool parameter is size-limited (`gzip -c f | base64`).
 - `--profile` (default `bili`), `--cwd DIR` (default `$PWD`).
-- Output, one line: `window=<card>:<topic> (@id) title='…' session=<id> mode=…`.
-- `thread.sh list [<card>]` lists threads (windows marked `@thread`); `thread.sh close <card> <topic>` kills only the window, the Hermes session stays.
+- Output, one line: `window=<session>:<topic> (@id) title='…' card=<id|-> session=<id> mode=…`.
+- `thread.sh list`: every window marked `@thread`, across sessions (`session  topic  window-id  card`). `thread.sh close <topic> [--session S]`: kills that window only (the Hermes session stays); refused when the topic is open in more than one session and no `--session`.
 
 ## Rules
 
 - Never put a secret in a brief: it lands in the session history.
-- Card and topic: no quotes, `$` or backslash (refused). One window per topic; a duplicate is refused.
-- The session `<card>` is created if missing; window 1 is named by the kanban title when kanban knows the card, and windows get `@card=<id>`.
+- Card, topic and session: no quotes, `$` or backslash (refused). One window per topic per session; a duplicate is refused.
+- The cost clock follows the active window's `@card` first, then the session name (cost-track); that is why the card is set on the window.
 - Readiness is polled on the pane (`ready`/`opus`/`sonnet`, 40 s max, `THREAD_READY_TIMEOUT`); on timeout the window stays open and the brief is not sent.
-- Don't touch other sessions' windows; `TMUX_SOCKET` selects another tmux server (tests use a private one).
+- Don't touch other windows; `TMUX_SOCKET` selects another tmux server (tests use a private one).
 
 Tests: `scripts/test.sh`. Credits: [README.md](README.md). History: [CHANGELOG.md](CHANGELOG.md).
