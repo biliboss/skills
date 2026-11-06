@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.36.0] - 2026-11-06
+
+### Changed
+
+- `dev-console` 0.18.0: a barra do módulo Agents no padrão do console, ferramentas com o comando ou o arquivo, sessões pelo nome do `/rename`; o console carrega os próprios módulos pelo caminho (uma instância de teste rodava o `console_agents.py` de outro checkout).
+
 ## [0.35.0] - 2026-11-06
 
 ### Changed

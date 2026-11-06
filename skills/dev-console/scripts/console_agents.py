@@ -64,6 +64,25 @@ def _blocks_text(content: list) -> str:
     return "\n".join(out)
 
 
+# What a tool call is about, beside its name: a log row that says only "Bash" tells nothing about the work.
+TOOL_ARG = {"Bash": "command", "Read": "file_path", "Edit": "file_path", "Write": "file_path", "NotebookEdit": "notebook_path",
+            "Grep": "pattern", "Glob": "pattern", "Agent": "description", "Skill": "skill", "SendMessage": "to",
+            "WebFetch": "url", "WebSearch": "query", "Monitor": "description"}
+
+
+def _tool_label(b: dict) -> str:
+    """`Name: detail` for one tool_use block; a path keeps only its last two parts, a command its first line."""
+    name = str(b.get("name", "tool"))
+    inp = b.get("input") if isinstance(b.get("input"), dict) else {}
+    arg = inp.get(TOOL_ARG.get(name, ""))
+    if not isinstance(arg, str) or not arg.strip():
+        return name
+    arg = arg.strip().splitlines()[0]
+    if TOOL_ARG.get(name, "").endswith("path"):
+        arg = "/".join(arg.rstrip("/").split("/")[-2:])
+    return f"{name}: {arg[:120]}"
+
+
 @dataclass
 class FileState:
     path: Path
@@ -78,6 +97,7 @@ class FileState:
     resync: bool = False  # offset may be mid-line: drop bytes up to the first newline
     gone: bool = False
     mtime: float = 0.0
+    title: str = ""  # the name given with /rename (custom-title), shown instead of the short id
 
 
 class ClaudeSource:
@@ -113,6 +133,11 @@ class ClaudeSource:
         if not isinstance(d, dict):
             return None
         typ = d.get("type")
+        if typ in ("custom-title", "agent-name"):  # /rename: the name a person knows the session by
+            name = d.get("customTitle") if typ == "custom-title" else d.get("agentName")
+            if isinstance(name, str) and name.strip() and (typ == "custom-title" or not fs.title):
+                fs.title = name.strip()[:60]
+            return None
         cwd = d.get("cwd")
         if isinstance(cwd, str) and cwd:
             fs.project = cwd.rstrip("/").rsplit("/", 1)[-1] or cwd
@@ -130,7 +155,7 @@ class ClaudeSource:
         elif typ == "assistant" and isinstance(content, list):
             queued = False
             texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)]
-            tools = [str(b.get("name", "tool")) for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
+            tools = [_tool_label(b) for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
             if texts:
                 kind, text = "assistant", "\n".join(texts)
             elif tools:
@@ -528,7 +553,8 @@ class Hub:
         """One row per session (sub-agent files folded under their own `ag:` ids), newest activity first."""
         with self.lock:
             files = list(self.files.values())
-        rows = [{"session": f.session, "project": f.project, "last": iso_from_ts(f.mtime), "side": f.side_file} for f in files]
+        rows = [{"session": f.session, "title": f.title, "project": f.project, "last": iso_from_ts(f.mtime), "side": f.side_file}
+                for f in files]
         rows.sort(key=lambda r: r["last"], reverse=True)
         return rows[:200]
 
@@ -642,6 +668,7 @@ const KINDS_P = ['prompt', 'cross', 'notification', 'other'];
 const SHOW = new Set((Q.get('show') || '').split(',').filter(Boolean));  // chips on: cross, notification, other, side
 let view = Q.get('view') === 'log' ? 'log' : 'prompts', session = Q.get('session') || '', paused = Q.get('pause') === '1';
 let P = [], L = [], SESS = [], live = false;
+const NAME = id => (SESS.find(x => x.session === id) || {}).title || id;  // the /rename name when the session has one
 const keep = () => {  // all UI state lives in the query string
   const set = (k, v) => v ? Q.set(k, v) : Q.delete(k);
   set('view', view === 'log' ? 'log' : ''); set('session', session); set('show', [...SHOW].join(',')); set('pause', paused ? '1' : '');
@@ -656,7 +683,7 @@ function row(e) {
   const r = el('div', 'agrow px-3 py-1 border-b border-neutral-100 dark:border-neutral-900 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900');
   r.dataset.id = e.id;
   const head = el('div', 'flex gap-3 whitespace-nowrap');
-  head.append(el('span', 'text-neutral-400 shrink-0', hhmm(e.t)), el('span', 'text-neutral-500 shrink-0', e.session),
+  head.append(el('span', 'text-neutral-400 shrink-0', hhmm(e.t)), el('span', 'text-neutral-500 shrink-0', NAME(e.session)),
     el('span', 'text-neutral-500 shrink-0 max-w-[14rem] truncate', e.project), el('span', 'shrink-0 ' + (KCLS[e.kind] || ''), e.kind + (e.side ? '*' : '')), ...(e.queued ? [el('span', 'shrink-0 px-1 rounded border border-neutral-400 text-neutral-500', 'queued')] : []));
   const body = el('div', 'agtext text-neutral-800 dark:text-neutral-200 truncate', e.text + (e.more ? ' …' : ''));
   r.append(head, body);
@@ -693,15 +720,17 @@ function chrome() {
   $('v-prompts').className = 'px-2 cursor-pointer ' + (view === 'prompts' ? 'text-neutral-900 dark:text-neutral-100 underline' : 'text-neutral-400');
   $('v-log').className = 'px-2 cursor-pointer ' + (view === 'log' ? 'text-neutral-900 dark:text-neutral-100 underline' : 'text-neutral-400');
   for (const c of ['cross', 'notification', 'other', 'side']) {
-    const b = $('c-' + c); b.className = 'px-2 cursor-pointer rounded border ' + (SHOW.has(c) ? 'border-neutral-500 text-neutral-900 dark:text-neutral-100' : 'border-transparent text-neutral-400');
-    b.style.display = c === 'side' || view === 'prompts' ? '' : 'none';
+    const off = view === 'log' && c !== 'side';  // the log shows every kind: these chips filter the Prompts view only
+    const b = $('c-' + c); b.className = 'px-2 rounded border ' + (off ? 'opacity-40 pointer-events-none ' : 'cursor-pointer ')
+      + (SHOW.has(c) ? 'border-neutral-500 text-neutral-900 dark:text-neutral-100' : 'border-transparent text-neutral-400');
+    b.title = off ? 'filtra só a visão Prompts' : '';
   }
-  $('pause').textContent = paused ? '▶ seguir' : '❚❚ pausar'; $('live').textContent = live ? '● ao vivo' : '○ reconectando';
-  $('live').className = live ? 'text-green-600' : 'text-amber-600';
+  $('pause').textContent = paused ? '▶ seguir' : '❚❚ pausar'; $('pause').className = 'ml-auto px-2 cursor-pointer whitespace-nowrap ' + (paused ? 'text-neutral-900 dark:text-neutral-100 underline' : 'text-neutral-400'); $('live').textContent = live ? '● ao vivo' : '○ reconectando';
+  $('live').className = 'whitespace-nowrap ' + (live ? 'text-green-600' : 'text-amber-600');
 }
 function sessions() {
   const s = $('sess'), cur = session; s.replaceChildren(new Option('todas as sessões', ''));
-  for (const x of SESS) s.append(new Option(`${x.session} · ${x.project} · ${hhmm(x.last)}`, x.session));
+  for (const x of SESS) s.append(new Option(`${x.title ? x.title + ' · ' : ''}${x.session} · ${x.project} · ${hhmm(x.last)}`, x.session));
   if (cur && !SESS.some(x => x.session === cur)) s.append(new Option(cur, cur));
   s.value = cur;
 }
@@ -727,6 +756,8 @@ $('v-prompts').onclick = () => { view = 'prompts'; keep(); render(); };
 $('v-log').onclick = () => { view = 'log'; keep(); render(); };
 for (const c of ['cross', 'notification', 'other', 'side']) $('c-' + c).onclick = () => { SHOW.has(c) ? SHOW.delete(c) : SHOW.add(c); keep(); render(); };
 $('pause').onclick = () => { paused = !paused; keep(); if (!paused) toBottom(); chrome(); };
+for (const id of ['v-prompts', 'v-log', 'c-cross', 'c-notification', 'c-other', 'c-side', 'pause'])  // spans, not buttons: keys by hand
+  $(id).onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); $(id).click(); } };
 $('sess').onchange = e => { session = e.target.value; keep(); load(); };
 setInterval(() => fetch('/agents/api/log?limit=1').then(r => r.json()).then(j => { SESS = j.sessions; sessions(); }).catch(() => {}), 10000);
 load();

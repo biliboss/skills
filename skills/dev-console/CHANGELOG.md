@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.0] - 2026-11-06
+
+### Changed
+
+- Agents: the toolbar is grey console text in one line (no `role="button"`, which MonsterUI paints blue; Enter and Space work), the same in both views (the Prompts-only chips are dimmed in the Log); tool rows say what the call is about (`Bash: <command>`, `Edit: <dir/file>`); sessions show their `/rename` name; no favicon 404. Fixed: the console loads `console_agents` and `console_playground` by path before any project, so a test console no longer runs another checkout's copy.
+
 ## [0.17.0] - 2026-11-06
 
 ### Added
