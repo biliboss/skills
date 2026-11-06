@@ -277,7 +277,8 @@ def real_model() -> dict:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
-            "coverage": W.coverage(live_events()), "descriptions": descriptions(), "value_objects": value_objects(), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+            "coverage": W.coverage(live_events()), "descriptions": descriptions(), "value_objects": value_objects(),
+            "layout": getattr(PROJECT, "LAYOUT", None), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
                          getattr(PROJECT, "TRANSITIONS", None))}
 
 
@@ -665,11 +666,22 @@ function drawGraph() {
   const SIDES = STARTS.length > 1 ? (() => { const L = reach(STARTS[0]), R = reach(STARTS[1]);
     return [...[...L].filter(n => !R.has(n) && n !== STARTS[0]).map(n => ({left: n, right: 'human', gap: 200})),
             ...[...R].filter(n => !L.has(n) && n !== STARTS[1]).map(n => ({left: 'human', right: n, gap: 200}))]; })() : [];
+  // LAYOUT = "clock" (project file): the code's EVENTS order is the clock. The first category sits at 12 o'clock and
+  // the others follow clockwise; inside a category its events run outward from the Human. The order lives in the
+  // code, so the drawing never drifts from it.
+  const CLOCK = M().layout === 'clock';
+  if (CLOCK) {
+    const cats = Object.keys(M().lifecycle), N = cats.length;
+    const pos = {human: {x: 0, y: 0}};
+    cats.forEach((c, i) => { const t = -Math.PI / 2 + 2 * Math.PI * i / N;
+      M().lifecycle[c].forEach((v, k) => { const r = 230 + k * 140; pos[`${c}.${v}`] = {x: Math.cos(t) * r, y: Math.sin(t) * r}; }); });
+    nodes.forEach(n => { n.position = pos[n.data.id] || {x: 0, y: 0}; });
+  }
   const cy = cytoscape({
     container: $('cy'), elements: {nodes, edges}, wheelSensitivity: 0.2,
     // fCoSE: force-directed, the Human pinned in the centre; seeded (randomize false + fixed seed positions) so a
     // reload draws the same picture. nodeRepulsion and idealEdgeLength leave room for the edge labels.
-    layout: {name: 'fcose', quality: 'proof', randomize: false, animate: false, padding: 24,
+    layout: CLOCK ? {name: 'preset', padding: 24} : {name: 'fcose', quality: 'proof', randomize: false, animate: false, padding: 24,
              nodeDimensionsIncludeLabels: true, idealEdgeLength: () => 130, nodeRepulsion: () => 45000,
              edgeElasticity: () => 0.45, gravity: 0.4, gravityRange: 2.5, numIter: 5000, nodeSeparation: 90,
              fixedNodeConstraint: [{nodeId: 'human', position: {x: 0, y: 0}}],

@@ -19,6 +19,7 @@ console imports (`--project <path>`). The console's environment has FastHTML, so
 | `INITIAL` | optional `["cat.event", ...]`: the events the Human may start with (Domain.Designed or Domain.Imported) |
 | `MEDIA` | optional: a folder of files the domain keeps (pictures of a run), served at `/domain/<slug>/media?f=<path>` |
 | `TABS` | optional: the tabs after the fixed ones, in order. Fixed: Domain, then Task Results (when the tasks domain is in the console: the tasks executed for this domain, from the tasks domain's Tasks widget; a task names its domain in `task.explained`'s `domain`) |
+| `LAYOUT` | optional `"clock"`: the graph is a clock read from the code. The Human sits in the centre, the first category of `EVENTS` at 12 o'clock and the others clockwise, each category's events running outward in the order they are written. The order lives only in `EVENTS` (never a list in the project file nor a number in the console), so the drawing cannot drift from the code |
 | `TRANSITIONS` | optional `{"cat.event": ["cat.event", ...]}`: the edges, when the process branches or loops (UML statechart transitions); replaces the derived chain; a target may be a dict `{"cat.event": "command"}` to name the command of each edge when one event has several commands |
 | `HUB` | optional `"cat.event"`: every start leads to it and it opens every other category (Domain.Updated) |
 | `DOMAIN_DRAFT` | optional path of the domain draft (default `<SOURCE stem>_draft.py`) |
