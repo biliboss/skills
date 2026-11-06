@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from fasthtml.common import H2, Div, P, Script, Span  # noqa: E402
 from kanban import (TRANSITIONS, Board, CardMoney, Column, KanbanJournal, Stage, UpstreamTotals, brl,  # noqa: E402,F401
-                    card_from, hm, read_board, read_card, stage_age)
+                    card_from, hm, journal_path, read_board, read_card, stage_age)
 
 NAME = "Biliboss Skills - Kanban"
 SLUG = "kanban"
@@ -60,10 +60,45 @@ TICK_JS = """
     el.querySelectorAll('[data-brl]').forEach(x => { x.textContent = brl(+x.dataset.brl + dt * rate / 3600); });
     el.querySelectorAll('[data-sec]').forEach(x => { x.textContent = hm(+x.dataset.sec + dt); });
   });
-  if (!window.__kanbanTick) window.__kanbanTick = setInterval(tick, 1000);
-  tick();
+  // the time in the stage counts up from the server's `since` (same words as stage_age in kanban.py)
+  const age = t => { t = Math.floor(Math.max(t, 0)); const m = Math.floor(t / 60), h = Math.floor(m / 60), d = Math.floor(h / 24),
+      p = n => String(n).padStart(2, '0');
+    return t < 60 ? `há ${t} s na etapa` : m < 60 ? `há ${m} min ${p(t % 60)} s na etapa`
+      : h < 24 ? `há ${h} h ${p(m % 60)} min na etapa` : `há ${d} dia${d > 1 ? 's' : ''} na etapa`; };
+  const ages = () => document.querySelectorAll('[data-since]').forEach(x => {
+    x.textContent = age((Date.now() - +x.dataset.since) / 1000) + ' · ' + x.dataset.domain; });
+  const both = () => { tick(); ages(); };
+  if (!window.__kanbanTick) window.__kanbanTick = setInterval(both, 1000);
+  both();
 })();
 """
+
+
+# The Quadro follows the Kanban journal by itself: every 2 s a tiny widget answers the journal's mtime, and when it
+# differs from the one the board was drawn at, the board is fetched again (the server stays the source of truth).
+WATCH_JS = """
+(() => {
+  const url = %r;
+  if (window.__kanbanWatch) clearInterval(window.__kanbanWatch);
+  window.__kanbanWatch = setInterval(async () => {
+    const board = document.querySelector('[data-board]');
+    if (!board || !board.offsetParent) return;
+    try {
+      const html = await (await fetch(url, {cache: 'no-store'})).text();
+      const m = html.match(/data-stamp="([^"]*)"/);
+      if (m && m[1] !== board.dataset.stamp && window.htmx) htmx.trigger(board, 'kanban-journal');
+    } catch (e) {}
+  }, 2000);
+})();
+"""
+
+
+def _stamp() -> str:
+    """The Kanban journal's modification time (ns): changes whenever any event is appended."""
+    try:
+        return str(journal_path().stat().st_mtime_ns)
+    except OSError:
+        return "0"
 
 
 def _title(text: str):
@@ -111,7 +146,8 @@ def _card(m: CardMoney, now: datetime):
         P(c.title, cls="font-sans text-sm leading-5 text-neutral-900 dark:text-neutral-100 [overflow-wrap:anywhere]"),
         Div(_amount(m.total.seconds, m.total.brl, m.live_rate_hour, now, strong=spent), cls="mt-1"),
         # the time in the stage first: in a narrow column only the domain is cut (the sidebar repeats both)
-        P(f"{age} · {c.domain}", title=f"{age}, domínio {c.domain}", cls=f"mt-0.5 truncate {DIM}"),
+        P(f"{age} · {c.domain}", title=f"{age}, domínio {c.domain}", data_since=_ms(c.since), data_domain=c.domain,
+          cls=f"mt-0.5 truncate {DIM}"),
         tabindex="0", data_entity=c.id, data_entity_name=c.title, data_entity_sub=f"{c.stage.value} · {age} · {c.domain}",
         aria_label=f"abrir {c.title}",
         cls="px-4 py-2.5 cursor-pointer border-b border-l-2 border-l-transparent border-b-neutral-100 dark:border-b-neutral-900 "
@@ -133,13 +169,18 @@ def board(ctx):
     b: Board = read_board()
     return Div(_title("Quadro"), _band(b.totals),
                # gap-0: Pico's .grid has a column gap of its own
-               Div(*[_column(c, b.at) for c in b.columns], cls="flex-1 min-h-0 grid grid-cols-3 gap-0"),
-               Script(TICK_JS),
+               Div(*[_column(c, b.at) for c in b.columns], style="grid-template-columns: repeat(4, minmax(0, 1fr))", cls="flex-1 min-h-0 grid gap-0"),
+               Script(TICK_JS), Script(WATCH_JS % f"{BASE}/w/_/card.created/JournalStamp"),
                # a fresh snapshot every 10 s (a move by an agent, the clock started elsewhere) and at once when the money
                # bar starts, stops or enters on this page (devconsole-money); never while it is hidden
                hx_get=f"{BASE}/w/_/card.created/Board", hx_swap="outerHTML",
-               hx_trigger="every 10s [this.offsetParent], devconsole-money from:document",
-               data_board="1", cls="h-full min-h-[24rem] flex flex-col")
+               hx_trigger="every 10s [this.offsetParent], devconsole-money from:document, kanban-journal",
+               data_board="1", data_stamp=_stamp(), cls="h-full min-h-[24rem] flex flex-col")
+
+
+def journal_stamp(ctx):
+    """Journal Stamp: when the Kanban journal last changed, so the Quadro knows to redraw (invisible)."""
+    return Div(data_stamp=_stamp(), hidden=True)
 
 
 def upstream_band(ctx):
@@ -193,7 +234,9 @@ def card_time(ctx):
 
 
 WIDGETS = {
-    "card.created": [board, upstream_band, card_history, card_time],
+    "card.created": [board, upstream_band, card_history, card_time, journal_stamp],
     "card.moved": [card_history],
+    "card.prioritized": [board],
+    "card.renamed": [card_history],
 }
 HOME = ("card.created", "Board")

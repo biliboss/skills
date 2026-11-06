@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.55.0] - 2026-11-06
+
+### Added
+
+- `kanban` 0.3.0: ordem dos cards numa etapa (`top`, `rank`, `card.prioritized`; o topo é o card em foco), `rename`, a etapa `Todo` (backlog, não conta como dinheiro de Upstream) e o Quadro com o tempo subindo no navegador e atualizando sozinho quando o journal muda.
+
 ## [0.54.0] - 2026-11-06
 
 ### Added

@@ -42,7 +42,7 @@ import subprocess
 import sys
 import uuid
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import cache
@@ -57,6 +57,11 @@ EVENTS = {
         # O card mudou de etapa: de Upstream (descobrir e decidir) para Downstream (entregar o que foi decidido), para
         # Feito, ou de volta. Só o tempo em Upstream entra no investimento do card.
         "move": "moved",
+        # O dono ordenou a fila de uma etapa: o card ficou na posição dada (0 = o topo, o card em foco agora). Quem nunca
+        # foi ordenado vem depois dos ordenados, por chegada; mudar de etapa zera a posição.
+        "prioritize": "prioritized",
+        # O card ganhou outro título (a mesma coisa, melhor nomeada); o histórico e o dinheiro seguem o card.
+        "rename": "renamed",
     },
     "item": {
         # Uma PR aberta ou uma branch passou de N horas (48 por padrão) sem entrar na main: o que foi começado e não
@@ -72,8 +77,10 @@ EVENTS = {
 
 # The edges: a card is created, then moves as often as the work needs (back to Upstream too).
 TRANSITIONS = {
-    "card.created": ["card.moved"],
-    "card.moved": ["card.moved"],
+    "card.created": ["card.moved", "card.prioritized", "card.renamed"],
+    "card.moved": ["card.moved", "card.prioritized", "card.renamed"],
+    "card.prioritized": ["card.moved", "card.prioritized", "card.renamed"],
+    "card.renamed": ["card.moved", "card.prioritized", "card.renamed"],
 }
 
 
@@ -83,6 +90,7 @@ class Stage(str, Enum):
 
     __str__ = str.__str__  # str() and f-strings give the value, as StrEnum did (it is 3.11+; the console allows 3.10)
 
+    TODO = "Todo"  # the backlog: waiting, not worked now (its time is not Upstream money)
     UPSTREAM = "Upstream"  # discover and decide what to do (before the commitment point)
     DOWNSTREAM = "Downstream"  # deliver what was decided
     DONE = "Feito"  # done
@@ -106,6 +114,21 @@ class Move:
 
 
 @dataclass(frozen=True)
+class Prioritize:
+    """What card.prioritized carries: the place in the stage's queue (0 = the top, the card in focus) and the stage."""
+
+    position: int
+    stage: Stage
+
+
+@dataclass(frozen=True)
+class Rename:
+    """What card.renamed carries: the new title."""
+
+    title: str
+
+
+@dataclass(frozen=True)
 class Stay:
     """One stay of a card in a stage: from when it entered to when it left (None while it is still there)."""
 
@@ -125,6 +148,7 @@ class Card:
     since: datetime  # when it entered the current stage
     created_at: datetime
     stays: tuple[Stay, ...]  # every stay, oldest first; the last one is still open
+    rank: int | None = None  # its place in the owner's order of the stage (0 = top); None = never ranked there
 
 
 @dataclass(frozen=True)
@@ -202,7 +226,7 @@ class Board:
 
 
 # Which value object each event carries (the dev-console's Code shows it with the event).
-VALUES = {"card.created": "NewCard", "card.moved": "Move"}
+VALUES = {"card.created": "NewCard", "card.moved": "Move", "card.prioritized": "Prioritize", "card.renamed": "Rename"}
 
 
 # --- pure functions: journal events in, value objects out (no file, no clock) ----------------------------------------
@@ -232,12 +256,18 @@ def card_from(events: list[dict]) -> Card | None:
     for e in events:
         v = e.get("value") or {}
         kind = e.get("event")
+        if kind not in ("card.created", "card.moved", "card.renamed"):
+            continue
         try:
             at = parse_at(e["at"])
-            stage = stage_of(v.get("stage") or (Stage.UPSTREAM if kind == "card.created" else ""))
+            stage = (stage_of(v.get("stage") or (Stage.UPSTREAM if kind == "card.created" else ""))
+                     if kind != "card.renamed" else Stage.UPSTREAM)
         except (KeyError, ValueError):
             continue
-        if kind == "card.created" and head is None:
+        if kind == "card.renamed":
+            if head is not None and str(v.get("title") or "").strip():
+                head["title"] = str(v["title"]).strip()
+        elif kind == "card.created" and head is None:
             head = {"id": e.get("card_id", ""), "title": v.get("title", ""), "domain": v.get("domain", ""), "at": at}
             stays = [Stay(stage, at)]
         elif kind == "card.moved" and head is not None and stage is not stays[-1].stage:
@@ -254,7 +284,41 @@ def cards_from(events: list[dict]) -> list[Card]:
     for e in events:
         if e.get("card_id"):
             groups.setdefault(e["card_id"], []).append(e)
-    return [c for g in groups.values() if (c := card_from(g))]
+    cards = {c.id: c for g in groups.values() if (c := card_from(g))}
+    ranks = ranks_from(events)
+    return [replace(c, rank=ranks.get(c.id)) for c in cards.values()]
+
+
+def ranks_from(events: list[dict]) -> dict[str, int]:
+    """The owner's order, replayed: each stage keeps a list of explicitly ranked cards; card.prioritized takes the card
+    out and puts it at its position (0 = top); a move to another stage drops it from the old list (the rank is cleared).
+    A prioritize naming a stage the card is no longer in is ignored. Returns the index of each ranked card."""
+    where: dict[str, str] = {}
+    lists: dict[str, list[str]] = {}
+    for e in events:
+        cid, v, kind = e.get("card_id"), e.get("value") or {}, e.get("event")
+        if not cid:
+            continue
+        try:
+            stage = stage_of(v.get("stage") or (Stage.UPSTREAM if kind == "card.created" else "")).value
+        except ValueError:
+            continue
+        if kind == "card.created" and cid not in where:
+            where[cid] = stage
+        elif kind == "card.moved" and cid in where and where[cid] != stage:
+            if cid in lists.get(where[cid], []):
+                lists[where[cid]].remove(cid)
+            where[cid] = stage
+        elif kind == "card.prioritized" and where.get(cid) == stage:
+            try:
+                pos = max(0, int(v.get("position")))
+            except (TypeError, ValueError):
+                continue
+            ranked = lists.setdefault(stage, [])
+            if cid in ranked:
+                ranked.remove(cid)
+            ranked.insert(min(pos, len(ranked)), cid)
+    return {cid: i for ranked in lists.values() for i, cid in enumerate(ranked)}
 
 
 def time_entries(cost_events: list[dict], running: dict | None, now: datetime) -> list[TimeEntry]:
@@ -360,9 +424,9 @@ def upstream_totals(cards: list[Card], entries: list[TimeEntry], rates: dict[str
 
 
 def board(cards: list[Card], entries: list[TimeEntry], rates: dict[str, float], now: datetime) -> Board:
-    """The Quadro: the band, then the three columns, each card with its money, in the order it arrived in its stage."""
+    """The Quadro: the band, then the three columns, each card with its money: the owner's order first (the top is the card in focus), then the rest by arrival."""
     money = [card_money(c, entries, rates, now) for c in cards]
-    columns = tuple(Column(st, tuple(sorted((m for m in money if m.card.stage is st), key=lambda m: m.card.since)))
+    columns = tuple(Column(st, tuple(sorted((m for m in money if m.card.stage is st), key=lambda m: (m.card.rank is None, m.card.rank or 0, m.card.since))))
                     for st in Stage)
     return Board(upstream_totals(cards, entries, rates, now), columns, now)
 
@@ -380,15 +444,17 @@ def hm(seconds: float) -> str:
 
 
 def stage_age(seconds: float) -> str:
-    """How long a card has been in its stage, for a person: chegou agora, há 5 min na etapa, há 2 dias na etapa."""
-    m = int(max(seconds, 0) // 60)
-    if m < 1:
-        return "chegou agora"
+    """How long a card has been in its stage, for a person, counting up: há 12 s, há 5 min 07 s, há 3 h 05 min, há 2
+    dias (each followed by na etapa). The Quadro's browser code (`age` in dev_console_project.py) writes the same words."""
+    s = int(max(seconds, 0))
+    if s < 60:
+        return f"há {s} s na etapa"
+    m = s // 60
     if m < 60:
-        return f"há {m} min na etapa"
+        return f"há {m} min {s % 60:02d} s na etapa"
     h = m // 60
     if h < 24:
-        return f"há {h} h na etapa"
+        return f"há {h} h {m % 60:02d} min na etapa"
     d = h // 24
     return f"há {d} dia{'s' if d > 1 else ''} na etapa"
 
@@ -499,6 +565,33 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
             card = cards.get(card_id or "")
             if card is None:
                 raise ValueError(f"no card {card_id!r}")
+            if event == "card.renamed":
+                title = str(value.get("title") or "").strip()
+                if not title:
+                    raise ValueError("a card needs a title")
+                if title == card.title:
+                    raise ValueError(f"card {card.id} is already titled {title!r}")
+                val = {"title": title}
+                record = {"id": uuid.uuid4().hex[:12], "event": event, "at": (at or _now()).isoformat(timespec="seconds"),
+                          "actor": actor, "card_id": card_id, "value": val}
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+                return record
+            if event == "card.prioritized":
+                try:
+                    pos = int(value.get("position"))
+                except (TypeError, ValueError):
+                    raise ValueError("position is a whole number, 0 is the top") from None
+                if pos < 0:
+                    raise ValueError("position is a whole number, 0 is the top")
+                pr = Prioritize(pos, card.stage)
+                record = {"id": uuid.uuid4().hex[:12], "event": event, "at": (at or _now()).isoformat(timespec="seconds"),
+                          "actor": actor, "card_id": card_id, "value": {"position": pr.position, "stage": pr.stage.value}}
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+                return record
             mv = Move(stage_of(value.get("stage", "")), card.stage)
             if mv.stage is mv.previous:
                 raise ValueError(f"card {card.id} ({card.title}) is already in {card.stage.value}")
@@ -520,6 +613,16 @@ def create(title: str, domain: str, stage: Stage | str = Stage.UPSTREAM, actor: 
 def move(card_id: str, stage: Stage | str, actor: str = "agent", at: datetime | None = None) -> dict:
     """card.moved: a card to another stage."""
     return emit("card.moved", {"stage": str(stage)}, card_id, actor, at)
+
+
+def prioritize(card_id: str, position: int, actor: str = "agent", at: datetime | None = None) -> dict:
+    """card.prioritized: the card at `position` in its stage's queue (0 = the top, the card in focus)."""
+    return emit("card.prioritized", {"position": position}, card_id, actor, at)
+
+
+def rename(card_id: str, title: str, actor: str = "agent", at: datetime | None = None) -> dict:
+    """card.renamed: the card under a new title."""
+    return emit("card.renamed", {"title": title}, card_id, actor, at)
 
 
 def find(ref: str, cards: list[Card]) -> Card:
@@ -551,6 +654,8 @@ def _project(events: list[dict]) -> dict:
         "stage": c.stage.value,
         # when it entered its stage
         "since": c.since.isoformat(timespec="seconds"),
+        # its place in the owner's order of the stage (0 = top), None when never ranked
+        "rank": c.rank,
         "created_at": c.created_at.isoformat(timespec="seconds"),
         "updated_at": events[-1]["at"],
     }
@@ -882,12 +987,23 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("create", help="a new card (card.created)")
     c.add_argument("title")
     c.add_argument("--domain", required=True, help="the dev-console domain slug the card belongs to")
-    c.add_argument("--stage", default=Stage.UPSTREAM.value, help="Upstream (default), Downstream or Feito")
+    c.add_argument("--stage", default=Stage.UPSTREAM.value, help="Upstream (default), Todo, Downstream or Feito")
     c.add_argument("--actor", default="agent")
     m = sub.add_parser("move", help="a card to another stage (card.moved)")
     m.add_argument("card", help="its id, a unique start of its id, or its exact title")
-    m.add_argument("stage", help="Upstream, Downstream or Feito")
+    m.add_argument("stage", help="Todo, Upstream, Downstream or Feito")
     m.add_argument("--actor", default="agent")
+    tp = sub.add_parser("top", help="a card to the top of its stage: the card in focus (card.prioritized, position 0)")
+    tp.add_argument("card", help="its id, a unique start of its id, or its exact title")
+    tp.add_argument("--actor", default="agent")
+    rk = sub.add_parser("rank", help="a card to a position of its stage's queue (card.prioritized; 0 = top)")
+    rk.add_argument("card")
+    rk.add_argument("position", type=int, help="0 is the top")
+    rk.add_argument("--actor", default="agent")
+    rn = sub.add_parser("rename", help="a card under another title (card.renamed)")
+    rn.add_argument("card")
+    rn.add_argument("title")
+    rn.add_argument("--actor", default="agent")
     ls = sub.add_parser("list", help="the cards, per stage, with their Upstream money")
     ls.add_argument("--stage")
     ls.add_argument("--json", action="store_true")
@@ -911,6 +1027,12 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "move":
             card = find(a.card, cards_from(events()))
             print(json.dumps(move(card.id, a.stage, a.actor), ensure_ascii=False))
+        elif a.cmd in ("top", "rank"):
+            card = find(a.card, cards_from(events()))
+            print(json.dumps(prioritize(card.id, 0 if a.cmd == "top" else a.position, a.actor), ensure_ascii=False))
+        elif a.cmd == "rename":
+            card = find(a.card, cards_from(events()))
+            print(json.dumps(rename(card.id, a.title, a.actor), ensure_ascii=False))
         elif a.cmd == "list":
             b = read_board()
             stage = stage_of(a.stage) if a.stage else None

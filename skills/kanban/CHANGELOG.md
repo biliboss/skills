@@ -2,6 +2,16 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-06
+
+### Added
+
+- `kanban.sh top <card>` and `rank <card> <position>`: event `card.prioritized {position, stage}`; the top of a column is the card in focus, ranked cards come first, the rest by arrival, a move clears the rank.
+- `kanban.sh rename <card> <title>`: event `card.renamed {title}`.
+- Stage `Todo`, the first one (the backlog); its time is not Upstream money. `create` still defaults to Upstream.
+- The Quadro counts the time in the stage up every second in the browser (`data-since`), with the cost clock's rate, and redraws by itself within ~2 s of a change to the journal (`JournalStamp`); four columns.
+- `test_dev_console_project.py`: the rendered data attributes, the stamp and the order.
+
 ## [0.2.0] - 2026-11-06
 
 ### Added
