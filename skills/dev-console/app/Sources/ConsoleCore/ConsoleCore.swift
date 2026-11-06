@@ -7,7 +7,7 @@ import Foundation
 /// One command from `command.json`, written by `scripts/window.sh`.
 public struct WindowCommand: Decodable, Equatable, Sendable {
     public enum Action: String, Sendable {
-        case open, reload, show, hide, resize, dock, eval
+        case open, reload, show, hide, resize, dock, eval, shot
     }
 
     public enum Side: String, Sendable {
@@ -63,7 +63,7 @@ public struct WindowCommand: Decodable, Equatable, Sendable {
             guard dockSide != nil else { return "dock needs side left or right" }
         case .eval:
             guard let js, !js.isEmpty else { return "eval needs js" }
-        case .reload, .show, .hide:
+        case .reload, .show, .hide, .shot:
             break
         }
         return nil

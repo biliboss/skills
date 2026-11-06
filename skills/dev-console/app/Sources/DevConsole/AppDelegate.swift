@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var idleTimer: Timer?
     private var palette: PaletteController!
     private let statusLine = StatusLineController()
+    private var recorder: RecorderController!
     private var keyMonitor: Any?
 
     private let stateDir: URL = {
@@ -51,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         buildMenu()
         buildWindow()
+        recorder = RecorderController(webView: webView)  // before the first load: its script runs in every page
         palette = PaletteController(parent: { [weak self] in self?.window }, currentURL: { [weak self] in self?.webView.url ?? self?.defaultURL },
                                     open: { [weak self] in self?.webView.load(URLRequest(url: $0)) })
         statusLine.onPalette = { [weak self] in self?.palette.show($0) }
@@ -211,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             return
         }
         if statusLine.handle(message: message.body) { return }  // a status push is not an agent message
+        if recorder.handle(message: message.body) { return }  // nor is the recorder's report
         state.lastMessage = JSONValue(any: message.body)
         writeState()
     }
@@ -264,6 +267,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case .dock:
             applyDock(command.dockSide!)
             finish(command, result: "ok")
+        case .shot:  // a fresh line and PNG now, without moving the window or the domain
+            recorder.record(force: true) { [weak self] result in self?.finish(command, result: result) }
         case .eval:
             webView.evaluateJavaScript(command.js!) { [weak self] value, error in
                 // Reduce to a String before crossing back: the callback value is not Sendable.

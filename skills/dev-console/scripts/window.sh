@@ -5,6 +5,7 @@
 #   window.sh open <url>        window.sh reload        window.sh show      window.sh hide
 #   window.sh resize <w> <h>    window.sh dock left|right
 #   window.sh eval '<js>'       window.sh status        window.sh wait
+#   window.sh shot              (a fresh flight-recorder line + PNG; agents use agent.sh)   window.sh running
 #   window.sh install           window.sh quit
 #   window.sh [--owner <name>] launch [url]   a window of its own (see below)
 #
@@ -119,6 +120,9 @@ app_pids() {
   done
 }
 
+# running: exit 0 when an app owns this state dir, 1 when not (the console's /agent/shot picks its source with it)
+cmd_running() { [[ -n "$(app_pids)" ]]; }
+
 cmd_quit() {
   local pids; pids="$(app_pids)"
   if [[ -n "$pids" ]]; then kill $pids; echo "app quit"; else echo "app was not running"; fi
@@ -160,6 +164,8 @@ case "${1:-}" in
   wait)    cmd_wait ;;
   install) cmd_install ;;
   quit)    cmd_quit ;;
+  running) cmd_running ;;
+  shot)    send shot ;;
   launch)  shift; cmd_launch "$@" ;;
-  *) die "usage: window.sh [--owner <name>] launch [url] | open <url> | reload | show | hide | resize <w> <h> | dock left|right | eval '<js>' | status | wait | install | quit" ;;
+  *) die "usage: window.sh [--owner <name>] launch [url] | open <url> | reload | show | hide | resize <w> <h> | dock left|right | eval '<js>' | shot | status | wait | running | install | quit" ;;
 esac

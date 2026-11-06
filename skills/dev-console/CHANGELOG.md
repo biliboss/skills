@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.0] - 2026-11-06
+
+### Added
+
+- **Agent API and flight recorder.** DevConsole.app writes one JSON line per navigation to `~/.local/state/dev-console/recorder/events.jsonl` (`DEV_CONSOLE_RECORDER_DIR`) with a PNG from `WKWebView.takeSnapshot`; the last 20 lines and PNGs stay. Page JS errors ride on the line. Read-only `GET /agent/now`, `/agent/history?n=`, `/agent/shot` (app, else headless), and `scripts/agent.sh now|history|shot|open|eval|status`. `window.sh shot` and `window.sh running`. `ConsoleCore/Recorder.swift` with tests; `test_console_recorder.py`.
+
 ## [0.21.1] - 2026-11-06
 
 ### Fixed
