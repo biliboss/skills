@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.2.0
+  version: 0.3.0
 ---
 
 # kanban
@@ -19,13 +19,15 @@ The domain is **Kanban** (`/domain/kanban` in the dev-console, "Biliboss Skills 
 Method (David J. Anderson, 2010) and Upstream Kanban (Patrick Steyaert, 2018): the commitment point splits the board,
 upstream the options still being discovered, downstream the work committed to.
 
-**Entity:** Card: a title, the dev-console domain it belongs to (its slug), and its stage, `Upstream` | `Downstream` |
-`Feito`. UI text is Portuguese; this file and the code comments are English.
+**Entity:** Card: a title, the dev-console domain it belongs to (its slug), and its stage, `Todo` | `Upstream` |
+`Downstream` | `Feito`. UI text is Portuguese; this file and the code comments are English.
 
 | Event | Command | Value object | What happened |
 |---|---|---|---|
 | `card.created` | `create` | `NewCard {title, domain, stage}` | a card entered the board (in Upstream unless told otherwise) |
 | `card.moved` | `move` | `Move {stage, previous}` | the card changed stage, in any direction (back to Upstream too) |
+| `card.prioritized` | `top`, `rank` | `Prioritize {position, stage}` | the owner ordered the stage's queue: the card sits at `position` (0 = top) |
+| `card.renamed` | `rename` | `Rename {title}` | the card got another title |
 | `item.aged` | `sweep --apply` | `{repo, kind pr\|branch, ref, age_h}` | an open PR or a branch is older than N hours (48) and not in main; no card |
 | `decision.requested` | `sweep --apply` | `{text, repo, ref, reason}` | only the owner decides: a merge that publishes (the repo's main deploys), a branch with work outside main |
 
@@ -39,6 +41,9 @@ The descriptions for humans are the comments on each command in `EVENTS`.
 ```sh
 scripts/kanban.sh create "<title>" --domain <slug> [--stage Upstream|Downstream|Feito] [--actor <who>]
 scripts/kanban.sh move <card> <stage> [--actor <who>]   # <card>: its id, a unique start of it, or its exact title
+scripts/kanban.sh top <card> [--actor <who>]            # to the top of its stage: the card in focus now
+scripts/kanban.sh rank <card> <position> [--actor <who>]  # to a place in its stage's queue (0 = top)
+scripts/kanban.sh rename <card> <title> [--actor <who>]
 scripts/kanban.sh list [--stage <stage>] [--json]       # the cards, per stage, with their Upstream money
 scripts/kanban.sh show <card> [--json]                  # its stays, its Upstream slices of time, the total
 scripts/kanban.sh money [--json]                        # the band (Hoje, Semana, Mês) and each card's total
@@ -63,6 +68,18 @@ gets only `decision.requested`, never a close or a delete. Tests override gh wit
 `{"id","event","at","actor","card_id","value"}`, written under a file lock. It refuses an unknown event, a card with no
 title or no domain slug, an unknown stage (any case is accepted: `feito`), a move to the stage the card is already in,
 and an unknown or ambiguous card (it lists the matches). Never edit the real journal by hand while the console reads it.
+
+## The order of a column
+
+**The top of a column is the card in focus** (Kanban literature: ordering the queue by priority). A stage's cards follow
+the latest explicit order (`top`, `rank`, replayed from `card.prioritized`); cards never ranked come after the ranked
+ones, by arrival. Moving a card to another stage clears its rank there. **Todo** is the backlog, what is not being worked
+now: its time is waiting, not discovery, so it never counts as Upstream money (`create` still defaults to Upstream).
+
+**The Quadro is live.** It counts up in the browser every second from the server's `since` (the time in the stage) and
+`tick-rate` (the cost clock's R$ per hour), without a reload, and redraws by itself within ~2 s of any change to the
+journal (a tiny `JournalStamp` widget answers the journal's mtime; the board is fetched again when it differs). The
+server stays the source of truth at each redraw.
 
 ## The money rule
 

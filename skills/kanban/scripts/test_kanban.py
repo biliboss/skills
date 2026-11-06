@@ -205,14 +205,44 @@ class BoardTest(unittest.TestCase):
                  card("c", start="2026-11-04 08:00", moves=[("2026-11-05 10:00", "Downstream")]),
                  card("d", start="2026-11-01 08:00", moves=[("2026-11-02 08:00", "Feito")])]
         b = K.board(cards, [], {}, t("2026-11-06 12:00"))
-        self.assertEqual([c.stage for c in b.columns], [K.Stage.UPSTREAM, K.Stage.DOWNSTREAM, K.Stage.DONE])
-        self.assertEqual([[m.card.id for m in c.cards] for c in b.columns], [["b", "a"], ["c"], ["d"]])
+        self.assertEqual([c.stage for c in b.columns], [K.Stage.TODO, K.Stage.UPSTREAM, K.Stage.DOWNSTREAM, K.Stage.DONE])
+        self.assertEqual([[m.card.id for m in c.cards] for c in b.columns], [[], ["b", "a"], ["c"], ["d"]])
+
+    def test_the_owners_order_comes_first_then_arrival(self):
+        evs = [ev("card.created", x, f"2026-11-06 0{i}:00", title=x, domain="k", stage="Upstream")
+               for i, x in enumerate("abcd", 1)]
+        order = lambda es: [m.card.id for m in K.board(K.cards_from(es), [], {}, t("2026-11-06 12:00")).columns[1].cards]  # noqa: E731
+        self.assertEqual(order(evs), ["a", "b", "c", "d"])
+        evs.append(ev("card.prioritized", "c", "2026-11-06 09:00", position=0, stage="Upstream"))
+        self.assertEqual(order(evs), ["c", "a", "b", "d"])
+        evs.append(ev("card.prioritized", "d", "2026-11-06 09:01", position=0, stage="Upstream"))
+        self.assertEqual(order(evs), ["d", "c", "a", "b"])
+        evs.append(ev("card.prioritized", "a", "2026-11-06 09:02", position=1, stage="Upstream"))
+        self.assertEqual(order(evs), ["d", "a", "c", "b"])  # the latest explicit order wins
+        # rank N is N on screen, also past the ranked cards (here a and d are ranked, c and b after them)
+        evs.append(ev("card.prioritized", "b", "2026-11-06 09:02", position=2, stage="Upstream"))
+        self.assertEqual(order(evs), ["d", "a", "b", "c"])
+        evs.append(ev("card.prioritized", "c", "2026-11-06 09:02", position=2, stage="Upstream"))
+        self.assertEqual(order(evs), ["d", "a", "c", "b"])
+        # moving out clears the rank there; coming back it is unranked again, by arrival
+        evs.append(ev("card.moved", "d", "2026-11-06 09:03", stage="Todo", previous="Upstream"))
+        evs.append(ev("card.moved", "d", "2026-11-06 09:04", stage="Upstream", previous="Todo"))
+        self.assertEqual(order(evs), ["a", "c", "b", "d"])
+        # a prioritize naming a stage the card left is ignored
+        evs.append(ev("card.prioritized", "b", "2026-11-06 09:05", position=0, stage="Feito"))
+        self.assertEqual(order(evs), ["a", "c", "b", "d"])
+
+    def test_todo_is_the_first_stage_and_is_not_upstream_money(self):
+        self.assertEqual(list(K.Stage)[0], K.Stage.TODO)
+        c = card(start="2026-11-06 08:00", stage="Todo", moves=[("2026-11-06 10:00", "Upstream")])
+        m = K.card_money(c, [entry("2026-11-06 08:00", "2026-11-06 11:00")], {"inv": RATE}, t("2026-11-06 12:00"))
+        self.assertEqual(m.total.seconds, 3600)  # only 10:00-11:00: the Todo hours are waiting, not discovery
 
     def test_formats(self):
         self.assertEqual((K.brl(1234.5), K.brl(0), K.hm(3000), K.hm(3599), K.hm(7260)),
                          ("R$ 1.234,50", "R$ 0,00", "0h50", "0h59", "2h01"))
-        self.assertEqual([K.stage_age(s) for s in (30, 300, 3 * 3600, 26 * 3600, 50 * 3600)],
-                         ["chegou agora", "há 5 min na etapa", "há 3 h na etapa", "há 1 dia na etapa", "há 2 dias na etapa"])
+        self.assertEqual([K.stage_age(s) for s in (30, 307, 3 * 3600 + 300, 26 * 3600, 50 * 3600)],
+                         ["há 30 s na etapa", "há 5 min 07 s na etapa", "há 3 h 05 min na etapa", "há 1 dia na etapa", "há 2 dias na etapa"])
 
 
 class JournalTest(unittest.TestCase):
@@ -287,6 +317,26 @@ class JournalTest(unittest.TestCase):
         code, out, _ = self.cli("list", "--stage", "feito")
         self.assertIn("Kanban", out)
         self.assertEqual((Path(os.environ["COSTS_DIR"]) / "events.jsonl").read_bytes(), before)
+
+    def test_top_rank_rename_and_todo_from_the_cli(self):
+        a = K.create("Alpha", "kanban")["card_id"]
+        b = K.create("Beta", "kanban")["card_id"]
+        self.assertEqual(self.cli("top", b)[0], 0)
+        _, out, _ = self.cli("list", "--stage", "Upstream")
+        self.assertLess(out.index("Beta"), out.index("Alpha"))
+        code, out, _ = self.cli("rank", "Beta", "1")
+        self.assertEqual(json.loads(out)["value"], {"position": 1, "stage": "Upstream"})
+        code, out, _ = self.cli("top", a)  # a is now at the top, b right after
+        self.assertEqual([m.card.id for m in K.read_board().columns[1].cards], [a, b])
+        self.assertEqual(self.cli("rank", a, "-1")[0], 1)
+        self.assertEqual(self.cli("rename", b, "Gamma")[0], 0)
+        self.assertEqual(K.find("Gamma", K.cards_from(K.events())).id, b)
+        code, _, err = self.cli("rename", b, "Gamma")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.cli("rename", b, "  ")[0], 1)
+        self.assertEqual(self.cli("move", b, "Todo")[0], 0)
+        self.assertEqual([m.card.id for m in K.read_board().columns[0].cards], [b])
+        self.assertEqual(json.loads(self.cli("create", "Waits", "--domain", "k", "--stage", "todo")[1])["value"]["stage"], "Todo")
 
     def test_projection_for_the_console(self):
         c = K.create("Kanban", "kanban")
@@ -485,7 +535,7 @@ class SweepTest(GhCase):
         self.assertIn("item.aged", K.KNOWN_EVENTS)
         self.assertIn("decision.requested", K.KNOWN_EVENTS)
         K.create("A card", "kanban")
-        self.assertEqual(len(K.read_board().columns[0].cards), 1)  # cardless events never become cards
+        self.assertEqual(len(K.read_board().columns[1].cards), 1)  # cardless events never become cards
 
 
 if __name__ == "__main__":
