@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `disky`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-06
+
+### Added
+
+- Organizing `~/src`: the 7-days-and-synced rule, one survey script, SSD archive with a single link, sensitive files, SSD table and cache pitfalls.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added

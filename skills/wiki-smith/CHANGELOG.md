@@ -3,6 +3,12 @@
 All notable changes to wiki-smith are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-11-06
+
+### Added
+
+- Read a behind checkout with `git show origin/<main>`; dictated meetings become topic pages with an "Em aberto" list; never pull or stash over other sessions' changes.
+
 ## [0.1.4] - 2026-11-06
 
 ### Changed

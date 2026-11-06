@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.7.1
+  version: 0.7.2
 ---
 
 # kanban
@@ -93,6 +93,8 @@ The descriptions for humans are the comments on each command in `EVENTS`.
   means the binding is missing.
 - **The card shows its agent**: a line read from the tmux session's Hermes status bar (pronto / trabalhando, the
   context, "você está nela"). Read-only; a card without a session shows nothing.
+- **A thread of a card** is opened by the `thread` skill (`thread.sh open <topic> --card <slug>`, above); do not
+  rebuild it by hand.
 
 ## The one writer
 
@@ -231,9 +233,15 @@ journals and call them. The widgets and the CLI draw only these, so the screen, 
 - **The Quadro is the console's home.** `TABS = ["Quadro"]`, `MODULE_WIDGETS = {"Quadro": ("card.created", "Board")}`
   and `CONSOLE_HOME = "Quadro"`: `/` opens it when the journal has a card (else the first domain, as before); ⌘P lists it
   (`g q`). The status line is the console's: `Biliboss Skills - Kanban · Quadro · money bar`.
-- **The board**: the money band on top, then Upstream, Downstream and Feito; each card shows its title, its Upstream
-  money (R$ and hours), how long it has been in its stage, and its domain; cards in the order they arrived in the stage.
-  Read only: no drag, no button that writes.
+- **The board**: the money band on top, one header row of stages (Todo, Upstream, Downstream, Feito), then one
+  **swimlane** per client cost center he named (`LANES`, Mukutu first) and `Outros` for the rest. A card's lane is its
+  domain's cost center (`costs.center_of`), never a field on the card: to move a card to a lane, bind its domain to
+  that center (`costs.sh bind <center> <domain>`). Each card shows its title, the "Por quê" line of its description,
+  its Upstream money (R$ and hours), how long it has been in its stage, and its domain. Read only: no drag, no button
+  that writes.
+- **Board tests find a card by its `aria-label="abrir <title>"`**, never by a bare title substring: a lane label
+  (`Outros`) or a header contains the same text and the order assertion passes or fails for the wrong reason. Stage
+  headers are the first four `data-stage` in the HTML; each lane repeats them as its cells.
 - **A click on a card** (Enter, Space) opens the console's contextual sidebar: `ENTITY_PARTS = {"Histórico":
   "CardHistory", "Tempo": "CardTime"}`, then its JSON; `?ent=<card id>` keeps it open across a reload, Esc closes it.
 - **Widgets**, each with its title: Board (part UpstreamBand), UpstreamBand, CardHistory and CardTime on `card.created`

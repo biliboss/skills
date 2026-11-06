@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-11-06
+
+### Changed
+
+- Swimlanes per cost center on the Quadro and the board-test rule (find a card by `aria-label`); the manual thread recipe now points to the `thread` skill.
+
 ## [0.7.1] - 2026-11-06
 
 ### Changed

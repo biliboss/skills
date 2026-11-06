@@ -11,7 +11,7 @@ description: >-
   designs and critiques any interface; lp-draft runs the whole LP draft and loads impeccable
   for the design part. Not wiki-smith: lp-draft calls it only to link the page.
 metadata:
-  version: 0.2.1
+  version: 0.2.2
   license: MIT
 ---
 
@@ -76,7 +76,7 @@ Details and the token contract: [references/design-system.md](references/design-
 npx -y vite@6.4.5 .wiki/resources --port 5180 --strictPort --open /<produto>-<versão>-lp.html
 ```
 
-Run it in the background. If 5180 is taken, a server is probably already up: open `http://localhost:5180/<file>` instead of starting another. A sandboxed agent (T3 Code) cannot reach a server it starts; the user runs the command.
+Run it in the background, then show it to the owner inside the dev-console: `devc browse localhost:5180/<file>` opens the console's Browser module, where he validates the page (same for any screen on a local server). If 5180 is taken, a server is probably already up: open `http://localhost:5180/<file>` instead of starting another. A sandboxed agent (T3 Code) cannot reach a server it starts; the user runs the command.
 
 ## Step 5 — Look at it
 

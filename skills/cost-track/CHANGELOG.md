@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-11-06
+
+### Changed
+
+- Client contracts: `hours_day`, manual time pairs, `costs.sh bind`, and the finance report (`references/company-finance.md`).
+
 ## [0.5.0] - 2026-11-06
 
 ### Changed
