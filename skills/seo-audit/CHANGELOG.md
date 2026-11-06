@@ -11,3 +11,5 @@ Todas as mudanças do skill `seo-audit`. Formato: [Keep a Changelog 1.1.0](https
 - `sitemap.sh`: os sitemaps do robots.txt, os índices seguidos, o host de cada um e, com `--check`, o status de cada
   URL, com os redirecionamentos agrupados num achado só.
 - `test.sh`: teste offline com fixtures.
+- Só abre http e https; um endereço interno só quando o host foi passado à mão (as URLs seguidas vêm das páginas);
+  o corpo é cortado em 10 MB e um sitemap repetido é lido uma vez.

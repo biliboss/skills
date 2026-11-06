@@ -12,8 +12,10 @@ JSON-LD types, images without alt, visible words) and a list of findings, each w
 code and a sentence. Output is one JSON document on stdout; errors go to stderr with exit 1.
 """
 import argparse
+import ipaddress
 import json
 import re
+import socket
 import sys
 import time
 import urllib.error
@@ -27,6 +29,8 @@ TIMEOUT = 20
 TITLE_MAX = 60  # practitioner heuristic: Google cuts the title link by pixel width (~600px), not by characters
 DESC_MAX = 160  # same: the snippet is cut by width; Google may also write its own
 THIN_WORDS = 150
+MAX_BODY = 10 * 1024 * 1024  # a page or sitemap larger than this is cut
+TRUSTED_HOSTS: set[str] = set()  # hosts the caller passed by hand; only these may be private or loopback
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -37,16 +41,47 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 _opener = urllib.request.build_opener(NoRedirect)
 
 
+def refuse(url: str):
+    """Why this URL must not be opened, or None. URLs come from the pages themselves (Location, canonical, <loc>), so
+    only http(s) is opened, and a private or loopback address only when the caller passed that host by hand."""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https"):
+        return f"esquema {parts.scheme or '(nenhum)'} recusado: só http e https"
+    host = parts.hostname or ""
+    if host in TRUSTED_HOSTS:
+        return None
+    try:
+        addrs = {str(a[4][0]) for a in socket.getaddrinfo(host, None)}
+    except (socket.gaierror, UnicodeError):
+        return None  # let the fetch report that it did not resolve
+    for addr in addrs:
+        ip = ipaddress.ip_address(addr.split("%")[0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return f"{host} resolve para um endereço interno ({ip}); recusado (só um host passado à mão pode ser interno)"
+    return None
+
+
+def trust(url: str) -> str:
+    """Mark the host of a URL the caller passed by hand."""
+    host = urllib.parse.urlsplit(url).hostname
+    if host:
+        TRUSTED_HOSTS.add(host)
+    return url
+
+
 def fetch(url: str, max_hops: int = 10):
     """GET following redirects by hand, so the chain is recorded. Returns (status, final_url, headers, body, chain)."""
     chain = []
     for _ in range(max_hops):
+        why = refuse(url)
+        if why:
+            return None, url, {}, b"", chain + [{"url": url, "error": why}]
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "pt-BR,pt;q=0.9"})
         try:
             resp = _opener.open(req, timeout=TIMEOUT)
-            status, headers, body = resp.status, resp.headers, resp.read()
+            status, headers, body = resp.status, resp.headers, resp.read(MAX_BODY)
         except urllib.error.HTTPError as e:
-            status, headers, body = e.code, e.headers, e.read()
+            status, headers, body = e.code, e.headers, e.read(MAX_BODY)
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             return None, url, {}, b"", chain + [{"url": url, "error": str(getattr(e, "reason", e))}]
         if status in (301, 302, 303, 307, 308) and headers.get("Location"):
@@ -274,6 +309,9 @@ def robots_sitemaps(base: str):
 
 
 def read_sitemap(url: str, out: dict, depth: int = 0):
+    if url in out["_seen"]:  # an index that lists itself, or two indexes listing the same sitemap
+        return
+    out["_seen"].add(url)
     status, final, headers, body, chain = fetch(url)
     entry = {"url": url, "final_url": final, "status": status}
     out["sitemaps"].append(entry)
@@ -307,7 +345,9 @@ def audit_sitemap(target: str, check: bool, max_urls: int) -> dict:
         target = "https://" + target
     parts = urllib.parse.urlsplit(target)
     base = f"{parts.scheme}://{parts.netloc}/"
-    out = {"site": base, "robots_status": None, "robots_sitemaps": [], "sitemaps": [], "urls": [], "findings": []}
+    trust(base)
+    out = {"site": base, "robots_status": None, "robots_sitemaps": [], "sitemaps": [], "urls": [], "findings": [],
+           "_seen": set()}
     f = out["findings"]
     out["robots_status"], out["robots_sitemaps"] = robots_sitemaps(base)
     if parts.path.endswith(".xml"):
@@ -358,6 +398,7 @@ def audit_sitemap(target: str, check: bool, max_urls: int) -> dict:
         if len(out["urls"]) > max_urls:
             f.append({"level": "info", "code": "check-limit", "text": f"conferi {max_urls} de {len(out['urls'])} URLs (--max)"})
     out["total_urls"] = len(out["urls"])
+    del out["_seen"]
     return out
 
 
@@ -372,7 +413,8 @@ def main():
     sm.add_argument("--max", type=int, default=200)
     a = ap.parse_args()
     if a.cmd == "page":
-        res = {"pages": [audit_page(u if re.match(r"https?://", u) else "https://" + u) for u in a.urls]}
+        urls = [trust(u if re.match(r"[a-z][a-z0-9+.-]*://", u) else "https://" + u) for u in a.urls]
+        res = {"pages": [audit_page(u) for u in urls]}
     else:
         res = audit_sitemap(a.target, a.check, a.max)
     json.dump(res, sys.stdout, ensure_ascii=False, indent=1)

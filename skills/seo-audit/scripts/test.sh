@@ -31,7 +31,11 @@ cat > "$T/sitemap.xml" <<EOF
 EOF
 cat > "$T/sitemap-0.xml" <<EOF
 <?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-<url><loc>$B/good.html</loc><lastmod>2026-11-01</lastmod></url><url><loc>$B/missing.html</loc></url></urlset>
+<url><loc>$B/good.html</loc><lastmod>2026-11-01</lastmod></url><url><loc>$B/missing.html</loc></url>
+<url><loc>http://10.255.255.1/interno</loc></url><url><loc>file:///etc/hosts</loc></url></urlset>
+EOF
+cat > "$T/evil.html" <<EOF
+<html lang="pt-BR"><head><title>x</title><link rel="canonical" href="file:///etc/hosts"></head><body></body></html>
 EOF
 
 python3 -I -m http.server "$PORT" --bind 127.0.0.1 --directory "$T" >/dev/null 2>&1 &
@@ -56,8 +60,12 @@ check "bad: canonical to a 404 is canonical-broken" "$b" "$codes | index(\"canon
 check "bad: invalid JSON-LD" "$b" "$codes | index(\"jsonld-invalid\") != null"
 
 s=$("$HERE/sitemap.sh" "$B" --check)
-check "sitemap: from robots.txt, index followed" "$s" '(.robots_sitemaps | length) == 1 and .total_urls == 2'
-check "sitemap: missing URL is url-status" "$s" "$codes == [\"url-status\"]"
+check "sitemap: from robots.txt, index followed" "$s" '(.robots_sitemaps | length) == 1 and .total_urls == 4'
+check "sitemap: missing, internal and file: URLs are url-status" "$s" "$codes == [\"url-status\",\"url-status\",\"url-status\"]"
+check "sitemap: internal and file: are refused, not fetched" "$s" '[.urls[] | select(.status == null)] | length == 2'
+
+e=$("$HERE/audit.sh" "$B/evil.html" | jq '.pages[0]')
+check "canonical file: is refused (canonical-broken)" "$e" "$codes | index(\"canonical-broken\") != null"
 
 n=$("$HERE/audit.sh" "http://127.0.0.1:1/" | jq '.pages[0]')
 check "unreachable: fetch erro, no crash" "$n" "$codes == [\"fetch\"]"

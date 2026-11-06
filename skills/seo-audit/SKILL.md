@@ -45,6 +45,8 @@ $A/test.sh                                    # offline test on fixtures (local 
 
 - Read-only, and it changes nothing: fixing a tag, the robots.txt or the sitemap is a change in the site's code and
   a decision for the owner.
+- It only opens http(s). The URLs it follows come from the pages (redirects, canonical, the sitemap's `<loc>`), so an
+  internal or loopback address is refused unless you passed that host yourself; bodies are cut at 10 MB.
 - No Core Web Vitals, no crawl of links beyond the sitemap, no hreflang validation (only listed). For the full
   checklist and the "why", load the public skills below.
 
