@@ -167,6 +167,16 @@ class CatalogTest(ShapeTest):
         _, diff = shape.learn()
         self.assertEqual(diff, [])
 
+    def test_a_shaping_closed_again_counts_once_with_the_last_numbers(self):
+        self.close("a", 10, 4, 20, 8)
+        self.emit("resources.chosen", {"resources": ["form:thread"], "est_minutes": 20, "est_cost_brl": 4.8,
+                                       "why": "Decidi x porque y"}, "a")
+        self.emit("shaping.closed", {"real_minutes": 20, "real_cost_brl": 4.8}, "a")
+        before = shape.load_catalog()["resources"]
+        _, diff = shape.learn()
+        self.assertEqual(diff, [])  # ratio 1 on form:thread; form:subagent untouched
+        self.assertEqual(before["form:subagent"]["learned_n"], 0)
+
     def test_autolearn_after_ten_closed(self):
         for i in range(10):
             self.close(f"s{i}", 5, 1, 5, 1)

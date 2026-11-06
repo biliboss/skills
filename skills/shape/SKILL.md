@@ -8,7 +8,7 @@ description: >-
   "plan", "vamos fazer", "quero", "faz", "nova tarefa", "brainstorm", "backbrief". Questions and one-line commands skip
   it.
 metadata:
-  version: 0.3.0
+  version: 0.3.1
   license: MIT
 ---
 
