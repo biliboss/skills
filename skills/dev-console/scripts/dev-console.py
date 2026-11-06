@@ -713,9 +713,23 @@ function drawGraph() {
     const BRANCH = HUMAN_R + 4, RING = BRANCH + (Math.max(...Object.values(count)) - 1) * TRACK + 110;   // the fan leaves the Human's rim, then runs straight
     const at = (c, k) => { const [dx, dy] = DIRS[dirOf[c]], o = FAN[dirOf[c]] * group[c] * TRACK, r = RING + k * STEP;   // ccw side = (dy, -dx)
       return {x: dy * o + dx * r, y: -dx * o + dy * r}; };
-    const pos = {human: {x: 0, y: 0}}, st = {}, where = {};
-    cats.forEach(c => M().lifecycle[c].forEach((v, k) => { const id = `${c}.${v}`; pos[id] = at(c, k); where[id] = {c, k};
-      st[id] = {side: SIDE[dirOf[c]], dir: dirOf[c]}; }));
+    const pos = {human: {x: 0, y: 0}}, st = {}, where = {}, parent = {};
+    // a line follows TRANSITIONS: a station's parent is its earliest in-line predecessor by a forward edge (EVENTS order;
+    // a backward edge, like a reactivation, is a loop and stays a dashed cross edge). Where a station forks, the child
+    // with the longest path below it continues the trunk; the others are branches (Tokyo's Marunouchi branch) leaving
+    // at 45°, alternating sides, each a STEP further out
+    const rot = ([x, y], q) => { const a = q * Math.PI / 4, c = Math.cos(a), sn = Math.sin(a); return [x * c - y * sn, x * sn + y * c]; };
+    cats.forEach(c => { const vs = M().lifecycle[c], ids = vs.map(v => `${c}.${v}`), k = Object.fromEntries(ids.map((id, i) => [id, i]));
+      const kids = Object.fromEntries(ids.map(id => [id, []]));
+      ids.forEach(b => { const a = ids.find(a => k[a] < k[b] && edges.some(e => e.data.source === a && e.data.target === b));
+        if (a) { parent[b] = a; kids[a].push(b); } });
+      const depth = id => 1 + Math.max(0, ...kids[id].map(depth));
+      const place = (id, P, dir, n) => { pos[id] = P; where[id] = {c, k: n}; st[id] = {side: SIDE[dirOf[c]], dir: dirOf[c]};
+        const ks = [...kids[id]].sort((x, y) => depth(y) - depth(x) || k[x] - k[y]);
+        ks.forEach((ch, j) => { const d = j === 0 ? dir : rot(dir, (j % 2 ? 1 : -1)), r = j === 0 ? STEP : STEP * Math.ceil(j / 2) * Math.SQRT2;
+          place(ch, {x: P.x + d[0] * r, y: P.y + d[1] * r}, d, n + 1); }); };
+      let n = 0; ids.filter(id => !parent[id]).forEach(root => { const P = at(c, n); place(root, P, DIRS[dirOf[c]], n);
+        n += 1 + (function trunk(id) { const ks = [...kids[id]].sort((x, y) => depth(y) - depth(x) || k[x] - k[y]); return ks.length ? 1 + trunk(ks[0]) : 0; })(root); }); });
     nodes.forEach(n => { const id = n.data.id; n.position = pos[id] || {x: 0, y: 0};
       if (id !== 'human') { n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id); n.data.side = st[id].side; n.data.dir = st[id].dir; } });
     // a segment route: from S through the bends Bs to T; cytoscape wants each bend as a weight and a distance:
@@ -737,7 +751,7 @@ function drawGraph() {
     const stub = c => { const [dx, dy] = DIRS[dirOf[c]], o = group[c] * TRACK;   // leaves the trunk at the Human's rim, a 45° leg into its track
       const track = at(c, 0), run = {x: track.x - dx * (RING - BRANCH - o), y: track.y - dy * (RING - BRANCH - o)};   // where the leg meets the track
       return o ? [{x: dx * BRANCH, y: dy * BRANCH}, run] : null; };
-    const adjacent = (a, b) => where[a] && where[b] && where[a].c === where[b].c && where[b].k === where[a].k + 1;
+    const adjacent = (a, b) => parent[b] === a;
     const made = new Set();
     edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
       made.add(`${a}>${b}`);
@@ -749,7 +763,9 @@ function drawGraph() {
     // a line is continuous: where the model has no edge between two neighbours (or the Human and the first station)
     // a faint rail carries the line on, so the category still reads as one track
     cats.forEach(c => { const ids = M().lifecycle[c].map(v => `${c}.${v}`), c0 = ids[0];
-      const pairs = ids.slice(1).map((id, i) => [ids[i], id]); if (!made.has(`human>${c0}`)) pairs.unshift(['human', c0]);
+      // only roots after the first have no parent: a later root continues the trunk from the station before it
+      const pairs = ids.slice(1).map(id => [parent[id] || ids[Math.max(0, ids.indexOf(id) - 1)], id]).filter(([a, b]) => a !== b);
+      if (!made.has(`human>${c0}`)) pairs.unshift(['human', c0]);
       pairs.forEach(([a, b]) => { if (made.has(`${a}>${b}`)) return;
         const Bs = a === 'human' ? stub(c) : null;
         edges.push({data: {id: `rail:${a}>${b}`, source: a, target: b, color: PATH[c], label: '', ...(Bs ? {route: route(pos[a], pos[b], Bs)} : {})}, classes: 'rail'});
