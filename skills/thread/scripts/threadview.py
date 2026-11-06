@@ -409,7 +409,7 @@ try:
                     card = subprocess.run(["tmux", "list-windows", "-a", "-F", "#{@hsid} #{@card}"], capture_output=True, text=True).stdout
                     cid = next((l.split()[1] for l in card.splitlines() if l.split()[:1] == [SID] and len(l.split()) > 1), "")
                     if cid and os.path.exists(KANBAN):
-                        subprocess.run(["bash", KANBAN, "move", cid, "Downstream"], capture_output=True)
+                        subprocess.run(["bash", KANBAN, "move", cid, "Downstream", "--actor", "owner"], capture_output=True)
                     q.append({"msg": "movi esta thread para o Downstream: pode construir", "at": time.time(), "state": "queued"}); persist(q)
                     data = ""
                 if data == "\x1b": buf = ""; POLL["prefix"] = ""; data = ""
