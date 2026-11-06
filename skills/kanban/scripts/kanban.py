@@ -18,8 +18,8 @@ time for today, this week (from Monday) and this month (from the 1st).
 The journal is a global append-only JSONL, ~/.local/share/kanban/events.jsonl (override KANBAN_DIR), one line per event
 {"id","event","at","actor","card_id","value"}. This file is its only writer, through kanban.sh:
 
-    kanban.sh create "<title>" --domain <slug> [--stage Upstream|Downstream|Feito] [--actor <who>]
-    kanban.sh move <card> <stage> [--actor <who>]
+    kanban.sh create "<title>" --domain <slug> [--stage Todo|Upstream|Downstream|Feito] [--force] [--actor <who>]
+    kanban.sh move <card> <stage> [--force] [--actor <who>]   # exit 4 when the stage is at its limit (Upstream 1)
     kanban.sh list [--stage <stage>] [--json]
     kanban.sh show <card> [--json]
     kanban.sh money [--json]
@@ -214,6 +214,7 @@ class Column:
 
     stage: Stage
     cards: tuple[CardMoney, ...]
+    limit: int | None = None  # the WIP limit of the stage (stage_limits); None = unlimited
 
 
 @dataclass(frozen=True)
@@ -434,7 +435,8 @@ def upstream_totals(cards: list[Card], entries: list[TimeEntry], rates: dict[str
 def board(cards: list[Card], entries: list[TimeEntry], rates: dict[str, float], now: datetime) -> Board:
     """The Quadro: the band, then the three columns, each card with its money: the owner's order first (the top is the card in focus), then the rest by arrival."""
     money = [card_money(c, entries, rates, now) for c in cards]
-    columns = tuple(Column(st, tuple(sorted((m for m in money if m.card.stage is st), key=lambda m: (m.card.rank is None, m.card.rank or 0, m.card.since))))
+    limits = stage_limits()
+    columns = tuple(Column(st, tuple(sorted((m for m in money if m.card.stage is st), key=lambda m: (m.card.rank is None, m.card.rank or 0, m.card.since))), limits.get(st))
                     for st in Stage)
     return Board(upstream_totals(cards, entries, rates, now), columns, now)
 
@@ -535,9 +537,27 @@ def _now() -> datetime:
     return datetime.now().astimezone()
 
 
+class StageFull(ValueError):
+    """A stage is at its WIP limit and the card was not forced in (exit 4)."""
+
+
+STAGE_FULL_EXIT = 4
+
+
+def _check_limit(stage: Stage, cards: list[Card], card_id: str | None, force: bool) -> None:
+    """Refuse to put one more card in a stage at its limit, naming who is there; `force` records the exception instead."""
+    limit = stage_limits().get(stage)
+    if limit is None or force:
+        return
+    there = [c.title for c in cards if c.stage is stage and c.id != card_id]
+    if len(there) >= limit:
+        raise StageFull(f"{stage.value} está cheio ({len(there)}/{limit}): {', '.join(there)}. "
+                        f"Mova-o antes, ou use --force para registrar a exceção.")
+
+
 def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agent", at: datetime | None = None) -> dict:
     """Append one event (id and `at` generated) and return it: the only writer of the Kanban journal. card.created takes
-    {title, domain, stage} (stage defaults to Upstream; the card id is generated when not given); card.moved takes
+    {title, domain, stage} (stage defaults to Todo; the card id is generated when not given); card.moved takes
     {stage} for an existing card that is in another stage, and records `previous` itself."""
     if event not in KNOWN_EVENTS:
         raise ValueError(f"unknown event {event!r}; known: {', '.join(KNOWN_EVENTS)}")
@@ -560,7 +580,7 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
         cards = {c.id: c for c in cards_from(past)}
         if event == "card.created":
             new = NewCard(str(value.get("title") or "").strip(), str(value.get("domain") or "").strip(),
-                          stage_of(value.get("stage") or Stage.UPSTREAM))
+                          stage_of(value.get("stage") or Stage.TODO))
             if not new.title:
                 raise ValueError("a card needs a title")
             if not DOMAIN_RE.match(new.domain):
@@ -568,7 +588,10 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
             card_id = card_id or uuid.uuid4().hex[:8]
             if card_id in cards:
                 raise ValueError(f"card {card_id} already exists")
+            _check_limit(new.stage, list(cards.values()), None, bool(value.get("force")))
             val: dict = {"title": new.title, "domain": new.domain, "stage": new.stage.value}
+            if value.get("force"):
+                val["forced"] = True
         else:
             card = cards.get(card_id or "")
             if card is None:
@@ -603,7 +626,10 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
             mv = Move(stage_of(value.get("stage", "")), card.stage)
             if mv.stage is mv.previous:
                 raise ValueError(f"card {card.id} ({card.title}) is already in {card.stage.value}")
+            _check_limit(mv.stage, list(cards.values()), card.id, bool(value.get("force")))
             val = {"stage": mv.stage.value, "previous": mv.previous.value}
+            if value.get("force"):
+                val["forced"] = True
         record = {"id": uuid.uuid4().hex[:12], "event": event, "at": (at or _now()).isoformat(timespec="seconds"),
                   "actor": actor, "card_id": card_id, "value": val}
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -612,15 +638,16 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
     return record
 
 
-def create(title: str, domain: str, stage: Stage | str = Stage.UPSTREAM, actor: str = "agent",
-           at: datetime | None = None) -> dict:
-    """card.created: a new card in a stage (Upstream by default)."""
-    return emit("card.created", {"title": title, "domain": domain, "stage": str(stage)}, actor=actor, at=at)
+def create(title: str, domain: str, stage: Stage | str = Stage.TODO, actor: str = "agent",
+           at: datetime | None = None, force: bool = False) -> dict:
+    """card.created: a new card in a stage (Todo by default); `force` goes past the stage's limit and records it."""
+    return emit("card.created", {"title": title, "domain": domain, "stage": str(stage), **({"force": True} if force else {})},
+                actor=actor, at=at)
 
 
-def move(card_id: str, stage: Stage | str, actor: str = "agent", at: datetime | None = None) -> dict:
-    """card.moved: a card to another stage."""
-    return emit("card.moved", {"stage": str(stage)}, card_id, actor, at)
+def move(card_id: str, stage: Stage | str, actor: str = "agent", at: datetime | None = None, force: bool = False) -> dict:
+    """card.moved: a card to another stage; `force` goes past the stage's limit and records it."""
+    return emit("card.moved", {"stage": str(stage), **({"force": True} if force else {})}, card_id, actor, at)
 
 
 def prioritize(card_id: str, position: int, actor: str = "agent", at: datetime | None = None) -> dict:
@@ -747,7 +774,9 @@ def _when(t: datetime) -> str:
 
 
 def _print_list(b: Board, stage: Stage | None) -> None:
-    rows = [m for col in b.columns if stage is None or col.stage is stage for m in col.cards]
+    cols = [col for col in b.columns if stage is None or col.stage is stage]
+    print("  ".join(f"{col.stage.value} {len(col.cards)}" + (f"/{col.limit}" if col.limit else "") for col in cols))
+    rows = [m for col in cols for m in col.cards]
     print(f"{'ID':<10}{'STAGE':<12}{'IN STAGE':<10}{'UPSTREAM R$':>14}{'TIME':>8}  {'DOMAIN':<16}TITLE")
     for m in rows:
         c = m.card
@@ -802,6 +831,22 @@ def config() -> dict:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (ValueError, OSError):
         return {}
+
+
+DEFAULT_STAGE_LIMITS = {"Upstream": 1}
+
+
+def stage_limits() -> dict[Stage, int]:
+    """The WIP limit per stage: Upstream 1 by default; config `stage_limits` {"Stage": n} overrides it (0 = unlimited)."""
+    out: dict[Stage, int] = {}
+    cfg = config().get("stage_limits")
+    for name, n in {**DEFAULT_STAGE_LIMITS, **(cfg if isinstance(cfg, dict) else {})}.items():
+        try:
+            if int(n) > 0:
+                out[stage_of(name)] = int(n)
+        except (TypeError, ValueError):
+            continue
+    return out
 
 
 def wip_limit(repo: str | None = None) -> int:
@@ -993,11 +1038,13 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("create", help="a new card (card.created)")
     c.add_argument("title")
     c.add_argument("--domain", required=True, help="the dev-console domain slug the card belongs to")
-    c.add_argument("--stage", default=Stage.UPSTREAM.value, help="Upstream (default), Todo, Downstream or Feito")
+    c.add_argument("--stage", default=Stage.TODO.value, help="Todo (default), Upstream, Downstream or Feito")
+    c.add_argument("--force", action="store_true", help="go past the stage's WIP limit; recorded as forced")
     c.add_argument("--actor", default="agent")
     m = sub.add_parser("move", help="a card to another stage (card.moved)")
     m.add_argument("card", help="its id, a unique start of its id, or its exact title")
     m.add_argument("stage", help="Todo, Upstream, Downstream or Feito")
+    m.add_argument("--force", action="store_true", help="go past the stage's WIP limit; recorded as forced")
     m.add_argument("--actor", default="agent")
     tp = sub.add_parser("top", help="a card to the top of its stage: the card in focus (card.prioritized, position 0)")
     tp.add_argument("card", help="its id, a unique start of its id, or its exact title")
@@ -1029,10 +1076,10 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     try:
         if a.cmd == "create":
-            print(json.dumps(create(a.title, a.domain, a.stage, a.actor), ensure_ascii=False))
+            print(json.dumps(create(a.title, a.domain, a.stage, a.actor, force=a.force), ensure_ascii=False))
         elif a.cmd == "move":
             card = find(a.card, cards_from(events()))
-            print(json.dumps(move(card.id, a.stage, a.actor), ensure_ascii=False))
+            print(json.dumps(move(card.id, a.stage, a.actor, force=a.force), ensure_ascii=False))
         elif a.cmd in ("top", "rank"):
             card = find(a.card, cards_from(events()))
             print(json.dumps(prioritize(card.id, 0 if a.cmd == "top" else a.position, a.actor), ensure_ascii=False))
@@ -1061,6 +1108,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             b = read_board()
             print(as_json(b)) if a.json else _print_money(b)
+    except StageFull as err:
+        print(f"kanban: {err}", file=sys.stderr)
+        return STAGE_FULL_EXIT
     except ValueError as err:
         print(f"kanban: {err}", file=sys.stderr)
         return 1

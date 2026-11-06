@@ -54,6 +54,19 @@ class BoardHtmlTest(unittest.TestCase):
         self.assertLess(html.index("Via Blog"), html.index("Outro"))
         self.assertEqual([m for m in re.findall(r'data-stage="(\w+)"', html)], ["Todo", "Upstream", "Downstream", "Feito"])
 
+    def test_the_header_shows_count_over_limit_and_marks_what_is_over(self):
+        os.environ["KANBAN_CONFIG"] = str(Path(tempfile.gettempdir()) / "no-such-kanban-config.json")  # the default limits
+        html, _ = self.render(rate=0.0)  # two cards in Upstream, limit 1: over
+        self.assertIn("2/1", html)
+        self.assertEqual(html.count('data-over="1"'), 1)
+        self.assertIn("font-bold", html)
+        evs = [ev("card.created", "aaa", "2026-11-06T08:00:00-03:00", title="Via Blog", domain="via", stage="Upstream")]
+        P.read_board = lambda: K.board(K.cards_from(evs), [], {}, NOW)
+        html = to_xml(P.board(None))
+        self.assertIn("1/1", html)  # full, not over: no mark
+        self.assertNotIn('data-over="1"', html)
+        self.assertNotIn("0/", html)  # the stages with no limit show only the count
+
     def test_the_board_watches_the_journal(self):
         html, _ = self.render(rate=0.0)
         self.assertIn("kanban-journal", html)  # the event that redraws the board

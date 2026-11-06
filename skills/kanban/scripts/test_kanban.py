@@ -253,6 +253,8 @@ class JournalTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         os.environ["KANBAN_DIR"] = str(Path(self.tmp.name) / "kanban")
         os.environ["COSTS_DIR"] = str(Path(self.tmp.name) / "costs")
+        os.environ["KANBAN_CONFIG"] = str(Path(self.tmp.name) / "config.json")  # absent: the default limits
+        self.addCleanup(os.environ.pop, "KANBAN_CONFIG", None)
 
     def cli(self, *args):
         out, err = io.StringIO(), io.StringIO()
@@ -263,15 +265,15 @@ class JournalTest(unittest.TestCase):
     def test_emit_shape(self):
         e = K.create("Kanban", "kanban")
         self.assertEqual(list(e), ["id", "event", "at", "actor", "card_id", "value"])
-        self.assertEqual(e["value"], {"title": "Kanban", "domain": "kanban", "stage": "Upstream"})
+        self.assertEqual(e["value"], {"title": "Kanban", "domain": "kanban", "stage": "Todo"})
         m = K.move(e["card_id"], "downstream", actor="bili")
-        self.assertEqual((m["event"], m["actor"], m["value"]), ("card.moved", "bili", {"stage": "Downstream", "previous": "Upstream"}))
+        self.assertEqual((m["event"], m["actor"], m["value"]), ("card.moved", "bili", {"stage": "Downstream", "previous": "Todo"}))
         self.assertEqual([json.loads(line)["id"] for line in K.journal_path().read_text().splitlines()], [e["id"], m["id"]])
 
     def test_emit_refuses_what_it_cannot_place(self):
         c = K.create("Kanban", "kanban")
         for bad in (lambda: K.create("", "kanban"), lambda: K.create("X", "not a slug"), lambda: K.create("X", "k", "Doing"),
-                    lambda: K.move(c["card_id"], "Upstream"), lambda: K.move("nope", "Feito"),
+                    lambda: K.move(c["card_id"], "Todo"), lambda: K.move("nope", "Feito"),
                     lambda: K.emit("card.deleted", {}, c["card_id"]), lambda: K.emit("card.moved", [1], c["card_id"])):
             with self.assertRaises(ValueError):
                 bad()
@@ -294,9 +296,9 @@ class JournalTest(unittest.TestCase):
                    "biliboss-skills")
         code, out, _ = self.cli("create", "Paleta nativa", "--domain", "dev-console")
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out)["value"], {"title": "Paleta nativa", "domain": "dev-console", "stage": "Upstream"})
+        self.assertEqual(json.loads(out)["value"], {"title": "Paleta nativa", "domain": "dev-console", "stage": "Todo"})
         # a card that entered Upstream a minute ago (the API takes `at`; the CLI writes now)
-        cid = K.create("Kanban", "kanban", at=now - timedelta(seconds=60))["card_id"]
+        cid = K.create("Kanban", "kanban", "Upstream", at=now - timedelta(seconds=60))["card_id"]
         costs.emit("time_entry.started", {"domain": "kanban"}, "biliboss-skills", at=now - timedelta(seconds=90))
         costs.emit("time_entry.stopped", {"domain": "kanban", "seconds": 80, "rate_hour": RATE, "cost": 10.58},
                    "biliboss-skills", at=now - timedelta(seconds=10))
@@ -319,8 +321,8 @@ class JournalTest(unittest.TestCase):
         self.assertEqual((Path(os.environ["COSTS_DIR"]) / "events.jsonl").read_bytes(), before)
 
     def test_top_rank_rename_and_todo_from_the_cli(self):
-        a = K.create("Alpha", "kanban")["card_id"]
-        b = K.create("Beta", "kanban")["card_id"]
+        a = K.create("Alpha", "kanban", "Upstream")["card_id"]
+        b = K.create("Beta", "kanban", "Upstream", force=True)["card_id"]
         self.assertEqual(self.cli("top", b)[0], 0)
         _, out, _ = self.cli("list", "--stage", "Upstream")
         self.assertLess(out.index("Beta"), out.index("Alpha"))
@@ -337,6 +339,50 @@ class JournalTest(unittest.TestCase):
         self.assertEqual(self.cli("move", b, "Todo")[0], 0)
         self.assertEqual([m.card.id for m in K.read_board().columns[0].cards], [b])
         self.assertEqual(json.loads(self.cli("create", "Waits", "--domain", "k", "--stage", "todo")[1])["value"]["stage"], "Todo")
+
+    def test_create_defaults_to_todo(self):
+        code, out, _ = self.cli("create", "Backlog", "--domain", "kanban")
+        self.assertEqual((code, json.loads(out)["value"]["stage"]), (0, "Todo"))
+
+    def test_upstream_is_full_at_one_card_and_refuses_with_exit_4(self):
+        a = K.create("Via Blog", "kanban", "Upstream")["card_id"]
+        b = K.create("Outro", "kanban")["card_id"]
+        code, out, err = self.cli("move", b, "Upstream")
+        self.assertEqual((code, out), (4, ""))
+        self.assertIn("Upstream está cheio (1/1): Via Blog. Mova-o antes, ou use --force para registrar a exceção.", err)
+        code, _, err = self.cli("create", "Terceiro", "--domain", "kanban", "--stage", "upstream")
+        self.assertEqual(code, 4)
+        self.assertIn("Via Blog", err)
+        self.assertEqual(len(K.events()), 2)  # nothing was written
+        # the card that is there already may be moved around; Downstream has no limit
+        self.assertEqual(self.cli("move", b, "Downstream")[0], 0)
+        self.assertEqual(self.cli("move", a, "Downstream")[0], 0)
+        self.assertEqual(self.cli("move", b, "Upstream")[0], 0)  # the stage emptied: room again
+
+    def test_force_goes_past_the_limit_and_is_recorded(self):
+        K.create("Via Blog", "kanban", "Upstream")
+        b = K.create("Outro", "kanban")["card_id"]
+        code, out, _ = self.cli("move", b, "Upstream", "--force")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["value"], {"stage": "Upstream", "previous": "Todo", "forced": True})
+        code, out, _ = self.cli("create", "Mais um", "--domain", "kanban", "--stage", "Upstream", "--force")
+        self.assertEqual(json.loads(out)["value"]["forced"], True)
+        self.assertNotIn("forced", K.create("Livre", "kanban")["value"])
+
+    def test_limits_come_from_the_config_and_show_in_the_board_and_list(self):
+        col = {c.stage.value: c for c in K.read_board().columns}
+        self.assertEqual((col["Upstream"].limit, col["Downstream"].limit), (1, None))
+        Path(os.environ["KANBAN_CONFIG"]).write_text(json.dumps({"stage_limits": {"Downstream": 2, "Upstream": 0}}))
+        K.create("A", "kanban", "Upstream")
+        K.create("B", "kanban", "Upstream")  # Upstream unlimited by the config
+        K.create("C", "kanban", "Downstream")
+        K.create("D", "kanban", "Downstream")
+        self.assertEqual(self.cli("create", "E", "--domain", "kanban", "--stage", "Downstream")[0], 4)
+        _, out, _ = self.cli("list")
+        self.assertEqual(out.splitlines()[0], "Todo 0  Upstream 2  Downstream 2/2  Feito 0")
+        Path(os.environ["KANBAN_CONFIG"]).unlink()
+        _, out, _ = self.cli("list")
+        self.assertEqual(out.splitlines()[0], "Todo 0  Upstream 2/1  Downstream 2  Feito 0")
 
     def test_projection_for_the_console(self):
         c = K.create("Kanban", "kanban")
@@ -535,7 +581,7 @@ class SweepTest(GhCase):
         self.assertIn("item.aged", K.KNOWN_EVENTS)
         self.assertIn("decision.requested", K.KNOWN_EVENTS)
         K.create("A card", "kanban")
-        self.assertEqual(len(K.read_board().columns[1].cards), 1)  # cardless events never become cards
+        self.assertEqual(len(K.read_board().columns[0].cards), 1)  # cardless events never become cards
 
 
 if __name__ == "__main__":

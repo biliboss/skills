@@ -156,8 +156,12 @@ def _card(m: CardMoney, now: datetime):
 
 
 def _column(col: Column, now: datetime):
-    head = Div(Span(col.stage.value), Span(str(len(col.cards)), cls=f"tabular-nums {DIM}"),
-               cls=f"h-9 shrink-0 flex items-center justify-between px-4 {LABEL} border-b {LINE}")
+    # count/limit when the stage has a limit; over it the header is bold with a darker rule (grayscale, no red)
+    over = col.limit is not None and len(col.cards) > col.limit
+    count = f"{len(col.cards)}/{col.limit}" if col.limit else str(len(col.cards))
+    head = Div(Span(col.stage.value), Span(count, cls=f"tabular-nums {'font-bold' if over else DIM}"),
+               data_over="1" if over else None,
+               cls=f"h-9 shrink-0 flex items-center justify-between px-4 {LABEL} border-b {'border-neutral-900 dark:border-neutral-100 font-bold' if over else LINE}")
     cards = [_card(m, now) for m in col.cards] or [P("nenhum card", cls=f"px-4 py-3 {DIM}")]
     return Div(head, Div(*cards, cls="flex-1 min-h-0 overflow-y-auto"),
                data_stage=col.stage.value, cls=f"min-w-0 min-h-0 flex flex-col border-l {LINE} first:border-l-0")
