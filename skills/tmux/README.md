@@ -14,6 +14,7 @@ Skill de agente para tudo o que se faz em panes e janelas do tmux: ler, listar, 
 | `scripts/run.sh start` | roda um servidor, watcher ou suite numa sessão tmux presa à worktree, com log | `run.sh start tests --low --slot -- npm test` |
 | `scripts/run.sh ls`, `log`, `stop`, `reap` | lista, lê o log, para, limpa as sessões cujo dono sumiu | `run.sh log minha-worktree:tests 60` |
 | `scripts/run.sh install-reaper` | agente launchd que roda `reap` a cada 60 s | `run.sh install-reaper --print` |
+| `scripts/agent-state.sh working|done|clear|install` | a aba do thread acende (✓, bordô) quando o agente termina um turno e apaga quando o dono entra; pelos hooks do Hermes | `agent-state.sh install` |
 
 Alvos: `%12`, `nome-da-janela`, `sessao:janela`, `sessao:janela.pane`. `TMUX_SOCKET=nome` usa outro servidor; `TMUX_BIN` aponta o binário.
 

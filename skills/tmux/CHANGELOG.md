@@ -2,6 +2,13 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-06
+
+### Added
+
+- `scripts/agent-state.sh working|done|clear [target]`: a tab shows when its Hermes agent finishes a turn (` ✓ <name> `, white bold on #800020) and clears when the owner enters it. `working` sets `@agent`; `done` sets `@done` + the style/format only if the window is not the one an attached client is looking at. `install` / `uninstall`: indexed hooks `session-window-changed[42]` and `client-session-changed[42]` (live and as a marked block in `~/.tmux.conf`, idempotent) and prints the Hermes `hooks:` snippet. Silent on stdout, always exit 0. `working` and `done` also call `thread.sh touch` (the thread goes to tab 2).
+- `scripts/test-agent-state.sh`: 26 cases on a private server (`-L`).
+
 ## [0.2.1] - 2026-11-06
 
 ### Changed

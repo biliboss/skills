@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.3.1
+  version: 0.4.0
 ---
 
 # thread — a topic, in one call
@@ -38,3 +38,7 @@ EOF
 - Don't touch other windows; `TMUX_SOCKET` selects another tmux server (tests use a private one).
 
 Tests: `scripts/test.sh`. Credits: [README.md](README.md). History: [CHANGELOG.md](CHANGELOG.md).
+
+## Tabs by recency
+
+`thread.sh touch <tab>` puts a thread at tab 2 (tab 1 is the Bili, the session's first window; windows without `@thread` stay last). The tmux skill's `agent-state.sh` calls it when a prompt arrives in a thread and when its turn ends, from the Hermes hooks. It never moves the owner's focus.
