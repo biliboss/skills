@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.26.0] - 2026-11-06
+
+### Added
+
+- `retro` 0.1.0: the `/retro` skill, an after-action review of the session that turns the owner's corrections into rules for the right skills (he picks, one PR applies); `retro.py` CLI with `emit`, `lessons`, `rejected-rules` and `scan`.
+
 ## [0.25.0] - 2026-11-06
 
 ### Added
