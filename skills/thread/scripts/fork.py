@@ -44,7 +44,11 @@ def main(argv):
         print(f"fork.py: no session '{source_id}' in {os.environ.get('HERMES_HOME', '~/.hermes')}", file=sys.stderr)
         return 1
     new_id = new_session_id()
-    db.create_session(new_id, source.get("source") or "cli", model=source.get("model"),
+    # The label must be one the gateway can adopt on resume (a pre-gateway local source, as /branch's own "cli"):
+    # copying a gateway-owned source's "local" makes `--resume <new>` fail with not_found in the TUI.
+    legacy = {"cli", "tui", "gui", "desktop", "oneshot", "tool", "acp"}
+    label = source.get("source") if source.get("source") in legacy else "cli"
+    db.create_session(new_id, label, model=source.get("model"),
                       system_prompt=source.get("system_prompt"), parent_session_id=source_id,
                       model_config={"_branched_from": source_id})
     try:
