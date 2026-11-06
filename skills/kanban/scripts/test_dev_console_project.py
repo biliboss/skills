@@ -36,14 +36,44 @@ class BoardHtmlTest(unittest.TestCase):
         P.read_board = lambda: board
         return to_xml(P.board(None)), board
 
-    def test_the_card_carries_its_since_and_the_clock_rate(self):
+    def test_the_running_card_ticks_and_the_stage_line_is_static(self):
         html, board = self.render(rate=360.0)
-        since_ms = str(int(datetime(2026, 11, 6, 8, 0, tzinfo=BRT).timestamp() * 1000))
-        self.assertIn(f'data-since="{since_ms}"', html)
-        self.assertIn('data-domain="via"', html)
         self.assertRegex(html, r'data-tick-rate="360\.000000"')  # the running cost clock, R$ per hour
         self.assertIn("data-tick-at=", html)
-        self.assertIn("setInterval(both, 1000)", html)  # the one timer, no reload
+        self.assertIn("setInterval(tick, 1000)", html)  # the one timer (money/time only), no reload
+        self.assertNotIn("data-since", html)  # the stage age is drawn by the server: static between refreshes
+        self.assertIn("há 4 h no Upstream · via", html)
+        self.assertIn("▶", html)
+
+    def test_clock_states_paused_never_and_running(self):
+        evs = [ev("card.created", "aaa", "2026-11-06T08:00:00-03:00", title="Via Blog", domain="via", stage="Upstream"),
+               ev("card.created", "bbb", "2026-11-06T07:00:00-03:00", title="Outro", domain="kanban", stage="Todo")]
+        entries = [K.TimeEntry("old", "via", "inv", NOW - timedelta(hours=3), NOW - timedelta(hours=2), False)]
+        P.read_board = lambda: K.board(K.cards_from(evs), entries, {"inv": 360.0}, NOW)
+        html = to_xml(P.board(None))
+        self.assertIn("⏸", html)  # via cost something and the clock is elsewhere
+        self.assertIn('data-clock="paused"', html)
+        self.assertIn('data-clock="never"', html)
+        self.assertNotRegex(html, r'data-tick-rate="[1-9]')  # nothing moves when no clock runs
+
+    def test_agent_line_states_and_aging(self):
+        evs = [ev("card.created", "aaa", "2026-11-03T08:00:00-03:00", title="Via Blog", domain="via", stage="Upstream")]
+        P.read_board = lambda: K.board(K.cards_from(evs), [], {}, NOW)
+        for state, mark, bold in (("trabalhando", "●", False), ("esperando você", "◆", True), ("pronto", "○", False)):
+            P.agent_state = lambda card, s=state: {"session": "via-blog", "state": s, "context": "contexto 25k de 1M", "attached": True, "activity": 0}
+            html = to_xml(P.board(None))
+            self.assertIn(f'data-agent="{state}"', html)
+            self.assertIn(mark, html)
+            self.assertEqual("font-bold text-neutral-800" in html, bold)
+            self.assertNotIn("você está nela", html)
+        P.agent_state = lambda card: None
+        self.assertNotIn("data-agent", to_xml(P.board(None)))  # no session, no line
+        self.assertIn('data-aging="1"', to_xml(P.board(None)))  # 3 days in the stage
+
+    def test_waiting_prompt_is_recognised(self):
+        for text in ("↑/↓ select · Enter confirm · 1-4 quick pick · Esc/Ctrl+C deny", "1/2 answered · Tab next"):
+            self.assertTrue(P.WAITING_RE.search(text), text)
+        self.assertFalse(P.WAITING_RE.search("─ ready │ opus 5.5 │ 25k/1M ─"))
 
     def test_a_still_clock_has_rate_zero(self):
         html, _ = self.render(rate=0.0)

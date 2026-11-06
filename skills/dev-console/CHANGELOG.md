@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.0
+
+- Hot reload also reads what a project imports: the watcher follows the folders on sys.path, the loaded modules' folders and the project's `WATCH` list (kanban: cost-track's costs.py), and a re-import drops the project folder's cached modules first (`console_reload.py`). The main console no longer serves stale kanban code until a restart.
+- `/costs/stream` (SSE): watchfiles follows the Costs journal and running.json (`COSTS_DIR`) and the money bar re-reads the clock and fires `devconsole-money` at once, so a tmux focus switch shows on screen in under 1 s. The 10 s refresh stays as a fallback.
+
 ## 0.29.2
 
 - The window no longer drives the cost clock (focus, hidden, idle, domain switch): `time/start|enter|beat|stop` only read, behind `DEVC_CLOCK_DRIVER=1` (default off). The clock is written by cost-track's `costs.sh tmux-focus`; the bar still shows it.
