@@ -73,5 +73,23 @@ t "the Bili stays tab 1" "$(order)" "bili c a b z "
 "$HERE/../../thread/scripts/thread.sh" touch "$(pane b)"
 t "thread.sh touch <tab> alone" "$(order)" "bili b c a z "
 
+# running subagents: the hook payload names the PARENT in parent_session_id; count on @hsid's window
+tm new-window -d -t s -n sub 'sleep 600'; tm set-option -w -t s:sub @hsid parent-1; tm set-option -w -t s:sub @thread sub
+hk() { printf '{"parent_session_id":"parent-1","child_session_id":"kid-%s"}' "$RANDOM" | "$AS" "$1"; }
+hk sub+; hk sub+
+t "subagent_start x2: @subagents=2" "$(opt s:sub @subagents)" 2
+t "tab shows the glyph and the count, grey" "$(opt s:sub window-status-format)|$(opt s:sub window-status-style)" " $(printf '\xef\x80\x93')2 #W |fg=#8a8a8a"
+TMUX_PANE=$(tm display-message -p -t s:sub '#{pane_id}') "$AS" done
+t "turn ended with 2 running: not done (no @done, no bordô)" "$(opt s:sub @done)|$(opt s:sub window-status-style)" "|fg=#8a8a8a"
+hk sub-
+t "stop 1: count 1, still not done" "$(opt s:sub @subagents)|$(opt s:sub @done)" "1|"
+hk sub-
+t "stop 2 after the turn ended: ✓ lit" "$(opt s:sub @done)|$(opt s:sub window-status-format)|$(opt s:sub @subagents)" "1| ✓ #W |"
+hk sub-
+t "never below 0" "$(opt s:sub @subagents)" ""
+echo "--- list-windows"; tm list-windows -t s -F '#{window_name} subagents=[#{@subagents}] done=[#{@done}] fmt=[#{window-status-format}]' | sed 's/^/  /'
+AGENT_STATE_ICON='⚙' hk sub+ ; tm set-option -w -t s:sub @subagents 1; AGENT_STATE_ICON='⚙' hk sub+
+t "fallback glyph via AGENT_STATE_ICON" "$(opt s:sub window-status-format)" ' ⚙2 #W '
+
 exec 9>&-
 printf '%s passed, %s failed\n' "$pass" "$failn"; [ "$failn" = 0 ]

@@ -7,6 +7,7 @@ export HERMES_SESSION_ID=local-39c1abc  # the invoking agent
 export TMUX_SOCKET="thread-test-$$"
 export FAKE_DIR; FAKE_DIR="$(mktemp -d)"
 export THREAD_READY_TIMEOUT=15
+export THREAD_LOG="$FAKE_DIR/threads.log"
 TMUXB="$(type -P tmux)"
 FAKEBIN="$FAKE_DIR/bin"; mkdir -p "$FAKEBIN"
 cp "$HERE/fake_hermes.py" "$FAKEBIN/hermes"; chmod +x "$FAKEBIN/hermes"
@@ -114,6 +115,30 @@ tm list-windows -t =work -F '#{window_name}' | grep -qx gz; [ $? -ne 0 ]; ok $? 
 grep -q "gz" "$FAKE_DIR/sessions.tsv"; ok $? "close keeps the Hermes session"
 "$T" close preco >/dev/null 2>&1; [ $? -ne 0 ]; ok $? "same topic in two sessions: close refused without --session"
 "$T" close preco --session other >/dev/null; ok $? "close --session"
+
+# 7. close --self, deferred close when the owner is on the tab, the log line
+"$T" open selfie --session work --card unicred --new >/dev/null; sid="$("$T" list | awk -F'\t' '$2=="selfie"{print $3}')"
+tm set-option -w -t "$sid" @hsid sess-self
+HERMES_SESSION_ID=sess-self "$T" close --self --summary "PR #1 merged" >/dev/null; ok $? "close --self runs"
+tm list-windows -t =work -F '#{window_name}' | grep -qx selfie; [ $? -ne 0 ]; ok $? "close --self killed the window"
+grep -q . "$FAKE_DIR/sessions.tsv"; ok $? "close --self keeps the Hermes session"
+awk -F'\t' '$2=="selfie" && $3=="8dbbe594" && $4=="sess-self" && $5=="PR #1 merged" && $6=="self" && $1 ~ /^20/' "$THREAD_LOG" | grep -q .; ok $? "log line: when, topic, card, session id, summary, by"
+"$T" open ficou --session work --new >/dev/null; fid="$("$T" list | awk -F'\t' '$2=="ficou"{print $3}')"
+tm set-option -w -t "$fid" @hsid sess-ficou
+tm select-window -t "$fid"
+HERMES_SESSION_ID=sess-ficou "$T" close --self --summary "feito" | grep -q deferred; ok $? "owner on the tab: close deferred"
+tm list-windows -t =work -F '#{window_name}' | grep -qx ficou; ok $? "deferred: window still there while he is on it"
+tm select-window -t "=work:1"; "$T" sweep
+tm list-windows -t =work -F '#{window_name}' | grep -qx ficou; [ $? -ne 0 ]; ok $? "after he leaves: sweep closes it"
+awk -F'\t' '$2=="ficou" && $5=="feito" && $6=="self"' "$THREAD_LOG" | grep -q .; ok $? "deferred close logged"
+"$T" open busy --session work --new >/dev/null; bid="$("$T" list | awk -F'\t' '$2=="busy"{print $3}')"
+tm set-option -w -t "$bid" @hsid sess-busy; tm set-option -w -t "$bid" @subagents 2
+HERMES_SESSION_ID=sess-busy "$T" close --self >/dev/null 2>&1; [ $? -ne 0 ]; ok $? "close --self refused while 2 subagents run"
+tm list-windows -t =work -F '#{window_name}' | grep -qx busy; ok $? "...and the window stays"
+tm set-option -w -u -t "$bid" @subagents; HERMES_SESSION_ID=sess-busy "$T" close --self --summary ok >/dev/null; ok $? "count 0: close --self runs"
+"$T" open conv --session work --new >/dev/null; "$T" close conv --by bili --summary "resolvido" >/dev/null
+awk -F'\t' '$2=="conv" && $6=="bili"' "$THREAD_LOG" | grep -q .; ok $? "close <topic> --by bili logged"
+HERMES_SESSION_ID=nope "$T" close --self >/dev/null 2>&1; [ $? -ne 0 ]; ok $? "close --self outside a thread refused"
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

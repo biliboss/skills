@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.4.0
+  version: 0.5.0
 ---
 
 # thread — a topic, in one call
@@ -26,7 +26,7 @@ EOF
 - `--brief TEXT` inline; `--brief -` stdin (quoted heredoc `<<'EOF'` so the shell expands nothing); `--brief-gz B64` = base64 of gzip, when your tool parameter is size-limited (`gzip -c f | base64`).
 - `--profile` (default `bili`), `--cwd DIR` (default `$PWD`).
 - Output, one line: `window=<session>:<topic> (@id) title='…' card=<id|-> session=<id> mode=…`.
-- `thread.sh list`: every window marked `@thread`, across sessions (`session  topic  window-id  card`). `thread.sh close <topic> [--session S]`: kills that window only (the Hermes session stays); refused when the topic is open in more than one session and no `--session`.
+- `thread.sh list`: every window marked `@thread`, across sessions (`session  topic  window-id  card`). `thread.sh close <topic> [--session S]` (see Closing a thread): kills that window only (the Hermes session stays); refused when the topic is open in more than one session and no `--session`.
 
 ## Rules
 
@@ -38,6 +38,17 @@ EOF
 - Don't touch other windows; `TMUX_SOCKET` selects another tmux server (tests use a private one).
 
 Tests: `scripts/test.sh`. Credits: [README.md](README.md). History: [CHANGELOG.md](CHANGELOG.md).
+
+## Closing a thread
+
+- **A task thread closes itself when its work is DONE**: the "como conferir" passed and what had to land landed (PR merged, `wt remove`, main clone pulled). The agent's last step: `thread.sh close --self --summary "<o que mudou>"` (target: the window whose `@hsid` is `$HERMES_SESSION_ID`, else `$TMUX_PANE`'s window).
+- **A conversation/question thread closes when the owner (or the Bili) says so**: `thread.sh close <topic> [--by owner|bili] [--summary TEXT]`.
+- **Never close while it waits for the owner**: an open question, an approval, one of his 4 cases (money, login, publishing, deleting). It stays lit (✓/◆).
+- **Never close while it has subagents running**: the tab shows one grey glyph + the count (`@subagents`, kept by `agent-state.sh sub+`/`sub-` from the Hermes `subagent_start`/`subagent_stop` hooks, matched by `parent_session_id`); `close --self` refuses while it is above 0 and the ✓ only lights when it drops to 0 after the turn ended.
+- **Closing kills only the tmux window.** The Hermes session stays, resumable.
+- **Never move the owner's focus**: if he is ON that tab, the close is deferred (`@closing`); it happens when he leaves (`session-window-changed` hook, or the next `thread.sh touch`/`sweep`).
+- **Every close writes one line** to `~/.local/state/threads.log` (`THREAD_LOG`): `when<TAB>topic<TAB>card<TAB>session id<TAB>summary<TAB>self|owner|bili`.
+- **The brief ends with**: `Ao terminar: se for tarefa e estiver entregue (merge feito), rode thread.sh close --self --summary "<o que mudou>"; se esperar o Gabriel, não feche.`
 
 ## Tabs by recency
 

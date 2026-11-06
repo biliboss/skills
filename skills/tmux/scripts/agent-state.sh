@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # agent-state.sh: a tab shows when its agent finishes a turn (✓ on bordô) and clears when the owner enters it.
-#   agent-state.sh working|done|clear [target]   target: pane/window (default: the window of $TMUX_PANE)
+#   agent-state.sh working|done|clear|sub+|sub- [target]   target: pane/window (default: the window of $TMUX_PANE)
 #   agent-state.sh install | uninstall          the tmux cleanup hooks (live + marked block in ~/.tmux.conf)
 # Driven by Hermes shell hooks (pre_llm_call -> working, post_llm_call -> done). A hook script must print nothing on
 # stdout (Hermes reads it as a directive) and exit fast; working/done/clear are silent and always exit 0.
@@ -23,7 +23,7 @@ touch_tab() { [ -x "$THREAD_SH" ] && "$THREAD_SH" touch "$1" >/dev/null 2>&1; re
 window_of_hook() {
   [ ! -t 0 ] || return 0
   local sid w pid
-  sid=$(jq -r '.session_id // empty' 2>/dev/null) || return 0
+  sid=$(jq -r '.parent_session_id // .session_id // empty' 2>/dev/null) || return 0   # subagent_start/stop name the PARENT in parent_session_id
   [ -n "$sid" ] || return 0
   w=$(tm list-windows -a -F '#{window_id} #{@hsid}' 2>/dev/null | awk -v s="$sid" '$2==s {print $1; exit}')
   if [ -z "$w" ]; then
@@ -37,31 +37,63 @@ window_of_hook() {
   printf '%s' "$w"
 }
 
+# Running subagents: @subagents=N on the parent's window (subagent_start +1, subagent_stop -1, never below 0).
+# A tab with N>0 shows one grey glyph + N (never bordô: it does not need the owner) and is NOT done: the ✓ waits for 0.
+ICON="${AGENT_STATE_ICON:-$(printf '\xef\x80\x93')}"   # Nerd Font cog (U+F013; the owner's Ghostty uses IosevkaTerm Nerd Font); no Nerd Font: AGENT_STATE_ICON='⚙'
+subs_of() { local n; n=$(tm display-message -p -t "$1" '#{@subagents}' 2>/dev/null); case $n in ''|*[!0-9]*) n=0 ;; esac; echo "$n"; }
+show_subs() { # window, count > 0: grey glyph + count before the name
+  tm set-option -w -t "$1" window-status-style 'fg=#8a8a8a' \; set-option -w -t "$1" window-status-format " $ICON$2 #W " >/dev/null 2>&1
+}
+mark_done() { # window: ✓ bordô when the owner is not on it, else nothing to flag
+  local w=$1 info
+  info=$(tm display-message -p -t "$w" '#{window_active} #{session_attached}' 2>/dev/null) || return 0
+  set -- $info
+  tm set-option -w -u -t "$w" @agent >/dev/null 2>&1
+  if [ "${1:-0}" = 1 ] && [ "${2:-0}" != 0 ]; then
+    tm set-option -w -u -t "$w" window-status-style >/dev/null 2>&1
+    tm set-option -w -u -t "$w" window-status-format >/dev/null 2>&1
+    tm set-option -w -u -t "$w" @done >/dev/null 2>&1
+  else
+    tm set-option -w -t "$w" @done 1 \; set-option -w -t "$w" window-status-style 'fg=#ffffff,bg=#800020,bold' \; \
+      set-option -w -t "$w" window-status-format ' ✓ #W ' >/dev/null 2>&1
+  fi
+}
+
 cmd=${1:-}; shift || true
 case $cmd in
-  working|done|clear)
+  working|done|clear|sub+|sub-)
     t=${1:-${TMUX_PANE:-}}
     [ -n "$t" ] || t=$(window_of_hook)    # gateway hook: no $TMUX_PANE, find the window by the session id on stdin
     [ -n "$t" ] || exit 0                 # not inside tmux / no window for it: nothing to mark
     case $cmd in
-      working) tm set-option -w -t "$t" @agent working >/dev/null 2>&1 ;;
+      working) tm set-option -w -t "$t" @agent working >/dev/null 2>&1
+               tm set-option -w -u -t "$t" @turnended >/dev/null 2>&1 ;;
       clear) tm set-option -w -u -t "$t" @agent >/dev/null 2>&1
              tm set-option -w -u -t "$t" window-status-style >/dev/null 2>&1
              tm set-option -w -u -t "$t" window-status-format >/dev/null 2>&1
-             tm set-option -w -u -t "$t" @done >/dev/null 2>&1 ;;
+             tm set-option -w -u -t "$t" @done >/dev/null 2>&1
+             tm set-option -w -u -t "$t" @turnended >/dev/null 2>&1 ;;
       done)
-        # window_active = the window its session shows; session_attached = a client is looking at that session
-        info=$(tm display-message -p -t "$t" '#{window_id} #{window_active} #{session_attached}' 2>/dev/null) || exit 0
-        set -- $info; w=${1:-}; [ -n "$w" ] || exit 0
-        tm set-option -w -u -t "$w" @agent >/dev/null 2>&1
-        if [ "${2:-0}" = 1 ] && [ "${3:-0}" != 0 ]; then   # the owner is on it: nothing to flag
-          tm set-option -w -u -t "$w" window-status-style >/dev/null 2>&1
-          tm set-option -w -u -t "$w" window-status-format >/dev/null 2>&1
-          tm set-option -w -u -t "$w" @done >/dev/null 2>&1
-        else
-          tm set-option -w -t "$w" @done 1 \; set-option -w -t "$w" window-status-style 'fg=#ffffff,bg=#800020,bold' \; \
-            set-option -w -t "$w" window-status-format ' ✓ #W ' >/dev/null 2>&1
-        fi ;;
+        w=$(tm display-message -p -t "$t" '#{window_id}' 2>/dev/null) || exit 0; [ -n "$w" ] || exit 0
+        n=$(subs_of "$w")
+        if [ "$n" -gt 0 ]; then        # subagents still running: not done yet, the ✓ comes when the count reaches 0
+          tm set-option -w -t "$w" @turnended 1 >/dev/null 2>&1; show_subs "$w" "$n"
+        else mark_done "$w"; fi ;;
+      sub+) w=$(tm display-message -p -t "$t" '#{window_id}' 2>/dev/null) || exit 0; [ -n "$w" ] || exit 0
+            n=$(( $(subs_of "$w") + 1 ))
+            tm set-option -w -t "$w" @subagents "$n" >/dev/null 2>&1; show_subs "$w" "$n" ;;
+      sub-) w=$(tm display-message -p -t "$t" '#{window_id}' 2>/dev/null) || exit 0; [ -n "$w" ] || exit 0
+            n=$(subs_of "$w"); [ "$n" -gt 0 ] || exit 0   # nothing running: never below 0, leave the tab as it is
+            n=$((n - 1))
+            if [ "$n" -gt 0 ]; then tm set-option -w -t "$w" @subagents "$n" >/dev/null 2>&1; show_subs "$w" "$n"
+            else
+              tm set-option -w -u -t "$w" @subagents >/dev/null 2>&1
+              tm set-option -w -u -t "$w" window-status-style >/dev/null 2>&1
+              tm set-option -w -u -t "$w" window-status-format >/dev/null 2>&1
+              if [ -n "$(tm display-message -p -t "$w" '#{@turnended}' 2>/dev/null)" ]; then   # the parent's turn already ended: ✓ now
+                tm set-option -w -u -t "$w" @turnended >/dev/null 2>&1; mark_done "$w"
+              fi
+            fi ;;
     esac
     [ "$cmd" = clear ] || touch_tab "$t"   # prompt arrived / turn ended: this thread is now the most recent
     exit 0 ;;
@@ -81,11 +113,15 @@ hooks:
     - command: "$HERE/agent-state.sh working"
   post_llm_call:
     - command: "$HERE/agent-state.sh done"
+  subagent_start:
+    - command: "$HERE/agent-state.sh sub+"
+  subagent_stop:
+    - command: "$HERE/agent-state.sh sub-"
 EOF
     else
       [ ! -f "$conf" ] || { printf '%s\n' "$body" > "$conf.tmp" && mv "$conf.tmp" "$conf"; }
       for h in $HOOKS; do tm set-hook -gu "${h}[$SLOT]" 2>/dev/null; done
       echo "hooks removed"
     fi ;;
-  *) echo "usage: agent-state.sh working|done|clear [target] | install | uninstall" >&2; exit 2 ;;
+  *) echo "usage: agent-state.sh working|done|clear|sub+|sub- [target] | install | uninstall" >&2; exit 2 ;;
 esac
