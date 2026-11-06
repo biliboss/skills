@@ -2579,6 +2579,8 @@ def _switcher():
 
 # `g h` goes home on every page that has the switcher (vim-style goto, beside the domain page's own `g <tab>`).
 GOTO_HOME_JS = """
+// In DevConsole.app the status line is native: the web one (#bar) never shows, on any page.
+if (window.webkit?.messageHandlers?.devconsole) { const b = document.getElementById('bar'); if (b) b.style.display = 'none'; }
 (() => { let g = 0;
   document.addEventListener('keydown', e => {
     const a = document.activeElement;
