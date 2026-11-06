@@ -18,11 +18,31 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THREAD_SH="$HERE/../../thread/scripts/thread.sh"
 touch_tab() { [ -x "$THREAD_SH" ] && "$THREAD_SH" touch "$1" >/dev/null 2>&1; return 0; }   # a thread jumps to tab 2
 
+# Hermes shell hooks run in the shared gateway (no $TMUX_PANE) and get JSON on stdin with session_id.
+# Window = the one whose @hsid is that id (thread.sh open sets it); else a pane whose process tree mentions the id.
+window_of_hook() {
+  [ ! -t 0 ] || return 0
+  local sid w pid
+  sid=$(jq -r '.session_id // empty' 2>/dev/null) || return 0
+  [ -n "$sid" ] || return 0
+  w=$(tm list-windows -a -F '#{window_id} #{@hsid}' 2>/dev/null | awk -v s="$sid" '$2==s {print $1; exit}')
+  if [ -z "$w" ]; then
+    while read -r id pid; do
+      [ -n "$pid" ] || continue
+      if { ps -o args= -p "$pid"; pgrep -P "$pid" 2>/dev/null | while read -r c; do ps -o args= -p "$c"; done; } 2>/dev/null | grep -qF -- "$sid"; then
+        w=$id; break
+      fi
+    done < <(tm list-panes -a -F '#{window_id} #{pane_pid}' 2>/dev/null)
+  fi
+  printf '%s' "$w"
+}
+
 cmd=${1:-}; shift || true
 case $cmd in
   working|done|clear)
     t=${1:-${TMUX_PANE:-}}
-    [ -n "$t" ] || exit 0                 # not inside tmux: nothing to mark
+    [ -n "$t" ] || t=$(window_of_hook)    # gateway hook: no $TMUX_PANE, find the window by the session id on stdin
+    [ -n "$t" ] || exit 0                 # not inside tmux / no window for it: nothing to mark
     case $cmd in
       working) tm set-option -w -t "$t" @agent working >/dev/null 2>&1 ;;
       clear) tm set-option -w -u -t "$t" @agent >/dev/null 2>&1

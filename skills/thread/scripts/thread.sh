@@ -139,6 +139,7 @@ cmd_open() {
   win="$(tm new-window -a -d -P -F '#{window_id}' -t "$after" -n "$topic" -c "$cwd" "$hcmd")"
   tm set-option -w -t "$win" @thread "$topic"
   [ -z "$kid" ] || tm set-option -w -t "$win" @card "$kid"
+  [ -z "$newid" ] || tm set-option -w -t "$win" @hsid "$newid"   # agent-state.sh finds the window by it (hooks have no $TMUX_PANE)
 
   wait_ready "$win" || die "Hermes did not get ready in ${READY_TIMEOUT}s (window $win left open)"
 
@@ -157,6 +158,7 @@ cmd_open() {
     if [ -n "$line" ]; then sid="$line"; break; fi
     sleep 0.5
   done
+  [ -z "$sid" ] || tm set-option -w -t "$win" @hsid "$sid"
   if [ "$mode" = new ] && [ -n "$sid" ]; then
     "$HERMES_BIN" -p "$PROFILE" sessions rename "$sid" "$title" >/dev/null 2>&1 || echo "thread.sh: rename failed for $sid" >&2
   fi
