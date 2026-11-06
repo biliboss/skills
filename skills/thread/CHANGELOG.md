@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-06
+
+### Added
+
+- `scripts/threadview.py`: the thread view, a fullscreen TUI where the agent builds the thread's screen and the input is a queue (received, read, timer, what changed); 10 s per turn with an overrun log; Agentes queue; choices and tournaments (skill `choice`) in the input; showcase in the dev-console.
+- `scripts/view.py`: the agent's only output, the screen (goal, steps, artifacts, decision with confidence %, pulse, workers) and the HTML showcase.
+
 ## [0.6.0] - 2026-11-06
 
 ### Added
