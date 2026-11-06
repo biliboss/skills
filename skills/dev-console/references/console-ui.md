@@ -136,17 +136,22 @@ before `innerHTML`.
 - Routes (read-only): `GET /agents` (page); `GET /agents/api/prompts?limit=&session=&kinds=prompt,cross,...&side=1`;
   `GET /agents/api/log?limit=&session=&side=1`; `GET /agents/api/entry?id=` (the whole text of one entry, capped at
   50 000 characters; 404 for an unknown id); `GET /agents/events` (SSE). The two list routes answer
-  `{entries, last, sessions, mode}`; `mode` is `watch` or `poll`.
+  `{entries, last, sessions, mode}`; `mode` is `watch` or `poll`. Every route of the console answers 400 to a `Host` outside
+  `127.0.0.1` / `localhost` / `DEV_CONSOLE_ALLOWED_HOSTS` (`TrustedHostMiddleware`, DNS rebinding); there is no CORS.
 - Entry: `{id, t (ISO), session (short id; ag:xxxxxx for a sub-agent file), project (cwd folder name), kind
-  (prompt|cross|notification|other|assistant|tool), text (first 600 chars), more, side}`. `id` is `<file-key>:<byte offset of
+  (prompt|cross|notification|other|assistant|tool), text (first 600 chars), more, side, queued}`. `kind` is `prompt` for
+  `origin.kind == "human"` with `promptSource` `typed` or `queued` (`queued: true`: typed while the agent was busy; the row shows a
+  `queued` badge); a human without `promptSource` is `other`. `id` is `<file-key>:<byte offset of
   the line>`; the file key is a hash of the realpath (no path leaves the server).
-- SSE contract: `retry: 3000`, then per entry `id: <entry id>` + `data: <entry json>`; `event: reset` (data `{session}`) when
+- SSE contract: each client has an `asyncio.Queue` fed by the watcher thread (`call_soon_threadsafe`), subscribed atomically with
+  its backlog and unsubscribed when the generator ends; a 15 s timeout on `queue.get()` only emits the keep-alive. `retry: 3000`, then per entry `id: <entry id>` + `data: <entry json>`; `event: reset` (data `{session}`) when
   a file shrank (its entries are dropped, the page reloads its lists); `: keep-alive` every ~15 s. Resume with the
   `Last-Event-ID` header (what EventSource sends on reconnect) or `?after=<id>`; an unknown id resumes from now.
 - Following: watchfiles (`debounce=50`, `step=20`, recursive, one watcher for every client) says which file changed; the hub
   reads from the stored offset to the end, keeps a last line without `\n` for the next read, resets a file that
   shrank, drops one that disappeared. Safety net: rescan + check all every ~5 s. Fallback: if the import fails, poll ~1 s,
-  `mode = "poll"` and the page shows one warning line. Backfill: the tail of the newest files (up to 150), windows from
-  the end, until about 200 prompts and 500 log entries.
+  `mode = "poll"` and the page shows one warning line. Backfill: the tail of the newest files (up to `BACKFILL_FILES`, default
+  150, env `DEV_CONSOLE_AGENTS_BACKFILL_FILES`), windows from the end, until about 200 prompts and 500 log entries; prompts
+  in older files are not shown. The watcher is a daemon thread stopped by `Hub.shutdown` (server shutdown, atexit).
 - The page: the console's status line and ⌘K / ⌘P (the Playground's script preamble plus `SWITCHER_JS`); UI state in the
   query (`view`, `session`, `show`, `pause`); row text through `textContent`, never `innerHTML`; no `<button>` (MonsterUI restyles it), spans with `role=button`.

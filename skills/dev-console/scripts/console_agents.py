@@ -18,6 +18,7 @@ kind: prompt | cross | notification | other | assistant | tool.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import hashlib
 import json
 import os
@@ -34,6 +35,7 @@ MAX_LINE = 1_000_000  # above this a line is an api-request-blob (type api-reque
 SHORT = 600  # the text a list row carries; the whole text comes from /agents/api/entry
 FULL = 50_000  # cap of the whole text of one entry
 PROMPT_KINDS = ("prompt", "cross", "notification", "other")  # what the Prompts view may show (prompt is the default)
+BACKFILL_FILES = int(os.environ.get("DEV_CONSOLE_AGENTS_BACKFILL_FILES") or 150)  # newest files the backfill may read
 WANT_PROMPTS, WANT_LOG = 200, 500  # the backfill reads the tail of the newest files until it has about this many
 RING_PROMPTS, RING_LOG = 2000, 5000
 TICK, RESCAN, KEEPALIVE = 1.0, 5.0, 15.0
@@ -116,10 +118,11 @@ class ClaudeSource:
         content = msg.get("content")
         cap = FULL if full else SHORT
         if typ == "user":
-            kind, text = self._user(d, content)
+            kind, text, queued = self._user(d, content)
             if kind is None:
                 return None
         elif typ == "assistant" and isinstance(content, list):
+            queued = False
             texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)]
             tools = [str(b.get("name", "tool")) for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
             if texts:
@@ -135,31 +138,32 @@ class ClaudeSource:
         return {
             "id": f"{fs.key}:{offset}", "t": ts if isinstance(ts, str) else iso_from_ts(fs.mtime or time.time()),
             "session": fs.session, "project": fs.project, "kind": kind, "text": text, "more": more,
-            "side": bool(d.get("isSidechain")) or fs.side_file,
+            "side": bool(d.get("isSidechain")) or fs.side_file, "queued": queued,
         }
 
     @staticmethod
-    def _user(d: dict, content) -> tuple[str | None, str]:
-        """The allow-list: a `prompt` is exactly origin.kind == "human" and promptSource == "typed". peer and
-        task-notification have their own kinds; anything unknown is `other`, never `prompt`."""
+    def _user(d: dict, content) -> tuple[str | None, str, bool]:
+        """The allow-list: a `prompt` is exactly origin.kind == "human" with promptSource "typed", or "queued" (typed while
+        the agent was busy: still the person's own prompt, marked `queued`). peer and task-notification have their own
+        kinds; anything unknown (a human without promptSource included) is `other`, never `prompt`."""
         origin = d.get("origin") if isinstance(d.get("origin"), dict) else None
         okind = origin.get("kind") if origin else None
         if isinstance(content, str):
             text = content
         elif isinstance(content, list):
             if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
-                return None, ""  # a tool's answer: noise in both views
+                return None, "", False  # a tool's answer: noise in both views
             text = _blocks_text(content)
         else:
-            return None, ""
-        if okind == "human" and d.get("promptSource") == "typed":
-            return "prompt", text
+            return None, "", False
+        if okind == "human" and d.get("promptSource") in ("typed", "queued"):
+            return "prompt", text, d.get("promptSource") == "queued"
         if okind == "peer":
             who = next((origin[k] for k in ("name", "from") if isinstance(origin.get(k), str)), "")
-            return "cross", (f"{who}: " if who else "") + (origin["body"] if isinstance(origin.get("body"), str) else text)
+            return "cross", (f"{who}: " if who else "") + (origin["body"] if isinstance(origin.get("body"), str) else text), False
         if okind == "task-notification":
-            return "notification", text
-        return "other", text
+            return "notification", text, False
+        return "other", text, False
 
 
 SOURCES = {"claude": ClaudeSource()}  # pi and Hermes: one class each (discover, describe, normalize), added here
@@ -191,6 +195,8 @@ class Hub:
         self.lock = threading.RLock()
         self.ready = threading.Event()
         self.last_scan = 0.0
+        self.subs: dict[asyncio.Queue, asyncio.AbstractEventLoop] = {}  # SSE clients: their queue and the loop it lives in
+        self.thread: threading.Thread | None = None
         self.mode = "start"  # "watch" (events) or "poll" (watchfiles missing)
         self.stop_event = threading.Event()
 
@@ -272,7 +278,7 @@ class Hub:
         got_p = got_l = 0
         everything: list[dict] = []
         for i, fs in enumerate(order):
-            if (got_p >= WANT_PROMPTS and got_l >= WANT_LOG) or i >= 150:
+            if (got_p >= WANT_PROMPTS and got_l >= WANT_LOG) or i >= BACKFILL_FILES:
                 self._park(fs)
                 continue
             es = self.backfill_file(fs, WANT_PROMPTS - got_p, WANT_LOG - got_l)
@@ -301,6 +307,29 @@ class Hub:
         self.log.append(e)
         if e["kind"] in PROMPT_KINDS:
             self.prompts.append(e)
+        self._notify(e)
+
+    def _notify(self, e: dict) -> None:
+        """Push to every SSE client. Called under self.lock, so a subscriber sees each entry exactly once: in its
+        backlog or in its queue, never both and never neither."""
+        for q, loop in list(self.subs.items()):
+            try:
+                loop.call_soon_threadsafe(q.put_nowait, e)
+            except RuntimeError:  # that loop is closed (a stopped server): forget the client
+                self.subs.pop(q, None)
+
+    def subscribe(self, after: str, loop: asyncio.AbstractEventLoop) -> tuple[asyncio.Queue, list[dict]]:
+        """A client's queue, and the backlog after the entry `after` (nothing for an unknown or empty id: from now)."""
+        q: asyncio.Queue = asyncio.Queue()
+        with self.lock:
+            cursor = next((e["_seq"] for e in reversed(self.log) if e["id"] == after), None) if after else None
+            backlog = [e for e in self.log if e["_seq"] > cursor] if cursor is not None else []
+            self.subs[q] = loop
+        return q, backlog
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        with self.lock:
+            self.subs.pop(q, None)
 
     # --- tailing ---------------------------------------------------------------------------------------------------
     def tick(self) -> int:
@@ -342,7 +371,9 @@ class Hub:
             self.log = deque((e for e in self.log if e["_f"] != fs.key), maxlen=RING_LOG)
             self.prompts = deque((e for e in self.prompts if e["_f"] != fs.key), maxlen=RING_PROMPTS)
             self.seq += 1
-            self.log.append({"_seq": self.seq, "_f": fs.key, "kind": "reset", "id": f"{fs.key}:reset{self.seq}", "session": fs.session})
+            mark = {"_seq": self.seq, "_f": fs.key, "kind": "reset", "id": f"{fs.key}:reset{self.seq}", "session": fs.session}
+            self.log.append(mark)
+            self._notify(mark)
         fs.offset, fs.resync = 0, False
 
     def _advance(self, fs: FileState, st) -> int:
@@ -464,6 +495,18 @@ class Hub:
         return self.seq
 
 
+    def start(self) -> "Hub":
+        self.thread = threading.Thread(target=self.run, name="agents-tailer", daemon=True)  # daemon: never keeps the process alive
+        self.thread.start()
+        return self
+
+    def shutdown(self, timeout: float = 3.0) -> None:
+        """Stop the tailer (watch() respects stop_event) and wait for the thread."""
+        self.stop_event.set()
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(timeout)
+
+
 _HUB: Hub | None = None
 _HUB_LOCK = threading.Lock()
 
@@ -473,9 +516,28 @@ def get_hub() -> Hub:
     global _HUB
     with _HUB_LOCK:
         if _HUB is None:
-            _HUB = Hub(roots_from_env())
-            threading.Thread(target=_HUB.run, name="agents-tailer", daemon=True).start()
+            _HUB = Hub(roots_from_env()).start()
         return _HUB
+
+
+def stop_hub() -> None:
+    """On the server's shutdown (and at exit): the watcher thread stops; a reload kills the whole child process anyway."""
+    global _HUB
+    with _HUB_LOCK:
+        h, _HUB = _HUB, None
+    if h:
+        h.shutdown()
+
+
+atexit.register(stop_hub)
+
+
+def allowed_hosts() -> list[str]:
+    """Host names the whole console answers to (Starlette's TrustedHostMiddleware compares the name without the port).
+    A page on another domain pointed at 127.0.0.1 (DNS rebinding) sends its own Host, so it gets a 400 and cannot read
+    the prompts. DEV_CONSOLE_ALLOWED_HOSTS (comma-separated) extends the list."""
+    extra = [h.strip() for h in os.environ.get("DEV_CONSOLE_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    return ["127.0.0.1", "localhost", *extra]
 
 
 def ready_hub() -> Hub:
@@ -484,30 +546,31 @@ def ready_hub() -> Hub:
     return h
 
 
+def _frame(e: dict) -> str:
+    if e["kind"] == "reset":
+        return f"event: reset\nid: {e['id']}\ndata: {json.dumps({'session': e['session']})}\n\n"
+    return f"id: {e['id']}\ndata: {json.dumps(Hub._public(e), ensure_ascii=False)}\n\n"
+
+
 async def sse(hub: Hub, after: str = ""):
-    """Server-sent events for one client: `retry:`, then each new entry as `id: <entry id>` + `data: <json>`; a keep-alive
-    comment every ~15 s. `after` (the Last-Event-ID header or ?after=) resumes; an id no longer known resumes from now."""
-    cursor = hub.seq_of(after) if after else None
-    if cursor is None:
-        cursor = hub.cur_seq()
-    yield "retry: 3000\n\n"
-    quiet = 0.0
-    while True:
-        items = hub.since(cursor)
-        for e in items:
-            cursor = e["_seq"]
-            if e["kind"] == "reset":
-                yield f"event: reset\nid: {e['id']}\ndata: {json.dumps({'session': e['session']})}\n\n"
-            else:
-                yield f"id: {e['id']}\ndata: {json.dumps(Hub._public(e), ensure_ascii=False)}\n\n"
-        if items:
-            quiet = 0.0
-        else:
-            quiet += 0.1
-            if quiet >= KEEPALIVE:
-                quiet = 0.0
+    """Server-sent events for one client: `retry:`, the backlog after `after` (the Last-Event-ID header or ?after=; an
+    unknown id resumes from now), then each new entry as `id: <entry id>` + `data: <json>`. The watcher thread pushes into
+    this client's asyncio.Queue (call_soon_threadsafe), so nothing polls; the 15 s timeout only emits the keep-alive
+    comment. The queue is unsubscribed when the client goes (the generator is closed or cancelled): no leak."""
+    q, backlog = hub.subscribe(after, asyncio.get_running_loop())
+    try:
+        yield "retry: 3000\n\n"
+        for e in backlog:
+            yield _frame(e)
+        while True:
+            try:
+                e = await asyncio.wait_for(q.get(), KEEPALIVE)
+            except asyncio.TimeoutError:
                 yield ": keep-alive\n\n"
-        await asyncio.sleep(0.1)  # a lock and a list scan: cheap; the stream adds <= 100 ms
+                continue
+            yield _frame(e)
+    finally:
+        hub.unsubscribe(q)
 
 
 AGENTS_JS = r"""
@@ -530,7 +593,7 @@ function row(e) {
   r.dataset.id = e.id;
   const head = el('div', 'flex gap-3 whitespace-nowrap');
   head.append(el('span', 'text-neutral-400 shrink-0', hhmm(e.t)), el('span', 'text-neutral-500 shrink-0', e.session),
-    el('span', 'text-neutral-500 shrink-0 max-w-[14rem] truncate', e.project), el('span', 'shrink-0 ' + (KCLS[e.kind] || ''), e.kind + (e.side ? '*' : '')));
+    el('span', 'text-neutral-500 shrink-0 max-w-[14rem] truncate', e.project), el('span', 'shrink-0 ' + (KCLS[e.kind] || ''), e.kind + (e.side ? '*' : '')), ...(e.queued ? [el('span', 'shrink-0 px-1 rounded border border-neutral-400 text-neutral-500', 'queued')] : []));
   const body = el('div', 'agtext text-neutral-800 dark:text-neutral-200 truncate', e.text + (e.more ? ' …' : ''));
   r.append(head, body);
   r.onclick = async () => {

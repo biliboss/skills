@@ -1,9 +1,10 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["watchfiles>=0.21"]
+# dependencies = ["watchfiles>=0.21", "starlette", "httpx"]
 # ///
 """Tests of console_agents.py: the normalizer and the tailer, on invented lines only (never a real log).
 Run: uv run --script test_console_agents.py   (stdlib unittest, a temp dir as the root)"""
+import asyncio
 import json
 import os
 import sys
@@ -38,6 +39,13 @@ class NormalizerTest(unittest.TestCase):
         e = norm(line(message={"content": "hello"}, origin={"kind": "human"}, promptSource="typed", turnOrigin="human"), 42)
         self.assertEqual((e["kind"], e["text"], e["more"], e["id"], e["project"], e["session"]), ("prompt", "hello", False, "k1:42", "demo", "abcdef12"))
 
+    def test_queued_human_is_a_prompt_with_a_mark(self):
+        e = norm(line(message={"content": "while busy"}, origin={"kind": "human"}, promptSource="queued", turnOrigin="human"))
+        self.assertEqual((e["kind"], e["queued"]), ("prompt", True))
+        self.assertFalse(norm(line(message={"content": "x"}, origin={"kind": "human"}, promptSource="typed"))["queued"])
+        # a queued line that is not human stays out of prompt
+        self.assertEqual(norm(line(message={"content": "x"}, origin={"kind": "peer"}, promptSource="queued"))["kind"], "cross")
+
     def test_typed_without_turn_origin_is_still_a_prompt(self):
         self.assertEqual(norm(line(message={"content": "x"}, origin={"kind": "human"}, promptSource="typed"))["kind"], "prompt")
 
@@ -53,7 +61,7 @@ class NormalizerTest(unittest.TestCase):
         self.assertEqual((e["kind"], e["text"]), ("notification", "done"))
 
     def test_allow_list_unknown_goes_to_other_never_prompt(self):
-        for extra in ({}, {"origin": {"kind": "human"}}, {"origin": {"kind": "human"}, "promptSource": "queued"},
+        for extra in ({}, {"origin": {"kind": "human"}}, {"origin": {"kind": "human"}, "promptSource": "other-thing"},
                       {"origin": {"kind": "weird"}, "promptSource": "typed"}, {"promptSource": "typed"}):
             e = norm(line(message={"content": "x"}, **extra))
             self.assertEqual(e["kind"], "other", extra)
@@ -276,6 +284,124 @@ class LiveTest(unittest.TestCase):
                 sys.modules.pop("watchfiles", None)
             else:
                 sys.modules["watchfiles"] = saved
+
+
+class SseQueueTest(unittest.TestCase):
+    """The per-client asyncio.Queue fed from another thread: no polling, no leak."""
+
+    def hub_with_entry(self):
+        hub = ca.Hub([])
+        hub._publish({"id": "k:0", "t": "t", "session": "s", "project": "p", "kind": "prompt", "text": "old", "more": False, "side": False, "queued": False})
+        return hub
+
+    def pushed(self, text, n):
+        return {"id": f"k:{n}", "t": "t", "session": "s", "project": "p", "kind": "prompt", "text": text, "more": False, "side": False, "queued": False}
+
+    def test_push_from_a_thread_arrives_fast_and_unsubscribes(self):
+        hub = self.hub_with_entry()
+
+        async def go():
+            agen = ca.sse(hub, "")
+            self.assertTrue((await agen.__anext__()).startswith("retry:"))
+            threading.Timer(0.2, lambda: hub._publish(self.pushed("new", 9))).start()
+            t0 = time.perf_counter()
+            frame = await asyncio.wait_for(agen.__anext__(), 2)
+            dt = (time.perf_counter() - t0) - 0.2
+            self.assertIn('"text": "new"', frame)
+            self.assertEqual(len(hub.subs), 1)
+            await agen.aclose()
+            return dt
+
+        dt = asyncio.run(go())
+        print(f"\n  hub publish -> SSE frame: {dt * 1000:.1f} ms")
+        self.assertLess(dt, 0.05)
+        self.assertEqual(len(hub.subs), 0)
+
+    def test_cancelled_client_is_unsubscribed(self):
+        hub = self.hub_with_entry()
+
+        async def go():
+            agen = ca.sse(hub, "")
+            await agen.__anext__()
+            task = asyncio.ensure_future(agen.__anext__())
+            await asyncio.sleep(0.05)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            await agen.aclose()
+
+        asyncio.run(go())
+        self.assertEqual(len(hub.subs), 0)
+
+    def test_resume_after_an_id_replays_only_what_follows_and_keepalive(self):
+        hub = self.hub_with_entry()
+        hub._publish(self.pushed("second", 5))
+
+        async def go():
+            old, ca.KEEPALIVE = ca.KEEPALIVE, 0.1
+            try:
+                agen = ca.sse(hub, "k:0")
+                await agen.__anext__()
+                frame = await agen.__anext__()
+                ka = await asyncio.wait_for(agen.__anext__(), 2)
+                await agen.aclose()
+                return frame, ka
+            finally:
+                ca.KEEPALIVE = old
+
+        frame, ka = asyncio.run(go())
+        self.assertIn('"text": "second"', frame)
+        self.assertNotIn("old", frame)
+        self.assertEqual(ka, ": keep-alive\n\n")
+
+    def test_reset_marker_is_an_event(self):
+        hub = self.hub_with_entry()
+        fs = fs_for()
+        hub.files[fs.key] = fs
+
+        async def go():
+            agen = ca.sse(hub, "")
+            await agen.__anext__()
+            hub._reset(fs)
+            frame = await asyncio.wait_for(agen.__anext__(), 2)
+            await agen.aclose()
+            return frame
+
+        self.assertTrue(asyncio.run(go()).startswith("event: reset"))
+
+
+class LifecycleAndHostsTest(unittest.TestCase):
+    def test_start_and_shutdown_twice_leaves_no_thread(self):
+        before = threading.active_count()
+        with tempfile.TemporaryDirectory() as d:
+            for _ in range(2):
+                hub = ca.Hub([Path(d).resolve()]).start()
+                self.assertTrue(hub.ready.wait(5))
+                time.sleep(0.3)  # the watcher is running
+                hub.shutdown()
+                self.assertFalse(hub.thread.is_alive())
+        self.assertEqual(threading.active_count(), before)
+
+    def test_allowed_hosts_default_and_env(self):
+        os.environ.pop("DEV_CONSOLE_ALLOWED_HOSTS", None)
+        self.assertEqual(ca.allowed_hosts(), ["127.0.0.1", "localhost"])
+        os.environ["DEV_CONSOLE_ALLOWED_HOSTS"] = "mac.local, box.lan"
+        self.addCleanup(os.environ.pop, "DEV_CONSOLE_ALLOWED_HOSTS")
+        self.assertEqual(ca.allowed_hosts(), ["127.0.0.1", "localhost", "mac.local", "box.lan"])
+
+    def test_trusted_host_middleware_with_our_list(self):
+        from starlette.applications import Starlette
+        from starlette.middleware.trustedhost import TrustedHostMiddleware
+        from starlette.responses import PlainTextResponse
+        from starlette.routing import Route
+        from starlette.testclient import TestClient
+
+        os.environ.pop("DEV_CONSOLE_ALLOWED_HOSTS", None)
+        app = Starlette(routes=[Route("/agents/api/prompts", lambda r: PlainTextResponse("x"))])
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=ca.allowed_hosts())
+        c = TestClient(app)
+        for host, code in (("evil.com", 400), ("evil.com:5097", 400), ("127.0.0.1:5097", 200), ("localhost:5097", 200),
+                           ("127.0.0.1.evil.com", 400)):
+            self.assertEqual(c.get("/agents/api/prompts", headers={"host": host}).status_code, code, host)
 
 
 if __name__ == "__main__":

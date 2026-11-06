@@ -3,8 +3,10 @@
 ## [0.12.0] - 2026-11-06
 
 ### Added
-- The **Agents** module, `/agents` (⌘P lists it): the prompts the owner typed to Claude Code (allow-list: `origin.kind == "human"` and `promptSource == "typed"`; peer = `cross`, task-notification = `notification`, anything unknown = `other`) and the agents' session logs, in real time. Prompts and Log views, filter by session, chips, pause, click to expand. Routes `/agents/api/prompts|log|entry` and SSE `/agents/events` (`Last-Event-ID`, `retry`, keep-alive). `DEV_CONSOLE_AGENTS_DIRS` sets the roots (default `~/.claude/projects`, deduplicated by realpath).
+- The **Agents** module, `/agents` (⌘P lists it): the prompts the owner typed to Claude Code (allow-list: `origin.kind == "human"` with `promptSource` `typed` or `queued` (marked `queued`); peer = `cross`, task-notification = `notification`, anything unknown = `other`) and the agents' session logs, in real time. Prompts and Log views, filter by session, chips, pause, click to expand. Routes `/agents/api/prompts|log|entry` and SSE `/agents/events` (`Last-Event-ID`, `retry`, keep-alive). `DEV_CONSOLE_AGENTS_DIRS` sets the roots (default `~/.claude/projects`, deduplicated by realpath).
 - Following by events: one `watchfiles` watcher thread (about 100 ms from the write to the SSE message), a 5 s rescan as the safety net, and a ~1 s polling fallback with one warning line if `watchfiles` cannot be imported. `watchfiles` is now a declared dependency of `dev-console.py`.
+- Security: `TrustedHostMiddleware` on the whole app (400 for any `Host` but `127.0.0.1`, `localhost` and `DEV_CONSOLE_ALLOWED_HOSTS`; DNS rebinding); no CORS.
+- SSE without polling: one `asyncio.Queue` per client fed by the watcher thread; the watcher thread stops on shutdown. `DEV_CONSOLE_AGENTS_BACKFILL_FILES` sets how many files the backfill reads (default 150).
 - `scripts/console_agents.py` (source, normalizer, hub, SSE, page script; pi and Hermes plug in as another source class) and `scripts/test_console_agents.py` (synthetic lines only). A `README.md` for humans.
 
 ## [0.11.0] - 2026-11-06

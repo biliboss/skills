@@ -95,6 +95,13 @@ from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
 app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=True)  # live: the browser reloads on save
+# DNS rebinding: a page on another domain pointed at 127.0.0.1 would otherwise read /agents/api/prompts. Any other Host
+# gets a 400. No CORS is configured anywhere, on purpose: the console is read by its own pages only.
+from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
+
+import console_agents as _AGH  # noqa: E402  (the allowed host names live with the module that needs them)
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_AGH.allowed_hosts())
 journal = _Live(lambda: CURRENT.get().journal)
 
 # The real code, read from disk on every request and pushed again when the file changes.
@@ -1609,6 +1616,11 @@ async def source_stream(slug: str):
 # --- Agents: what the owner typed to the agents, and the agents' logs, in real time (the logic is console_agents.py) -----
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import console_agents as AG  # noqa: E402
+
+try:  # the server stops the tailer thread on shutdown (a reload kills the child process anyway)
+    app.router.on_shutdown.append(AG.stop_hub)
+except AttributeError:
+    pass
 
 
 def _agents_args(limit: int, session: str, side: str) -> dict:
