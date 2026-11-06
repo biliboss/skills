@@ -141,7 +141,20 @@ before `innerHTML`.
 - Entry: `{id, t (ISO), session (short id; ag:xxxxxx for a sub-agent file), project (cwd folder name), kind
   (prompt|cross|notification|other|assistant|tool), text (first 600 chars), more, side, queued}`. `kind` is `prompt` for
   `origin.kind == "human"` with `promptSource` `typed` or `queued` (`queued: true`: typed while the agent was busy; the row shows a
-  `queued` badge); a human without `promptSource` is `other`. `id` is `<file-key>:<byte offset of
+  `queued` badge); a human without `promptSource` is `other`.
+  Origins (user lines and `queued_command` attachments alike; the attachment is `{"type":"attachment","attachment":{"type":
+  "queued_command","commandMode":"prompt","origin":{"kind":...},"prompt":<text or blocks>}}`, only `commandMode == "prompt"`):
+
+  | origin.kind | user line | queued_command attachment |
+  |---|---|---|
+  | `human` | `prompt` if `promptSource` is `typed` or `queued` (`queued: true` for the latter), else `other` | `prompt`, `queued: true` |
+  | `peer` | `cross` | `cross` |
+  | `task-notification` | `notification` | `notification` |
+  | anything else / none | `other` | `other` |
+
+  The hub drops a later entry equal to an earlier one (same session, same kind, same first 200 characters, whitespace
+  normalized, within 120 s; `DEDUPE_WINDOW`, `DEDUPE_CHARS`); the earliest is kept. Lines above 1 MB are skipped unparsed, and
+  texts are capped like any entry. `id` is `<file-key>:<byte offset of
   the line>`; the file key is a hash of the realpath (no path leaves the server).
 - SSE contract: each client has an `asyncio.Queue` fed by the watcher thread (`call_soon_threadsafe`), subscribed atomically with
   its backlog and unsubscribed when the generator ends; a 15 s timeout on `queue.get()` only emits the keep-alive. `retry: 3000`, then per entry `id: <entry id>` + `data: <entry json>`; `event: reset` (data `{session}`) when

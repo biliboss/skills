@@ -36,6 +36,8 @@ SHORT = 600  # the text a list row carries; the whole text comes from /agents/ap
 FULL = 50_000  # cap of the whole text of one entry
 PROMPT_KINDS = ("prompt", "cross", "notification", "other")  # what the Prompts view may show (prompt is the default)
 BACKFILL_FILES = int(os.environ.get("DEV_CONSOLE_AGENTS_BACKFILL_FILES") or 150)  # newest files the backfill may read
+DEDUPE_WINDOW = 120.0  # seconds: the same text of the same session within this window is one entry
+DEDUPE_CHARS = 200
 WANT_PROMPTS, WANT_LOG = 200, 500  # the backfill reads the tail of the newest files until it has about this many
 RING_PROMPTS, RING_LOG = 2000, 5000
 TICK, RESCAN, KEEPALIVE = 1.0, 5.0, 15.0
@@ -121,6 +123,10 @@ class ClaudeSource:
             kind, text, queued = self._user(d, content)
             if kind is None:
                 return None
+        elif typ == "attachment":
+            kind, text, queued = self._queued_command(d.get("attachment"))
+            if kind is None:
+                return None
         elif typ == "assistant" and isinstance(content, list):
             queued = False
             texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)]
@@ -135,6 +141,8 @@ class ClaudeSource:
             return None
         text, more = _clip(text, cap)
         ts = d.get("timestamp")
+        if typ == "attachment" and not isinstance(ts, str) and isinstance(d.get("attachment"), dict):
+            ts = d["attachment"].get("timestamp")
         return {
             "id": f"{fs.key}:{offset}", "t": ts if isinstance(ts, str) else iso_from_ts(fs.mtime or time.time()),
             "session": fs.session, "project": fs.project, "kind": kind, "text": text, "more": more,
@@ -159,8 +167,37 @@ class ClaudeSource:
         if okind == "human" and d.get("promptSource") in ("typed", "queued"):
             return "prompt", text, d.get("promptSource") == "queued"
         if okind == "peer":
-            who = next((origin[k] for k in ("name", "from") if isinstance(origin.get(k), str)), "")
-            return "cross", (f"{who}: " if who else "") + (origin["body"] if isinstance(origin.get("body"), str) else text), False
+            return "cross", ClaudeSource._peer_text(origin, text), False
+        if okind == "task-notification":
+            return "notification", text, False
+        return "other", text, False
+
+    @staticmethod
+    def _peer_text(origin: dict, text: str) -> str:
+        who = next((origin[k] for k in ("name", "from") if isinstance(origin.get(k), str)), "")
+        return (f"{who}: " if who else "") + (origin["body"] if isinstance(origin.get("body"), str) else text)
+
+    @staticmethod
+    def _queued_command(att) -> tuple[str | None, str, bool]:
+        """A message that arrived while the agent was busy is logged as an ATTACHMENT, not as a user line:
+        {"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":...},"prompt":...}}.
+        origin human -> prompt (queued), peer -> cross, task-notification -> notification, any other origin -> other.
+        A missing or malformed prompt is dropped (None), never an error."""
+        if not isinstance(att, dict) or att.get("type") != "queued_command" or att.get("commandMode") != "prompt":
+            return None, "", False
+        raw = att.get("prompt")
+        if isinstance(raw, str):
+            text = raw
+        elif isinstance(raw, list):
+            text = _blocks_text(raw)
+        else:
+            return None, "", False
+        origin = att.get("origin") if isinstance(att.get("origin"), dict) else {}
+        okind = origin.get("kind")
+        if okind == "human":
+            return "prompt", text, True
+        if okind == "peer":
+            return "cross", ClaudeSource._peer_text(origin, text), False
         if okind == "task-notification":
             return "notification", text, False
         return "other", text, False
@@ -197,6 +234,7 @@ class Hub:
         self.last_scan = 0.0
         self.subs: dict[asyncio.Queue, asyncio.AbstractEventLoop] = {}  # SSE clients: their queue and the loop it lives in
         self.thread: threading.Thread | None = None
+        self.recent: dict[tuple, float] = {}  # dedupe: (session, kind, text head) -> time of the entry shown
         self.mode = "start"  # "watch" (events) or "poll" (watchfiles missing)
         self.stop_event = threading.Event()
 
@@ -301,7 +339,32 @@ class Hub:
         except OSError:
             fs.gone = True
 
+    @staticmethod
+    def _epoch(t: str) -> float | None:
+        try:
+            return datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp()
+        except (ValueError, AttributeError):
+            return None
+
+    def _is_duplicate(self, e: dict) -> bool:
+        """A queued message is logged as an attachment and often again as a user line: same session, same kind and the same
+        first ~200 characters (whitespace-normalized) within ~2 minutes is one entry, the earliest. Two equal prompts
+        further apart than the window (the owner repeating "go on") stay two."""
+        if e["kind"] not in PROMPT_KINDS:
+            return False
+        at = self._epoch(e["t"])
+        if at is None:
+            return False
+        key = (e["session"], e["kind"], " ".join(e["text"].split())[:DEDUPE_CHARS])
+        seen = self.recent.get(key)
+        self.recent[key] = at if seen is None or abs(at - seen) > DEDUPE_WINDOW else min(at, seen)
+        if len(self.recent) > 5000:  # forget what is outside the window of the newest entry
+            self.recent = {k: v for k, v in self.recent.items() if at - v <= DEDUPE_WINDOW}
+        return seen is not None and abs(at - seen) <= DEDUPE_WINDOW
+
     def _publish(self, e: dict) -> None:
+        if self._is_duplicate(e):
+            return
         self.seq += 1
         e = {**e, "_seq": self.seq, "_f": e["id"].split(":", 1)[0]}
         self.log.append(e)
@@ -370,6 +433,7 @@ class Hub:
         with self.lock:
             self.log = deque((e for e in self.log if e["_f"] != fs.key), maxlen=RING_LOG)
             self.prompts = deque((e for e in self.prompts if e["_f"] != fs.key), maxlen=RING_PROMPTS)
+            self.recent = {}  # the file is read again: its prompts must not look like duplicates of themselves
             self.seq += 1
             mark = {"_seq": self.seq, "_f": fs.key, "kind": "reset", "id": f"{fs.key}:reset{self.seq}", "session": fs.session}
             self.log.append(mark)

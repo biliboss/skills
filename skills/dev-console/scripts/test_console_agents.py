@@ -46,6 +46,38 @@ class NormalizerTest(unittest.TestCase):
         # a queued line that is not human stays out of prompt
         self.assertEqual(norm(line(message={"content": "x"}, origin={"kind": "peer"}, promptSource="queued"))["kind"], "cross")
 
+    def test_queued_command_attachment_by_origin(self):
+        def att(origin, prompt="mid-turn", **extra):
+            a = {"type": "queued_command", "commandMode": "prompt", "prompt": prompt, "delivery_id": "d1"}
+            if origin is not None:
+                a["origin"] = origin
+            return line(type="attachment", attachment={**a, **extra}, timestamp="2026-01-02T03:04:06.000Z")
+
+        e = norm(att({"kind": "human"}), 7)
+        self.assertEqual((e["kind"], e["queued"], e["text"], e["id"], e["t"]), ("prompt", True, "mid-turn", "k1:7", "2026-01-02T03:04:06.000Z"))
+        e = norm(att({"kind": "peer", "name": "other"}))
+        self.assertEqual((e["kind"], e["text"], e["queued"]), ("cross", "other: mid-turn", False))
+        self.assertEqual(norm(att({"kind": "task-notification"}))["kind"], "notification")
+        for origin in ({"kind": "weird"}, {}, None):
+            self.assertEqual(norm(att(origin))["kind"], "other")
+        e = norm(att({"kind": "human"}, prompt=[{"type": "text", "text": "blocks"}, {"type": "image"}]))
+        self.assertEqual(e["text"], "blocks\n[image]")
+
+    def test_queued_command_attachment_malformed_or_other_types(self):
+        for att in ({"type": "queued_command", "commandMode": "prompt"},  # no prompt
+                    {"type": "queued_command", "commandMode": "prompt", "prompt": 5},
+                    {"type": "queued_command", "commandMode": "bash", "prompt": "x", "origin": {"kind": "human"}},
+                    {"type": "something_else", "prompt": "x"}, "text", None, [1]):
+            self.assertIsNone(norm(line(type="attachment", attachment=att)))
+        self.assertIsNone(norm(line(type="attachment")))
+
+    def test_big_attachment_is_capped_and_a_huge_one_skipped(self):
+        att = {"type": "queued_command", "commandMode": "prompt", "origin": {"kind": "human"}, "prompt": "a" * 5000}
+        e = norm(line(type="attachment", attachment=att))
+        self.assertEqual((len(e["text"]), e["more"]), (ca.SHORT, True))
+        att["prompt"] = "a" * (ca.MAX_LINE + 5)
+        self.assertIsNone(norm(line(type="attachment", attachment=att)))
+
     def test_typed_without_turn_origin_is_still_a_prompt(self):
         self.assertEqual(norm(line(message={"content": "x"}, origin={"kind": "human"}, promptSource="typed"))["kind"], "prompt")
 
@@ -210,6 +242,57 @@ class TailerTest(unittest.TestCase):
         self.assertEqual(len(self.hub.get_entry(e["id"])["text"]), 2000)
         self.assertIsNone(self.hub.get_entry("nokey:0"))
         self.assertIsNone(self.hub.get_entry("../../etc/passwd"))
+
+    def _att(self, text, ts, origin="human"):
+        a = {"type": "queued_command", "commandMode": "prompt", "origin": {"kind": origin}, "prompt": text}
+        return line(type="attachment", attachment=a, timestamp=ts) + b"\n"
+
+    def _queued_user(self, text, ts):
+        return line(message={"content": text}, origin={"kind": "human"}, promptSource="queued", timestamp=ts) + b"\n"
+
+    def test_attachment_then_user_line_with_same_text_is_one_entry(self):
+        with open(self.f, "ab") as fh:
+            fh.write(self._att("  go   on please ", "2026-01-02T04:00:00.000Z"))
+            fh.write(self._queued_user("go on please", "2026-01-02T04:00:40.000Z"))
+        self.hub.tick()
+        es = [e for e in self.hub.get_prompts()["entries"] if " ".join(e["text"].split()) == "go on please"]
+        self.assertEqual(len(es), 1)
+        self.assertTrue(es[0]["queued"])
+        self.assertEqual(es[0]["t"], "2026-01-02T04:00:00.000Z")  # the earliest
+
+    def test_same_text_beyond_the_window_is_two_entries(self):
+        with open(self.f, "ab") as fh:
+            fh.write(self._att("repeat", "2026-01-02T04:00:00.000Z"))
+            fh.write(self._queued_user("repeat", "2026-01-02T04:05:00.000Z"))
+        self.hub.tick()
+        self.assertEqual([e["text"] for e in self.hub.get_prompts()["entries"]].count("repeat"), 2)
+
+    def test_same_text_in_another_session_is_not_a_duplicate(self):
+        g = self.root / "proj" / "99990000-eeee.jsonl"
+        g.write_bytes(self._att("same", "2026-01-02T04:00:00.000Z"))
+        with open(self.f, "ab") as fh:
+            fh.write(self._att("same", "2026-01-02T04:00:10.000Z"))
+        self.hub.rescan()
+        self.hub.tick()
+        self.assertEqual([e["text"] for e in self.hub.get_prompts()["entries"]].count("same"), 2)
+
+    def test_malformed_attachment_does_not_stop_the_tailer(self):
+        with open(self.f, "ab") as fh:
+            fh.write(line(type="attachment", attachment={"type": "queued_command", "commandMode": "prompt"}) + b"\n")
+            fh.write(b'{"type":"attachment","attachment":\n')
+            fh.write(typed("still alive", "2026-01-02T05:00:00.000Z"))
+        self.hub.tick()
+        self.assertEqual(self.texts(), ["one", "still alive"])
+
+    def test_reset_does_not_make_the_reread_prompts_look_duplicated(self):
+        self.f.write_bytes(typed("one"))  # same text, rewritten shorter than the original is not needed: grow then shrink
+        with open(self.f, "ab") as fh:
+            fh.write(typed("pad pad pad pad pad pad"))
+        self.hub.tick()
+        self.f.write_bytes(typed("one"))
+        self.bump()
+        self.hub.tick()
+        self.assertEqual(self.texts(), ["one"])
 
     def test_seq_of_resumes_after_an_id(self):
         first = self.hub.last_id()

@@ -121,7 +121,12 @@ expands the whole text) and **Log** (prompts, assistant text, tool calls). A fil
 Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are another source class in `SOURCES`.
 
 - **What is a prompt (an allow-list)**: exactly `origin.kind == "human"` with `promptSource == "typed"`, or `"queued"`
-  (typed while the agent was busy: still a prompt, with `queued: true` and a `queued` badge on the row). Content is a string,
+  (typed while the agent was busy: still a prompt, with `queued: true` and a `queued` badge on the row). A message typed
+  mid-turn is logged as an **attachment** line, not a user line: `attachment.type == "queued_command"` with
+  `commandMode == "prompt"` is read too (origin `human` is a queued `prompt`, `peer` is `cross`, `task-notification` is
+  `notification`, any other origin is `other`; the text is `attachment.prompt`; a missing or malformed prompt is dropped).
+  **No duplicates**: the same session, kind and first ~200 characters (whitespace-normalized) within ~2 minutes is one
+  entry, the earliest; the same text further apart stays two. Content is a string,
   or an array: its text blocks plus a marker such as `[image]`. `origin.kind == "peer"` is `cross`, `"task-notification"` is
   `notification`, anything else (no origin, `human` without a `promptSource`, unknown) is `other`, never `prompt`.
   `isSidechain` lines and `agent-*.jsonl` files carry `side` and stay out of Prompts unless the `side` chip is on.
