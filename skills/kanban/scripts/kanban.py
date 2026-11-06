@@ -65,6 +65,9 @@ EVENTS = {
         "prioritize": "prioritized",
         # O card ganhou outro título (a mesma coisa, melhor nomeada); o histórico e o dinheiro seguem o card.
         "rename": "renamed",
+        # O card ganhou a descrição: o pedido de alto nível (por quê, para quem, resultado, limites, pronto quando). A
+        # última vale; a primeira linha ("Por quê: ...") aparece sob o título no quadro.
+        "describe": "described",
     },
     "item": {
         # Uma PR aberta ou uma branch passou de N horas (48 por padrão) sem entrar na main: o que foi começado e não
@@ -80,10 +83,10 @@ EVENTS = {
 
 # The edges: a card is created, then moves as often as the work needs (back to Upstream too).
 TRANSITIONS = {
-    "card.created": ["card.moved", "card.prioritized", "card.renamed"],
-    "card.moved": ["card.moved", "card.prioritized", "card.renamed"],
-    "card.prioritized": ["card.moved", "card.prioritized", "card.renamed"],
-    "card.renamed": ["card.moved", "card.prioritized", "card.renamed"],
+    "card.created": ["card.moved", "card.prioritized", "card.renamed", "card.described"],
+    "card.moved": ["card.moved", "card.prioritized", "card.renamed", "card.described"],
+    "card.prioritized": ["card.moved", "card.prioritized", "card.renamed", "card.described"],
+    "card.renamed": ["card.moved", "card.prioritized", "card.renamed", "card.described"],
 }
 
 
@@ -132,6 +135,13 @@ class Rename:
 
 
 @dataclass(frozen=True)
+class Describe:
+    """What card.described carries: the card's description (last wins)."""
+
+    text: str
+
+
+@dataclass(frozen=True)
 class Stay:
     """One stay of a card in a stage: from when it entered to when it left (None while it is still there)."""
 
@@ -152,6 +162,12 @@ class Card:
     created_at: datetime
     stays: tuple[Stay, ...]  # every stay, oldest first; the last one is still open
     rank: int | None = None  # its place in the owner's order of the stage (0 = top); None = never ranked there
+    description: str = ""  # the last card.described text: the high-level request (por quê ... pronto quando)
+
+    @property
+    def why(self) -> str:
+        """The description's first line, what the board shows under the title."""
+        return next((ln.strip() for ln in self.description.splitlines() if ln.strip()), "")
 
 
 @dataclass(frozen=True)
@@ -230,7 +246,7 @@ class Board:
 
 
 # Which value object each event carries (the dev-console's Code shows it with the event).
-VALUES = {"card.created": "NewCard", "card.moved": "Move", "card.prioritized": "Prioritize", "card.renamed": "Rename"}
+VALUES = {"card.created": "NewCard", "card.moved": "Move", "card.prioritized": "Prioritize", "card.renamed": "Rename", "card.described": "Describe"}
 
 
 # --- pure functions: journal events in, value objects out (no file, no clock) ----------------------------------------
@@ -260,15 +276,18 @@ def card_from(events: list[dict]) -> Card | None:
     for e in events:
         v = e.get("value") or {}
         kind = e.get("event")
-        if kind not in ("card.created", "card.moved", "card.renamed"):
+        if kind not in ("card.created", "card.moved", "card.renamed", "card.described"):
             continue
         try:
             at = parse_at(e["at"])
             stage = (stage_of(v.get("stage") or (Stage.UPSTREAM if kind == "card.created" else ""))
-                     if kind != "card.renamed" else Stage.UPSTREAM)
+                     if kind not in ("card.renamed", "card.described") else Stage.UPSTREAM)
         except (KeyError, ValueError):
             continue
-        if kind == "card.renamed":
+        if kind == "card.described":
+            if head is not None and str(v.get("text") or "").strip():
+                head["description"] = str(v["text"]).strip()
+        elif kind == "card.renamed":
             if head is not None and str(v.get("title") or "").strip():
                 head["title"] = str(v["title"]).strip()
         elif kind == "card.created" and head is None:
@@ -279,7 +298,8 @@ def card_from(events: list[dict]) -> Card | None:
             stays.append(Stay(stage, at))
     if head is None:
         return None
-    return Card(head["id"], head["title"], head["domain"], stays[-1].stage, stays[-1].start, head["at"], tuple(stays))
+    return Card(head["id"], head["title"], head["domain"], stays[-1].stage, stays[-1].start, head["at"], tuple(stays),
+                None, head.get("description", ""))
 
 
 def cards_from(events: list[dict]) -> list[Card]:
@@ -612,6 +632,18 @@ def emit(event: str, value: dict, card_id: str | None = None, actor: str = "agen
                 f.flush()
                 os.fsync(f.fileno())
                 return record
+            if event == "card.described":
+                text = str(value.get("text") or "").strip()
+                if not text:
+                    raise ValueError("a description needs text")
+                if text == card.description:
+                    raise ValueError(f"card {card.id} already has this description")
+                record = {"id": uuid.uuid4().hex[:12], "event": event, "at": (at or _now()).isoformat(timespec="seconds"),
+                          "actor": actor, "card_id": card_id, "value": {"text": text}}
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+                return record
             if event == "card.prioritized":
                 try:
                     pos = int(value.get("position"))
@@ -663,6 +695,11 @@ def rename(card_id: str, title: str, actor: str = "agent", at: datetime | None =
     return emit("card.renamed", {"title": title}, card_id, actor, at)
 
 
+def describe(card_id: str, text: str, actor: str = "agent", at: datetime | None = None) -> dict:
+    """card.described: the card's description, the high-level request; the last one wins."""
+    return emit("card.described", {"text": text}, card_id, actor, at)
+
+
 def find(ref: str, cards: list[Card]) -> Card:
     """The card a person or an agent named: its id, a unique start of its id (3 characters or more), or its exact
     title in any case. ValueError when none or several match."""
@@ -694,6 +731,8 @@ def _project(events: list[dict]) -> dict:
         "since": c.since.isoformat(timespec="seconds"),
         "created_at": c.created_at.isoformat(timespec="seconds"),
         "updated_at": events[-1]["at"],
+        # the last card.described text, "" when none
+        "description": c.description,
     }
     return state
 
@@ -793,6 +832,10 @@ def _print_card(m: CardMoney, now: datetime) -> None:
     c = m.card
     print(f"{c.title}  ({c.id})")
     print(f"  domain    {c.domain}")
+    if c.description:
+        print("  intent")
+        for ln in c.description.splitlines():
+            print(f"    {ln}" if ln.strip() else "")
     print(f"  stage     {c.stage.value} since {c.since.isoformat(timespec='seconds')} ({short((now - c.since).total_seconds())})")
     print("  stays")
     for s in c.stays:
@@ -1179,6 +1222,12 @@ def main(argv: list[str] | None = None) -> int:
     rn.add_argument("card")
     rn.add_argument("title")
     rn.add_argument("--actor", default="agent")
+    ds = sub.add_parser("describe", help="a card's description, the 5-field request (card.described; last wins)")
+    ds.add_argument("card")
+    g = ds.add_mutually_exclusive_group(required=True)
+    g.add_argument("--file", help="a file with the text")
+    g.add_argument("--text")
+    ds.add_argument("--actor", default="agent")
     ls = sub.add_parser("list", help="the cards, per stage, with their Upstream money")
     ls.add_argument("--stage")
     ls.add_argument("--json", action="store_true")
@@ -1232,6 +1281,13 @@ def main(argv: list[str] | None = None) -> int:
             out = rename(card.id, a.title, a.actor)
             _name_tab(slug(card.title), card.id, a.title.strip())  # the tab follows the title; the session keeps its slug
             print(json.dumps(out, ensure_ascii=False))
+        elif a.cmd == "describe":
+            card = find(a.card, cards_from(events()))
+            try:
+                text = Path(a.file).read_text(encoding="utf-8") if a.file else a.text
+            except OSError as err:
+                raise ValueError(f"cannot read {a.file}: {err.strerror}") from err
+            print(json.dumps(describe(card.id, text, a.actor), ensure_ascii=False))
         elif a.cmd == "list":
             b = read_board()
             stage = stage_of(a.stage) if a.stage else None

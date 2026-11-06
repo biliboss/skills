@@ -71,6 +71,18 @@ def fake_env(**extra) -> dict[str, str]:
 
 
 class Flow(unittest.TestCase):
+    def test_intent_of_the_outcome_mode(self):
+        j = tasks.TasksJournal()
+        tid = j.emit("task.explained", {"title": "Site", "text": "faz site pro Via"}, actor="gabriel")["task_id"]
+        intent = {"why": "corretores pela busca", "who": "corretor", "result": "cadastros ref=blog em 90 dias",
+                  "limits": "nada publicado sem ok", "done_when": "4 semanas subindo", "bet": "CTR de como-tirar-creci"}
+        for bad in ({"nope": "x"}, "texto", {"why": 3}):
+            with self.assertRaises(ValueError):
+                j.emit("understanding.taught_back", {"text": "t", "intent": bad}, tid)
+        e = j.emit("understanding.taught_back", {"text": "t", "intent": intent}, tid)
+        self.assertEqual(e["value"]["intent"], intent)
+        j.emit("understanding.taught_back", {"text": "sem intent"}, tid)  # the field stays optional
+
     def test_flow(self):
         j = tasks.TasksJournal()
         tid = j.emit("task.explained", {"title": "Relatório mensal de vendas", "text": "Monta o relatório mensal de vendas"},
