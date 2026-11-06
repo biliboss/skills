@@ -1125,19 +1125,23 @@ function drawGraph() {
     return Number.isFinite(e.clientX) ? {x: e.clientX - r.left, y: e.clientY - r.top} : {x: r.width / 2, y: r.height / 2}; };
   const zoomTo = (z, e) => cy.zoom({level: Math.min(cy.maxZoom(), Math.max(cy.minZoom(), z)), renderedPosition: at(e)});
   let pinch = 0;   // the zoom when a WebKit pinch began; 0 = none
-  pane.addEventListener('wheel', e => {
-    e.preventDefault();   // the page never scrolls under the graph
-    const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? cy.height() : 1;   // lines, pages or pixels
-    let dx = e.deltaX * k, dy = e.deltaY * k;
-    if (e.ctrlKey || e.metaKey) {   // a pinch is small steps; a ctrl or ⌘ mouse notch is capped at about a quarter
-      if (!pinch) zoomTo(cy.zoom() * Math.exp(-Math.max(-0.3, Math.min(0.3, dy * (e.ctrlKey ? 0.01 : 0.002)))), e);
-      return; }
-    if (e.shiftKey && !dx) [dx, dy] = [dy, 0];   // shift + mouse wheel goes sideways
-    cy.panBy({x: -dx, y: -dy});
-  }, {passive: false});
-  pane.addEventListener('gesturestart', e => { e.preventDefault(); pinch = cy.zoom(); });
-  pane.addEventListener('gesturechange', e => { e.preventDefault(); if (pinch && e.scale) zoomTo(pinch * e.scale, e); });
-  pane.addEventListener('gestureend', e => { e.preventDefault(); pinch = 0; });
+  const input = {
+    wheel: e => {
+      e.preventDefault();   // the page never scrolls under the graph
+      const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? cy.height() : 1;   // lines, pages or pixels
+      let dx = e.deltaX * k, dy = e.deltaY * k;
+      if (e.ctrlKey || e.metaKey) {   // a pinch is small steps; a ctrl or ⌘ mouse notch is capped at about a quarter
+        if (!pinch) zoomTo(cy.zoom() * Math.exp(-Math.max(-0.3, Math.min(0.3, dy * (e.ctrlKey ? 0.01 : 0.002)))), e);
+        return; }
+      if (e.shiftKey && !dx) [dx, dy] = [dy, 0];   // shift + mouse wheel goes sideways
+      cy.panBy({x: -dx, y: -dy}); },
+    gesturestart: e => { e.preventDefault(); pinch = cy.zoom(); },
+    gesturechange: e => { e.preventDefault(); if (pinch && e.scale) zoomTo(pinch * e.scale, e); },
+    gestureend: e => { e.preventDefault(); pinch = 0; }};
+  // a redraw (L, new events) keeps the pane: drop the last drawing's handlers, or one wheel would pan once per drawing
+  Object.entries(pane._graphInput || {}).forEach(([t, f]) => pane.removeEventListener(t, f));
+  pane._graphInput = input;
+  Object.entries(input).forEach(([t, f]) => pane.addEventListener(t, f, {passive: false}));
   let box = '';
   graphRO = new ResizeObserver(([e]) => {
     const k = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
