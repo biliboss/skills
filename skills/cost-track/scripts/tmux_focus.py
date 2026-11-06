@@ -15,6 +15,7 @@ Stdlib only; reads the Kanban journal (KANBAN_DIR) and writes the Costs journal 
 """
 from __future__ import annotations
 
+import fcntl
 import importlib.util
 import json
 import os
@@ -116,6 +117,14 @@ def start(card) -> bool:
 
 
 def focus(session: str) -> None:
+    """Under a lock: two hooks firing together (attached + session-changed) must not both start an entry."""
+    C.costs_dir().mkdir(parents=True, exist_ok=True)
+    with (C.costs_dir() / "focus.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        _focus(session)
+
+
+def _focus(session: str) -> None:
     card = open_card(session) if session and session != "-" else None
     run = C.running()
     if card and run and run.get("card") == card.id and run.get("domain") == card.domain:
