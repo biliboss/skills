@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.0] - 2026-11-06
+
+### Added
+
+- `scripts/check.sh <url>` (logic in `check.py`, uv PEP 723): a headless check of a console page with the installed Chrome (playwright `channel="chrome"`), for harnesses without a browser tool; JSON with status, title, console and page errors, an `--eval` value and a screenshot; exit 1 on any error.
+
 ## [0.18.0] - 2026-11-06
 
 ### Changed

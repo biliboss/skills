@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.37.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.19.0: `scripts/check.sh`, a checagem headless de uma página do console com o Chrome instalado, para o Claude Code e o pi (retro da sessão).
+
 ## [0.36.0] - 2026-11-06
 
 ### Changed
