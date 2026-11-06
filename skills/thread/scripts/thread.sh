@@ -191,6 +191,8 @@ cmd_touch() { # <tab>: a thread becomes tab 2, right after the session's first w
   else
     tm move-window -d -b -s "$wid" -t "${ids[1]}" 2>/dev/null || true
   fi
+  # -a/-b shift indexes up and renumber-windows only acts on close: close the gaps now (tabs stay 1..N)
+  tm move-window -r -t "=$sess" 2>/dev/null || true
 }
 
 THREAD_LOG="${THREAD_LOG:-$HOME/.local/state/threads.log}"
