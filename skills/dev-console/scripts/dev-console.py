@@ -89,7 +89,7 @@ class _Live:
 
 
 PROJECT = _Live(CURRENT.get)
-from fasthtml.common import A, Div, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+from fasthtml.common import H2, A, Button, Div, Iframe, Li, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
@@ -415,7 +415,40 @@ def render_widget_list(slug: str, event: str, eid: str | None = None):
         CURRENT.reset(token)
 
 
+def render_screens(steps: list[dict], title: str = "", width: int = 390, height: int = 844, scale: float = 0.62):
+    """The product's real screens, composed (never redrawn): each step {name, url, event?, note?} is an iframe of the
+    product's own URL (a Storybook story, a prototype, the app) in a phone frame, stepped with ← → and the dots; the
+    step's event (the one the screen leads to) shows beside its name. A widget of an event passes the steps around it."""
+    if not steps:
+        return _empty("nenhuma tela")
+    data = json.dumps([{k: st.get(k) for k in ("name", "url", "event", "note")} for st in steps], ensure_ascii=False)
+    w, h = round(width * scale), round(height * scale)
+    go = ("(function(b,d){var r=b.closest('[data-screens]'),S=JSON.parse(r.dataset.screens),"
+          "i=Math.max(0,Math.min(S.length-1,(d==null?+b.dataset.i:+r.dataset.i+d)));r.dataset.i=i;var s=S[i];"
+          "r.querySelector('iframe').src=s.url;r.querySelector('[data-n]').textContent=(i+1)+'/'+S.length+' · '+s.name;"
+          "r.querySelector('[data-e]').textContent=s.event||'';r.querySelector('[data-note]').textContent=s.note||'';"
+          "r.querySelectorAll('[data-dot]').forEach(function(x,j){x.style.opacity=j===i?1:.35});})")
+    btn = "px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+    first = steps[0]
+    return Div(
+        H2(title, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else "",
+        Div(Button("←", type="button", cls=btn, onclick=f"{go}(this,-1)"),
+            Span(f"1/{len(steps)} · {first.get('name', '')}", data_n="1", cls="flex-1 min-w-0 truncate text-neutral-700 dark:text-neutral-300"),
+            Span(first.get("event") or "", data_e="1", cls="shrink-0 font-mono text-xs text-amber-600 dark:text-amber-400"),
+            Button("→", type="button", cls=btn, onclick=f"{go}(this,1)"), cls="flex items-center gap-2"),
+        Div(Iframe(src=first.get("url", ""), style=f"width:{width}px;height:{height}px;border:0;transform:scale({scale});transform-origin:0 0"),
+            style=f"width:{w}px;height:{h}px;overflow:hidden",
+            cls="mt-3"),  # the product draws its own device frame (a Storybook story does)
+        Div(*[Span(cls="inline-block w-2 h-2 rounded-full bg-neutral-500 cursor-pointer", data_dot="1", data_i=str(i),
+                   style=f"opacity:{1 if i == 0 else .35}", onclick=f"{go}(this)") for i in range(len(steps))],
+            cls="mt-2 flex gap-1.5"),
+        P(first.get("note") or "", data_note="1", cls="mt-2 text-sm text-neutral-500"),
+        data_screens=data, data_i="0",
+    )
+
+
 for _mod in DOMAINS.values():
+    _mod.render_screens = render_screens  # the product's real screens, composed (an iframe of its own URL)
     _mod.render_expected = render_expected  # actions may render an expected spec too
     _mod.render_widget_list = render_widget_list  # WidgetList, composable: the right menu's own list
 
