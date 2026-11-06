@@ -14,7 +14,7 @@
 # Não lê stdin.
 set -eu
 AQUI="$(cd "$(dirname "$0")" && pwd)"
-MUX="sh $AQUI/mux.sh"
+MUXSH="sh $AQUI/mux.sh"
 CASA="${BILIBOSS_CASA:-$HOME/.config/biliboss/casa.env}"
 [ -f "$CASA" ] || { echo "agente: falta o arquivo $CASA; copie o casa.env.example (raiz do repo biliboss/skills) para lá e preencha" >&2; exit 1; }
 . "$CASA"
