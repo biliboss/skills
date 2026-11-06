@@ -25,10 +25,13 @@ EVENTS = {
     # investimento, sem orçamento mas com custo, cobrado pelo preço da meta (Via Corretor, Biliboss Skills). Cada
     # domínio do dev-console diz de que centro é.
     "cost_center": {"update": "updated"},
-    # Você ligou o relógio num domínio: o tempo começou a contar para o centro de custo dele.
-    # O relógio parou (você pausou, trocou de domínio, escondeu a janela ou ficou 5 min sem mexer no Mac): o trecho
-    # virou uma entrada de tempo, com os segundos, o preço da hora usado e o custo em reais.
-    "time_entry": {"start": "started", "stop": "stopped"},
+    "time_entry": {
+        # Você ligou o relógio num domínio: o tempo começou a contar para o centro de custo dele.
+        "start": "started",
+        # O relógio parou (você pausou, trocou de domínio, escondeu a janela ou ficou 5 min sem mexer no Mac): o trecho
+        # virou uma entrada de tempo, com os segundos, o preço da hora usado e o custo em reais.
+        "stop": "stopped",
+    },
 }
 
 # The edges, in the order the story happens: you say what you are worth, set the cost centers, then the clock runs.

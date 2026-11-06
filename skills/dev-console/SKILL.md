@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.5.3
+  version: 0.5.4
 ---
 
 # dev-console
@@ -272,6 +272,19 @@ When Gabriel tells a story ("meu sócio fazia isso com os estagiários") and wan
 
 - Start it from a stable folder (`cd ~`) with absolute paths: the hot reload spawns a new
   process that reads the current folder, and a folder that changed under it kills the console.
+- Test a change on a second console (another port, `DEV_CONSOLE_REGISTRY=<empty file>` so only your `--project`
+  shows, temp env overrides for any data files) and read it in the headless browser; never point his native window at
+  that port, and if you did, `window.sh open` it back to 5057 before you stop: he takes the test console for his and
+  thinks a domain vanished. Kill only the test server (`pkill -f 'port <n>'` is flagged as self-termination; kill its
+  process session instead).
+- An imported domain whose journal is empty (the real one lives where the Mac cannot read it) must still return one
+  placeholder entity from `read({})`, or the page shows "Nenhum … no diário" and draws no graph.
+- Never put every event of a category in `INITIAL[1:]`: `derive` drops initial alternates from their category's chain,
+  an empty chain raises `IndexError` and the page 500s. Hang a Human decision off an event in `TRANSITIONS` instead.
+- Centre on the Human after `fit`, then zoom out around it until the bounding box fits: centring alone pushes the far
+  nodes off screen.
+- In the native window, `eval` right after `open` may run before the page draws (`window.__cy` undefined): `wait`,
+  then give it a few seconds. Make the web view the window's first responder, or `document.hasFocus()` stays false.
 
 Depth (numbers, layout, graph, server): [references/console-ui.md](references/console-ui.md).
 
