@@ -64,7 +64,7 @@ class Journal(Base):
     def test_targets(self):
         self.assertEqual([F.kind(t) for t in ("kanban", "via", "via/listing.shared/Funnel", "/agents", "https://x.dev/a")],
                          ["kanban", "slug", "widget", "url", "url"])
-        for bad in ("", "Via Corretor", "a/b"):
+        for bad in ("", "Via Corretor", "a/b", "//evil.example/x", "javascript:alert(1)"):
             with self.assertRaises(ValueError):
                 F.kind(bad)
         with self.assertRaises(ValueError):
@@ -234,6 +234,14 @@ class Routes(Base):
         for text in ("Focus home", "o grafo do Via", 'src="/domain/via?embed=graph"', 'data-go="/domain/via?ev=listing.shared&amp;w=Funnel"'):
             self.assertIn(text, r.text)
         self.assertEqual(c.get("/agent/focus").json()["cost_today"], {"seconds": 0.0, "brl": 0.0})
+
+    def test_another_site_is_framed_in_a_sandbox(self):
+        _, c = client()
+        self.card("Focus home")
+        F.set_focus("a página do produto", "https://example.com/p", "Focus home", "bili")
+        html = c.get("/home").text
+        self.assertIn('sandbox="allow-scripts allow-forms"', html)
+        self.assertIn('src="https://example.com/p"', html)
 
     def test_a_shot_is_served_only_by_a_recorder_name(self):
         _, c = client()

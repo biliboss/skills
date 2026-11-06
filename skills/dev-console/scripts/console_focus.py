@@ -71,6 +71,8 @@ def kind(target: str) -> str:
     t = str(target or "").strip()
     if t == KANBAN:
         return "kanban"
+    if t.startswith("//"):  # protocol-relative: another host dressed as a console path
+        raise ValueError(f"target {t!r}: a console path starts with one /, another site with http(s)://")
     if t.startswith(("http://", "https://", "/")):
         return "url"
     if WIDGET_RE.match(t):
@@ -203,11 +205,15 @@ def _guard(by: str) -> str:
     return by
 
 
-def _append(event: str, value: dict, by: str) -> dict:
+def _append(event: str, value: dict, by: str, check=None) -> dict:
+    """One line under the file lock; `check()` runs under the same lock first (back's empty-stack rule)."""
     line = {"id": uuid.uuid4().hex[:12], "event": event, "at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "actor": by, "value": value}
-    with _locked(), open(journal_path(), "a", encoding="utf-8") as f:
-        f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    with _locked():
+        if check:
+            check()
+        with open(journal_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
     return line
 
 
@@ -229,9 +235,12 @@ def set_focus(text: str, target: str, card: str | None, by: str, cards: list | N
 def back(by: str) -> dict:
     """focus.back: pop the focus; refused when the stack is already empty (the focus is the Kanban board)."""
     _guard(by)
-    if not stack(events()):
-        raise ValueError("the focus is already the Kanban board (the default): nothing to go back to")
-    return _append("focus.back", {"by": by}, by)
+
+    def not_empty():
+        if not stack(events()):
+            raise ValueError("the focus is already the Kanban board (the default): nothing to go back to")
+
+    return _append("focus.back", {"by": by}, by, check=not_empty)
 
 
 # --- the Kanban card in Doing and its cost clock ----------------------------------------------------------------------
@@ -431,9 +440,11 @@ def register(app, rt, json_response, ui) -> None:
                 cls="shrink-0"),
             id="card", data_card=c["id"], cls=f"shrink-0 flex items-start justify-between gap-6 px-5 pt-4 pb-3 border-b {line}")
         if f["kind"] == "url" and not f["target"].startswith("/"):
+            # another site: its last shot, else a sandboxed frame (an opaque origin: no cookies of ours, no top navigation)
             shot = _shot_for(f["target"], ui.recorder.read_lines())
             view = (Img(src=f"/home/shot?at={shot['at']}", alt=f["text"], cls="max-w-full")
-                    if shot else Iframe(src=f["embed"], cls="w-full h-full border-0"))
+                    if shot else Iframe(src=f["embed"], sandbox="allow-scripts allow-forms", referrerpolicy="no-referrer",
+                                        cls="w-full h-full border-0"))
         else:
             view = Iframe(src=f["embed"], id="focus-embed", cls="w-full h-full border-0")
         where = {"slug": "o grafo do domínio", "widget": "um widget", "url": "uma página", "kanban": "o quadro"}[f["kind"]]
