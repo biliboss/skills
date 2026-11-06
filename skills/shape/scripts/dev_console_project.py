@@ -6,6 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from fasthtml.common import Div, P, Span  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty  # noqa: E402
 from shape import TRANSITIONS, ShapeJournal  # noqa: E402,F401
 
 NAME = "Biliboss Skills - Shape"
@@ -63,7 +65,7 @@ def modelagens(ctx):
     rows = sorted(ctx.entities, key=lambda s: s.get("updated_at", ""), reverse=True)
     head = P("Modelagens", cls="font-sans text-lg font-semibold text-neutral-900 dark:text-neutral-100")
     if not rows:
-        return Div(head, P("Nenhuma modelagem ainda.", cls="text-neutral-400"))
+        return Div(head, empty("Nenhuma modelagem ainda."))
     lines = []
     for s in rows:
         glyph, text, owner = MARKS.get(s.get("status", "received"), MARKS["received"])

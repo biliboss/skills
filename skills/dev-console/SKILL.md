@@ -631,6 +631,8 @@ For a product whose code already records domain events (Domain.Imported):
   tab first skips the validation he wants. "It's prototype time" = fake data (step 1), even when real data exists.
 - **Every widget starts with a title** for humans (`H2`, what it shows: "Tarefas executadas", "Resultado da
   execução"), so it reads alone in the popup and composed inside a bigger one.
+- **Widgets are built from atoms** in `scripts/console_atoms.py` (`title`, `empty`): never hand-write a title, an
+  empty state, a row or a badge; a markup written twice becomes an atom there. Levels: `references/atomic-design.md`.
 - **A list filtered to one state does not repeat that state** on each row (a list of executed tasks shows title
   and date only).
 - **A detail widget that does not land gets replaced, not patched**: when he names the thing it should represent

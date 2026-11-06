@@ -5,7 +5,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from fasthtml.common import Div, H2, Li, P, Script, Span, Ul  # noqa: E402
+from fasthtml.common import Div, Li, P, Script, Span, Ul  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty, title  # noqa: E402
 from brainstorm import TRANSITIONS, BrainstormJournal, causal_graph  # noqa: E402,F401
 
 NAME = "Biliboss Skills - Brainstorm"
@@ -78,9 +80,9 @@ def causal_loop(ctx):
                 Span(" " + " \u2192 ".join(l["variables"]), cls="text-neutral-500"), cls="mt-1")
              for l in g["loops"]]
     return Div(
-        H2("Laço causal", cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100"),
+        title("Laço causal"),
         Div(id="causal-loop-cy", cls="h-[420px] w-full rounded border border-neutral-200 dark:border-neutral-800")
-        if g["nodes"] else P("nenhuma variável nesta sessão ainda", cls="text-neutral-400"),
+        if g["nodes"] else empty("nenhuma variável nesta sessão ainda"),
         Ul(*loops, cls="mt-3") if loops else "",
         P("R reforça (bola de neve), B equilibra (busca uma meta); + mesmo sentido, − sentido oposto.",
           cls="mt-3 text-xs text-neutral-400"),

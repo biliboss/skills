@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.8] - 2026-11-06
+
+### Changed
+
+- Atomic design: `console_atoms.py` (`title`, `empty`) replaces 5 hand-written widget titles and 13 empty states across the console and the projects; audit in `references/atomic-design.md`.
+
 ## [0.30.6] - 2026-11-06
 
 ## [0.30.7] - 2026-11-06
