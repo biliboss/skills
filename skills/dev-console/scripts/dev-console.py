@@ -1424,7 +1424,7 @@ const TABS = {
   'Model': () => `<div class="h-full flex">
       <div id="graph-col" class="flex-1 min-w-0 flex flex-col">
         <div class="flex items-center gap-4 px-4 pt-3 min-w-0">
-          <span id="legend" class="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400 min-w-0"></span>
+          <span id="legend" class="flex flex-wrap gap-x-3 gap-y-1 text-sm text-neutral-400 min-w-0"></span>
           <span class="ml-auto shrink-0 cursor-help text-neutral-500" title="Máquina de estados a partir do Human · aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário">?</span></div>
         <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div>
           <button id="centre-human" class="hidden absolute right-3 bottom-3 z-10 px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">◎ Centralizar Human</button></div>
