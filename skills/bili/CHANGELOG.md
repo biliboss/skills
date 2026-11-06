@@ -2,6 +2,35 @@
 
 Todas as mudanças do skill `bili`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-04
+
+### Added
+- `CASA_BILI_GRILL=ask|interview|plain` (padrão `ask`): o modo do grill do passo 0 (AskUserQuestion, a skill `interview` ou texto no chat). Documentado no `casa.env.example`.
+- Regras iguais nos três modos: escrever para si as decisões que faltam e a ordem antes de perguntar; uma pergunta binária por vez; cada resposta escolhe o próximo ramo; parar quando o pedido bastar; pedido já claro faz zero perguntas e diz isso.
+
+### Changed
+- O método do grill vem da skill `grilling` (grill-me): a skill manda carregá-la, sem copiar o texto; sem ela instalada, cai no modo `plain` com as mesmas regras.
+
+## [0.6.0] - 2026-11-04
+
+### Added
+- Três rotas escolhidas por configuração (`CASA_BILI_ROTA=local|remoto|linear`, padrão `local`) e uma porta só, `scripts/bili.sh` (`pedir`, `esperar`, `ler`, `rota [local|remoto|linear]`). `rota` mostra a rota e, com argumento, grava no `casa.env`.
+- `scripts/nats-bili.sh`: as rotas local e remoto publicam `mesa.agent.request.received` (gramática do libs/local-events) com a CLI `nats` e leem a resposta `mesa.agent.request.answered` pelo `trace_id`.
+- `BILI_SECO=1` no `linear-bili.sh pedir`: imprime a menção exata, sem comentar.
+- `casa.env.example`: `CASA_BILI_ROTA` e as URLs, streams, usuário e arquivo de senha do NATS.
+
+### Changed
+- O `linear-bili.sh` passa a ser a rota `linear`, chamada pelo `bili.sh`. O grill binário continua. O passo 3 do passo 0 manda pela rota, não mais por digitar na fila do pane.
+
+## [0.5.0] - 2026-11-04
+
+### Added
+- Passo 0, "No Mac: grill primeiro, depois o Bili local": todo pedido do dono no Mac vai ao Bili local, depois do grill com a ferramenta AskUserQuestion, uma pergunta binária por vez (a recomendada primeiro), num arquivo e pela fila do `mux.sh`.
+- O monitor do NATS: `scripts/watch.py` (uv), uma linha por evento que pede atenção humana (asks, errors, panes, cycle, llm, routes), armado pela ferramenta Monitor e rearmado quando expira.
+
+### Changed
+- O Bili da VPS passa a ser pedido pelo Bili local; a descrição diz isso.
+
 ## [0.4.4] - 2026-11-04
 
 ### Fixed
