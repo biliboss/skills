@@ -35,7 +35,7 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
-CONSOLE_MODULES = ("console_agents", "console_home", "console_playground", "console_recorder", "console_reload")
+CONSOLE_MODULES = ("console_agents", "console_store", "console_home", "console_playground", "console_recorder", "console_reload")
 PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
 
 
@@ -595,6 +595,10 @@ def coverage(events_by_category: dict) -> dict[str, list[str]]:
 W = SimpleNamespace(EventContext=EventContext, render_list=render_list, render_one=render_one, coverage=coverage)
 for _mod in DOMAINS.values():
     write_draft(_mod)  # once: the dummy domain draft, if the domain has none yet
+import console_home as _HM0  # noqa: E402
+
+_HM0.init()  # the SQLite file: `home` (first creation = the logo, then the old journal once) ...
+sys.modules["console_store"].sync_widgets(DOMAINS)  # ... and `widgets` mirrors the loaded projects (every start and hot reload)
 def entity_key() -> str:
     """The journal field that names the entity, in the current domain."""
     return getattr(PROJECT, "ENTITY_KEY", "tension_id")
@@ -2183,11 +2187,8 @@ def event_widgets(slug: str, tid: str, event: str, e: str = ""):
 
 @rt("/")
 def index():
-    """The console's home: an empty canvas with the logo (the `</>` tag, tournament logo-devconsole) at the centre, and
-    the status line, so ⌘K / ⌘P open a domain or a module from here."""
-    logo = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="96" height="96" aria-label="dev-console">'
-            '<path d="M4.82 4.25 L1.24 8.00 L4.82 11.75 M6.82 12.35 L9.18 3.65 M11.18 4.25 L14.76 8.00 L11.18 11.75" '
-            'fill="none" stroke="currentColor" stroke-width="1.70" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+    """The console's home, drawn from the SQLite `home` table: at first only the logo widget (the `</>` tag, tournament
+    logo-devconsole) at the centre, then whatever rows are placed, live. The status line stays, so ⌘K / ⌘P work here."""
     pre = PLAYGROUND_JS.replace("'/playground'", "'/'")
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
     payload = json.dumps({"base": f"/domain/{PLAYGROUND_SLUG}", "name": "Home", "domains": domains, "modules": _modules()},
@@ -2195,7 +2196,6 @@ def index():
     import console_home as HM
     grid_style = "grid-template-columns:repeat(auto-fill,minmax(420px,1fr));grid-auto-flow:dense;align-content:start"
     return Title("dev-console"), Link(rel="icon", href="data:,"), Style(CSS), Div(
-        Div(NotStr(logo), id="home-logo", cls="flex-1 min-h-0 flex items-center justify-center text-neutral-800 dark:text-neutral-200"),
         Div(id="home-grid", style=f"display:none;{grid_style}", cls="flex-1 min-h-0 overflow-auto grid gap-3 p-3"),
         _status_bar("Home", False, module=False), _switcher(),
         Script(payload, type="application/json", id="data"), Script(pre, type="module"), Script(HM.HOME_JS),
@@ -2208,17 +2208,19 @@ from starlette.responses import JSONResponse  # noqa: E402  (the home routes bel
 
 @rt("/api/home")
 def home_list():
-    """The widgets on the home now (read only)."""
+    """The placements on the home now, from the `home` table (read only)."""
     import console_home as HM
     return JSONResponse({"widgets": HM.widgets()})
 
 
 @rt("/api/home/show", methods=["POST"])
 async def home_show(req):
-    """Put (or replace, same id) a widget on the home. Body: {id, kind: html|url|widget, content, title?, span?, height?}."""
+    """Put (or replace, same id) a widget on the home. Body: {id, source: widget|html|url, widget_id?, content?, task?, title?, span?, height?, position?, parent_id?}."""
     import console_home as HM
     try:
         body = json.loads((await req.body()) or b"{}")
+        if not isinstance(body, dict):
+            raise ValueError("body must be a JSON object")
         rec = HM.show(body, req.headers.get("x-devc-actor") or "agent")
     except (ValueError, TypeError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -2229,7 +2231,7 @@ async def home_show(req):
 async def home_rm(req):
     import console_home as HM
     body = json.loads((await req.body()) or b"{}")
-    ok = HM.remove(str(body.get("id") or ""), req.headers.get("x-devc-actor") or "agent")
+    ok = HM.remove(str(body.get("id") or ""))
     return JSONResponse({"removed": ok}, status_code=200 if ok else 404)
 
 
@@ -2242,20 +2244,13 @@ async def home_clear(req):
 
 @rt("/api/home/stream")
 async def home_stream():
-    """Server-sent events: the home's widgets again whenever its journal changes."""
-    import asyncio
-
-    import console_home as HM
+    """Server-sent events: the home's rows again whenever the `home` table changes, even when the owner edits it in
+    another app (watchfiles on the db and its -wal file)."""
     from starlette.responses import StreamingResponse
 
     async def gen():
-        last = None
-        while True:
-            m = HM.mtime()
-            if m != last:
-                last = m
-                yield f"data: {json.dumps({'widgets': HM.widgets()}, ensure_ascii=False)}\n\n"
-            await asyncio.sleep(0.3)
+        async for snap in sys.modules["console_store"].changes():
+            yield f"data: {snap}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 

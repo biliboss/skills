@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.31.0] - 2026-11-06
+
+### Changed
+
+- The Home is a SQLite table: `home` (starts with only the logo widget; position, span, height, `parent_id` composition) and a live `widgets` catalogue, in `~/.local/share/dev-console/dev-console.sqlite` (`DEV_CONSOLE_DB`, WAL). The page renders from `home` and follows edits made outside the console (watchfiles on the db and its -wal). The logo is now a real widget (`Logo`) of the dev-console's project; `devc home show` gains `--position` and `--parent`; `rm` of a parent removes its children. The old JSONL is migrated once and kept as archive. Tests: `test_console_home.py`.
+
 ## [0.30.6] - 2026-11-06
 
 ## [0.30.7] - 2026-11-06

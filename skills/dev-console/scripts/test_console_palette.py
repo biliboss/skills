@@ -38,8 +38,10 @@ class HomeModuleInPalette(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         tmp = Path(cls.tmp.name)
-        (tmp / "registry").write_text("")
-        env = {**os.environ, "DEV_CONSOLE_REGISTRY": str(tmp / "registry"), "COSTS_DIR": str(tmp / "costs")}
+        (tmp / "reg").mkdir()
+        (tmp / "reg" / "registry").write_text("")
+        env = {**os.environ, "DEV_CONSOLE_REGISTRY": str(tmp / "reg" / "registry"), "COSTS_DIR": str(tmp / "costs"),
+               "DEV_CONSOLE_DB": str(tmp / "db" / "dev-console.sqlite")}  # never the owner's database
         kanban = HERE.parent.parent / "kanban" / "scripts" / "dev_console_project.py"
         cls.proc = subprocess.Popen(
             ["uv", "run", "--script", str(HERE / "dev-console.py"), "--project", str(HERE / "dev_console_project.py"),

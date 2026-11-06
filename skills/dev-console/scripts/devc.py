@@ -46,7 +46,7 @@ USAGE = """usage: devc [--port N] [--json] <command>
   board [kanban args...]           the Kanban: passthrough to kanban.sh (devc board list, devc board move ...)
   home list | rm <id> | clear      the home's live widgets (the Dynamic View)
   home show <id> (--html H | --html-file F | --url U | --widget slug/event/name [--task T])
-       [--title T] [--span 1-3] [--height PX]   put or replace a widget on the home, live
+       [--title T] [--span 1-3] [--height PX] [--position N] [--parent ID]   put or replace a widget on the home, live
   install                          symlink devc into ~/.local/bin"""
 
 
@@ -551,32 +551,33 @@ def cmd_home(a: dict) -> int:
             print(json.dumps(body, ensure_ascii=False, indent=2))
         else:
             for w in body["widgets"]:
-                print(f"{w['id']}\t{w['kind']}\t{w.get('title', '')}\t{w.get('actor', '')}")
+                print(f"{w['id']}\t{w['source']}\t{w['position']}\t{w.get('parent_id') or '-'}\t{w.get('title', '')}\t{w.get('actor', '')}")
             if not body["widgets"]:
-                print("home vazia (só o logo)")
+                print("home vazia (nem o logo)")
         return 0
     if sub == "show":
         if not pos:
             raise DevcError("usage: devc home show <id> --html H | --html-file F | --url U | --widget slug/event/name", 2)
+        body = {"id": pos[0], "title": opts.get("title", pos[0])}
         if "html-file" in opts:
-            kind, content = "html", Path(opts["html-file"]).expanduser().read_text(encoding="utf-8")
+            body.update(source="html", content=Path(opts["html-file"]).expanduser().read_text(encoding="utf-8"))
         elif "html" in opts:
-            kind, content = "html", opts["html"]
+            body.update(source="html", content=opts["html"])
         elif "url" in opts:
-            kind, content = "url", opts["url"] if "://" in opts["url"] or opts["url"].startswith("/") else "http://" + opts["url"]
+            body.update(source="url", content=opts["url"] if "://" in opts["url"] or opts["url"].startswith("/") else "http://" + opts["url"])
         elif "widget" in opts:
-            parts = opts["widget"].split("/")
-            if len(parts) != 3:
+            if len(opts["widget"].split("/")) != 3:
                 raise DevcError("--widget needs slug/event/name", 2)
-            slug, event, name = (urllib.parse.quote(x, safe="") for x in parts)
-            task = opts.get("task", "")
-            kind, content = "widget", f"/domain/{slug}/w/{urllib.parse.quote(task or '_', safe='')}/{event}/{name}" + (f"?task={urllib.parse.quote(task)}" if task else "")
+            body.update(source="widget", widget_id=opts["widget"])
+            if opts.get("task"):
+                body["task"] = opts["task"]
         else:
             raise DevcError("show needs --html, --html-file, --url or --widget", 2)
-        body = {"id": pos[0], "kind": kind, "content": content, "title": opts.get("title", pos[0])}
-        for k in ("span", "height"):
+        for k in ("span", "height", "position"):
             if k in opts:
                 body[k] = int(opts[k])
+        if "parent" in opts:
+            body["parent_id"] = opts["parent"]
         status, out = http_post(port, "/api/home/show", body)
     elif sub == "rm":
         if not pos:
