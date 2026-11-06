@@ -1,14 +1,13 @@
 ---
 name: brainstorm
 description: >-
-  Use when an idea is still open, before backbrief (backbrief confirms a task that is already clear; brainstorm is for
-  when it is not clear yet). Thinks it through with the owner inside a Double Diamond (discover, define, develop,
-  deliver) using systems thinking (Cynefin, iceberg, causal loops, leverage points), one question at a time, then
-  writes a short design note and hands it to backbrief. Use when the owner says "brainstorm", "brainstorm with me",
-  "vamos pensar", "me ajuda a pensar", "pensamento sistêmico" or "ainda não sei o que quero". Not for a clear task
-  (backbrief) nor for reviewing a session (retro).
+  A piece of `shape` (only by /brainstorm): when the idea is still open, think it through with the owner
+  in a Double Diamond with systems thinking (Cynefin, iceberg, causal loops, leverage points), one question
+  at a time, then a short design note for the backbrief. `shape` calls it; the agent does not pick it by
+  itself.
+disable-model-invocation: true
 metadata:
-  version: 0.1.1
+  version: 0.2.0
   license: MIT
 ---
 
