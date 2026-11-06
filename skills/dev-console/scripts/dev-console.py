@@ -550,7 +550,11 @@ html[data-embed=toolbar] #bar { border-bottom: 0; }
 .mermaid svg{max-width:100%}
 /* the money bar: one number ticks, the rest is still; an embed never shows it */
 #money [data-act]{cursor:pointer} #money [data-act]:focus-visible{outline:1px solid currentColor;outline-offset:2px}
-#money .over{color:rgb(220 38 38)} html[data-embed] #money{display:none !important}
+#money .over{color:rgb(220 38 38)} html[data-embed]:not([data-embed=money]) #money{display:none !important}
+/* ?embed=money: the money bar alone (CostToolbar widget) */
+html[data-embed=money] #bar ~ * { display: none !important; }
+html[data-embed=money] #bar > :not(#money) { display: none !important; }
+html[data-embed=money] #bar { border-bottom: 0; } html[data-embed=money] #money { border-left: 0; }
 /* the right menu's expandable parts: no Pico margins, the chevron right after the title */
 #ev-body details { margin: 0; padding: 0; } #ev-body details summary { margin: 0; list-style: none; }
 #ev-body details summary::after { float: none; margin-left: .25rem; }
@@ -1076,7 +1080,7 @@ document.addEventListener('keydown', e => {
   if (popOpen()) return;
 });
 $('inspector').textContent = JSON.stringify(D.state, null, 2);
-if (Q.get('embed') && Q.get('embed') !== 'toolbar') $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
+if (Q.get('embed') && !['toolbar', 'money'].includes(Q.get('embed'))) $('bar').style.display = 'none';  // ?embed=1: a widget embeds this view, without the tab bar
 if (Q.get('embed') === 'toolbar' && Q.get('sim_tab')) D.tabs.push(Q.get('sim_tab'));  // SIMULADO: an example tab, nothing recorded
 show(tab);
 if (Q.get('embed')) document.documentElement.dataset.embed = Q.get('embed');

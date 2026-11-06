@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from fasthtml.common import H2, Div, P, Span  # noqa: E402
+from fasthtml.common import H2, Div, Iframe, P, Span  # noqa: E402
 from costs import TRANSITIONS, CostsJournal  # noqa: E402,F401
 
 NAME = "Biliboss Skills - Costs"
@@ -110,8 +110,17 @@ def time_entries(ctx):
                      P(e["at"][11:16], cls="text-xs text-neutral-400"), cls="py-1.5") for e in es])
 
 
+def cost_toolbar(ctx):
+    """Cost Toolbar: the console's real money bar, embedded (?embed=money), the same one every domain's toolbar shows."""
+    return Div(_title("Relógio de custo"),
+               Iframe(src=f"/domain/{SLUG}?embed=money", cls="w-full h-11 rounded border border-neutral-200 dark:border-neutral-800"))
+
+
+cost_toolbar.fake = True  # an embedded console screen: it renders before the event exists
+
 WIDGETS: dict = {
     "worth.updated": [worth],
+    "time_entry.started": [cost_toolbar],
     "cost_center.updated": [cost_centers],
     "time_entry.stopped": [day_cost, time_entries],
 }
