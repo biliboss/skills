@@ -357,7 +357,7 @@ def time_entries(cost_events: list[dict], running: dict | None, now: datetime) -
             seen = parse_at(running.get("last_seen") or running["started_at"])
         except ValueError:
             return out
-        live = (now - seen).total_seconds() <= STALE_SECONDS
+        live = running.get("driver") == "tmux" or (now - seen).total_seconds() <= STALE_SECONDS
         end = now if live else max(seen, start)
         if end > start:
             out.append(TimeEntry("running", running["domain"], running.get("center") or "", start, end, running=live))

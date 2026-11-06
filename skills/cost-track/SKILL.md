@@ -7,7 +7,7 @@ description: >-
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
   backbrief (tasks).
 metadata:
-  version: 0.3.2
+  version: 0.4.0
 ---
 
 # cost-track
@@ -45,6 +45,13 @@ slug, else `None`), `rate_hour(center)` (a client at `value_month`, an investmen
 
 A domain joins a center with `COST_CENTER = "<id>"` in its project file, or by being in the center's `domains` list in
 `cost_center.updated`. The Costs domain itself declares `biliboss-skills`.
+
+## The clock follows tmux
+
+The clock has ONE writer besides manual commands: `costs.sh tmux-focus <session|->`, run by tmux hooks (`costs.sh tmux-install`
+puts them in `~/.tmux.conf`; `tmux-uninstall` removes; `costs.sh status` shows the running entry). Attached to (or switched by
+sesh to) a session named like an open Kanban card (Upstream/Downstream; slug of its title or its domain) starts an entry in that
+card's domain (card id in the value); any other session or a detach stops it. Closing a session = losing focus. Idempotent, silent.
 
 ## Widgets
 

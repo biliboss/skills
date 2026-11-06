@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-06
+
+### Fixed
+
+- A running entry written by tmux-focus (`driver: tmux`) is live without page pings (no 45 s staleness).
+
 ## [0.4.1] - 2026-11-06
 
 ### Added

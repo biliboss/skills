@@ -1834,6 +1834,9 @@ def _load_costs():
 
 
 C = _load_costs()
+# The clock is written by cost-track's `costs.sh tmux-focus` (the tmux session he is attached to), not by this window.
+# DEVC_CLOCK_DRIVER=1 brings the window back as a second writer (off by default).
+CLOCK_DRIVER = os.environ.get("DEVC_CLOCK_DRIVER", "") == "1"
 ENDED_BY = ("pause", "domain_change", "hidden", "idle", "close")
 STALE_SECONDS = 45  # the page pings every ~10 s while running; silence this long means the page is gone
 
@@ -1870,7 +1873,7 @@ def _close_run(ended_by: str, now=None, trim: float = 0.0):
 def _settle():
     """Close a stretch whose page went quiet (ended_by close, ended at the last ping)."""
     run = C.running() if C else None
-    if run and (_now() - datetime.fromisoformat(run["last_seen"])).total_seconds() > STALE_SECONDS:
+    if run and run.get("driver") != "tmux" and (_now() - datetime.fromisoformat(run["last_seen"])).total_seconds() > STALE_SECONDS:
         _close_run("close", now=datetime.fromisoformat(run["last_seen"]))
 
 
@@ -1878,7 +1881,7 @@ def _leave(slug: str):
     """A page of another domain opened: a stretch running elsewhere ends (domain_change)."""
     _settle()
     run = C.running() if C else None
-    if run and run["domain"] != slug:
+    if run and run["domain"] != slug and CLOCK_DRIVER:
         _close_run("domain_change")
 
 
@@ -1943,7 +1946,7 @@ def time_enter(slug: str):
     """A person acted on this domain's page (a trusted gesture): a stretch running in another domain ends."""
     if not _known(slug):
         return _json({"error": "no such domain"}, 404)
-    if C:
+    if C and CLOCK_DRIVER:
         _leave(slug)
     return _json(_money_state(slug) or {"error": "no cost center"})
 
@@ -1953,6 +1956,8 @@ def time_start(slug: str):
     """Start a stretch (the only way the clock runs); one at a time, another domain's ends first (domain_change)."""
     if not _known(slug):
         return _json({"error": "no such domain"}, 404)
+    if not CLOCK_DRIVER:  # the window does not drive the clock (tmux-focus does): the bar only shows it
+        return _json(_money_state(slug) or {"error": "no cost center"})
     center = _center_of(slug)
     rate = C.rate_hour(center) if center else None
     if not rate:
@@ -1973,7 +1978,7 @@ def time_beat(slug: str):
     """The page is alive: a stretch nobody pings for a while is closed (ended_by close)."""
     if not _known(slug):
         return _json({"error": "no such domain"}, 404)
-    if C:
+    if C and CLOCK_DRIVER:
         _settle()
         run = C.running()
         if run:
@@ -1986,7 +1991,7 @@ def time_stop(slug: str, ended_by: str = "pause", trim_seconds: float = 0):
     """End the running stretch (pause | domain_change | hidden | idle | close); idempotent."""
     if not _known(slug):
         return _json({"error": "no such domain"}, 404)
-    if C:
+    if C and CLOCK_DRIVER:
         _close_run(ended_by, trim=min(max(trim_seconds, 0), 86400))
     return _json(_money_state(slug) or {"error": "no cost center"})
 

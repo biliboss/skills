@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.29.1
+  version: 0.29.2
 ---
 
 # dev-console
@@ -239,6 +239,7 @@ into the browser's Print). The two key handlers listen in the capture phase so t
 - **Data** lives in `~/.local/state/dev-console/playground/` (`DEV_CONSOLE_PLAYGROUND_DIR` moves it): `canvas.json` and
   `componentes/<produto>/<peça>.json`, the design-playground's format. `console.sh playground import [<dados dir>]
   [--force]` copies them once from `~/biliboss/dev/design-playground/dados` and refuses to overwrite without `--force`.
+- **The clock is not driven by this window** (0.29.2): focus, hidden, idle and domain switch no longer start or stop it; cost-track's `costs.sh tmux-focus` (tmux hooks) is the only writer, the bar just shows it (`DEVC_CLOCK_DRIVER=1` brings the old driver back).
 - **The money bar**: no domain, so `PLAYGROUND_COST_CENTER` (env `DEV_CONSOLE_PLAYGROUND_COST_CENTER`, default
   `biliboss-skills`) names the cost center; the same bar and the same records (`domain: playground`), through
   `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
