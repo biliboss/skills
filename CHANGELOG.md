@@ -2,6 +2,11 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.62.0
+
+- dev-console 0.28.0: two fingers pan the graph, a pinch or ⌘ + scroll zooms; no graph label under 14 px
+  (a zoom floor; nothing folded or hidden).
+
 ## 0.61.0
 
 - dev-console 0.27.0: Restores the domain page and the home to 0.24.0 (before the folded lanes of 0.25.0 and the focus home of 0.26.0): the owner lost the side panel and the event texts. devc stays.

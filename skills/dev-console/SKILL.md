@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.27.0
+  version: 0.28.0
 ---
 
 # dev-console
@@ -326,6 +326,15 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   faint hint `⌘K domínio · ⌘P módulo` on the right. The ⌘P overlay (same look and keys as ⌘K: ↑↓ escolher · Enter
   abrir · Esc fechar, fzf-style typing) lists `D.modules`: Domain, the project's `TABS`, and Playground. Each module still has its vim-style goto (`g` then its letter: `g d` Domain, `g m` Model). Colours for unknown categories come from a fixed palette by
   category order, so any domain draws. Esc closes the popup, then the sidebar.
+- **The wheel moves the graph, as in Figma and Maps**: two fingers (or a mouse wheel) pan it, a pinch or ⌘ + scroll
+  zooms around the pointer; Cytoscape's own wheel zoom is off (`userZoomingEnabled: false`) and the handler calls
+  `preventDefault`, so the page never scrolls. Chrome sends a pinch as `wheel` + `ctrlKey`, WebKit (the native window)
+  as `gesturestart/change/end`: handle both, or the pinch dies in DevConsole.app.
+- **No graph label under 14 px on screen at his window (~1128×1074).** Font sizes are model units, so the zoom has a
+  floor, `cy.minZoom(14 / the smallest label font)` (stations and dashed commands are 14, so the floor is 1): fit, the
+  home view and a pinch stop there, and a big domain opens larger than the window, read by panning. Never fold lanes,
+  hide labels (`min-zoomed-font-size`) or grow fonts by 1/zoom to make it fit: 0.25.0 hid his event texts and was
+  reverted, and labels grown in model units overlap. The lane legend is `text-sm` (14 px).
 - **Domain is the first tab and the default** (`g d`); it reuses the Model view (`drawGraph`, the
   same sidebar and popup). One graph, one style: a new graph tab joins `GRAPH(tab)`, never a second
   Cytoscape function or its own layout.
@@ -545,8 +554,8 @@ For a product whose code already records domain events (Domain.Imported):
    columns with a faint header at the top, and an edge that would go back to an earlier stage is drawn as a loop (dashed),
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
    input) or the small `ramos` / `raios` button in the graph's top-right corner toggles branch and metro on any domain, kept per
-   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height (a 20-lane import is tiny
-   until zoomed: scroll or zoom right to read on). **No two lines share a segment**: lines leaving one station down the
+   domain in localStorage. It opens with the Human at the top left and the zoom fitting the height, never below the legible floor
+   (no label under 14 px: a 20-lane import opens larger than the window, read with two fingers). **No two lines share a segment**: lines leaving one station down the
    same 45° slope are an interchange, ranked by leg length, each next one leaving a step lower-left
    (`source-endpoint`) and turning earlier, so the legs run parallel; a back edge (loop, stage regress) is an
    `unbundled-bezier` arc above the rows, never routed along a line. Cytoscape's segment weights are relative to the
