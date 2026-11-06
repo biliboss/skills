@@ -1,0 +1,82 @@
+---
+name: brainstorm
+description: >-
+  Use when an idea is still open, before backbrief (backbrief confirms a task that is already clear; brainstorm is for
+  when it is not clear yet). Thinks it through with the owner inside a Double Diamond (discover, define, develop,
+  deliver) using systems thinking (Cynefin, iceberg, causal loops, leverage points), one question at a time, then
+  writes a short design note and hands it to backbrief. Use when the owner says "brainstorm", "brainstorm with me",
+  "vamos pensar", "me ajuda a pensar", "pensamento sistêmico" or "ainda não sei o que quero". Not for a clear task
+  (backbrief) nor for reviewing a session (retro).
+metadata:
+  version: 0.1.0
+  license: MIT
+---
+
+# brainstorm
+
+Owner-facing text is Portuguese (Brazil). Credits for every base: [README.md](README.md#créditos-e-referências).
+Depth on each tool: [references/tools.md](references/tools.md); what was borrowed: [references/prior-art.md](references/prior-art.md).
+
+The journal is global, `~/.local/share/brainstorm/events.jsonl` (override `BRAINSTORM_DIR`); the only writer is
+`scripts/brainstorm.sh emit`:
+
+```
+scripts/brainstorm.sh emit <event> '{"text": "..."}' --session <id> --actor <who>
+scripts/brainstorm.sh sessions [--status S]
+scripts/brainstorm.sh graph <session>        # the causal loop as JSON: nodes, edges (+/-), loops (R/B)
+```
+
+Events: `session.started|finished`, `problem.classified {domain}`, `question.asked|answered`, `variable.added {name}`,
+`link.added {from,to,polarity}`, `loop.identified {kind R|B, variables}`, `approach.proposed|chosen`,
+`leverage.ranked {level 1-12, text}`. Every event but the free-text ones is validated; a bad one exits 2.
+
+## The dialogue (always)
+
+1. **Ask first, one question at a time**, through the harness's ask tool (Hermes `clarify`, Claude Code
+   `AskUserQuestion`); short, pt-BR, with 2-4 choices when the answers can be named. Read what the owner already
+   gave (files, the conversation) before asking; never ask what it answers.
+2. **Propose 2-3 approaches** with their trade-offs and a recommendation, in a message of their own.
+3. **Approve the design in sections**, each short, one confirmation per section.
+4. Emit as you go (`session.started` with the owner's words first). A clear task is not a brainstorm: route to backbrief.
+
+## The frame: Double Diamond (diverge, converge, twice)
+
+| Stage | Move | Tools that fit |
+|---|---|---|
+| Discover (diverge) | many questions and facts, no solutions | Cynefin, iceberg |
+| Define (converge) | one problem statement | iceberg, causal loop |
+| Develop (diverge) | several approaches | causal loop, leverage points |
+| Deliver (converge) | pick one, write the note | leverage points |
+
+## Systems thinking tools (each where it fits, never all every time)
+
+- **Cynefin** (first): classify the problem, emit `problem.classified`. clear = apply the rule; complicated = analyse,
+  then decide; complex = run a small experiment and sense; chaotic = act, then sense; disorder = split it up first.
+  A complex problem gets an experiment as its approach, not a plan.
+- **Iceberg** (discover/define): event, then pattern, then structure, then mental model. Ask "o que aconteceu, e o
+  que se repete?" and go one level down until the answer is a structure or a belief, not a symptom.
+- **Causal loop** (define/develop): variables as nouns that can rise or fall; each link has `+` (same direction) or
+  `-` (opposite). Emit `variable.added` and `link.added`; a closed cycle with an even count of `-` is R (reinforcing),
+  odd is B (balancing): emit `loop.identified`. Skip it when there is no feedback to see.
+- **Leverage points** (develop): rank where to act with Meadows' 12 levels (Meadows' numbering: 12 = numbers, the
+  weakest; 1 = transcending paradigms, the strongest and hardest). Emit `leverage.ranked`.
+
+## Output: the design note
+
+A short note, no template ceremony: the chosen approach and why, in the first person, "Decidi X porque Y", with
+the rejected approaches in one line each. Emit `approach.chosen` with it. When the owner agrees, run
+`session.finished` and hand the note to **backbrief** as the task to confirm.
+
+## The causal loop in the dev-console
+
+The loop shows in the console as the Brainstorm domain (`scripts/dev_console_project.py`, widget `CausalLoop`: variables
+as nodes, links as arrows labelled + or -, loops listed below). Add it with `console.sh domains add
+<this skill>/scripts/dev_console_project.py`; it only reads the journal. Draw nothing by hand: emit the events.
+
+## Pitfalls
+
+- Do not brainstorm a clear task; two sentences of doubt are not a session. Route it to backbrief.
+- One question per message; a list of questions gets one answer and loses the rest.
+- Do not run every tool: pick by Cynefin domain. A chaotic problem needs action first, not a diagram.
+- A link's polarity is about the variables, not about good or bad: `+` means they move the same way.
+- Tests: `uv run --script scripts/test_brainstorm.py` (temp `BRAINSTORM_DIR`; never the real journal).
