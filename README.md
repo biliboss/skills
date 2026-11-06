@@ -18,6 +18,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `thread` | o tópico de um card numa chamada só: janela tmux + sessão Hermes (branch ou nova) `<card> · <tópico>`, brief inline sem arquivo; as abas por recência (a mais recente é a 2) e a aba acende (✓) quando o agente termina um turno (skill tmux) |
+| `handoff` | a passagem de turno de um agente Hermes no tmux: registra a sessão em `bili-sessions.jsonl`, abre o branch numa aba à direita e só então limpa a original (`/new` + resumo) |
 | `skill-smith` | cria, atualiza e porta skills |
 | `sync` | deixa cada repo que a sessão tocou igual ao remoto e sem sujeira, à mão |
 | `postmortem` | do problema relatado até a decisão que o causou, reconstruída dos eventos do NATS, e a mudança aplicada |
