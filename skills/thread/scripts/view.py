@@ -67,8 +67,10 @@ def gallery(sid, v):
         k = a.get("key", ""); n = a.get("name", "").split(":")[0].split("(")[0].strip()
         pc = pct.get(k); rec = pc is not None and pc == top
         bar = f'<div class=bar><i style="width:{pc}%"></i></div><b class=pct>{pc}%</b>' if pc is not None else ""
+        w = a.get("wins", 0)
+        crown = f'<span class=wins title="rodadas como campeão">♛ {w}×</span>' if w else ""
         cells.append(f'<section class="{"rec" if rec else ""}{" drawing" if a.get("state") == "drawing" else ""}"><div class=stage>{img}</div>'
-                     f'<footer><span class=k>{html.escape(k)}</span><span class=n>{html.escape(n)}</span>'
+                     f'<footer><span class=k>{html.escape(k)}</span><span class=n>{html.escape(n)}</span>{crown}'
                      f'{"<span class=tag>recomendado</span>" if rec else ""}{bar}</footer></section>')
     g = v.get("goal") or {}
     cols = 2 if len(cells) <= 4 else 3
@@ -92,7 +94,7 @@ footer{{display:flex;gap:12px;align-items:center;padding:14px 22px;border-top:1p
 .bar{{margin-left:auto;width:120px;height:4px;background:#222;border-radius:2px;overflow:hidden}}
 .bar i{{display:block;height:100%;background:#555}} .rec .bar i{{background:#4ade80}}
 .pct{{width:44px;text-align:right;color:#777}} .rec .pct{{color:#4ade80}}
-.miss{{color:#555}}
+.miss{{color:#555}} .wins{{color:#e5c07b;font-size:12px;border:1px solid #3a3320;border-radius:10px;padding:1px 8px}}
 .ghost{{width:min(26vh,26vw);height:min(26vh,26vw);border-radius:22%;position:relative;overflow:hidden;background:#141414}}
 .ghost i{{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#2a2a2a 50%,transparent 70%);animation:sh 1.4s ease-in-out infinite}}
 section.drawing:nth-child(3) .ghost i{{animation-delay:.2s}} section.drawing:nth-child(4) .ghost i{{animation-delay:.4s}}

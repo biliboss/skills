@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-06
+
+### Added
+
+- `pane.sh do <alvo> k=<Tecla> t=<texto> s=<seg>... [--read N]`: uma interação inteira num tiro (teclas, texto literal e pausas em ordem, com um respiro entre os passos), e no fim o pane; `--read 0` não lê.
+
 ## [0.5.0] - 2026-11-06
 
 ### Added

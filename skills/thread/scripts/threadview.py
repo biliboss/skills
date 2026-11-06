@@ -104,7 +104,8 @@ def body(v, flash={}):
             name = a.get("name", "").split(":")[0].split("(")[0].strip()[:12]
             rec = "recomend" in a.get("name", "").lower()
             cells.append(Text.assemble(("┌────┐\n│ ", ACC if rec else DIM), fill, (" │\n└────┘\n", ACC if rec else DIM),
-                                       (a.get("key", ""), "bold"), (f" {name}", ACC if rec else DIM), (" ★" if rec else "", ACC)))
+                                       (a.get("key", ""), "bold"), (f" {name}", ACC if rec else DIM), (" ★" if rec else "", ACC),
+                                       (f"\n♛ {a['wins']}×" if a.get("wins") else "", "#e5c07b")))
         sl.add_row(*cells)
         parts += [section("artefatos", "artifacts" in flash), tag(sl, "Artifacts")]
         if v.get("url"):

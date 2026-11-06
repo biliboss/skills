@@ -70,7 +70,7 @@ def _project(events: list[dict]) -> dict:
     if not events:
         return {}
     s = {"id": events[-1]["tournament"], "theme": "", "kind": "", "thread": "", "round": 0, "champion": "",
-         "options": [], "criteria": [], "status": "", "updated_at": events[-1]["at"]}
+         "options": [], "criteria": [], "wins": {}, "status": "", "updated_at": events[-1]["at"]}
     for e in events:
         v = e.get("value", {})
         k = e["event"]
@@ -80,6 +80,7 @@ def _project(events: list[dict]) -> dict:
             s["round"] = v["round"]
             s["options"] = v["options"]
             s["champion"] = v["options"][0]["name"]
+            s["wins"][s["champion"]] = s["wins"].get(s["champion"], 0) + 1  # rounds it was champion
         elif k == "round.answered" and v.get("answer") == "feedback":
             s["criteria"].append(v.get("text", ""))
         s["status"] = k
@@ -151,8 +152,8 @@ def draw_round(state: dict) -> None:
     if not v and not sid:
         return
     champ = state["options"][0]["name"]
-    v["artifacts"] = [{"key": f"{i:02d}", "name": o["name"], "state": "ready", "path": o["path"], "pct": o["pct"]}
-                      for i, o in enumerate(state["options"], 1)]
+    v["artifacts"] = [{"key": f"{i:02d}", "name": o["name"], "state": "ready", "path": o["path"], "pct": o["pct"],
+                       "wins": state["wins"].get(o["name"], 0)} for i, o in enumerate(state["options"], 1)]
     # Edges as fixed keys (muscle memory): the same key always walks the same edge, in every round.
     v["decision"] = {"text": f"Rodada {state['round']}. Campeão: {champ}.", "cmd": None, "options": [], "tournament": state["id"],
                      "keys": [{"key": "enter", "label": f"outra rodada: {champ} contra 3 novos", "send": f"torneio {state['id']}: outra rodada (resposta já registrada; desenhe os 3 desafiantes)", "answer": "another"},
@@ -172,7 +173,8 @@ def draw_pending(state: dict, why: str) -> None:
     if not v:
         return
     champ = state["options"][0]
-    v["artifacts"] = [{"key": "01", "name": champ["name"], "state": "ready", "path": champ["path"], "pct": champ["pct"]}] + \
+    v["artifacts"] = [{"key": "01", "name": champ["name"], "state": "ready", "path": champ["path"], "pct": champ["pct"],
+                       "wins": state["wins"].get(champ["name"], 0)}] + \
                      [{"key": f"{i:02d}", "name": "desafiante", "state": "drawing"} for i in (2, 3, 4)]
     v["decision"] = None
     v["pulse"] = f"desenhando 3 desafiantes contra {champ['name']}" + (f" · critério: {why}" if why else "")
