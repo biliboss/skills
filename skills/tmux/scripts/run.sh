@@ -95,7 +95,7 @@ tagged_sessions() { # linhas: nome|owner (so as com @procs=1)
 }
 is_tagged() { [ "$(tm show-options -v -t "=$1:" @procs 2>/dev/null)" = 1 ]; }
 has_session() { tm has-session -t "=$1" 2>/dev/null; }
-owner_alive() { [ -e "$1/.git" ]; }
+owner_alive() { [ -n "$1" ] && [ -d "$1" ]; }  # the owner folder exists (a removed worktree takes its folder with it; a non-git --owner counts too)
 
 # ---------- start ----------
 cmd_start() {
