@@ -7,6 +7,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from auth import TRANSITIONS, AuthJournal  # noqa: E402,F401
 from fasthtml.common import Div, P, Span  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty  # noqa: E402
 
 NAME = "Biliboss Skills - Auth"
 SLUG = "auth"
@@ -35,7 +37,7 @@ def contas(ctx):
     """Every account, one line each: provider · alias · email · state; burgundy only for what needs the owner."""
     rows = sorted(ctx.entities, key=lambda s: (s.get("provider", ""), s.get("alias", "")))
     if not rows:
-        return Div(P("Contas", cls="font-sans text-lg font-semibold"), P("Nenhuma conta ainda.", cls="text-neutral-400"))
+        return Div(P("Contas", cls="font-sans text-lg font-semibold"), empty("Nenhuma conta ainda."))
     lines = []
     for s in rows:
         glyph, text, owner = MARKS.get(s.get("status", "needs_login"), MARKS["broken"])

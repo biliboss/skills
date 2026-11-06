@@ -5,7 +5,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from fasthtml.common import A, Div, Figcaption, Figure, H2, Img, Li, NotStr, Ol, P, Pre, Script, Span, Ul  # noqa: E402
+from fasthtml.common import A, Div, Figcaption, Figure, Img, Li, NotStr, Ol, P, Pre, Script, Span, Ul  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty, title  # noqa: E402
 from tasks import (MEDIA_DIR, TRANSITIONS, BeforeAfter, Check, Commit, Delivery, Effort, ExecutionResult,  # noqa: E402,F401
                    Harness, Journey, Method, Model, Picture, PullRequest, PullRequestState, SessionRef, TaskDelivery,
                    TasksJournal, Verification, outcome_of, result_from)
@@ -154,10 +156,6 @@ skill.fake = True  # generated from the skill's files, not from journal events: 
 BASE = "/domain/tasks"  # set again by the console (its own BASE for this domain)
 
 
-def _title(text: str):
-    """Every widget starts with its title."""
-    return H2(text, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100")
-
 
 def _when(iso: str) -> str:
     from datetime import datetime
@@ -182,8 +180,8 @@ def task_list(ctx):
                   else f"{BASE}/t/{t['id']}?ev=task.executed&w=Tasks"), target="_top",
             cls="block px-3 py-2.5 rounded no-underline hover:bg-neutral-100 dark:hover:bg-neutral-900 "
                 + ("bg-neutral-100 dark:bg-neutral-900" if on else "")))
-    return Div(_title("Tarefas executadas"),
-               Div(*rows, cls="flex flex-col gap-0.5") if rows else P("nenhuma tarefa executada ainda", cls="text-neutral-400"))
+    return Div(title("Tarefas executadas"),
+               Div(*rows, cls="flex flex-col gap-0.5") if rows else empty("nenhuma tarefa executada ainda"))
 
 
 def _executed(ctx) -> dict | None:
@@ -296,7 +294,7 @@ def before_after(ctx, standalone: bool = True):
     body = [Div(P(ba.title, cls="mt-4 font-sans text-sm font-semibold text-neutral-700 dark:text-neutral-300"),
                 Div(_figure(ba.before, "Antes"), _figure(ba.after, "Depois"),
                     cls="mt-2 grid grid-cols-2 gap-4 cursor-zoom-in", data_media="1")) for ba in pairs]
-    content = Div(_title("Antes e depois"), *body) if pairs else Div(_title("Antes e depois"), P("nenhum", cls="text-neutral-400"))
+    content = Div(title("Antes e depois"), *body) if pairs else Div(title("Antes e depois"), empty("nenhum"))
     return _with_media(content) if standalone else content
 
 
@@ -306,7 +304,7 @@ def journey(ctx, standalone: bool = True):
     js = r.journeys if r else ()
     body = [Div(P(j.title, cls="mt-4 font-sans text-sm font-semibold text-neutral-700 dark:text-neutral-300"),
                 Div(*[_figure(pic, wide=False) for pic in j.steps], cls="mt-2 flex gap-3 overflow-x-auto pb-2")) for j in js]
-    content = Div(_title("Jornada"), *body) if js else Div(_title("Jornada"), P("nenhuma", cls="text-neutral-400"))
+    content = Div(title("Jornada"), *body) if js else Div(title("Jornada"), empty("nenhuma"))
     return _with_media(content) if standalone else content
 
 
@@ -401,7 +399,7 @@ def task_execution_result(ctx):
     x, run = _result(ctx)
     fact = lambda label, value: Div(Div(label, cls="text-[11px] uppercase tracking-widest text-neutral-400"),  # noqa: E731
                                     Div(value, cls="mt-0.5 font-sans text-[15px] text-neutral-900 dark:text-neutral-100"))
-    head = [_title("Resultado da execução"),
+    head = [title("Resultado da execução"),
             P((ctx.state or {}).get("title") or FAKE_TASK, cls="font-sans text-sm text-neutral-500 dark:text-neutral-400")]
     if x is None:  # an older run: only its text was recorded
         return _with_media(*head, Div(_report(run["value"].get("text", "")), cls="mt-4"),
@@ -472,7 +470,7 @@ def domain_diff(ctx, standalone: bool = True):
     added = sum(1 for x, _ in FAKE_DOMAIN_DIFF if x == "+")
     removed = sum(1 for x, _ in FAKE_DOMAIN_DIFF if x == "-")
     return Div(
-        _title("Mudança no domínio"),
+        title("Mudança no domínio"),
         P(f"pseudo-código · antes e depois da execução · +{added} −{removed}", cls="text-xs text-neutral-400"),
         Div(*lines, cls="mt-3 py-2 rounded border border-neutral-200 dark:border-neutral-800 font-mono text-[13px] leading-6"),
         P("dados de exemplo: o desenho vem antes da conexão", cls="mt-6 text-xs text-neutral-400") if standalone else "",
@@ -510,7 +508,7 @@ def task_execution_log(ctx):
             rows.append(row(k, v))
     rows += [row("commit", f"{c.sha} {c.repo} · {c.message}") for c in x.commits]
     return Div(
-        _title("Registro da execução"),
+        title("Registro da execução"),
         *rows,
         P("dados de exemplo no value object ExecutionResult", cls="mt-6 text-xs text-neutral-400"),
         cls="max-w-[760px]")
@@ -524,7 +522,7 @@ def tasks(ctx):
     some = any(t.get("result") is not None and (not ctx.domain or t.get("domain") == ctx.domain)
                for t in ctx.entities)
     return Div(
-        _title("Task Results"),
+        title("Task Results"),
         Div(
             Div(task_list(ctx), cls="w-[320px] shrink-0 pr-4 border-r border-neutral-200 dark:border-neutral-800 overflow-y-auto"),
             Div(task_execution_result(ctx), cls="min-w-0 flex-1 pl-6 overflow-y-auto") if some else "",

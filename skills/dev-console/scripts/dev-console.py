@@ -35,7 +35,7 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
-CONSOLE_MODULES = ("console_agents", "console_home", "console_playground", "console_recorder", "console_reload")
+CONSOLE_MODULES = ("console_atoms", "console_agents", "console_home", "console_playground", "console_recorder", "console_reload")
 PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
 
 
@@ -120,7 +120,7 @@ class _Live:
 
 
 PROJECT = _Live(CURRENT.get)
-from fasthtml.common import H2, A, Button, Div, Iframe, Li, Link, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
+from fasthtml.common import A, Button, Div, Iframe, Li, Link, NotStr, P, Script, Span, Style, Title, Ul, fast_app  # noqa: E402
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse, Response  # noqa: E402
 
@@ -132,6 +132,7 @@ app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=LIVE)
 # gets a 400. No CORS is configured anywhere, on purpose: the console is read by its own pages only.
 from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
 
+import console_atoms  # noqa: E402  (title, empty: the atoms every widget is built from)
 import console_agents as _AGH  # noqa: E402  (the allowed host names live with the module that needs them)
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_AGH.allowed_hosts())
@@ -472,7 +473,7 @@ def render_screens(steps: list[dict], title: str = "", width: int = 390, height:
     btn = "px-2 h-7 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
     first = steps[0]
     return Div(
-        H2(title, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100") if title else "",
+        console_atoms.title(title) if title else "",
         Div(Button("←", type="button", cls=btn, onclick=f"{go}(this,-1)"),
             Span(f"1/{len(steps)} · {first.get('name', '')}", data_n="1", cls="flex-1 min-w-0 truncate text-neutral-700 dark:text-neutral-300"),
             Span(first.get("event") or "", data_e="1", cls="shrink-0 font-mono text-xs text-amber-600 dark:text-amber-400"),
@@ -503,7 +504,7 @@ def _when(iso: str) -> str:
 
 
 def _empty(text: str):
-    return P(text, cls="text-neutral-400")
+    return console_atoms.empty(text)
 
 
 def observability(ctx: EventContext):
@@ -539,7 +540,7 @@ def available(event: str) -> list[tuple[str, str]]:
 def render_list(ctx: EventContext):
     f = ctx.focus
     head = (P(f"dados reais: {f['id'][:8]} · {_when(f['at'])} · {PROJECT.ENTITY.lower()} {f[entity_key()][:8]}",
-              cls="px-4 pt-3 text-neutral-400") if f else P(f"nenhum {ctx.event} no diário ainda", cls="px-4 pt-3 text-neutral-400"))
+              cls="px-4 pt-3 text-neutral-400") if f else console_atoms.empty(f"nenhum {ctx.event} no diário ainda", cls="px-4 pt-3"))
     # A nested tree: a widget that names its visible parts (fn.parts = [child, ...]) shows them under it, indented with a
     # guide line; a part shown under a parent is not repeated at the top. Only the parts someone asked to see are named.
     fns = {widget_name(f): f for f in _widgets(ctx.event)}

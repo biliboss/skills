@@ -14,7 +14,9 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from fasthtml.common import H2, Div, P, Script, Span  # noqa: E402
+from fasthtml.common import Div, P, Script, Span  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import title  # noqa: E402
 from kanban import (TRANSITIONS, Board, CardMoney, Column, KanbanJournal, Stage, UpstreamTotals, brl,  # noqa: E402,F401
                     card_from, hm, journal_path, read_board, read_card, stage_age)
 
@@ -105,10 +107,6 @@ def _stamp() -> str:
     except OSError:
         return "0"
 
-
-def _title(text: str):
-    """Every widget starts with its title (in a module or a sidebar part the console hides it: the line names it)."""
-    return H2(text, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100")
 
 
 def _when(t: datetime) -> str:
@@ -287,7 +285,7 @@ def _lanes(b: Board, now: datetime):
 def board(ctx):
     """Board: the Quadro, the Upstream money band on top and one column per stage, each card with its Upstream money."""
     b: Board = read_board()
-    return Div(_title("Quadro"), _band(b.totals),
+    return Div(title("Quadro"), _band(b.totals),
                # gap-0: Pico's .grid has a column gap of its own
                _lanes(b, b.at),
                Script(TICK_JS), Script(WATCH_JS % f"{BASE}/w/_/card.created/JournalStamp"),
@@ -306,7 +304,7 @@ def journal_stamp(ctx):
 def upstream_band(ctx):
     """Upstream Band: what the cards' Upstream time cost today, this week (from Monday) and this month, ticking while
     the clock runs on the domain of a card in Upstream."""
-    return Div(_title("Investido em Upstream"), _band(read_board().totals), Script(TICK_JS))
+    return Div(title("Investido em Upstream"), _band(read_board().totals), Script(TICK_JS))
 
 
 board.parts = [upstream_band]
@@ -316,15 +314,15 @@ def card_history(ctx):
     """Card History: the stages a card went through, each as a sentence with its time."""
     c = card_from(list(ctx.history))
     if c is None:
-        return Div(_title("Histórico"), P("Nenhum card.", cls=DIM))
+        return Div(title("Histórico"), P("Nenhum card.", cls=DIM))
     rows = []
     for i, s in enumerate(c.stays):
         text = f"entrou no quadro em {s.stage.value}" if i == 0 else f"foi de {c.stays[i - 1].stage.value} para {s.stage.value}"
         rows.append(Div(Span(_when(s.start), cls=f"w-[5.5rem] shrink-0 tabular-nums {DIM}"),
                         Span(text, cls="min-w-0 font-sans text-sm text-neutral-800 dark:text-neutral-200"),
                         cls="flex items-baseline gap-3 py-1"))
-    about = [Div(_title("Descrição"), *[P(ln, cls="font-sans text-sm text-neutral-800 dark:text-neutral-200") for ln in c.description.splitlines() if ln.strip()], cls="mb-3")] if c.description else []
-    return Div(*about, _title("Histórico"), *rows)
+    about = [Div(title("Descrição"), *[P(ln, cls="font-sans text-sm text-neutral-800 dark:text-neutral-200") for ln in c.description.splitlines() if ln.strip()], cls="mb-3")] if c.description else []
+    return Div(*about, title("Histórico"), *rows)
 
 
 def card_time(ctx):
@@ -332,7 +330,7 @@ def card_time(ctx):
     now = datetime.now().astimezone()
     m = read_card(ctx.entity_id, now)
     if m is None:
-        return Div(_title("Tempo em Upstream"), P("Nenhum card.", cls=DIM))
+        return Div(title("Tempo em Upstream"), P("Nenhum card.", cls=DIM))
     grid = "grid grid-cols-[1fr_auto_auto] items-baseline gap-3"
     rows = []
     for s in m.slices:
@@ -343,12 +341,12 @@ def card_time(ctx):
                         Span(brl(s.brl), data_brl=f"{s.brl:.2f}", cls=f"text-right {STRONG}"),
                         data_tick_rate=f"{rate:.6f}", data_tick_at=_ms(now), cls=f"{grid} py-0.5"))
     if not rows:
-        return Div(_title("Tempo em Upstream"), P("Nenhum tempo em Upstream ainda.", cls=DIM))
+        return Div(title("Tempo em Upstream"), P("Nenhum tempo em Upstream ainda.", cls=DIM))
     total = Div(Span("total", cls="text-neutral-500"),
                 Span(hm(m.total.seconds), data_sec=f"{m.total.seconds:.0f}", cls=f"tabular-nums {DIM}"),
                 Span(brl(m.total.brl), data_brl=f"{m.total.brl:.2f}", cls=f"text-right {STRONG}"),
                 data_tick_rate=f"{m.live_rate_hour:.6f}", data_tick_at=_ms(now), cls=f"{grid} mt-1 pt-1 border-t {LINE}")
-    return Div(_title("Tempo em Upstream"), *rows, total,
+    return Div(title("Tempo em Upstream"), *rows, total,
                P(f"Só o tempo do domínio {m.card.domain} enquanto o card esteve em Upstream, pelo preço da hora do "
                  "centro de custo.", cls=f"mt-2 font-sans {DIM}"),
                Script(TICK_JS))

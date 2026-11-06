@@ -11,6 +11,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from console_domain import ConsoleJournal  # noqa: E402
 from fasthtml.common import Div, Iframe, Li, P, Span, Ul  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty  # noqa: E402
 
 NAME = "dev-console"
 SLUG = "dev-console"
@@ -34,14 +36,14 @@ def title_of(history: list[dict], state: dict) -> str:
 def widget_list(ctx):
     """The widgets of one event, each with abrir: the right menu's own WidgetList, composed (never a copy)."""
     if not ctx.focus:
-        return P("Nenhum widget registrado.", cls="text-neutral-400")
+        return empty("Nenhum widget registrado.")
     return render_widget_list(ctx.focus["domain_id"], ctx.focus["value"]["event"])
 
 
 def event_list(ctx):
     """The event types this Domain declares, each with the command that records it."""
     if not ctx.events:
-        return P("Nenhum evento declarado.", cls="text-neutral-400")
+        return empty("Nenhum evento declarado.")
     return Ul(*[Li(Span(e["value"]["event"], cls="w-56 shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"),
                    Span(e["value"]["command"], cls=BODY), cls="flex gap-3 py-1") for e in ctx.events])
 

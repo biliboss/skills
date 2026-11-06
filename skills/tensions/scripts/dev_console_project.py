@@ -13,6 +13,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent))
 from app_tensions import Tensions  # noqa: E402
 from fasthtml.common import Button, Summary, Details, Script, Style, Div, Li, P, Span, Ul  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty  # noqa: E402
 
 NAME = "Tensions"
 SOURCE = Path(__file__).parent / "app_tensions.py"  # the file with the command registry, EVENTS
@@ -99,7 +101,7 @@ def observation_list(ctx):
     line = "border-neutral-200 dark:border-neutral-800"
     human = [e for e in reversed(ctx.events) if e["value"].get("audience") == "human"]
     if not human:
-        return P("Nenhuma observação escrita para gente ainda (audience: human).", cls="text-neutral-400")
+        return empty("Nenhuma observação escrita para gente ainda (audience: human).")
     return Div(
         P(f"{len(human)} observações · {len(ctx.events) - len(human)} só para agentes", cls="pb-3 text-neutral-400 border-b " + line),
         *[Div(P(e["value"]["value"], cls="font-sans text-[15px] leading-6 text-neutral-900 dark:text-neutral-100"),
@@ -133,7 +135,7 @@ def proposal_list(ctx):
     """The proposed actions, each with a title for humans and the button that sends it to Bili local."""
     line = "border-neutral-200 dark:border-neutral-800"
     if not ctx.events:
-        return P("Nenhuma proposta ainda.", cls="text-neutral-400")
+        return empty("Nenhuma proposta ainda.")
     gone = {i for e in ctx.events for i in e["value"].get("supersedes", [])}  # a proposal may replace older ones
     rows = []
     for n, e in enumerate([e for e in ctx.events if e["id"] not in gone], 1):

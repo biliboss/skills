@@ -5,7 +5,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from fasthtml.common import H2, Div, Iframe, P, Span  # noqa: E402
+from fasthtml.common import Div, Iframe, P, Span  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "dev-console" / "scripts"))  # the console's atoms
+from console_atoms import empty, title  # noqa: E402
 from costs import TRANSITIONS, CostsJournal  # noqa: E402,F401
 
 NAME = "Biliboss Skills - Costs"
@@ -30,10 +32,6 @@ def title_of(history: list[dict], state: dict) -> str:
 
 # --- widgets: real data from the journal, for a person (the sentence and the money) -----------------------------
 
-
-def _title(text: str):
-    """Every widget starts with its title."""
-    return H2(text, cls="mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100")
 
 
 def _brl(v: float) -> str:
@@ -77,7 +75,7 @@ def worth(ctx):
     now, goal = w.get("value_month", 0) / hours, w.get("goal_month", 0) / hours
     row = lambda k, v, sub: Div(Span(k, cls="text-neutral-500"), Span(v, cls="tabular-nums font-semibold text-neutral-900 dark:text-neutral-100"),
                                 Span(sub, cls="tabular-nums text-neutral-400"), cls="grid grid-cols-[8rem_7rem_1fr] gap-2 py-1")
-    return Div(_title("Quanto vale a sua hora"),
+    return Div(title("Quanto vale a sua hora"),
                row("agora", _brl(now), f"{_brl(now / 60)}/min · {_brl(w.get('value_month', 0))}/mês"),
                row("na meta", _brl(goal), f"{_brl(goal / 60)}/min · {_brl(w.get('goal_month', 0))}/mês"),
                P("Clientes pagam o preço de agora; investimento custa o preço da meta.", cls="mt-2 text-sm text-neutral-400"))
@@ -97,7 +95,7 @@ def cost_centers(ctx):
                              cls="tabular-nums text-right text-neutral-500"),
                         Span(_brl(c.get("cost", 0)), cls="tabular-nums text-right text-neutral-800 dark:text-neutral-200"),
                         cls="grid grid-cols-[9rem_7rem_1fr_8rem_7rem] gap-2 py-1"))
-    return Div(_title("Centros de custo"), *rows) if rows else Div(_title("Centros de custo"), P("nenhum centro ainda", cls="text-neutral-400"))
+    return Div(title("Centros de custo"), *rows) if rows else Div(title("Centros de custo"), empty("nenhum centro ainda"))
 
 
 def day_cost(ctx):
@@ -121,7 +119,7 @@ def day_cost(ctx):
                         Span(f"de {_brl(c['budget_day'])}" if c.get("budget_day") else "investido", cls="tabular-nums text-neutral-400"),
                         cls="grid grid-cols-[9rem_4rem_7rem_1fr] gap-2 py-1"))
     total = sum(v[1] for v in tot.values())
-    return Div(_title("Para onde foi o seu tempo hoje"), *rows,
+    return Div(title("Para onde foi o seu tempo hoje"), *rows,
                Div(Span("total", cls="text-neutral-500"), Span(_hm(sum(v[0] for v in tot.values())), cls="tabular-nums text-neutral-400"),
                    Span(_brl(total), cls="tabular-nums text-right font-semibold text-neutral-900 dark:text-neutral-100"), Span(""),
                    cls="grid grid-cols-[9rem_4rem_7rem_1fr] gap-2 pt-2 mt-1 border-t border-neutral-200 dark:border-neutral-800"))
@@ -130,14 +128,14 @@ def day_cost(ctx):
 def time_entries(ctx):
     """Time Entries: each stretch of this cost center, as a sentence."""
     es = [e for e in ctx.events] or [e for e in journal.read({"event": "time_entry.stopped"})]
-    return Div(_title("Trechos de tempo"),
+    return Div(title("Trechos de tempo"),
                *[Div(P(e["value"].get("text", ""), cls="text-neutral-800 dark:text-neutral-200"),
                      P(e["at"][11:16], cls="text-xs text-neutral-400"), cls="py-1.5") for e in es])
 
 
 def cost_toolbar(ctx):
     """Cost Toolbar: the console's real money bar, embedded (?embed=money), the same one every domain's toolbar shows."""
-    return Div(_title("Relógio de custo"),
+    return Div(title("Relógio de custo"),
                Iframe(src=f"/domain/{SLUG}?embed=money", cls="w-full h-11 rounded border border-neutral-200 dark:border-neutral-800"))
 
 
