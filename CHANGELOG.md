@@ -72,6 +72,11 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - dev-console 0.27.0: Restores the domain page and the home to 0.24.0 (before the folded lanes of 0.25.0 and the focus home of 0.26.0): the owner lost the side panel and the event texts. devc stays.
 
+## [0.79.0] - 2026-11-06
+
+### Added
+- modifier-here 0.1.0: `--here` runs the request in this session, no subagent.
+
 ## [0.60.0] - 2026-11-06
 
 ### Added
