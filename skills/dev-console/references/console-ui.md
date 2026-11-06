@@ -117,5 +117,15 @@ before `innerHTML`.
   (`point = S + w (T - S) + d (-dy, dx) / |T - S|`); the label pass reads `boundingBox({includeNodes: false,
   includeLabels: true})` and pushes a colliding label outward by `LABEL_PUSH`. Check in the headless browser: every
   step of a line shares one octilinear angle, and no label box meets another label, a station or a line.
+- `LAYOUT = "branch"` (or `L`, or the corner button, per domain in localStorage `dev-console:layout:<base>`) is the same
+  `preset` drawing as a git graph: `branchLayout()` inside the METRO block of `drawGraph`. Constants: `COL` 170 (between
+  columns), `SPURY` 72 (a spur's row offset), `GAP` 40 (between stage bands), `HEADER` 84. Order: a depth-first walk from the Human
+  (then from what it does not reach, in lane order, following each lane's own order too) gives the back edges and a reverse
+  post-order; an edge to an earlier stage counts as a back edge; the longest path over the forward edges gives the columns
+  (inside a stage's band, so a stage resets to its own first column); a lane row never holds two stations in one column. A
+  branch connector far below leaves at 45°, drops along its own gutter (70 px + 10 per branch from the same station, the
+  farthest lane the innermost, so none cross) and enters at 45°; the others bend once. Stage bands are `stagehdr` nodes
+  (`events: no`, excluded from the label collision pass); the label pass tries below, then above, with the same push. A
+  redraw (`toggleLayout`, a source change) destroys the previous cytoscape instance and disconnects its resize observer.
 - Rejected: the hand-made radial (`pos`), dagre left to right (the Human is not in the centre) and breadthfirst
   `circle` (overlaps). Forces that read well: `idealEdgeLength` 130, `nodeRepulsion` 45000, `gravity` 0.4.

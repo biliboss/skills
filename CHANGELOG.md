@@ -2,6 +2,14 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.23.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.9.0: `LAYOUT = "branch"`, the graph as a git graph read left to right (the Human at the top left, each
+  category a lane, a lane born where its transition comes from, a merge as a dashed edge); funnel-stage columns from
+  `STAGES` / `STAGE_ORDER` / `STAGE_LABELS`; `L` and a corner button toggle branch and metro on any domain.
+
 ## [0.22.0] - 2026-11-05
 
 ### Added

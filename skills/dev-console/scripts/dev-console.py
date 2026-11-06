@@ -278,7 +278,9 @@ def real_model() -> dict:
             sig(node, "")
     return {"file": SOURCE.name, "mtime": SOURCE.stat().st_mtime, "lines": lines, "props": props,
             "coverage": W.coverage(live_events()), "descriptions": descriptions(), "value_objects": value_objects(),
-            "layout": getattr(PROJECT, "LAYOUT", None) or "metro", **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
+            "layout": getattr(PROJECT, "LAYOUT", None) or "metro",
+            "stages": dict(getattr(PROJECT, "STAGES", None) or {}), "stage_order": list(getattr(PROJECT, "STAGE_ORDER", None) or []),
+            "stage_labels": dict(getattr(PROJECT, "STAGE_LABELS", None) or {}), **derive(live_events(), getattr(PROJECT, "INITIAL", None), getattr(PROJECT, "HUB", None),
                          getattr(PROJECT, "TRANSITIONS", None))}
 
 
@@ -629,7 +631,17 @@ function codeBlock(src) {  // grayscale highlight: weight, not colour
   }).join('\n');
 }
 
+let graphRO = null;  // the resize observer of the drawing on screen (a redraw disconnects it)
+const layoutKey = () => `dev-console:layout:${D.base}`;
+function toggleLayout() {  // `L` or the corner button: branch <-> metro (rays), remembered per domain
+  const m = localStorage.getItem(layoutKey()) || M().layout;
+  localStorage.setItem(layoutKey(), m === 'branch' ? 'metro' : 'branch');
+  drawGraph();
+}
+
 function drawGraph() {
+  if (graphRO) graphRO.disconnect();
+  if (window.__cy) { try { window.__cy.destroy(); } catch (e) {} window.__cy = null; }
   const used = {}; E.forEach(e => used[e.event] = (used[e.event] || 0) + 1);
   const ink = dark ? '#f5f5f5' : '#171717', mute = dark ? '#525252' : '#d4d4d4', soft = dark ? '#737373' : '#a3a3a3',
         bg = dark ? '#0a0a0a' : '#ffffff';
@@ -640,7 +652,11 @@ function drawGraph() {
   const PAL = dark ? ['#818cf8', '#2dd4bf', '#facc15', '#38bdf8', '#fb7185', '#a3e635']
                    : ['#4338ca', '#0f766e', '#a16207', '#0369a1', '#be123c', '#4d7c0f'];
   Object.keys(M().lifecycle).forEach((c, i) => { PATH[c] ??= PAL[i % PAL.length]; });
-  const METRO = M().layout === 'metro';  // LAYOUT = "metro": see the METRO block below
+  // the drawing: the person's choice (L toggles branch / metro, kept per domain), else the project's LAYOUT, else metro
+  const stored = localStorage.getItem(layoutKey());
+  const MODE = stored === 'branch' || stored === 'metro' ? stored : M().layout;
+  const BR = MODE === 'branch', METRO = MODE === 'metro' || BR;  // see the METRO and BRANCH blocks below
+  let BRINFO = null;  // branch: the lanes' y bands and the stages' x bands, for the headless checks (cy.scratch('branch'))
   if (METRO) Object.keys(M().lifecycle).forEach((c, i) => { PATH[c] = `hsl(${Math.round(i * 137.5) % 360}, ${dark ? 70 : 65}%, ${dark ? 62 : 38}%)`; });
   const colorOf = id => PATH[id.split('.')[0]];
   // Entity.Event: management happens to the Tension itself; the others to the Value Object of their category.
@@ -678,7 +694,7 @@ function drawGraph() {
   // LAYOUT = "clock" (project file): the code's EVENTS order is the clock. The first category sits at 12 o'clock and
   // the others follow clockwise; inside a category its events run outward from the Human. The order lives in the
   // code, so the drawing never drifts from it.
-  const CLOCK = M().layout === 'clock';
+  const CLOCK = MODE === 'clock';
   if (CLOCK) {
     const cats = Object.keys(M().lifecycle), N = cats.length;
     const pos = {human: {x: 0, y: 0}};
@@ -698,7 +714,7 @@ function drawGraph() {
   // line, above a westbound one), always the same side per direction, horizontal text, never rotated; a fanned line
   // runs on the opposite side, so the labels fall in the gap between tracks. A colliding label is pushed outward.
   const STEP = 170, TRACK = 180, HUMAN_R = 56, LABEL_CHARS = 14, LABEL_PUSH = 14;
-  const LINE_POINTS = [];   // thick line polylines (model coordinates), for the label collision test
+  const LINE_POINTS = [], DASH_POINTS = [];   // thick line and dashed edge polylines (model coordinates), for the label collision test
   const SHIFT = [0, 1, 0, -1, 0, -1, 0, 1];   // diagonals (NE SE SW NW): the label leaves its own line, down (+1) or up (-1)
   const metroLabelOf = id => { const [c, v] = id.split('.'), ent = ENT[c] || pascal(c);
     const parts = pascal(v).match(/[A-Z][a-z0-9]*|[a-z0-9]+/g) || [pascal(v)], lines = [];
@@ -720,7 +736,7 @@ function drawGraph() {
     // with the longest path below it continues the trunk; the others are branches (Tokyo's Marunouchi branch) leaving
     // at 45°, alternating sides, each a STEP further out
     const rot = ([x, y], q) => { const a = q * Math.PI / 4, c = Math.cos(a), sn = Math.sin(a); return [x * c - y * sn, x * sn + y * c]; };
-    cats.forEach(c => { const vs = M().lifecycle[c], ids = vs.map(v => `${c}.${v}`), k = Object.fromEntries(ids.map((id, i) => [id, i]));
+    (BR ? [] : cats).forEach(c => { const vs = M().lifecycle[c], ids = vs.map(v => `${c}.${v}`), k = Object.fromEntries(ids.map((id, i) => [id, i]));
       const kids = Object.fromEntries(ids.map(id => [id, []]));
       ids.forEach(b => { const a = ids.find(a => k[a] < k[b] && edges.some(e => e.data.source === a && e.data.target === b));
         if (a) { parent[b] = a; kids[a].push(b); } });
@@ -732,7 +748,7 @@ function drawGraph() {
       let n = 0; ids.filter(id => !parent[id]).forEach(root => { const P = at(c, n); place(root, P, DIRS[dirOf[c]], n);
         n += 1 + (function trunk(id) { const ks = [...kids[id]].sort((x, y) => depth(y) - depth(x) || k[x] - k[y]); return ks.length ? 1 + trunk(ks[0]) : 0; })(root); }); });
     nodes.forEach(n => { const id = n.data.id; n.position = pos[id] || {x: 0, y: 0};
-      if (id !== 'human') { n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id); n.data.side = st[id].side; n.data.dir = st[id].dir; } });
+      if (id !== 'human' && st[id]) { n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id); n.data.side = st[id].side; n.data.dir = st[id].dir; } });
     // a segment route: from S through the bends Bs to T; cytoscape wants each bend as a weight and a distance:
     // point = S + w (T - S) + d (-dy, dx) / |T - S|
     const route = (S, T, Bs) => { const dx = T.x - S.x, dy = T.y - S.y, L2 = dx * dx + dy * dy;
@@ -754,7 +770,132 @@ function drawGraph() {
       return o ? [{x: dx * BRANCH, y: dy * BRANCH}, run] : null; };
     const adjacent = (a, b) => parent[b] === a;
     const made = new Set();
-    edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
+    // LAYOUT = "branch" (project file, or `L` on any domain): a git graph read left to right (`git log --graph`, the most
+    // familiar flow drawing). The Human is the root, at the top left. Each category of EVENTS is a horizontal lane (a
+    // branch), top to bottom in EVENTS order; inside a lane a line follows TRANSITIONS as the metro does (the longest path
+    // is the trunk, a fork drops into a short 45° spur inside the lane, a back edge is a dashed arrow). A lane is born
+    // where its transition comes from: its first station sits one column right of the station that leads into it, joined
+    // by a 45° connector (a vertical gutter between two 45° legs when the lane is far below); a lane nothing leads into
+    // starts from the Human along a grey spine. Any other edge into another lane is a merge: thin, grey, dashed, one bend,
+    // with its command label. Columns are the funnel stages when the project declares STAGES and STAGE_ORDER (a band of
+    // columns per stage, a faint header at the top, a station inside its stage's band, ordered by the path); without
+    // them a column is the longest step count from the Human. Labels are horizontal, below the station (above on a
+    // spur that rises), pushed apart by the same collision pass as the metro.
+    const COL = 170, SPURY = 72, GAP = 40, LANE_ABOVE = 80, LANE_BELOW = 88, LANE_PAD = 34, LANE_SKIP = 12, HEADER = 84;
+    const branchLayout = () => {
+      const lanes = cats.map(c => ({c, ids: M().lifecycle[c].map(v => `${c}.${v}`)})), laneOf = {};
+      lanes.forEach((l, i) => l.ids.forEach(id => { laneOf[id] = i; }));
+      const adj = {}; edges.forEach(e => { (adj[e.data.source] ??= []).push(e.data.target); });
+      // reverse post-order of a depth-first walk from the Human (then from what it does not reach, in lane order): every
+      // edge but the back edges (loops) points forward, so a longest path gives the columns
+      // the walk also follows the order of each lane (a station before the next one), so a station that nothing leads
+      // to is placed after the one before it
+      const walkAdj = Object.fromEntries(Object.entries(adj).map(([a, bs]) => [a, [...bs]]));
+      lanes.forEach(l => l.ids.slice(1).forEach((id, i) => { (walkAdj[l.ids[i]] ??= []).push(id); }));
+      const seen = new Set(), onStack = new Set(), back = new Set();
+      const dfs = (a, out) => { seen.add(a); onStack.add(a);
+        (walkAdj[a] || []).forEach(b => { if (onStack.has(b)) back.add(`${a}>${b}`); else if (!seen.has(b)) dfs(b, out); });
+        onStack.delete(a); out.push(a); };
+      const order = ['human', ...lanes.flatMap(l => l.ids)].flatMap(r => { if (seen.has(r)) return []; const out = []; dfs(r, out); return out.reverse(); });
+      // the funnel stages (STAGES, STAGE_ORDER): columns are bands, one per stage. An edge that goes back to an earlier
+      // stage would run leftwards: it is a loop, a dashed arrow, like any back edge
+      const ST = M().stages || {}, SO = [...(M().stage_order || [])];
+      Object.values(ST).forEach(s => { if (!SO.includes(s)) SO.push(s); });
+      const staged = SO.length > 0; if (!staged) SO.push('');
+      if (staged) edges.forEach(e => { const a = e.data.source, b = e.data.target;
+        if (ST[a] != null && ST[b] != null && SO.indexOf(ST[b]) < SO.indexOf(ST[a])) back.add(`${a}>${b}`); });
+      // the stage of a station is STAGES[id]; one that is not named takes its parent's or its predecessors' latest,
+      // else the previous station of its lane
+      const preds = {}; edges.forEach(e => { const a = e.data.source, b = e.data.target;
+        if (a !== b && !back.has(`${a}>${b}`)) (preds[b] ??= []).push(a); });
+      // inside a lane: a station's parent is its earliest in-lane predecessor by a forward edge; the longest path below a
+      // fork stays on the lane's row, the other children drop (below first, then above, then further) into a 45° spur
+      const parentOf = {}, kidsOf = {}, slot = {};
+      lanes.forEach(l => { const k = Object.fromEntries(l.ids.map((id, i) => [id, i]));
+        l.ids.forEach(id => { kidsOf[id] = []; });
+        l.ids.forEach(b => { const a = l.ids.find(a => k[a] < k[b] && (preds[b] || []).includes(a)); if (a) { parentOf[b] = a; kidsOf[a].push(b); } });
+        const dep = id => 1 + Math.max(0, ...kidsOf[id].map(dep));
+        const walk = (id, s) => { slot[id] = s; [...kidsOf[id]].sort((x, y) => dep(y) - dep(x) || k[x] - k[y])
+          .forEach((ch, j) => walk(ch, j === 0 ? s : s + (j % 2 ? 1 : -1) * Math.ceil(j / 2))); };
+        l.ids.filter(id => !parentOf[id]).forEach(r => walk(r, 0)); });
+      const stage = {}, local = {}, occ = new Set();
+      const prevOf = id => { const l = lanes[laneOf[id]], i = l.ids.indexOf(id); return i > 0 ? l.ids[i - 1] : null; };
+      order.forEach(id => { if (id === 'human') return;
+        let s = staged && ST[id] != null ? SO.indexOf(ST[id]) : -1;
+        if (s < 0) { const ps = (preds[id] || []).filter(a => stage[a] != null).map(a => stage[a]), pv = prevOf(id);
+          s = stage[parentOf[id]] ?? (ps.length ? Math.max(...ps) : (pv && stage[pv] != null ? stage[pv] : 0)); }
+        stage[id] = s; });
+      // a column inside the stage's band: one right of its latest predecessor in the same stage; a later root of a lane
+      // continues from the station before it; two stations never share a lane row and a column
+      order.forEach(id => { if (id === 'human') return;
+        let base = Math.max(0, ...(preds[id] || []).filter(a => a !== 'human' && local[a] != null && stage[a] === stage[id]).map(a => local[a] + 1));
+        const pv = prevOf(id); if (!parentOf[id] && pv && local[pv] != null && stage[pv] === stage[id]) base = Math.max(base, local[pv] + 1);
+        const key = c => `${laneOf[id]}|${slot[id]}|${stage[id]}|${c}`; while (occ.has(key(base))) base++;
+        occ.add(key(base)); local[id] = base; });
+      const width = SO.map(() => 0); Object.keys(local).forEach(id => { width[stage[id]] = Math.max(width[stage[id]], local[id] + 1); });
+      const bandStart = []; let cc = 1; SO.forEach((s, i) => { bandStart[i] = cc; cc += width[i]; });
+      const xOf = id => (bandStart[stage[id]] + local[id]) * COL + stage[id] * GAP;
+      // the lanes, top to bottom in EVENTS order; the Human sits on the first lane's row
+      let y = 0; lanes.forEach(l => { const ss = l.ids.map(id => slot[id]), lo = Math.min(...ss), hi = Math.max(...ss);
+        l.top = y; l.row = y + (lo < 0 ? -lo * SPURY + LANE_ABOVE : LANE_PAD); l.bottom = l.row + hi * SPURY + LANE_BELOW; y = l.bottom + LANE_SKIP; });
+      const y0 = lanes[0].row;
+      lanes.forEach(l => { l.top -= y0; l.row -= y0; l.bottom -= y0; l.ids.forEach(id => { pos[id] = {x: xOf(id), y: l.row + slot[id] * SPURY}; }); });
+      nodes.forEach(n => { const id = n.data.id; if (id === 'human') return;
+        n.position = pos[id]; n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id);
+        n.data.side = slot[id] < 0 ? 't' : 'b'; n.data.dir = 2; n.data.lane = laneOf[id]; n.data.stage = SO[stage[id]]; });
+      const top = lanes[0].top - (staged ? HEADER : 0), bottom = lanes[lanes.length - 1].bottom;
+      const bands = SO.map((s, i) => ({stage: s, x1: bandStart[i] * COL + i * GAP - COL / 2, x2: (bandStart[i] + width[i]) * COL + i * GAP - COL / 2}));
+      if (staged) bands.forEach((b, i) => { if (!width[i]) return;
+        nodes.unshift({data: {id: `stage:${i}`, label: (M().stage_labels || {})[b.stage] ?? b.stage, w: b.x2 - b.x1, h: bottom - top, tone: i % 2 ? 0.05 : 0.025},
+          position: {x: (b.x1 + b.x2) / 2, y: (top + bottom) / 2}, classes: 'stagehdr', selectable: false, grabbable: false}); });
+      BRINFO = {lanes: lanes.map(l => ({cat: l.c, y1: l.top, y2: l.bottom, row: l.row, ids: l.ids})), bands: staged ? bands.filter((b, i) => width[i]) : [],
+        stage: Object.fromEntries(Object.entries(stage).map(([id, i]) => [id, SO[i]]))};
+      // the edges. A lane's birth: the transition into its first station from the leftmost source outside the lane
+      lanes.forEach(l => { l.first = l.ids.find(id => !parentOf[id]); });
+      const birth = {};
+      lanes.forEach((l, i) => { const ps = (preds[l.first] || []).filter(a => laneOf[a] !== i).sort((a, b) => pos[a].x - pos[b].x); if (ps.length) birth[l.first] = ps[0]; });
+      const kindOf = (a, b) => parentOf[b] === a ? 'inlane'
+        : (laneOf[b] != null && lanes[laneOf[b]].first === b && birth[b] === a && !back.has(`${a}>${b}`)) ? 'branch' : 'merge';
+      // a spur leaves its parent at 45° and then runs along its own row; the others bend once
+      const spurRoute = (a, b) => { const S = pos[a], T = pos[b], dy = T.y - S.y, dx = T.x - S.x;
+        if (Math.abs(dy) < 1) return [];
+        if (Math.abs(dy) < dx - 1) return [{x: S.x + Math.abs(dy), y: T.y}];
+        const B = octi(S, T, [a, b]); return B ? [B] : []; };
+      // a branch from a station far below (or above) leaves at 45°, drops along its own gutter, and enters its lane at 45°;
+      // each branch leaving the same station takes its own gutter, the farthest lane the innermost, so they never cross
+      const groups = {};
+      edges.forEach(e => { const a = e.data.source, b = e.data.target;
+        if (a !== 'human' && a !== b && kindOf(a, b) === 'branch') (groups[`${a}|${Math.sign(pos[b].y - pos[a].y)}`] ??= {a, bs: []}).bs.push(b); });
+      const gutter = {};
+      Object.values(groups).forEach(({a, bs}) => bs.sort((p, q) => Math.abs(pos[q].y - pos[a].y) - Math.abs(pos[p].y - pos[a].y))
+        .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(70 + i * 10, COL - 58); }));
+      const branchRoute = (a, b) => { const S = pos[a], T = pos[b], dy = T.y - S.y, dx = T.x - S.x, s = Math.sign(dy);
+        if (a === 'human') return Math.abs(dy) >= dx ? [{x: 0, y: T.y - s * dx}] : spurRoute(a, b);
+        const h = gutter[`${a}>${b}`];
+        if (Math.abs(dy) < COL || dx < COL - 1 || h == null) return spurRoute(a, b);
+        const Bs = [{x: S.x + h, y: S.y + s * h}, {x: S.x + h, y: T.y - s * (COL - h)}, {x: S.x + COL, y: T.y}];
+        if (dx - COL < 1) Bs.pop(); return Bs; };
+      const done = new Set(), born = new Set();
+      edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
+        if (a === b) return;
+        const kind = kindOf(a, b); done.add(`${a}>${b}`); let Bs = [];
+        if (kind === 'merge') { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); Bs = B ? [B] : []; DASH_POINTS.push([pos[a], ...Bs, pos[b]]); }
+        else { Bs = kind === 'inlane' ? spurRoute(a, b) : branchRoute(a, b); e.data.label = '';
+          const spine = a === 'human' && Math.abs(pos[b].y - pos[a].y) >= 1;
+          e.classes = `${cl} ${spine ? 'spine' : 'line'}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
+          LINE_POINTS.push([pos[a], ...Bs, pos[b]]); }
+        if (Bs.length) e.data.route = route(pos[a], pos[b], Bs); });
+      // a lane is continuous: where the model has no edge between a station and the one before it, a faint rail carries the
+      // line on; a lane nothing leads into hangs from the Human on the grey spine
+      const rail = (a, b, color, cls, Bs) => { edges.push({data: {id: `rail:${a}>${b}`, source: a, target: b, color, label: '', ...(Bs.length ? {route: route(pos[a], pos[b], Bs)} : {})}, classes: cls});
+        LINE_POINTS.push([pos[a], ...Bs, pos[b]]); };
+      lanes.forEach(l => { const pairs = l.ids.slice(1).map(id => [parentOf[id] || prevOf(id), id]).filter(([a, b]) => a !== b && !done.has(`${a}>${b}`));
+        if (!born.has(l.first)) pairs.unshift(['human', l.first]);
+        pairs.forEach(([a, b]) => { if (a === 'human') { const far = Math.abs(pos[b].y) >= 1; rail(a, b, far ? soft : PATH[l.c], far ? 'spine' : 'rail', far ? branchRoute(a, b) : []); }
+          else rail(a, b, PATH[l.c], 'rail', spurRoute(a, b)); }); });
+    };
+    if (BR) branchLayout();
+    (BR ? [] : edges).forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
       made.add(`${a}>${b}`);
       const lineEdge = a === 'human' ? where[b] && where[b].k === 0 : adjacent(a, b);
       if (lineEdge) { e.classes = `${cl} line`; e.data.label = ''; const c = where[b].c;
@@ -763,7 +904,7 @@ function drawGraph() {
       else { e.classes = `${cl} cross`; const B = octi(pos[a], pos[b], [a, b]); if (B) e.data.route = route(pos[a], pos[b], [B]); } });
     // a line is continuous: where the model has no edge between two neighbours (or the Human and the first station)
     // a faint rail carries the line on, so the category still reads as one track
-    cats.forEach(c => { const ids = M().lifecycle[c].map(v => `${c}.${v}`), c0 = ids[0];
+    (BR ? [] : cats).forEach(c => { const ids = M().lifecycle[c].map(v => `${c}.${v}`), c0 = ids[0];
       // only roots after the first have no parent: a later root continues the trunk from the station before it
       const pairs = ids.slice(1).map(id => [parent[id] || ids[Math.max(0, ids.indexOf(id) - 1)], id]).filter(([a, b]) => a !== b);
       if (!made.has(`human>${c0}`)) pairs.unshift(['human', c0]);
@@ -817,6 +958,10 @@ function drawGraph() {
         {selector: 'node.station[side="t"]', style: {'text-halign': 'center', 'text-valign': 'top', 'text-justification': 'center'}},
         {selector: 'node.human', style: {'text-valign': 'center', color: bg, 'text-margin-y': 0, 'font-size': 20}},
         {selector: 'edge.line', style: {width: 6, 'line-color': 'data(color)', 'line-opacity': 1, 'target-arrow-shape': 'none', label: '', 'z-index': 3}},
+        {selector: 'node.stagehdr', style: {shape: 'rectangle', width: 'data(w)', height: 'data(h)', 'background-color': ink, 'background-opacity': 'data(tone)',
+          'border-width': 0, label: 'data(label)', 'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': 40, 'font-size': 20, 'font-weight': 600,
+          'font-family': 'ui-sans-serif, system-ui', color: soft, 'text-opacity': 0.85, events: 'no', 'z-index': 0}},
+        {selector: 'edge.spine', style: {width: 4, 'line-color': soft, 'line-opacity': 0.55, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
         {selector: 'edge.rail', style: {width: 6, 'line-color': 'data(color)', 'line-opacity': 0.5, 'target-arrow-shape': 'none', label: '', events: 'no', 'z-index': 1}},
         {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
           'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
@@ -831,30 +976,34 @@ function drawGraph() {
     // labels: the clockwise side first; a label that touches another label, a station or a line is pushed outward
     const box = (n, labels) => n.boundingBox({includeNodes: !labels, includeEdges: false, includeLabels: !!labels, includeOverlays: false});
     const hit = (a, b, m) => a.x1 - m < b.x2 && b.x1 - m < a.x2 && a.y1 - m < b.y2 && b.y1 - m < a.y2;
-    const bodies = cy.nodes().map(n => ({id: n.id(), b: box(n, false)}));
-    const onLine = bx => LINE_POINTS.some(pts => pts.slice(1).some((p, i) => { const q = pts[i], len = Math.hypot(p.x - q.x, p.y - q.y);
+    const bodies = cy.nodes().not('.stagehdr').map(n => ({id: n.id(), b: box(n, false)}));
+    const onLine = (bx, set = LINE_POINTS) => set.some(pts => pts.slice(1).some((p, i) => { const q = pts[i], len = Math.hypot(p.x - q.x, p.y - q.y);
       for (let t = 0; t <= len; t += 4) { const x = q.x + (p.x - q.x) * t / len, y = q.y + (p.y - q.y) * t / len;
         if (x > bx.x1 - 4 && x < bx.x2 + 4 && y > bx.y1 - 4 && y < bx.y2 + 4) return true; } return false; }));
     const uni = (a, b) => ({x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1), x2: Math.max(a.x2, b.x2), y2: Math.max(a.y2, b.y2)});
     const placed = [], unions = [], PUSH = {r: [1, 0], l: [-1, 0], b: [0, 1], t: [0, -1]};
     cy.nodes('.station').forEach(n => {
-      const side = n.data('side'), dir = n.data('dir'), [px, py] = PUSH[side];
-      const h = box(n, true), lh = h.y2 - h.y1;
-      let mx = px * 9, my = py * 9;
-      // on a diagonal the label centred on the station would sit on its own line: shift it off, to the clockwise side
-      if (SHIFT[dir]) my += SHIFT[dir] * (lh / 2 + 3);
-      let best = [mx, my], bestHits = 1e9;
-      for (let i = 0; i < 10; i++) {
-        n.style({'text-margin-x': mx, 'text-margin-y': my});
-        const lb = box(n, true);   // the label alone (includeNodes false)
-        const ub = uni(lb, box(n, false));
-        const hits = placed.filter(p => hit(p, lb, 4)).length + unions.filter(p => hit(p, ub, 2)).length
-          + bodies.filter(o => o.id !== n.id() && hit(o.b, ub, 3)).length + (onLine(lb) ? 1 : 0);
-        if (hits < bestHits) { bestHits = hits; best = [mx, my]; }
-        if (!hits) break;
-        mx += px * LABEL_PUSH; my += py * LABEL_PUSH;
+      const pref = n.data('side'), dir = n.data('dir'), cands = BR ? [pref, pref === 'b' ? 't' : 'b'] : [pref];   // branch: a station that branches downwards may carry its label above
+      let best = null;
+      for (const side of cands) {
+        n.data('side', side);
+        const [px, py] = PUSH[side], h = box(n, true), lh = h.y2 - h.y1;
+        let mx = px * 9, my = py * 9;
+        // on a diagonal the label centred on the station would sit on its own line: shift it off, to the clockwise side
+        if (SHIFT[dir]) my += SHIFT[dir] * (lh / 2 + 3);
+        for (let i = 0; i < 10; i++) {
+          n.style({'text-margin-x': mx, 'text-margin-y': my});
+          const lb = box(n, true);   // the label alone (includeNodes false)
+          const ub = uni(lb, box(n, false));
+          const hits = placed.filter(p => hit(p, lb, 4)).length + unions.filter(p => hit(p, ub, 2)).length
+            + bodies.filter(o => o.id !== n.id() && hit(o.b, ub, 3)).length + (onLine(lb) || onLine(lb, DASH_POINTS) ? 1 : 0);
+          if (!best || hits < best.hits) best = {hits, side, m: [mx, my]};   // never worse than the least-clashing step
+          if (!hits) break;
+          mx += px * LABEL_PUSH; my += py * LABEL_PUSH;
+        }
+        if (best.hits === 0) break;
       }
-      n.style({'text-margin-x': best[0], 'text-margin-y': best[1]});   // never worse than the least-clashing step
+      n.data('side', best.side); n.style({'text-margin-x': best.m[0], 'text-margin-y': best.m[1]});
       placed.push(box(n, true)); unions.push(uni(box(n, true), box(n, false)));
     });
     // a dashed edge's label (the command): the midpoint first, then nudged around it until it clears everything
@@ -872,14 +1021,22 @@ function drawGraph() {
       eplaced.push(e.boundingBox({includeNodes: false, includeEdges: false, includeLabels: true, includeOverlays: false})); });
   }
   let box = '';
-  new ResizeObserver(([e]) => {
+  graphRO = new ResizeObserver(([e]) => {
     const k = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
     if (k === box || !e.contentRect.width) return;  // same size: do nothing (this guard stops the flicker loop)
     box = k; cy.resize(); cy.fit(undefined, 20); centreHuman();
-  }).observe($('cy'));
+  });
+  graphRO.observe($('cy'));
   // open centred on the Human (fit keeps the zoom, then the Human goes to the middle); off centre, a button brings it back
+  // branch: the Human at the top left with a margin, the zoom fitting the height (scroll or zoom right to read on)
+  function homeView() {
+    const bb = cy.elements().boundingBox({includeLabels: true, includeOverlays: false}), m = 40;
+    const zoom = Math.min(1, (cy.height() - 2 * m) / Math.max(bb.y2 - bb.y1, 1));
+    return {zoom, pan: {x: m - bb.x1 * zoom, y: m - bb.y1 * zoom}};
+  }
   function centreHuman() {
     const h = cy.$('#human'); if (h.empty()) { offCentre(); return; }
+    if (BR) { const v = homeView(); cy.zoom(v.zoom); cy.pan(v.pan); offCentre(); return; }
     cy.center(h);
     // centred on the Human, every node must still show: zoom out around the Human until the farthest one fits
     const bb = cy.elements().renderedBoundingBox(), cx = cy.width() / 2, cy0 = cy.height() / 2, pad = 24;
@@ -889,12 +1046,18 @@ function drawGraph() {
   }
   function offCentre() {
     const h = cy.$('#human'), b = $('centre-human'); if (!b || h.empty()) return;
-    const p = h.renderedPosition(), far = Math.hypot(p.x - cy.width() / 2, p.y - cy.height() / 2) > 40;
+    const p = h.renderedPosition(), v = BR ? homeView() : null,
+      tx = v ? h.position().x * v.zoom + v.pan.x : cy.width() / 2, ty = v ? h.position().y * v.zoom + v.pan.y : cy.height() / 2,
+      far = Math.hypot(p.x - tx, p.y - ty) > 40;
     b.classList.toggle('hidden', !far);
   }
   cy.on('pan zoom', offCentre);
   cy.ready(centreHuman);
-  if ($('centre-human')) $('centre-human').onclick = () => cy.animate({center: {eles: cy.$('#human')}, duration: 250, complete: offCentre});
+  if ($('centre-human')) $('centre-human').onclick = () => cy.animate(BR ? {zoom: homeView().zoom, pan: homeView().pan, duration: 250, complete: offCentre}
+    : {center: {eles: cy.$('#human')}, duration: 250, complete: offCentre});
+  const lt = $('layout-toggle');  // the drawing on screen, as a small text button; a click does what L does
+  if (lt) { lt.textContent = ({branch: 'ramos', metro: 'raios', clock: 'relógio'})[MODE] || 'forças'; lt.onclick = toggleLayout; }
+  cy.scratch('branch', BRINFO);
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
     + '';
   cy.on('tap', ev => { if (ev.target === cy) closeSide(); });
@@ -1105,6 +1268,7 @@ const TABS = {
           <span id="legend" class="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400 min-w-0"></span>
           <span class="ml-auto shrink-0 cursor-help text-neutral-500" title="Máquina de estados a partir do Human · aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário">?</span></div>
         <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div>
+          <button id="layout-toggle" title="L: alterna o desenho entre ramos e raios" class="absolute right-3 top-3 z-10 px-2 py-0.5 rounded text-xs text-neutral-500 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"></button>
           <button id="centre-human" class="hidden absolute right-3 bottom-3 z-10 px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">◎ Centralizar Human</button></div>
       </div>
       <aside id="ev-side" class="hidden w-[min(380px,34vw)] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
@@ -1226,6 +1390,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'g') { $('keyhint').textContent = 'g…'; pending = setTimeout(() => { pending = null; $('keyhint').textContent = ''; }, 1200); return; }
+  if ((e.key === 'l' || e.key === 'L') && GRAPH(tab) && $('layout-toggle') && !popOpen()) { toggleLayout(); e.preventDefault(); return; }
   if (e.key === 'Escape') { popOpen() ? closeWidget() : closeSide(); return; }
   if (popOpen()) return;
 });
