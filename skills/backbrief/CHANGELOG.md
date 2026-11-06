@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.3] - 2026-11-06
+
+### Changed
+
+- UI work goes to the `hipster` profile (Opus, max effort); the option names it (`Implementar com hipster`).
+
 ## [0.16.2] - 2026-11-06
 
 ### Changed

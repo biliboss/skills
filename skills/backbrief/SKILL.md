@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.16.2
+  version: 0.16.3
 ---
 
 # backbrief
@@ -88,10 +88,10 @@ shows which kinds of task each model does well and with what quality.
       Long or separable work goes to the harness's own subagents, so it stays in the session the owner is watching
       and the agent only splits, checks and merges. **Prefer a Hermes profile and name it in the label**: the
       routing table (`skills/hermes/scripts/hermes.sh route <kind>`) gives the owner of the work, so the option reads
-      `Implementar com hacker (Hermes)` for code, `com designer` for UI, `com sre` for infrastructure, `com
-      researcher` for research; work spanning two kinds names both (`com hacker + designer`). Without Hermes, in
+      `Implementar com hacker (Hermes)` for code, `com hipster` for UI, `com sre` for infrastructure, `com
+      researcher` for research; work spanning two kinds names both (`com hacker + hipster`). Without Hermes, in
       Claude Code the Agent tool (`Implementar com subagente · Sonnet`); inside a Hermes session without a profile
-      route, `delegate_task`. Elsewhere, or when he names pi, it goes to pi with the best model for it
+      route, `delegate_task`. **UI work** (screens, widgets, layout, a native view) always goes to the `hipster` profile, Opus at max effort (or the Hermes delegation route `ui-opus-max`), never the default Sonnet: UI needs a focused, tasteful pass. Elsewhere, or when he names pi, it goes to pi with the best model for it
       (step 9, e.g. `Implementar com pi · Claude Sonnet (mukutu)`; the registry's default `sonnet` when nothing
       speaks for another one). Either way each delegated task gets its own worktrunk worktree (step 13).
    2. **Pi · <recomendado> + <teste>, em paralelo**: only when the work is delegated: the recommended model plus one

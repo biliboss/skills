@@ -1,6 +1,6 @@
 # hermes
 
-Claude Code and pi drive the owner's local Hermes profiles (researcher, designer, sre, via-ads, mantainer, bili) as
+Claude Code and pi drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as
 agents that keep their own memory. One script, `scripts/hermes.sh`, wraps the `hermes` CLI. Rules and routing are in
 [SKILL.md](SKILL.md); the routing table in [references/routing.md](references/routing.md).
 

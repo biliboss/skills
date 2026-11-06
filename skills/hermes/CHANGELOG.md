@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-11-06
+
+### Changed
+
+- The design profile is `hipster` (was `designer`): hacker, hustler, hipster; the route test covers code -> hacker.
+
 ## [0.2.0] - 2026-11-06
 
 ### Changed

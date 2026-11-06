@@ -117,9 +117,8 @@ not exercise without putting a window on the owner's screen: the first `launch` 
 
 A page button talks back with `window.webkit.messageHandlers.devconsole.postMessage({...})`: the object is written to
 `state.json` as `last_message`. The other native feature is the **Go menu**: ⌘P is Print in AppKit, so the app takes it
-for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsoleModules && devconsoleModules()` (or
-`devconsoleDomains`) in the page, and no print panel can open. A browser handles the same keys in `keydown`
-(⌘P / Ctrl+P → `preventDefault`, overlay).
+for "Módulos" (and ⌘K for "Domínios"); each item opens the native palette (Native chrome, below), and no print panel
+can open. A browser handles the same keys in `keydown` (⌘P / Ctrl+P → `preventDefault`, the web overlay).
 
 - **Native chrome: status line.** The window draws its bottom status line itself (`StatusLineController`, under the web
   view): ▶/⏸, cost center, `R$ today de R$ budget`, `domain · module`. The page keeps the content: when
@@ -138,6 +137,8 @@ for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsol
   `window.__cy` (per category, the angle of each node from `#human`; overlap counts of rendered label boxes), then
   `wait | jq -r .last_result`. One angle per category = a metro line in the right clock direction.
 - **Do not run `install` just to open a view.** It rebuilds and relaunches; use it when the app is missing or its code changed.
+  After an install, `eval 'location.href'` then `wait`: the relaunched window can come up on `about:blank`; `open` the
+  console URL before telling him it is installed.
 - `cd app && swift build && swift test` runs the `ConsoleCore` tests (command decode, apply once per id, state, frames).
   If `swift` fails on an SDK mismatch, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` (`build-app.sh` does it).
   `DEV_CONSOLE_WINDOW_STATE_DIR` moves both files (tests); `DEV_CONSOLE_URL` sets the app's default page.
@@ -146,16 +147,25 @@ for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsol
 
 In `DevConsole.app` the **chrome** (the browser's frame around the content) is drawn by Swift and the page keeps the
 content. Native so far: the command palette, one borderless floating `NSPanel` (`PaletteController.swift`, vibrancy, search
-field, list, ↑↓ Enter Esc), opened by ⌘K (domains) and ⌘P (modules) from the Go menu, or by a click on the page's status line
-(the page posts `{palette: 'domains'|'modules'}` through the `devconsole` handler). Its items come from the read-only
+field, list, ↑↓ Enter Esc), opened by ⌘K (domains) and ⌘P (modules) from the Go menu, or by a click on the domain or the
+module of the native status line (`StatusLineController.onPalette`; a page that still posts `{palette: 'domains'|'modules'}`
+through the `devconsole` handler opens it too). Its items come from the read-only
 `GET /api/palette[?domain=<slug>]` (`{domains:[{slug,name}], modules:[{id,title,url}]}`) and the fuzzy ranking is
 `fuzzyMatch`/`fuzzyRank` in `ConsoleCore` (subsequence, case and accent insensitive, tested); Enter loads the URL in the web
 view like the web palette's `location.href`, so the new page's first trusted gesture still posts `time/enter` (the cost
-clock claim is unchanged). Everything else stays web: graph, tabs, widgets, the status line and money bar. The page knows it
+clock claim is unchanged). The status line is native too (above). Everything else stays web: graph, widgets, screens,
+Playground. Each native piece keeps the web one for the plain browser and talks to the server through the same routes, so
+the cost journal keeps one writer. Put each piece in its own Swift file with its pure logic in `ConsoleCore` (tested), and
+touch `AppDelegate.swift` with a few lines only: two pieces built in parallel then merge cleanly. The page knows it
 is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/⌘P overlay is off, and in a plain browser
 (agents, headless) it works as before.
 
 - **⌘K/⌘P are read by the app before the web view** (a local key monitor, `PaletteMode.forShortcut`): a WKWebView reports those keys as handled, so the menu's key equivalents never fired and only a menu click opened the palette.
+- **Check a native piece without keystrokes first:** `System Events` → `click menu item "Domínios" of menu 1 of menu
+  bar item "Go"` of process DevConsole exercises the same action with no risk of typing elsewhere; then list the app's
+  on-screen windows with Quartz `CGWindowListCopyWindowInfo` (a uv script with `pyobjc-framework-Quartz`; the palette is
+  the layer-3 window, ~560 px wide) and capture just that window with `screencapture -x -l<window number>`.
+  `tell application "DevConsole" to activate` does not reliably bring it to the front.
 - **Testing real keys:** synthetic keystrokes (`osascript ... keystroke`) go to whatever app is in front, and the owner may be working in another one. Send them only when the Mac is idle (HIDIdleTime over 60 s), bring DevConsole to the front with `set frontmost of process "DevConsole" to true`, check that it is still in front before every key, and stop at the first key that lands elsewhere; never type text or Enter blind.
 
 ## Playground
@@ -289,7 +299,10 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   `{name, url, event, note}` steps, each an iframe of the product's own URL (a Storybook story's
   `iframe.html?id=<story>&viewMode=story`, a prototype, the app), stepped with ← → and dots, the event each screen
   leads to beside its name; mark the widget `fake = True`. Never redraw a product's screen. For an imported product,
-  serve its Storybook from the detached read-only worktree (`pnpm install`, the design system's `storybook dev`),
+  serve its Storybook from a detached read-only worktree in a durable folder (`~/src/<product>`, `pnpm install`, the
+  design system's `storybook dev`, log to `~/.local/state/<product>-storybook.log`), never under the Hermes scratch
+  folder: scratch prunes idle entries after 24 h, the server keeps running on deleted `node_modules` and every
+  screen turns into an `ENOENT … iframe.html` error. After any widget complaint, curl one story URL first (500 = this),
   check which port answers with **its** stories (another project's Storybook may already hold 6006), and list the
   screens per step with the event they lead to (a subagent's job: find the stories, screenshot at 390×844).
 - **Composable, always.** A widget that shows something the console already draws composes that
@@ -518,6 +531,9 @@ For a product whose code already records domain events (Domain.Imported):
 
 ## Evolve it while using it
 
+- **UI work goes to Opus at max effort**: screens, widgets, layout, the console's look and the Swift chrome are a
+  focused job that needs taste; delegate them on the `ui-opus-max` route (Hermes delegation `model_map`), never the
+  default Sonnet route, which shipped native pieces that compiled and passed tests but did not work by hand.
 - Change the console in `scripts/dev-console.py` only (one file, forever). A project-specific
   view goes in the project's `WIDGETS`, not here.
 - What the user corrects about the console becomes a line in this SKILL.md (a rule) or in a
