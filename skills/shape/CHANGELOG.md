@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1] - 2026-11-06
+
+### Fixed
+- `learn` counts a shaping closed again once, with its last numbers (a correction no longer double-counts).
+
 ## [0.3.0] - 2026-11-06
 
 ### Added

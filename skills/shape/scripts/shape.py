@@ -243,7 +243,9 @@ def learn(catalog: dict | None = None) -> tuple[dict, list[str]]:
     events = _all_events()
     closed = [e for e in events if e["event"] == "shaping.closed"]
     diff: list[str] = []
-    for c in closed[seen:]:
+    # a shaping closed again (a correction) counts once: its last closing wins
+    latest = {c["shaping"]: c for c in closed[seen:]}
+    for c in latest.values():
         chosen = [e for e in events if e["event"] == "resources.chosen" and e["shaping"] == c["shaping"]
                   and e["at"] <= c["at"]]
         if not chosen:
