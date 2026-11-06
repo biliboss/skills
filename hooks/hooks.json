@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/project-state/scripts/session-start.sh\"", "timeout": 5 }
+        ]
+      }
+    ]
+  }
+}
