@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.66.0
+
+- tmux 0.2.0: `run.sh`, processo longo (servidor, watcher, suite de testes) numa sessão tmux presa à worktree do dono, com log, `--low --slot` (tampa global de suites), `reap` e um reaper launchd; seção "Processos longos" no SKILL.md.
+
 ## 0.65.0
 
 - cost-track 0.4.0: the cost clock follows the tmux session (`costs.sh tmux-focus`, `tmux-install`); dev-console 0.29.2: the window no longer drives the clock; kanban 0.4.2.

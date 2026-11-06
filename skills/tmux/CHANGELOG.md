@@ -2,6 +2,14 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-06
+
+### Added
+
+- `scripts/run.sh`: processo longo (servidor, watcher, suite) numa sessão tmux com o nome da worktree dona, marcada (`@procs`, `@owner`), uma janela por nome, log em `$PROCS_DIR/<sessão>/<nome>.log` com `exit=<código>` no fim. `start` (`--cwd`, `--owner`, `--low` com `taskpolicy -b` ou `nice -n 10`, `--slot` com vagas globais por `mkdir` atômico e vaga de pid morto retomada, `--restart` por `respawn-pane -k`), `ls [--json]`, `log`, `stop` (recusa sessão sem a marca; `--owner DIR`), `reap [--dry-run]`, `install-reaper` / `uninstall-reaper` (launchd, 60 s).
+- SKILL.md: seção "Processos longos" (a regra, o snippet do hook `post-remove` do Worktrunk, as armadilhas) e gatilhos novos na descrição.
+- `scripts/test.sh`: casos novos do `run.sh` (servidor privado, `PROCS_DIR` e repos/worktrees temporários).
+
 ## [0.1.1] - 2026-11-06
 
 ### Changed
