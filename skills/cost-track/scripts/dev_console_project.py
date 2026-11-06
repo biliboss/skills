@@ -44,6 +44,27 @@ def _hm(sec: int) -> str:
     return f"{sec // 3600}h{sec % 3600 // 60:02d}"
 
 
+def _human(sec: int, hours_day: float | None) -> str:
+    """Time as the client counts it: in days of its `hours_day` and hours ("1 dia e 2h10"); plain hours without one."""
+    sec = int(sec)
+    if not hours_day:
+        return _hm(sec)
+    day = int(hours_day * 3600)
+    d, rest = divmod(sec, day)
+    if not d:
+        return _hm(rest)
+    days = f"{d} dia{'s' if d > 1 else ''}"
+    return days if rest < 60 else f"{days} e {_hm(rest)}"
+
+
+def _center_seconds() -> dict[str, int]:
+    """All the time each cost center got (every stopped entry)."""
+    out: dict[str, int] = {}
+    for e in journal.read({"event": "time_entry.stopped"}):
+        out[e.get("cost_center") or ""] = out.get(e.get("cost_center") or "", 0) + int(e["value"].get("seconds", 0))
+    return out
+
+
 def _worth(ctx) -> dict:
     ws = [e for e in ctx.journal_events if e["event"] == "worth.updated"] or journal.read({"event": "worth.updated"})
     return ws[-1]["value"] if ws else {}
@@ -65,13 +86,17 @@ def worth(ctx):
 def cost_centers(ctx):
     """Cost Centers: each center, its kind, its day budget and what it cost."""
     rows = []
+    secs = _center_seconds()
     for c in sorted(ctx.entities, key=lambda c: (c.get("kind") != "client", c.get("name", ""))):
         kind = "cliente" if c.get("kind") == "client" else "investimento"
         budget = f"de {_brl(c['budget_day'])}/dia" if c.get("budget_day") else "sem teto"
+        hd = c.get("hours_day")
         rows.append(Div(Span(c.get("name", c["id"]), cls="font-semibold text-neutral-900 dark:text-neutral-100"),
                         Span(kind, cls="text-neutral-500"), Span(budget, cls="tabular-nums text-neutral-400"),
+                        Span(_human(secs.get(c["id"], 0), hd), title=f"dia de {hd:g} h" if hd else None,
+                             cls="tabular-nums text-right text-neutral-500"),
                         Span(_brl(c.get("cost", 0)), cls="tabular-nums text-right text-neutral-800 dark:text-neutral-200"),
-                        cls="grid grid-cols-[9rem_7rem_1fr_7rem] gap-2 py-1"))
+                        cls="grid grid-cols-[9rem_7rem_1fr_8rem_7rem] gap-2 py-1"))
     return Div(_title("Centros de custo"), *rows) if rows else Div(_title("Centros de custo"), P("nenhum centro ainda", cls="text-neutral-400"))
 
 
