@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-06
+
+### Added
+
+- `kanban.sh describe <card> --file <path>|--text <t>`: `card.described {text}`, the card's description (the 5-field request); the last one wins, an empty or identical text is refused. `show` prints it (and `description` in `--json`).
+- The Quadro shows the description's first line ("Por quê: ...") under the title in the muted style; the card's sidebar History tab starts with the full text.
+
 ## [0.6.3] - 2026-11-06
 
 ### Changed
