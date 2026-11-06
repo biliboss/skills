@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.47.0] - 2026-11-06
+
+### Added
+
+- `fluid-voice-auto-fix` 0.1.0: acha no que o usuário ditou as palavras que o FluidVoice erra e as põe no dicionário e no vocabulário, com backup, diff e guarda da ordem das regras (reaplica o PR #8).
+
 ## [0.46.0] - 2026-11-06
 
 ### Added

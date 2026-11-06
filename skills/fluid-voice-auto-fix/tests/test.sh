@@ -1,0 +1,65 @@
+#!/bin/sh
+# Testes do fix.sh: domínio falso, vocabulário e transcritos temporários. Nunca toca o FluidVoice real.
+set -u
+here=$(cd "$(dirname "$0")/.." && pwd)
+T=$(mktemp -d)
+export FLUID_DOMAIN="test.fluid.fake.$$" FLUID_RESTART=0 FLUID_VOCAB="$T/vocab.json" \
+  FLUID_BACKUP_DIR="$T/bk" FLUID_HISTORY="$T/none.sqlite3" FLUID_HERMES_DBS="$T/none.db" \
+  FLUID_CLAUDE_GLOB="$T/claude/*.jsonl"
+trap 'defaults delete "$FLUID_DOMAIN" 2>/dev/null; rm -rf "$T"; rm -f "$HOME/Library/Preferences/$FLUID_DOMAIN.plist"' EXIT
+F="$here/scripts/fix.sh"; pass=0; fail=0
+ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FALHOU: $1"; fi; }
+L() { "$F" list; }
+
+# regras de hoje: billy->Bili, mara o/a/os/as/ser -> para ...
+"$F" add billy -- Bili >/dev/null
+ok "billy->Bili" 'L | grep -q "^billy  ->  Bili$"'
+"$F" add "mara o" -- para o >/dev/null; "$F" add "mara a" -- para a >/dev/null
+ok "mara o" 'L | grep -q "^mara o  ->  para o$"'
+ok "Mara sozinho não vira regra" '! L | grep -qi "^mara  ->"'
+
+# guarda de ordem: curta antes da longa
+"$F" add "billy boss" -- biliboss >/dev/null
+ok "variante 'bili boss' na regra longa" 'L | grep "biliboss" | grep -q "bili boss"'
+# guarda de ordem: longa antes da curta (em outro domínio limpo)
+defaults delete "$FLUID_DOMAIN"
+"$F" add "billy boss" -- biliboss >/dev/null
+"$F" add billy -- Bili >/dev/null
+ok "curta depois: 'bili boss' somado" 'L | grep "biliboss" | grep -q "bili boss"'
+ok "billy boss continua biliboss" 'L | grep "biliboss" | grep -q "billy boss"'
+
+# conflito recusado
+"$F" add billy -- Outro >/dev/null 2>&1
+ok "gatilho com outra substituição é recusado" '[ $? -ne 0 ] || ! L | grep -q Outro'
+ok "diff impresso" '"$F" add billy2 -- Bili | grep -q "^+billy, billy2\|^+.*billy2"'
+
+# boost
+"$F" boost Bili billy bily >/dev/null
+ok "boost peso 10" 'grep -q "\"weight\": 10" "$FLUID_VOCAB"'
+ok "boost alias" 'grep -q billy "$FLUID_VOCAB"'
+ok "boost idempotente" '[ "$("$F" boost Bili billy | grep -c "sem mudança")" = 1 ]'
+
+# backup / restore
+B=$("$F" backup)
+ok "backup existe" '[ -f "$B" ]'
+"$F" add xpto -- Xpto >/dev/null
+ok "xpto adicionado" 'L | grep -q xpto'
+"$F" restore "$B" >/dev/null
+ok "restore desfaz" '! L | grep -q xpto'
+ok "restore faz backup antes" 'ls "$T/bk" | grep -q pre-restore'
+
+# scan: lê transcritos, não aplica
+mkdir -p "$T/claude"
+cat > "$T/claude/a.jsonl" <<'J'
+{"type":"user","message":{"content":"manda mara o servidor ligar"}}
+{"type":"user","message":{"content":"manda mara ser rápido"}}
+{"type":"user","message":{"content":"não é zorba, é Zorbo o nome do agente"}}
+{"type":"assistant","message":{"content":"ok"}}
+J
+defaults delete "$FLUID_DOMAIN"; rm -f "$FLUID_VOCAB"
+S=$("$F" scan)
+ok "scan acha mara o -> para o" 'echo "$S" | grep -q "mara o -> para o"'
+ok "scan acha correção zorba" 'echo "$S" | grep -qi "zorba -> Zorbo"'
+ok "scan não aplicou nada" '! L | grep -q "mara"'
+
+echo "fix.sh: $pass ok, $fail falhas"; [ "$fail" = 0 ]
