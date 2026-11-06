@@ -52,8 +52,10 @@ def cmd_query(svc, a):
     end = dt.date.today() - dt.timedelta(days=2)
     start = end - dt.timedelta(days=a.days - 1)
     body = {"startDate": start.isoformat(), "endDate": end.isoformat(), "dimensions": [a.by], "rowLimit": a.limit}
-    if a.filter:  # "page~/blog" (contains) or "query=imóvel" (equals)
-        op = "~" if "~" in a.filter else "="
+    if a.filter:  # "page~/blog" (contains) or "query=imóvel" (equals); the first ~ or = splits
+        if "~" not in a.filter and "=" not in a.filter:
+            sys.exit("gsc: --filter is <dimension>~<text> (contains) or <dimension>=<text> (equals)")
+        op = min((c for c in "~=" if c in a.filter), key=a.filter.index)
         dim, expr = a.filter.split(op, 1)
         body["dimensionFilterGroups"] = [{"filters": [
             {"dimension": dim, "operator": "contains" if op == "~" else "equals", "expression": expr}]}]
