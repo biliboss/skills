@@ -3,7 +3,7 @@ name: pi
 description: >-
   Run the pi coding agent (pi.dev) with the owner's Claude accounts through the subscription, not an API key — on the Mac via the pi-claude-bridge extension, choosing the account (the main or the secondary one) by CLAUDE_CONFIG_DIR; check which account each folder has; install or repair the bridge; and see how pi reaches its providers on the VPS. Every action is a script in scripts/. Use when the user says "roda o pi", "pi com a conta do Claude", "pi com a conta principal", "usa o pi.dev aqui", "pi via cli", "as contas do pi", "o pi da VPS", "instala o bridge do pi". Not `delegate` (another Claude Code session) nor `bili` (the Hermes agent that launches pi robots on the VPS): this one runs pi itself, here.
 metadata:
-  version: 0.3.0
+  version: 0.3.1
 ---
 
 # pi — o pi.dev com as contas do Claude
@@ -29,6 +29,11 @@ O `pi` é o agente de terminal (pi.dev) que roda os robôs da VPS e que também 
    - **GLM pelo Coding Plan (o outro plano fixo):** `ZAI_API_KEY="$(cat ~/glm_token)" pi -p --no-session --mode json --model zai/glm-5.3 "<pedido>"` (ou `zai/glm-5.3-flash`). A chave entra só no ambiente do processo filho; nunca a imprima nem a ponha num arquivo do repo.
    - **Sem interação, para orquestrar:** `-p --no-session --mode json > <scratch>/run.jsonl`; o fim da execução é o evento `agent_end` (a resposta final em `.messages[-1].content[].text`), e o uso por turno vem em `message_end`/`turn_end` `.message.usage` (`input`, `output`, `cost.total`, que é preço de tabela, não cobrança do plano).
 3b. **Comparar modelos na mesma tarefa** (quando o dono quer saber "funciona neste modelo?"): um worktree e um ramo por modelo a partir do `origin/main` (`git worktree add ../<repo>.wt-<tarefa>-<modelo> -b run/<tarefa>-<modelo> origin/main`), o mesmo brief num arquivo fora dos worktrees, e os dois `pi -p` em paralelo num só `terminal(background=true, notify=true)` com `( ... ; echo "<modelo> exit=$? $(date +%s)" >> done ) &` e `wait`. Depois, confira você mesmo os testes de cada ramo, monte a tabela (tempo, testes, o que faltou, custo) e escolha um ramo para o PR, dizendo por quê; registre o resultado de cada modelo, inclusive o não escolhido, para aprender que tarefa cada um faz bem. Só planos fixos entram: Claude pela conta da empresa do trabalho e o GLM do Coding Plan, nunca OpenRouter.
+3c. **Delegar uma entrega ao pi** (o executor padrão da casa): o brief num arquivo do scratch (o que fazer, o que não tocar, o "Done" que ele mesmo roda: build, testes, commit pelo caminho, sem push, sem instalar nem abrir app), um worktree novo de `origin/main` depois de conferir que o clone principal está limpo, e `S/pi-claude.sh <conta> -p --no-session --mode json --model <modelo> "Read the file <brief> and implement it fully..."` num `terminal(background=true, notify=true)`.
+   - **Um pi por worktree.** Para mudar o pedido no meio, mate a execução antiga antes de relançar com o brief novo: duas no mesmo worktree se sobrescrevem.
+   - **Ao voltar, confira só a lacuna** que o relato dele diz não ter provado (o app na tela, um build que a permissão barrou, o clique de verdade numa janela), corrija, e só então abra o PR como o app.
+   - **PRs paralelos no biliboss/skills colidem na versão do plugin e no CHANGELOG da raiz:** ao juntar o segundo, traga o `origin/main`, dê a ele a próxima versão e reordene o CHANGELOG da mais nova para a mais antiga (um script que ordena as seções `## [x.y.z]`), nunca empilhando duas entradas com o mesmo número.
+   - **Swift no Mac:** se o `swift build` acusar SDK trocado, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` no brief e nos scripts de build.
 4. **As nossas skills no pi:** `S/ligar-skills.sh` liga em `~/.pi/agent/skills/` cada skill deste plugin (`biliboss/skills`), lida do `plugin.json`, e tira do caminho a que saiu do plugin. Rode depois de criar ou tirar uma skill; no pi aberto, mande `/reload`.
 5. **A VPS:** `S/vps.sh` mostra, para cada `~/.pi/agent` da VPS, os provedores logados (só o tipo), o padrão e se o `anthropic` está pronto. Lá o `root` usa o login do próprio pi (`anthropic` por OAuth), não o bridge.
 
