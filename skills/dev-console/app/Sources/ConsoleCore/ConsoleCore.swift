@@ -235,3 +235,17 @@ public func dockFrame(in visible: CGRect, side: WindowCommand.Side) -> CGRect {
 public func resizedFrame(_ frame: CGRect, width: Double, height: Double) -> CGRect {
     CGRect(x: frame.minX, y: frame.maxY - height, width: width, height: height)
 }
+
+/// Seconds since the Mac's last input of any kind (keyboard, mouse, trackpad). The page stops the money bar's clock
+/// after 5 minutes of this. It must be the any-input event type (`~0`, kCGAnyInputEventType): `.null` (0) answers with
+/// the time since boot and would stop the clock at once.
+public func systemIdleSeconds() -> Double {
+    guard let any = CGEventType(rawValue: ~0) else { return 0 }
+    return CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: any)
+}
+
+/// The script that hands the idle time to the page; a page without the money bar has no `devconsoleIdle`, so nothing happens.
+public func idleScript(seconds: Double) -> String {
+    let s = seconds.isFinite ? max(0, seconds) : 0
+    return "typeof window.devconsoleIdle === 'function' && window.devconsoleIdle(\(Int(s.rounded())))"
+}

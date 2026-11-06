@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var gate = CommandGate()
     private var state = WindowState()
     private var pendingFrameWrite: DispatchWorkItem?
+    private var idleTimer: Timer?
 
     private let stateDir: URL = {
         if let o = ProcessInfo.processInfo.environment["DEV_CONSOLE_WINDOW_STATE_DIR"], !o.isEmpty {
@@ -47,6 +48,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         NSApp.activate(ignoringOtherApps: true)
         syncWindowState()
         pollCommand()
+        startIdleReports()
+    }
+
+    /// Every 5 s the page learns how long the Mac has been idle (the money bar stops its clock after 5 minutes).
+    /// The page defines `window.devconsoleIdle` only when it has a bar; without it the script does nothing.
+    private func startIdleReports() {
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.webView.evaluateJavaScript(idleScript(seconds: systemIdleSeconds()), completionHandler: nil)
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

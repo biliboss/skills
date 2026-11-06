@@ -2,6 +2,20 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.21.0] - 2026-11-05
+
+### Added
+
+- `dev-console` 0.6.0: the money bar in the toolbar of every domain with a cost center (spent today ticking, the day
+  budget for a client, the rate, ▶ / ⏸, a popover with today per center); the clock writes Costs events.
+- `cost-track` 0.3.0: `scripts/costs.py` is the only writer of the Costs journal (`emit` CLI plus the module API the
+  console imports); tests in `scripts/test_costs.py`.
+
+### Removed
+
+- `timer` (the menu bar countdown): the clock now lives in the dev-console's money bar and everything lands in the
+  Costs journal.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added
