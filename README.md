@@ -7,6 +7,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `tensions` | registra eventos de domínio significativos no JSONL global, com Python stdlib e recipes `just` opcionais |
 | `backbrief` | em desenho, domínio Tasks: um comando para a tarefa explicada a alguém e repetida de volta do jeito que foi entendida (teach-back) |
 | `cost-track` | domínio Costs: tudo tem custo; cada domínio pertence a um centro de custo e o tempo ligado vira dinheiro; único escritor do diário de custos |
+| `brainstorm` | pensar junto quando a ideia ainda está aberta, antes do backbrief: Double Diamond com pensamento sistêmico (Cynefin, iceberg, laço causal desenhado no dev-console, pontos de alavanca); termina numa nota "Decidi X porque Y" |
 | `retro` | a revisão da sessão (after-action review): as correções do dono viram regras nos skills certos, escolhidas por ele e aplicadas num PR |
 | `diff-review` | a revisão de código de um diff local, com prompt próprio no plano flat: só problemas que o diff introduziu, cada um com cenário de falha; bloqueio aberto volta para a execução |
 | `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
