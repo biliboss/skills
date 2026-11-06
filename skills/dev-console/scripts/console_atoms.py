@@ -3,7 +3,7 @@ written once. dev-console.py loads this as a sibling; a project imports it (`fro
 after appending skills/dev-console/scripts to sys.path. See references/atomic-design.md."""
 from __future__ import annotations
 
-from fasthtml.common import H2, P
+import fasthtml.common as ft  # tags read at call time: a test may stub fasthtml with only some of them
 
 TITLE_CLS = "mb-3 font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100"
 MUTED_CLS = "text-neutral-400"
@@ -11,9 +11,9 @@ MUTED_CLS = "text-neutral-400"
 
 def title(text: str):
     """Every widget starts with its title (in a module or a sidebar part the console hides it: the line names it)."""
-    return H2(text, cls=TITLE_CLS)
+    return ft.H2(text, cls=TITLE_CLS)
 
 
 def empty(text: str, cls: str = ""):
     """The empty state: one muted line saying what is missing."""
-    return P(text, cls=f"{cls} {MUTED_CLS}".strip())
+    return ft.P(text, cls=f"{cls} {MUTED_CLS}".strip())
