@@ -36,16 +36,20 @@ def main() -> int:
                                 color_scheme="light" if a.light else "dark")
         page.on("pageerror", lambda e: out["errors"].append(f"pageerror: {e}"))
         page.on("console", lambda m: m.type == "error" and out["errors"].append(f"console: {m.text}"))
-        resp = page.goto(a.url, wait_until="domcontentloaded")
-        page.wait_for_timeout(a.wait)
-        out["status"] = resp.status if resp else None
-        out["title"] = page.title()
-        if a.js:
-            out["eval"] = page.evaluate(a.js)
-        if a.shot:
-            page.screenshot(path=a.shot)
-            out["shot"] = a.shot
-        browser.close()
+        try:  # a refused connection or a bad --eval is still one JSON line, never a traceback
+            resp = page.goto(a.url, wait_until="domcontentloaded")
+            page.wait_for_timeout(a.wait)
+            out["status"] = resp.status if resp else None
+            out["title"] = page.title()
+            if a.js:
+                out["eval"] = page.evaluate(a.js)
+            if a.shot:
+                page.screenshot(path=a.shot)
+                out["shot"] = a.shot
+        except Exception as e:  # noqa: BLE001
+            out["errors"].append(f"check: {type(e).__name__}: {str(e).splitlines()[0][:200]}")
+        finally:
+            browser.close()
     print(json.dumps(out, ensure_ascii=False))
     return 1 if out["errors"] or (out["status"] or 0) >= 400 else 0
 
