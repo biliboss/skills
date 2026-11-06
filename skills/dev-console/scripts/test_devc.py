@@ -256,7 +256,7 @@ KANBAN_SH = Path(__file__).resolve().parent.parent.parent / "kanban" / "scripts"
 
 
 class DevcKanbanTest(unittest.TestCase):
-    """devc board / delegated / done against the real kanban.sh, one temp KANBAN_DIR per test."""
+    """devc board against the real kanban.sh, one temp KANBAN_DIR per test."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -275,57 +275,8 @@ class DevcKanbanTest(unittest.TestCase):
     def cards(self):
         return [r["card"] for r in json.loads(subprocess_out("list"))]
 
-    def test_delegated_creates_in_downstream_and_prints_id(self):
-        code, out, _ = run("delegated", "Fix the login", "--domain", "via")
-        self.assertEqual(code, 0)
-        card = out.strip()
-        c = [c for c in self.cards() if c["id"] == card][0]
-        self.assertEqual((c["stage"], c["title"], c["domain"]), ("Downstream", "Fix the login", "via"))
-
-    def test_delegated_json_and_actor(self):
-        code, out, _ = run("delegated", "Goal", "--domain", "via", "--by", "bili-local", "--json")
-        d = json.loads(out)
-        self.assertEqual((d["stage"], d["created"]), ("Downstream", True))
-        evs = [json.loads(l) for l in (Path(self.tmp.name) / "events.jsonl").read_text().splitlines()]
-        self.assertEqual(evs[-1]["actor"], "bili-local")
-
-    def test_delegated_idempotent_while_open(self):
-        _, a, _ = run("delegated", "Same", "--domain", "via")
-        _, b, _ = run("delegated", "Same", "--domain", "via")
-        self.assertEqual(a, b)
-        self.assertEqual(len(self.cards()), 1)
-        _, other, _ = run("delegated", "Same", "--domain", "blog")  # another domain: another card
-        self.assertNotEqual(a, other)
-        run("done", a.strip())
-        _, again, _ = run("delegated", "Same", "--domain", "via")  # closed: a new one
-        self.assertNotEqual(a, again)
-
-    def test_delegated_parent_prefix_and_trim(self):
-        pid = json.loads(run("delegated", "Via Blog", "--domain", "via", "--json")[1])["card"]
-        _, out, _ = run("delegated", "Write the post", "--domain", "via", "--parent", pid[:4])
-        self.assertEqual([c for c in self.cards() if c["id"] == out.strip()][0]["title"], "Via Blog · Write the post")
-        _, out, _ = run("delegated", "x" * 200, "--domain", "via")
-        t = [c for c in self.cards() if c["id"] == out.strip()][0]["title"]
-        self.assertEqual(len(t), 80)
-        self.assertTrue(t.endswith("…"))
-
-    def test_delegated_errors(self):
-        self.assertEqual(run("delegated", "Goal")[0], 2)  # no --domain
-        code, _, err = run("delegated", "Goal", "--domain", "via", "--parent", "nope")
-        self.assertEqual(code, 1)
-        self.assertIn("parent", err)
-
-    def test_done_moves_to_feito(self):
-        card = run("delegated", "Job", "--domain", "via")[1].strip()
-        code, out, _ = run("done", card, "--note", "PR #1")
-        self.assertEqual(code, 0)
-        self.assertIn("Feito", out)
-        self.assertIn("PR #1", out)
-        self.assertEqual([c for c in self.cards() if c["id"] == card][0]["stage"], "Feito")
-        self.assertEqual(run("done", "nosuchcard")[0], 1)
-
     def test_board_passthrough(self):
-        run("delegated", "Job", "--domain", "via")
+        self.assertEqual(board_run("create", "Job", "--domain", "via")[0], 0)
         code, text = board_run("list")
         self.assertEqual(code, 0)
         self.assertIn("Job", text)

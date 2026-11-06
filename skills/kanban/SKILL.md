@@ -8,7 +8,7 @@ description: >-
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
   "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.4.0
+  version: 0.4.1
 ---
 
 # kanban
@@ -68,6 +68,10 @@ gets only `decision.requested`, never a close or a delete. Tests override gh wit
 `{"id","event","at","actor","card_id","value"}`, written under a file lock. It refuses an unknown event, a card with no
 title or no domain slug, an unknown stage (any case is accepted: `feito`), a move to the stage the card is already in,
 and an unknown or ambiguous card (it lists the matches). Never edit the real journal by hand while the console reads it.
+
+## One card per piece of work
+
+Um cartão por trabalho que o Gabriel nomeia; subagentes e delegações não criam cartão. Delegar move o cartão do trabalho (Upstream → Downstream quando o Gabriel aprova o backbrief); nunca cria cartão novo. As frentes de um trabalho ficam dentro do cartão, não viram cartões.
 
 ## The WIP limit of a stage
 

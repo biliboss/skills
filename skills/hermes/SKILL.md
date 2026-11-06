@@ -2,7 +2,7 @@
 name: hermes
 description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
 metadata:
-  version: 0.2.3
+  version: 0.2.4
   license: MIT
 ---
 
@@ -28,9 +28,6 @@ this skill's folder. Rules and routing below; depth in [references/routing.md](r
    The profile sees nothing of
    this session: put the whole task, the constraints and the learnings in the prompt, no credentials. The output is
    the answer, then a last JSON line `{profile, session_id, exit_code, duration_s, usage}`.
-   **Right after dispatching,** run `devc delegated "<task>" --domain <slug>` (dev-console; the same for any subagent the
-   Bili or an agent dispatches) and keep the card id; when the result arrives, `devc done <card>`. The card lives in
-   Downstream meanwhile.
 4. **Check the exit code; only 0 is success.** 1 no text, 2 partial or failed, 130 interrupted, 124 timeout, 3 profile
    busy, 4 profile refused, 5 unknown profile, 6 WIP limit reached. Report non-zero as it is; never present a partial as done.
 5. **Follow up.** `resume <profile> <session> "<msg>"` continues a session; `sessions <profile> [--limit N]` lists;
