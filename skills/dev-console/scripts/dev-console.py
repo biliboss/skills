@@ -864,10 +864,11 @@ function drawGraph() {
   const STEP = 170, TRACK = 180, HUMAN_R = 56, LABEL_CHARS = 14, LABEL_PUSH = 14;
   const LINE_POINTS = [], DASH_POINTS = [];   // thick line and dashed edge polylines (model coordinates), for the label collision test
   const SHIFT = [0, 1, 0, -1, 0, -1, 0, 1];   // diagonals (NE SE SW NW): the label leaves its own line, down (+1) or up (-1)
-  const metroLabelOf = id => { const [c, v] = id.split('.'), ent = ENT[c] || pascal(c);
+  // bare: the event words only (a branch lane names its entity once, at its first station, like a metro line its name)
+  const metroLabelOf = (id, bare) => { const [c, v] = id.split('.'), ent = ENT[c] || pascal(c);
     const parts = pascal(v).match(/[A-Z][a-z0-9]*|[a-z0-9]+/g) || [pascal(v)], lines = [];
     parts.forEach(p => { const last = lines.length - 1; if (last >= 0 && lines[last].length + p.length <= LABEL_CHARS) lines[last] += p; else lines.push(p); });
-    return [ent, ...lines].join('\n'); };
+    return (bare ? lines : [ent, ...lines]).join('\n'); };
   if (METRO) {
     const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]].map(([x, y]) => { const l = Math.hypot(x, y); return [x / l, y / l]; });
     const SIDE = ['r', 'r', 'b', 'r', 'l', 'l', 't', 'l'];   // N NE E SE S SW W NW: the label's side, fixed per direction
@@ -929,7 +930,11 @@ function drawGraph() {
     // columns per stage, a faint header at the top, a station inside its stage's band, ordered by the path); without
     // them a column is the longest step count from the Human. Labels are horizontal, below the station (above on a
     // spur that rises), pushed apart by the same collision pass as the metro.
-    const COL = 170, SPURY = 72, GAP = 40, LANE_ABOVE = 80, LANE_BELOW = 88, LANE_PAD = 34, LANE_SKIP = 12, HEADER = 84;
+    // COL leaves room for a 14-character label at the branch's 20 px (the labels were 14 px, about 8 px on a 900 px tall
+    // window once the zoom fits the height); STUB is how far a jump's dashed end reaches out of its station
+    const COL = 210, SPURY = 72, GAP = 40, LANE_ABOVE = 80, LANE_BELOW = 88, LANE_PAD = 34, LANE_SKIP = 12, HEADER = 84, STUB = 64;
+    const mix = (a, b, t) => '#' + [1, 3, 5].map(i => { const x = parseInt(a.slice(i, i + 2), 16), y = parseInt(b.slice(i, i + 2), 16);
+      return Math.round(x + (y - x) * t).toString(16).padStart(2, '0'); }).join('');   // b over a at opacity t
     const branchLayout = () => {
       const lanes = cats.map(c => ({c, ids: M().lifecycle[c].map(v => `${c}.${v}`)})), laneOf = {};
       lanes.forEach((l, i) => l.ids.forEach(id => { laneOf[id] = i; }));
@@ -988,9 +993,16 @@ function drawGraph() {
         l.top = y; l.row = y + (lo < 0 ? -lo * SPURY + LANE_ABOVE : LANE_PAD); l.bottom = l.row + hi * SPURY + LANE_BELOW; y = l.bottom + LANE_SKIP; });
       const y0 = lanes[0].row;
       lanes.forEach(l => { l.top -= y0; l.row -= y0; l.bottom -= y0; l.ids.forEach(id => { pos[id] = {x: xOf(id), y: l.row + slot[id] * SPURY}; }); });
+      const headOf = id => { const l = lanes[laneOf[id]]; return l && l.ids.find(x => !parentOf[x]) === id; };
       nodes.forEach(n => { const id = n.data.id; if (id === 'human') return;
-        n.position = pos[id]; n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id);
-        n.data.side = slot[id] < 0 ? 't' : 'b'; n.data.dir = 2; n.data.lane = laneOf[id]; n.data.stage = SO[stage[id]]; });
+        n.position = pos[id]; n.classes = (n.classes || '') + ' station'; n.data.mlabel = metroLabelOf(id, !headOf(id));
+        // a spur that ends at its station carries the label on its right, where the row is free (stacked spurs are one
+        // SPURY apart, less than a two-line label above or below: they were pushed far from their stations)
+        n.data.side = slot[id] !== 0 && !kidsOf[id].length ? 'r' : slot[id] < 0 ? 't' : 'b';
+        // the label knocks out what runs under it (a cartographic halo) in its stage band's own tone, so a label that
+        // must sit on a line stays readable and the box does not show
+        n.data.lbg = staged ? mix(bg, ink, stage[id] % 2 ? 0.05 : 0.025) : bg;
+        n.data.dir = 2; n.data.lane = laneOf[id]; n.data.stage = SO[stage[id]]; });
       const top = lanes[0].top - (staged ? HEADER : 0), bottom = lanes[lanes.length - 1].bottom;
       const bands = SO.map((s, i) => ({stage: s, x1: bandStart[i] * COL + i * GAP - COL / 2, x2: (bandStart[i] + width[i]) * COL + i * GAP - COL / 2}));
       if (staged) bands.forEach((b, i) => { if (!width[i]) return;
@@ -1018,7 +1030,9 @@ function drawGraph() {
       Object.values(groups).forEach(({a, bs}) => bs.sort((p, q) => Math.abs(pos[q].y - pos[a].y) - Math.abs(pos[p].y - pos[a].y))
         .forEach((b, i) => { gutter[`${a}>${b}`] = Math.min(46 + i * 26, COL - 40); }));  // a full track apart: 10 px read as one line
       const branchRoute = (a, b) => { const S = pos[a], T = pos[b], dy = T.y - S.y, dx = T.x - S.x, s = Math.sign(dy);
-        if (a === 'human') return Math.abs(dy) >= dx ? [{x: 0, y: T.y - s * dx}] : spurRoute(a, b);
+        // a lane nothing leads into hangs from the Human: straight down its column, then along the lane's own row (a
+        // 45° leg from the Human ran through the stations of the lanes it passed, Broker.SignedUp on the Via)
+        if (a === 'human') return Math.abs(dy) >= 1 ? [{x: S.x, y: T.y}] : [];
         const h = gutter[`${a}>${b}`];
         if (Math.abs(dy) < COL || dx < COL - 1 || h == null) return spurRoute(a, b);
         const Bs = [{x: S.x + h, y: S.y + s * h}, {x: S.x + h, y: T.y - s * (COL - h)}, {x: S.x + COL, y: T.y}];
@@ -1036,10 +1050,24 @@ function drawGraph() {
         const sg = Math.sign(Bs[0].y - pos[a].y) || 1, d = 2 * k * PAR, nx = Bs[1] || pos[b];
         const horiz = Math.abs(nx.y - Bs[0].y) < 1;  // a leg that then runs along a row turns earlier; one that drops, lower
         return [horiz ? {x: Bs[0].x - d, y: Bs[0].y} : {x: Bs[0].x, y: Bs[0].y + sg * d}, ...Bs.slice(1)]; };
-      const done = new Set(), born = new Set();
+      const done = new Set(), born = new Set(), stubs = [];
       edges.forEach(e => { const a = e.data.source, b = e.data.target, cl = (e.classes || '').replace(/\bloop\b/, '').trim();
         if (a === b) return;
         const kind = kindOf(a, b); done.add(`${a}>${b}`); let Bs = [];
+        // a jump into another lane (partial edge drawing, Bruckdorfer & Kaufmann 2012): only its end is drawn, a short
+        // dashed stub into the station from the side its source is on, labelled with the command and where it comes from.
+        // Drawn whole it crossed every lane in between, or ran along the source's own line (Via: open_by_client, view_index).
+        // A loop back inside a lane over more than two columns is a jump too (an arc that long crossed the lane's spurs)
+        const jump = kind === 'merge' && a !== 'human' && laneOf[a] != null && laneOf[b] != null
+          && (laneOf[a] !== laneOf[b] || (back.has(`${a}>${b}`) && Math.abs(pos[a].x - pos[b].x) > 2 * COL));
+        if (jump) {
+          const T = pos[b], sx = Math.sign(pos[a].x - T.x) || -1, sy = Math.sign(pos[a].y - T.y) || -1;   // from the source's side
+          const P = {x: T.x + sx * STUB, y: T.y + sy * STUB}, sid = `stub:${a}>${b}`;
+          e.classes = `${cl} jump`;
+          nodes.push({data: {id: sid, label: ''}, position: P, classes: 'stubend', selectable: false, grabbable: false});
+          stubs.push({data: {id: `${sid}:end`, source: sid, target: b, color: soft, from: a,
+            label: `${(M().edge_cmd || {})[`${a}>${b}`] || M().commands[b]} ← ${name(a)}`}, classes: 'cross stub'});
+          DASH_POINTS.push([P, T]); return; }
         if (kind === 'merge' && back.has(`${a}>${b}`)) {  // a loop runs leftwards: an arc above the rows, never along a line
           const dx = Math.abs(pos[b].x - pos[a].x), dy = pos[b].y - pos[a].y;
           e.classes = `${cl} cross backloop`; e.data.cpd = (pos[b].x <= pos[a].x ? 1 : -1) * (SPURY * 0.9 + Math.min(dx, 4 * COL) * 0.12 + Math.abs(dy) * 0.1); }
@@ -1051,11 +1079,16 @@ function drawGraph() {
           e.classes = `${cl} ${spine ? 'spine' : 'line'}${e.data.sep ? ' parallel' : ''}`; if (spine) e.data.color = soft; if (kind === 'branch') born.add(b);
           LINE_POINTS.push([k ? {x: pos[a].x - k * PAR, y: pos[a].y + sg * k * PAR} : pos[a], ...Bs, pos[b]]); }  // the shifted start, for the label test
         if (Bs.length) e.data.route = route(pos[a], pos[b], Bs); });
+      edges.push(...stubs);
       // a lane is continuous: where the model has no edge between a station and the one before it, a faint rail carries the
       // line on; a lane nothing leads into hangs from the Human on the grey spine
       const rail = (a, b, color, cls, Bs) => { edges.push({data: {id: `rail:${a}>${b}`, source: a, target: b, color, label: '', ...(Bs.length ? {route: route(pos[a], pos[b], Bs)} : {})}, classes: cls});
         LINE_POINTS.push([pos[a], ...Bs, pos[b]]); };
-      lanes.forEach(l => { const pairs = l.ids.slice(1).map(id => [parentOf[id] || prevOf(id), id]).filter(([a, b]) => a !== b && !done.has(`${a}>${b}`));
+      // a station nothing in its lane leads into continues the row it sits on (the last station before it on that row):
+      // carried on from the station before it in EVENTS order, a spur's end, the rail cut across the fork's other spurs
+      const rowPrev = id => { const l = lanes[laneOf[id]], i = l.ids.indexOf(id);
+        for (let j = i - 1; j >= 0; j--) if (slot[l.ids[j]] === slot[id] && pos[l.ids[j]].x < pos[id].x) return l.ids[j]; return prevOf(id); };
+      lanes.forEach(l => { const pairs = l.ids.slice(1).map(id => [parentOf[id] || rowPrev(id), id]).filter(([a, b]) => a !== b && !done.has(`${a}>${b}`));
         if (!born.has(l.first)) pairs.unshift(['human', l.first]);
         pairs.forEach(([a, b]) => { if (a === 'human') { const far = Math.abs(pos[b].y) >= 1; rail(a, b, far ? soft : PATH[l.c], far ? 'spine' : 'rail', far ? branchRoute(a, b) : []); }
           else rail(a, b, PATH[l.c], 'rail', spurRoute(a, b)); }); });
@@ -1115,8 +1148,10 @@ function drawGraph() {
       {selector: 'edge.loop', style: {'curve-style': 'bezier', 'control-point-step-size': 60}},
       ...(METRO ? [
         {selector: 'node.station', style: {shape: 'ellipse', width: 16, height: 16, 'background-color': bg, 'border-width': 3,
-          'border-color': 'data(color)', 'border-opacity': 1, label: 'data(mlabel)', 'font-size': 14, 'font-weight': 400,
+          'border-color': 'data(color)', 'border-opacity': 1, label: 'data(mlabel)', 'font-size': BR ? 20 : 14, 'font-weight': 400,
           color: dark ? '#a3a3a3' : '#525252', 'text-wrap': 'wrap', 'line-height': 1.15, 'text-valign': 'center', 'text-halign': 'center'}},
+        ...(BR ? [{selector: 'node.station', style: {'text-background-color': 'data(lbg)', 'text-background-opacity': 1,
+          'text-background-padding': '2px', 'text-background-shape': 'roundrectangle'}}] : []),
         {selector: 'node.station.used', style: {'background-color': 'data(color)', 'border-width': 0, width: 18, height: 18, color: ink}},
         {selector: 'node.station[side="r"]', style: {'text-halign': 'right', 'text-valign': 'center', 'text-justification': 'left'}},
         {selector: 'node.station[side="l"]', style: {'text-halign': 'left', 'text-valign': 'center', 'text-justification': 'right'}},
@@ -1132,7 +1167,10 @@ function drawGraph() {
         {selector: 'edge.parallel', style: {'source-endpoint': 'data(sep)'}},
         {selector: 'edge.backloop', style: {'curve-style': 'unbundled-bezier', 'control-point-distances': 'data(cpd)', 'control-point-weights': 0.5, 'z-index': 1}},
         {selector: 'edge.cross', style: {width: 2, 'line-color': soft, 'line-style': 'dashed', 'line-dash-pattern': [7, 5], 'line-opacity': 0.9,
-          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': 12, 'text-rotation': 'none', 'z-index': 2}},
+          'target-arrow-color': soft, 'target-arrow-shape': 'triangle', 'arrow-scale': 1, color: soft, 'font-size': BR ? 17 : 12, 'text-rotation': 'none', 'z-index': 2}},
+        // a jump (branch): the whole edge stays in the model, hidden; its stub draws the end
+        {selector: 'edge.jump', style: {display: 'none'}},
+        {selector: 'node.stubend', style: {width: 1, height: 1, 'background-opacity': 0, 'border-width': 0, label: '', events: 'no'}},
       ] : []),
       {selector: ':selected', style: {'border-width': 4, 'border-color': ink, 'border-opacity': 1}},
     ],
@@ -1151,7 +1189,8 @@ function drawGraph() {
     const uni = (a, b) => ({x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1), x2: Math.max(a.x2, b.x2), y2: Math.max(a.y2, b.y2)});
     const placed = [], unions = [], PUSH = {r: [1, 0], l: [-1, 0], b: [0, 1], t: [0, -1]};
     cy.nodes('.station').forEach(n => {
-      const pref = n.data('side'), dir = n.data('dir'), cands = BR ? [pref, pref === 'b' ? 't' : 'b'] : [pref];   // branch: a station that branches downwards may carry its label above
+      // branch: a station that branches downwards may carry its label above, and any may fall back to its right
+      const pref = n.data('side'), dir = n.data('dir'), cands = BR ? [pref, ...['b', 't', 'r'].filter(s => s !== pref)] : [pref];
       let best = null;
       for (const side of cands) {
         n.data('side', side);

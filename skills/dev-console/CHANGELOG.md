@@ -15,6 +15,16 @@
   by `min(1000px, 92vh)` and its stage takes the height left, with nothing to scroll.
 - A `data-real-only` widget opened with `?mode=sim` kept the SIMULADO stripes and banner: the mode is cleared and
   repainted. Real screens are `data-real-only` (nothing to simulate).
+- **Branch layout, readable at his window**: station labels 20 px (were 14: about 8 px rendered on a 1440 x 900 window,
+  12 now; 15 at 1140 x 1074), columns 210 apart to hold them, the entity named once at each lane's first station.
+- **Branch layout, no dashed line across the map**: a jump into another lane, or a loop back inside a lane over more
+  than two columns, is drawn as its end only (partial edge drawing), a short dashed stub labelled `command ← Source`. On
+  the Via `open_by_client` crossed all five lanes and `view_index` ran 1900 px along the session line.
+- **Branch layout, the broker's exits**: the grey spine of a lane that hangs from the Human ran its 45° leg through
+  Broker.SignedUp, on top of the yellow line; it now goes down the Human's column and along its own row.
+- A spur that ends at its station carries the label on its right (stacked spurs pushed labels 113 px away); a station
+  nothing in its lane leads into continues its own row (its rail cut across a fork); labels knock out the line under them
+  in their stage band's tone.
 
 ### Changed
 

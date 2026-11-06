@@ -546,8 +546,17 @@ For a product whose code already records domain events (Domain.Imported):
    left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane (a branch), top to
    bottom in `EVENTS` order; a line follows `TRANSITIONS` as the metro does, but its fork is a 45° spur inside the lane. A lane is
    born where its transition comes from (its first station sits one column right of the station that leads into it, joined
-   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine; any other edge into a lane is a
-   merge (thin, grey, dashed, with its command). **Columns are funnel stages** when the project declares them: `STAGES =
+   by a 45° connector); a lane nothing leads into hangs from the Human on a grey spine, straight down the Human's column
+   and then along its own row (a 45° leg from the Human ran through the stations of the lanes it passed); any other edge
+   into a lane is a merge (thin, grey, dashed, with its command). **A jump is drawn as its end** (partial edge drawing,
+   Bruckdorfer & Kaufmann 2012): a merge from another lane, or a loop back inside a lane over more than two columns, is a
+   short dashed stub into the station from its source's side, labelled `command ← Source.Event`; drawn whole, those lines
+   crossed every lane in between or ran along the source's own line ("linhas tracejadas cruzando tudo", Via).
+   **Readable at the window he uses**: station labels are 20 px (14 px rendered about 8 px on a 900 px tall window once the
+   zoom fits the height), the entity is named once at the lane's first station and the others carry the event words only
+   (a metro line does not repeat its name per station), a spur that ends at its station carries the label on its right, a
+   station nothing in its lane leads into continues its own row, and every label knocks out what runs under it in its
+   stage band's tone. Check `labelPx` = font × zoom ≥ 12 at 1440×900. **Columns are funnel stages** when the project declares them: `STAGES =
    {"cat.event": "stage"}`, `STAGE_ORDER = [...]` (and `STAGE_LABELS = {stage: text}` for the header); a stage is a band of
    columns with a faint header at the top, and an edge that would go back to an earlier stage is drawn as a loop (dashed),
    never as a line running left. Without `STAGES` a column is the longest step count from the Human. `L` (focus not in an
