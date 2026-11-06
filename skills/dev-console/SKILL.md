@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.11.0
+  version: 0.12.0
 ---
 
 # dev-console
@@ -44,20 +44,38 @@ The screen state lives in the URL, so two windows on one server already navigate
 live reload: the server runs with `live=True` and reloads **every** open page on each saved file, so when one agent
 saves, the other agent's window reloads.
 
-For two agents on the same project (Hermes on one window, Claude Code on the other), start a second instance:
+For two agents on the same project (Hermes on one window, Claude Code on the other), manage the instances with
+`scripts/instances.sh`:
 
 ```sh
-<skill>/scripts/second.sh [port] [--from 5057]   # default 5058: same domains as :5057, no live reload
+I=<skill>/scripts/instances.sh
+$I list                                          # every running instance: port, owner, code, domains, live, started
+$I start [port] --owner <name> [--from 5057]     # default 5058: the domains of :5057, no live reload; foreground
+$I stop <port> [--force]                         # kills that instance's process tree; 5057 needs --force
 ```
 
-- It copies the `--project` flags of the instance on `--from` (read from its command line) and reads the same
+`second.sh [port] [--from 5057] --owner <name>` still works: it only runs `instances.sh start`.
+
+- `list` finds instances by the listening TCP ports whose process tree runs `dev-console.py` (the listener is often
+  a multiprocessing child of `python dev-console.py`, a child of `uv run --script`). Per instance: the port, the
+  owner, the repo or worktree the code comes from, the domains (the `--project` paths, short: the skill folder),
+  live reload on or off (`--no-live` in its command line), and the start time with the pid. A reload of the server
+  can leave its port unbound for a moment, so an instance may be missing from one `list` and back in the next.
+- The owner is the reason `start` requires `--owner`: renaming a terminal tab is awkward and an instance has no name.
+  It is one file per port, `~/.local/state/dev-console/instances/<port>.json` with
+  `{"port", "owner", "pid", "started_at", "from"}`, written by `start`, removed by `stop`; `list` drops (and
+  deletes) files whose pid is dead and ignores a file whose pid is not the process on that port. An instance with no
+  owner file (the first one, or one started by hand) shows where it runs instead: the herdr pane (workspace / tab /
+  pane label, found by `HERDR_PANE_ID` in the process environment), the tmux `session:window.pane`, else the tty.
+- `start` copies the `--project` flags of the instance on `--from` (read from its command line) and reads the same
   `domains.txt`, so both show the same domains; only the port differs. With nothing on `--from`, only this skill's
-  own domain.
+  own domain. It refuses a taken port.
 - `--no-live` (or `DEV_CONSOLE_LIVE=0`) is what turns the reload off. The server still restarts itself when code
   changes, so the new code is served, but the page changes only when its owner reloads it.
 - One instance per agent: the first keeps 5057, the other takes 5058 and opens it in a browser tab or window
   of its own. The native window (below) is a single one, on 5057 by default.
-- Run it in a terminal tab of its own like the first one, never as an agent's background process.
+- `start` runs in the foreground: put it in a terminal tab of its own like the first one, never as an agent's
+  background process. `stop` is the way out when the tab is gone.
 
 ## A native window
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0] - 2026-11-06
+
+### Added
+- `scripts/instances.sh`: `list` (every running instance: port, owner, where its code comes from, domains, live reload, start time and pid), `start [port] [--from 5057] --owner <name>` (the second instance's logic, now requiring an owner, which it records in `~/.local/state/dev-console/instances/<port>.json`) and `stop <port> [--force]` (kills the process tree; 5057 needs `--force`). Without an owner file, `list` shows the herdr pane, the tmux pane or the tty.
+
+### Changed
+- `scripts/second.sh` is a thin wrapper that runs `instances.sh start`; it now needs `--owner`.
+
 ## [0.11.0] - 2026-11-06
 
 ### Added
