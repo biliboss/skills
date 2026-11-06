@@ -721,7 +721,15 @@ function drawGraph() {
     box = k; cy.resize(); cy.fit(undefined, 20); centreHuman();
   }).observe($('cy'));
   // open centred on the Human (fit keeps the zoom, then the Human goes to the middle); off centre, a button brings it back
-  function centreHuman() { const h = cy.$('#human'); if (h.nonempty()) cy.center(h); offCentre(); }
+  function centreHuman() {
+    const h = cy.$('#human'); if (h.empty()) { offCentre(); return; }
+    cy.center(h);
+    // centred on the Human, every node must still show: zoom out around the Human until the farthest one fits
+    const bb = cy.elements().renderedBoundingBox(), cx = cy.width() / 2, cy0 = cy.height() / 2, pad = 24;
+    const k = Math.min(1, (cx - pad) / Math.max(cx - bb.x1, bb.x2 - cx, 1), (cy0 - pad) / Math.max(cy0 - bb.y1, bb.y2 - cy0, 1));
+    if (k < 1) cy.zoom({level: cy.zoom() * k, renderedPosition: {x: cx, y: cy0}});
+    offCentre();
+  }
   function offCentre() {
     const h = cy.$('#human'), b = $('centre-human'); if (!b || h.empty()) return;
     const p = h.renderedPosition(), far = Math.hypot(p.x - cy.width() / 2, p.y - cy.height() / 2) > 40;
