@@ -2,7 +2,7 @@
 name: thread
 description: Use when opening a topic/thread in one call, or the owner says "thread", "tópico", "abre um tópico", "abre uma thread do card", "branch da sessão". Opens a tmux window in the session where the skill was invoked (never a per-card session) running a Hermes session, a /branch of the one that invoked the skill, titled '<card> · <topic>' (or '<topic>'), the card linked on the window (@card), the brief passed inline (argument, stdin heredoc or gzip+base64), no temp file. Also lists and closes threads. Not for kanban cards themselves (kanban) nor generic panes (tmux).
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # thread — a topic, in one call
@@ -62,3 +62,21 @@ The order is an **MRU list** (most recently used first: the term of the cache li
 6. **Numbers stay 1..N** (`move-window -r` at the end; `renumber-windows on` covers closes).
 
 The state lives in window options (`@ask`, `@done`, `@agent`, `@subagents`, `@touched`; the session's `@sortreq` is the debounce token), no extra file. The tmux skill's `agent-state.sh` calls `thread.sh sort <pane>` from the Hermes hooks: `pre_llm_call`, `post_llm_call`, `subagent_start/stop`, and `on_human_input_request/resolved` (◆ `ask`/`answered`). `thread.sh touch <tab>` is the old name: `sort <tab> --now`. Tests: `scripts/test-sort.sh` (private tmux server).
+
+## Thread view: the thread as a screen, not a chat
+
+`scripts/threadview.py <hermes-session-id>` is a fullscreen TUI (Rich, no Textual) for one thread, opened in a tmux
+tab: the agent builds the screen, the owner types at the bottom. Prototype; one turn = one `hermes --resume <id> -z`.
+
+- **The agent's only output is the screen** (`scripts/view.py <sid> …`: goal, steps, artifacts, decision, pulse,
+  workers); its chat text is discarded. State lives in `~/.local/state/threadview/<sid>.json` (`THREADVIEW_DIR`).
+- **The input is a queue**: each message is one line above the input (`⋯` waiting, `✓` received, `✓✓` read, a timer
+  while it works, `✓ ↻ <what changed>` when answered) and leaves once answered. One turn at a time, in order.
+- **A turn has 10 s.** Longer work goes to a worker (`view.py worker add/done`), shown in the Agentes queue at the top.
+  A turn past 10 s only counts as answered with a line in `<sid>.overrun.log`.
+- **A choice turns the input into the choice**: options with the agent's confidence summing 100, best first, moved
+  with j/k and sent with ⏎; a tournament (skill `choice`, a dependency of this skill) turns it into fixed keys per edge.
+  `o` opens the showcase, in the dev-console when `devc` is installed.
+- **ctrl+l** shows the component names (Goal, Steps, Artifacts, Decision, Pulse, Queue, Input).
+- Headless `--resume` on a long session makes Hermes compact it (old rows `active=0`); the live tab still holds the old
+  history in memory, so don't type in both at once.

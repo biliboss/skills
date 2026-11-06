@@ -12,6 +12,8 @@ uso:
        (texto que comeca com -: pane.sh send <alvo> -- "-x ..." ; ou --stdin e o texto no stdin)
   pane.sh key  <alvo> <Tecla>...
   pane.sh wait <alvo> (--text REGEX | --idle S) --timeout S
+  pane.sh do   <alvo> <passo>... [--read N=20]     (um tiro: passos em ordem, depois le o pane)
+       passos: k=<Tecla> (Enter, Escape, C-u, f...)  t=<texto literal>  s=<segundos>
 alvo: %12 | nome-da-janela | sessao:janela | sessao:janela.pane
 U
   exit 2
@@ -39,6 +41,28 @@ cmd_key() {
   [ $# -ge 2 ] || usage
   local id; id=$(resolve_pane "$1") || exit $?; shift
   tm send-keys -t "$id" "$@"
+}
+
+# um tiro: teclas, texto literal e pausas em ordem, e no fim o pane (o que a tela fez com elas)
+pause() { perl -e "select(undef,undef,undef,$1)"; }
+cmd_do() {
+  [ $# -ge 2 ] || usage
+  local id n=20 step; id=$(resolve_pane "$1") || exit $?; shift
+  for step in "$@"; do
+    case $step in
+      --read) n=next ;;
+      k=*) tm send-keys -t "$id" "${step#k=}" ;;
+      t=*) tm send-keys -t "$id" -l -- "${step#t=}" ;;
+      s=*) case ${step#s=} in ''|*[!0-9.]*) DIE_CODE=2 die "pausa invalida: \"$step\"" ;; esac; pause "${step#s=}" ;;
+      *) if [ "$n" = next ]; then case $step in *[!0-9]*) DIE_CODE=2 die "--read N invalido" ;; esac; n=$step; continue; fi
+         DIE_CODE=2 die "passo invalido: \"$step\" (use k=Tecla, t=texto, s=segundos)" ;;
+    esac
+    # um respiro entre passos: texto e tecla na mesma rajada perdem letras num TUI
+    pause 0.15
+  done
+  [ "$n" = 0 ] && return 0
+  pause 0.5
+  cap "$id" 5000 | sed -E 's/[[:space:]]+$//' | { grep -v '^$' || true; } | tail -n "$n"
 }
 
 # ocorrencias de $2 (texto fixo) no pane $1
@@ -145,5 +169,6 @@ case $sub in
   send) cmd_send "$@" ;;
   key) cmd_key "$@" ;;
   wait) cmd_wait "$@" ;;
+  do) cmd_do "$@" ;;
   *) usage ;;
 esac

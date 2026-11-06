@@ -2,7 +2,7 @@
 name: tmux
 description: Faz tudo o que um agente precisa no tmux por scripts, sem montar comando na mão: lê as últimas linhas de um pane, lista sessões, janelas e panes, manda texto (inclusive comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, espera um pane mostrar um texto, com prazo. E roda processo longo (servidor, watcher, suite de testes) numa sessão tmux nomeada presa à worktree do dono, com log, vaga global para testes e limpeza de órfão, nunca solto em segundo plano. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "renomeia a janela", "sobe o servidor", "roda os testes em tmux", "processo órfão", "mata o que ficou rodando", "o watcher ficou rodando". Para abas e sessões do herdr use a `duplo-local-agents`; esta é só do tmux.
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # tmux: panes e janelas por script
@@ -25,6 +25,7 @@ scripts/pane.sh send <alvo> -- "-texto"            # texto que começa com -
 scripts/pane.sh key  <alvo> Enter Escape C-c Down  # teclas nomeadas
 scripts/pane.sh wait <alvo> --text '<regex>' --timeout 60
 scripts/pane.sh wait <alvo> --idle 3 --timeout 60
+scripts/pane.sh do   <alvo> k=f t='texto' k=Enter s=0.6 --read 20   # um tiro: teclas, texto e pausas em ordem, depois o pane
 scripts/win.sh new <nome> "<comando>" [--cwd DIR] [--session S] [--allow-duplicate]  # imprime o %id; não rouba o foco
 scripts/win.sh rename <alvo> <novo-nome>
 scripts/run.sh start|ls|log|stop|reap ...                # processo longo em sessão nomeada: veja "Processos longos"
@@ -40,6 +41,7 @@ Códigos de saída: 0 ok, 124 prazo esgotado (`send` sem ver o texto, `wait`), 1
 - **`-t` explícito.** Sem `-t`, comandos como `display-message -p` falham fora de um terminal ("not a terminal") ou miram o pane errado. Os scripts passam sempre o `%id`; faça igual se chamar o tmux à mão. O `-t` do próprio tmux aceita prefixo (`bili` acertaria `bili-sonnet`), por isso a resolução é feita antes, por igualdade exata.
 - **`send` = texto, conferir, Enter.** O texto vai com `send-keys -l` (literal), o script espera o FIM do texto aparecer no pane (até `--timeout`) e só então manda o Enter, em outra chamada. Texto e Enter na mesma chamada perdeu as primeiras letras de um comando com barra num Claude Code (`/reload-plugins` chegou `ad-plugins`). Se o fim não aparece, sai 124 sem Enter, com o texto talvez digitado: olhe com `read`, limpe com `key C-u`. Texto longo num TUI que quebra a linha (o Claude Code quebra em ~85 colunas) faz a conferência falhar mesmo com o texto inteiro digitado, porque o fim aparece partido entre duas linhas: `read` o pane e, se o texto está todo lá, mande só `key <alvo> Enter`; não reenvie, que duplica. Pane sem eco (senha) ou que redesenha o texto: use `--no-verify`.
 - **Responder um menu de escolha num TUI** (a pergunta do Claude Code, com `❯` na opção marcada): `read` o pane, ache a linha do `❯` e a opção que você quer, mande `key <alvo> Up` ou `Down` uma vez por linha, `read` de novo e confira que o `❯` está na opção certa, e só então `key <alvo> Enter`. O cursor não começa sempre na primeira opção, e um número digitado pode cair na linha de texto livre. Quem escolhe é quem tem o aval: só responda um menu que caiba nas decisões do agente (fora dinheiro, login, publicar para fora e apagar).
+- **Uma interação de TUI é um tiro só: `pane.sh do`.** Tecla que muda de modo, texto, Enter e a leitura do que a tela fez vão numa chamada (`k=f t='feedback' k=Enter --read 12`), com um respiro de 0,15 s entre os passos e 0,5 s antes de ler; `s=<seg>` acrescenta uma pausa. Não confere o texto como o `send`: use para uma TUI sua (atalhos de uma tecla, um input que você conhece); para o prompt de outro agente, `send`.
 - **Várias linhas.** Texto com quebra de linha vai por `load-buffer` + `paste-buffer -p -d` (com `send-keys -l` cada `\n` viraria Enter). Um TUI pode mostrar `[Pasted text ...]` em vez do texto: a conferência aceita esse marcador.
 - **`--` antes de texto que começa com `-`.** `pane.sh send alvo -- "-n x"`; sem ele o texto seria lido como opção. O texto também pode vir por `--stdin`.
 - **`wait` é um comando só, com prazo.** Ele repete a cada 0,2 s e sai sozinho; o prazo é obrigatório. Não escreva `while ... sleep` no comando do agente: os hooks desta máquina recusam (`no-sync-wait`). Pelo mesmo motivo chame os scripts pelo caminho completo, nunca por uma variável (o `var-command-guard` barra um programa rodado por variável), e sem `cd` antes. `--text` casa uma regex com as linhas atuais (já visíveis conta). `--idle S` espera a tela ficar parada S segundos e **não chega num Claude Code que está trabalhando** (o spinner muda a tela o tempo todo): ali use `--text`; com o TUI parado, o `--idle` sai 0.
