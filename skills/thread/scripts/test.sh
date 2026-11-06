@@ -87,7 +87,7 @@ printf 'unicred-1\tunicred\n' >>"$FAKE_DIR/sessions.tsv"
 "$T" open ramo --session work --from unicred-1 --brief 'oi branch' >/dev/null
 grep -qx 'unicred-1|ramo|bili' "$FAKE_DIR/forks"; ok $? "--from overrides the invoking session"
 ! grep -qx -- '--resume unicred-1' "$FAKE_DIR/resumed"; ok $? "--from: the source is never resumed"
-sleep 0.5; grep -qx 'oi branch' "$FAKE_DIR/msgs/"* 2>/dev/null; ok $? "branch: brief arrived"
+sleep 0.5; cat "$FAKE_DIR/msgs/"* 2>/dev/null | tr "\r" "\n" | grep -qx "oi branch"; ok $? "branch: brief arrived"
 "$T" open padrao --session work --card unicred >/dev/null
 grep -q "unicred · padrao" "$FAKE_DIR/sessions.tsv"; ok $? "default is a branch of the invoking session"
 "$T" open quebrado --session work --from broken >"$FAKE_DIR/err" 2>&1; rc=$?
@@ -98,13 +98,21 @@ env -u HERMES_SESSION_ID "$T" open livre --session work --new >/dev/null; ok $? 
 
 # 5. 200 KB intact, --brief-gz
 head -c 150000 /dev/urandom | base64 | tr -d '\n' | fold -w 100 | head -c 200000 >"$FAKE_DIR/big.txt"
-"$T" open grande --session work --new --brief - <"$FAKE_DIR/big.txt" >/dev/null
+"$T" open grande --session work --new --no-shape --brief - <"$FAKE_DIR/big.txt" >/dev/null
 sleep 1
 f="$(grep -l "^$(head -c 40 "$FAKE_DIR/big.txt")" "$FAKE_DIR"/msgs/* | head -1)"
 cmp -s <(tr -d '\n' <"$FAKE_DIR/big.txt") <(tr -d '\r\n' <"$f"); ok $? "200 KB brief intact ($(wc -c <"$FAKE_DIR/big.txt") bytes)"
 printf 'gz text\nsecond line\n' >"$FAKE_DIR/g.txt"
 "$T" open gz --session work --new --brief-gz "$(gzip -c "$FAKE_DIR/g.txt" | base64 | tr -d '\n')" >/dev/null
 sleep 0.5; grep -l 'second line' "$FAKE_DIR"/msgs/* >/dev/null; ok $? "--brief-gz round-trip"
+
+# 5b. shape prefix
+sleep 0.3; tr "\r" "\n" <"$FAKE_DIR/msgs/1" | grep -qxF "Comece pela skill shape (skill_view shape): abrir esta thread já é começar um shape deste contexto; registre com shape.sh emit request.received --shaping acesso-bubble."; ok $? "brief is prefixed with the shape line (topic in --shaping)"
+[ "$(head -1 "$FAKE_DIR/msgs/1" | tr -d "\r" | grep -c "^Comece pela skill shape")" = 1 ] && grep -q "line one" "$FAKE_DIR/msgs/1"; ok $? "prefix is the first line; the brief follows intact"
+"$T" open jashape --session work --new --brief "use a skill shape" >/dev/null; sleep 0.5
+f=$(grep -l "use a skill shape" "$FAKE_DIR"/msgs/* | head -1); [ -n "$f" ] && ! grep -q "Comece pela skill shape" "$f"; ok $? "brief already mentions shape: no prefix"
+"$T" open semshape --session work --new --no-shape --brief "oi sem" >/dev/null; sleep 0.5
+f=$(grep -l "oi sem" "$FAKE_DIR"/msgs/* | head -1); [ -n "$f" ] && ! grep -q "Comece pela skill shape" "$f"; ok $? "--no-shape: no prefix"
 
 # 6. list across sessions / duplicate / close
 l="$("$T" list)"; echo "$l" | sed 's/^/  /'
