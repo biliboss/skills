@@ -151,6 +151,11 @@ class DevcTest(unittest.TestCase):
         self.assertEqual(len(lines), 3)
         self.assertIn("task.verified", lines[-1])
 
+    def test_events_task_param_and_bad_port(self):
+        Fake.routes["/domain/demo/state.json"] = (200, STATE)
+        self.assertEqual(run(*self.p(), "events", "demo", "--task", "abc", "-n", "1")[0], 0)
+        self.assertEqual(run("--port=abc", "domains")[0], 2)
+
     def test_events_json_lines(self):
         _, out, _ = run(*self.p(), "--json", "events", "demo")
         self.assertEqual([json.loads(l)["id"] for l in out.splitlines()], ["e1", "e2"])

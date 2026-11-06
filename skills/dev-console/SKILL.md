@@ -22,7 +22,7 @@ metadata:
 ```sh
 devc domains                         # slug, origin, name
 devc show <slug> [--json]            # lanes, transitions (with the command), events in order as a small git-log graph
-devc events <slug> [--tail] [-n N]   # the journal; --tail polls every 1 s until Ctrl-C
+devc events <slug> [--task ID] [--tail] [-n N]   # events of the entity the domain opens (what state.json carries; no whole-journal route yet); --tail polls every 1 s, Ctrl-C ends
 devc focus                           # GET /agent/focus; 'sem foco ainda' while the route or the focus is missing
 devc open <slug|url> [--ev E] [--w W]  # agent.sh open (the URL carries agent=1); devc shot prints the PNG path
 devc now | history [n] | eval '<js>' # the flight recorder and the window

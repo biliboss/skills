@@ -9,6 +9,9 @@ Short text for people, JSON with --json for agents. Reads go to the console's HT
 (/api/domains, /domain/<slug>/state.json, /agent/*); the rest delegates to the skill's scripts
 (console.sh, agent.sh, window.sh, check.sh), which stay as they are.
 
+Events are what state.json carries: the history of the entity the domain opens (--task <id> picks another one);
+there is no whole-journal route yet.
+
 Global flags (anywhere): --port N (default 5057, env DEVC_PORT), --json.
 """
 from __future__ import annotations
@@ -29,7 +32,7 @@ SCRIPT_TIMEOUT = 60
 
 USAGE = """usage: devc [--port N] [--json] <command>
   domains                          slug, name, origin of every domain
-  show <slug>                      the domain as text: lanes, stages, events in order, transitions
+  show <slug> [--task ID]         the domain as text: lanes, stages, events in order, transitions
   events <slug> [--tail] [-n N]    the journal (--tail follows, polling 1 s, Ctrl-C ends)
   focus                            the current focus ('sem foco ainda' when there is none)
   open <slug|url> [--ev E] [--w W] load it in the native window (marked as the agent's)
@@ -82,8 +85,9 @@ def get_ok(port: int, path: str, what: str) -> object:
     raise DevcError(f"{what}: port {port} answered {status}" + (f" ({err})" if err else ""))
 
 
-def state_of(port: int, slug: str) -> dict:
-    status, body = http_get(port, f"/domain/{urllib.parse.quote(slug)}/state.json")
+def state_of(port: int, slug: str, task: str = "") -> dict:
+    q = f"?task={urllib.parse.quote(task)}" if task else ""
+    status, body = http_get(port, f"/domain/{urllib.parse.quote(slug)}/state.json{q}")
     if status == 200 and isinstance(body, dict):
         return body
     if status == 0:
@@ -149,7 +153,7 @@ def render_show(slug: str, st: dict) -> str:
             out.append(f"  {src} → {dst}" + (f"  ({cmd})" if cmd else ""))
     counts = st.get("journal_types") or {}
     out.append("")
-    out.append("events" + (f"  ({sum(counts.values())} in the journal)" if counts else ""))
+    out.append("events of the open entity" + (f"  ({sum(counts.values())} in the whole journal)" if counts else ""))
     if not events:
         out.append("  (none yet)")
     # a small git-log graph: one commit per event, the lane is the event's entity
@@ -193,7 +197,7 @@ def run_script(name: str, args: list[str], passthrough: bool = False) -> subproc
         raise DevcError(f"{name} not found next to devc ({HERE})")
     try:
         if passthrough:
-            return subprocess.run([str(path), *args], timeout=SCRIPT_TIMEOUT)
+            return subprocess.run([str(path), *args])  # start runs the server in the foreground outside herdr: no timeout
         return subprocess.run([str(path), *args], capture_output=True, text=True, timeout=SCRIPT_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise DevcError(f"{name} {' '.join(args)[:40]} took over {SCRIPT_TIMEOUT} s")
@@ -236,14 +240,17 @@ def cmd_domains(a: dict) -> int:
 def cmd_show(a: dict) -> int:
     if not a["args"]:
         raise DevcError("usage: devc show <slug> [--json]", 2)
-    slug = a["args"][0]
-    st = state_of(a["port"], slug)
+    slug, task = a["args"][0], ""
+    if "--task" in a["args"]:
+        i = a["args"].index("--task")
+        task = a["args"][i + 1] if i + 1 < len(a["args"]) else ""
+    st = state_of(a["port"], slug, task)
     print(json.dumps(show_json(slug, st), ensure_ascii=False) if a["json"] else render_show(slug, st))
     return 0
 
 
-def parse_events_args(args: list[str]) -> tuple[str, bool, int | None, int | None]:
-    slug, tail, n, max_polls = "", False, None, None
+def parse_events_args(args: list[str]) -> tuple[str, bool, int | None, int | None, str]:
+    slug, tail, n, max_polls, task = "", False, None, None, ""
     it = iter(args)
     for x in it:
         if x == "--tail":
@@ -253,6 +260,8 @@ def parse_events_args(args: list[str]) -> tuple[str, bool, int | None, int | Non
                 n = int(next(it))
             except (StopIteration, ValueError):
                 raise DevcError("-n needs a number", 2)
+        elif x == "--task":
+            task = next(it, "")
         elif x == "--max-polls":  # tests only: bounds the follow loop
             max_polls = int(next(it))
         elif x.startswith("-"):
@@ -260,12 +269,12 @@ def parse_events_args(args: list[str]) -> tuple[str, bool, int | None, int | Non
         else:
             slug = x
     if not slug:
-        raise DevcError("usage: devc events <slug> [--tail] [-n N]", 2)
-    return slug, tail, n, max_polls
+        raise DevcError("usage: devc events <slug> [--task ID] [--tail] [-n N]", 2)
+    return slug, tail, n, max_polls, task
 
 
 def cmd_events(a: dict) -> int:
-    slug, tail, n, max_polls = parse_events_args(a["args"])
+    slug, tail, n, max_polls, task = parse_events_args(a["args"])
     seen: set[str] = set()
 
     def emit(events: list[dict]) -> None:
@@ -273,7 +282,7 @@ def cmd_events(a: dict) -> int:
             seen.add(e.get("id") or json.dumps(e, sort_keys=True))
             print(json.dumps(e, ensure_ascii=False) if a["json"] else ev_line(e), flush=True)
 
-    events = state_of(a["port"], slug).get("events") or []
+    events = state_of(a["port"], slug, task).get("events") or []
     emit(events[-n:] if n else events)
     if not tail:
         return 0
@@ -283,7 +292,7 @@ def cmd_events(a: dict) -> int:
             time.sleep(1.0)
             polls += 1
             try:
-                events = state_of(a["port"], slug).get("events") or []
+                events = state_of(a["port"], slug, task).get("events") or []
             except DevcError:
                 continue  # the console may be reloading; the next second tries again
             emit([e for e in events if (e.get("id") or json.dumps(e, sort_keys=True)) not in seen])
@@ -480,7 +489,10 @@ def parse(argv: list[str]) -> dict:
                 raise DevcError("--port needs a number", 2)
             port = int(argv[i])
         elif x.startswith("--port="):
-            port = int(x.split("=", 1)[1])
+            v = x.split("=", 1)[1]
+            if not v.isdigit():
+                raise DevcError("--port needs a number", 2)
+            port = int(v)
         else:
             rest.append(x)
         i += 1
