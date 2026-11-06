@@ -1,0 +1,303 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""Tests of kanban.py: the Upstream clipping, the band's periods, the running stretch, the journal and the CLI.
+Run: uv run --script test_kanban.py   (stdlib unittest; temp KANBAN_DIR and COSTS_DIR, invented data; the real journals
+are never touched)"""
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import kanban as K  # noqa: E402
+
+BRT = timezone(timedelta(hours=-3))
+RATE = 50000 / 105  # an investment center: the goal (R$ 50 mil) over 5 h x 21 days, R$ 476,19 per hour
+
+
+def t(text: str) -> datetime:
+    """A local time in the tests' clock: '2026-11-06 10:00'."""
+    return datetime.fromisoformat(text).replace(tzinfo=BRT)
+
+
+def ev(kind: str, card: str, at: str, **value) -> dict:
+    return {"id": f"{card}-{at}", "event": kind, "at": t(at).isoformat(), "actor": "test", "card_id": card, "value": value}
+
+
+def card(card_id="c1", domain="kanban", start="2026-11-06 08:00", stage="Upstream", moves=()) -> K.Card:
+    """A card created at `start` in `stage`, then moved: moves = [("2026-11-06 09:00", "Downstream"), ...]."""
+    es = [ev("card.created", card_id, start, title=f"Card {card_id}", domain=domain, stage=stage)]
+    es += [ev("card.moved", card_id, at, stage=st) for at, st in moves]
+    return K.card_from(es)
+
+
+def entry(start: str, end: str, domain="kanban", center="inv", running=False, eid="e") -> K.TimeEntry:
+    return K.TimeEntry(eid, domain, center, t(start), t(end), running)
+
+
+class ClipTest(unittest.TestCase):
+    """A card's money: only its domain's time, only while it was in Upstream, partial overlaps clipped."""
+
+    now = t("2026-11-06 18:00")
+    rates = {"inv": RATE}
+
+    def money(self, c, *entries):
+        return K.card_money(c, list(entries), self.rates, self.now)
+
+    def test_time_before_upstream_does_not_count(self):
+        c = card(start="2026-11-06 10:00")
+        m = self.money(c, entry("2026-11-06 09:00", "2026-11-06 09:30"), entry("2026-11-06 09:30", "2026-11-06 10:30"))
+        self.assertEqual(m.total.seconds, 1800)  # only 10:00-10:30 of the second entry
+        self.assertEqual([(s.start, s.end) for s in m.slices], [(t("2026-11-06 10:00"), t("2026-11-06 10:30"))])
+
+    def test_time_after_leaving_upstream_does_not_count(self):
+        c = card(start="2026-11-06 10:00", moves=[("2026-11-06 11:00", "Downstream")])
+        m = self.money(c, entry("2026-11-06 10:30", "2026-11-06 11:30"), entry("2026-11-06 12:00", "2026-11-06 13:00"))
+        self.assertEqual(m.total.seconds, 1800)  # 10:30-11:00; the rest is Downstream time
+
+    def test_up_down_up_counts_both_upstream_stays_only(self):
+        c = card(start="2026-11-06 08:00", moves=[("2026-11-06 09:00", "Downstream"), ("2026-11-06 10:00", "Upstream")])
+        m = self.money(c, entry("2026-11-06 08:30", "2026-11-06 10:30", eid="long"),
+                       entry("2026-11-06 09:15", "2026-11-06 09:45", eid="between"))
+        self.assertEqual(m.total.seconds, 3600)  # 08:30-09:00 and 10:00-10:30; nothing of the Downstream hour
+        self.assertEqual([s.entry for s in m.slices], ["long", "long"])
+        self.assertEqual(m.card.stage, K.Stage.UPSTREAM)
+        self.assertEqual(len(m.card.stays), 3)
+
+    def test_another_domain_does_not_count(self):
+        m = self.money(card(), entry("2026-11-06 09:00", "2026-11-06 10:00", domain="dev-console"))
+        self.assertEqual(m.total, K.Money(0, 0))
+
+    def test_card_with_no_time(self):
+        m = self.money(card())
+        self.assertEqual((m.total, m.slices, m.live_rate_hour), (K.Money(0, 0), (), 0.0))
+
+    def test_a_card_that_never_was_in_upstream_has_no_upstream_time(self):
+        c = card(stage="Downstream", moves=[("2026-11-06 12:00", "Feito")])
+        self.assertEqual(self.money(c, entry("2026-11-06 08:00", "2026-11-06 17:00")).total.seconds, 0)
+
+    def test_priced_at_the_center_rate(self):
+        m = self.money(card(), entry("2026-11-06 09:00", "2026-11-06 10:00"))
+        self.assertEqual(m.total, K.Money(3600, 476.19))
+        self.assertEqual(m.slices[0].rate_hour, RATE)
+
+    def test_unknown_center_counts_the_hours_but_no_money(self):
+        m = self.money(card(), entry("2026-11-06 09:00", "2026-11-06 10:00", center="nobody"))
+        self.assertEqual(m.total, K.Money(3600, 0.0))
+
+    def test_a_move_to_the_same_stage_changes_nothing(self):
+        c = card(moves=[("2026-11-06 09:00", "Upstream")])
+        self.assertEqual(len(c.stays), 1)
+
+
+class StoppedEntryTest(unittest.TestCase):
+    """A stopped entry runs from its time_entry.started for its seconds, not back from the moment it was written."""
+
+    def test_idle_trim_keeps_the_real_start(self):
+        cost = [
+            {"id": "s", "event": "time_entry.started", "cost_center": "inv", "at": t("2026-11-06 10:00").isoformat(),
+             "value": {"domain": "kanban"}},
+            # stopped for idle at 10:40 with the last 10 idle minutes trimmed: 30 min, 10:00-10:30
+            {"id": "x", "event": "time_entry.stopped", "cost_center": "inv", "at": t("2026-11-06 10:40").isoformat(),
+             "value": {"domain": "kanban", "seconds": 1800, "rate_hour": RATE, "cost": 238.1, "ended_by": "idle"}},
+        ]
+        [e] = K.time_entries(cost, None, t("2026-11-06 12:00"))
+        self.assertEqual((e.start, e.end, e.center, e.domain), (t("2026-11-06 10:00"), t("2026-11-06 10:30"), "inv", "kanban"))
+        m = K.card_money(card(start="2026-11-06 10:20"), [e], {"inv": RATE}, t("2026-11-06 12:00"))
+        self.assertEqual(m.total.seconds, 600)  # 10:20-10:30, not 10:20-10:40
+
+    def test_a_stopped_entry_without_its_start_runs_back_from_its_time(self):
+        cost = [{"id": "x", "event": "time_entry.stopped", "cost_center": "inv", "at": t("2026-11-06 11:00").isoformat(),
+                 "value": {"domain": "kanban", "seconds": 600}}]
+        [e] = K.time_entries(cost, None, t("2026-11-06 12:00"))
+        self.assertEqual((e.start, e.end), (t("2026-11-06 10:50"), t("2026-11-06 11:00")))
+
+
+class RunningTest(unittest.TestCase):
+    """The stretch running now counts until now and makes the card and the band live."""
+
+    now = t("2026-11-06 12:00")
+
+    def run_(self, started="2026-11-06 11:30", seen_s_ago=5, domain="kanban"):
+        return {"center": "inv", "domain": domain, "started_at": t(started).isoformat(),
+                "last_seen": (self.now - timedelta(seconds=seen_s_ago)).isoformat(), "rate_hour": RATE}
+
+    def test_running_counts_until_now_and_ticks(self):
+        entries = K.time_entries([], self.run_(), self.now)
+        self.assertTrue(entries[0].running)
+        c = card(start="2026-11-06 10:00")
+        m = K.card_money(c, entries, {"inv": RATE}, self.now)
+        self.assertEqual((m.total.seconds, m.live_rate_hour), (1800, RATE))
+        self.assertTrue(m.slices[0].running)
+        tot = K.upstream_totals([c], entries, {"inv": RATE}, self.now)
+        self.assertEqual((tot.today.seconds, tot.live_rate_hour, tot.live_domain, tot.at), (1800, RATE, "kanban", self.now))
+
+    def test_running_on_a_card_out_of_upstream_does_not_tick(self):
+        c = card(start="2026-11-06 10:00", moves=[("2026-11-06 11:45", "Downstream")])
+        entries = K.time_entries([], self.run_(), self.now)
+        m = K.card_money(c, entries, {"inv": RATE}, self.now)
+        self.assertEqual((m.total.seconds, m.live_rate_hour), (900, 0.0))  # 11:30-11:45 only
+        self.assertEqual(K.upstream_totals([c], entries, {"inv": RATE}, self.now).live_rate_hour, 0.0)
+
+    def test_running_on_another_domain_does_not_tick(self):
+        entries = K.time_entries([], self.run_(domain="tasks"), self.now)
+        self.assertEqual(K.upstream_totals([card()], entries, {"inv": RATE}, self.now).live_rate_hour, 0.0)
+
+    def test_a_stale_stretch_ended_at_its_last_ping(self):
+        [e] = K.time_entries([], self.run_(seen_s_ago=120), self.now)
+        self.assertFalse(e.running)
+        self.assertEqual(e.end, self.now - timedelta(seconds=120))
+
+
+class PeriodsTest(unittest.TestCase):
+    """Hoje, Semana (from Monday) and Mês (from the 1st), each cut at its own midnight."""
+
+    rates = {"inv": RATE}
+
+    def totals(self, now, *entries):
+        c = card(start="2026-10-01 00:00")  # in Upstream for the whole test
+        return K.upstream_totals([c], list(entries), self.rates, t(now))
+
+    def test_periods_start_on_monday_and_on_the_first(self):
+        day, week, month = K.periods(t("2026-11-06 12:00"))  # a Friday
+        self.assertEqual((day, week, month), (t("2026-11-06 00:00"), t("2026-11-02 00:00"), t("2026-11-01 00:00")))
+        self.assertEqual(K.periods(t("2026-11-02 09:00"))[1], t("2026-11-02 00:00"))  # a Monday is its own week start
+
+    def test_monday_start(self):
+        tot = self.totals("2026-11-06 12:00",
+                          entry("2026-11-01 10:00", "2026-11-01 11:00"),  # Sunday: the month, not the week
+                          entry("2026-11-01 23:30", "2026-11-02 00:15"),  # across Monday's midnight: 15 min in the week
+                          entry("2026-11-02 00:30", "2026-11-02 01:00"),  # Monday
+                          entry("2026-11-06 09:00", "2026-11-06 09:15"))  # today
+        self.assertEqual(tot.today.seconds, 15 * 60)
+        self.assertEqual(tot.week.seconds, (15 + 30 + 15) * 60)
+        self.assertEqual(tot.month.seconds, (60 + 45 + 30 + 15) * 60)
+        self.assertEqual(tot.month.brl, 1190.48)  # 2h30 at R$ 476,19 per hour (each piece rounded to cents)
+
+    def test_month_start_when_the_week_began_in_the_last_month(self):
+        tot = self.totals("2026-11-01 12:00",  # a Sunday: the week began on Monday 26 October
+                          entry("2026-10-30 10:00", "2026-10-30 12:00"),  # the week, not the month
+                          entry("2026-10-31 23:00", "2026-11-01 01:00"),  # across the month: 1 h in the month and today
+                          entry("2026-11-01 10:00", "2026-11-01 10:30"))
+        self.assertEqual(tot.today.seconds, 90 * 60)
+        self.assertEqual(tot.week.seconds, (120 + 120 + 30) * 60)
+        self.assertEqual(tot.month.seconds, 90 * 60)
+
+    def test_the_band_counts_a_second_once(self):
+        a, b = card("a", start="2026-11-06 08:00"), card("b", start="2026-11-06 09:00")  # one domain, both in Upstream
+        e = entry("2026-11-06 08:30", "2026-11-06 10:00")
+        now = t("2026-11-06 12:00")
+        self.assertEqual(K.card_money(a, [e], self.rates, now).total.seconds, 90 * 60)
+        self.assertEqual(K.card_money(b, [e], self.rates, now).total.seconds, 60 * 60)
+        self.assertEqual(K.upstream_totals([a, b], [e], self.rates, now).today.seconds, 90 * 60)
+
+
+class BoardTest(unittest.TestCase):
+    def test_columns_in_stage_order_cards_in_arrival_order(self):
+        cards = [card("a", start="2026-11-06 08:00"), card("b", start="2026-11-05 08:00"),
+                 card("c", start="2026-11-04 08:00", moves=[("2026-11-05 10:00", "Downstream")]),
+                 card("d", start="2026-11-01 08:00", moves=[("2026-11-02 08:00", "Feito")])]
+        b = K.board(cards, [], {}, t("2026-11-06 12:00"))
+        self.assertEqual([c.stage for c in b.columns], [K.Stage.UPSTREAM, K.Stage.DOWNSTREAM, K.Stage.DONE])
+        self.assertEqual([[m.card.id for m in c.cards] for c in b.columns], [["b", "a"], ["c"], ["d"]])
+
+    def test_formats(self):
+        self.assertEqual((K.brl(1234.5), K.brl(0), K.hm(3000), K.hm(3599), K.hm(7260)),
+                         ("R$ 1.234,50", "R$ 0,00", "0h50", "0h59", "2h01"))
+        self.assertEqual([K.stage_age(s) for s in (30, 300, 3 * 3600, 26 * 3600, 50 * 3600)],
+                         ["chegou agora", "há 5 min na etapa", "há 3 h na etapa", "há 1 dia na etapa", "há 2 dias na etapa"])
+
+
+class JournalTest(unittest.TestCase):
+    """The journal: the one writer, its shape, what it refuses; the CLI; and the Costs journal read, never written."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        os.environ["KANBAN_DIR"] = str(Path(self.tmp.name) / "kanban")
+        os.environ["COSTS_DIR"] = str(Path(self.tmp.name) / "costs")
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = K.main(list(args))
+        return code, out.getvalue(), err.getvalue()
+
+    def test_emit_shape(self):
+        e = K.create("Kanban", "kanban")
+        self.assertEqual(list(e), ["id", "event", "at", "actor", "card_id", "value"])
+        self.assertEqual(e["value"], {"title": "Kanban", "domain": "kanban", "stage": "Upstream"})
+        m = K.move(e["card_id"], "downstream", actor="bili")
+        self.assertEqual((m["event"], m["actor"], m["value"]), ("card.moved", "bili", {"stage": "Downstream", "previous": "Upstream"}))
+        self.assertEqual([json.loads(line)["id"] for line in K.journal_path().read_text().splitlines()], [e["id"], m["id"]])
+
+    def test_emit_refuses_what_it_cannot_place(self):
+        c = K.create("Kanban", "kanban")
+        for bad in (lambda: K.create("", "kanban"), lambda: K.create("X", "not a slug"), lambda: K.create("X", "k", "Doing"),
+                    lambda: K.move(c["card_id"], "Upstream"), lambda: K.move("nope", "Feito"),
+                    lambda: K.emit("card.deleted", {}, c["card_id"]), lambda: K.emit("card.moved", [1], c["card_id"])):
+            with self.assertRaises(ValueError):
+                bad()
+        self.assertEqual(len(K.events()), 1)
+
+    def test_find_by_id_prefix_or_title(self):
+        a, b = K.create("Kanban", "kanban"), K.create("Paleta nativa", "dev-console")
+        cards = K.cards_from(K.events())
+        self.assertEqual(K.find(a["card_id"][:5], cards).id, a["card_id"])
+        self.assertEqual(K.find("paleta NATIVA", cards).id, b["card_id"])
+        K.create("Kanban", "tasks")
+        with self.assertRaises(ValueError):
+            K.find("kanban", K.cards_from(K.events()))  # two cards with that title
+
+    def test_cli_and_the_costs_journal_is_only_read(self):
+        costs = K._costs()
+        now = datetime.now().astimezone()
+        costs.emit("worth.updated", {"value_month": 20000, "goal_month": 50000, "paid_hours_day": 5, "work_days_month": 21})
+        costs.emit("cost_center.updated", {"name": "Biliboss Skills", "kind": "investment", "domains": ["kanban"]},
+                   "biliboss-skills")
+        code, out, _ = self.cli("create", "Paleta nativa", "--domain", "dev-console")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["value"], {"title": "Paleta nativa", "domain": "dev-console", "stage": "Upstream"})
+        # a card that entered Upstream a minute ago (the API takes `at`; the CLI writes now)
+        cid = K.create("Kanban", "kanban", at=now - timedelta(seconds=60))["card_id"]
+        costs.emit("time_entry.started", {"domain": "kanban"}, "biliboss-skills", at=now - timedelta(seconds=90))
+        costs.emit("time_entry.stopped", {"domain": "kanban", "seconds": 80, "rate_hour": RATE, "cost": 10.58},
+                   "biliboss-skills", at=now - timedelta(seconds=10))
+        before = (Path(os.environ["COSTS_DIR"]) / "events.jsonl").read_bytes()
+        code, out, _ = self.cli("money", "--json")
+        self.assertEqual(code, 0)
+        band = json.loads(out)["totals"]
+        self.assertEqual(band["today"]["seconds"], 50)  # 80 s from 90 s ago, clipped to the card's minute in Upstream
+        self.assertEqual(band["today"]["brl"], round(50 * RATE / 3600, 2))  # the investment center: the goal's price
+        code, out, _ = self.cli("money")
+        self.assertIn(f"Hoje    {K.brl(round(50 * RATE / 3600, 2)):>14}  0h00", out)
+        code, out, _ = self.cli("show", cid)
+        self.assertIn(f"upstream  {K.brl(round(50 * RATE / 3600, 2))}  0h00", out)
+        self.assertEqual(self.cli("move", "Kanban", "feito")[0], 0)
+        code, _, err = self.cli("move", "Kanban", "Feito")
+        self.assertEqual(code, 1)
+        self.assertIn("already in Feito", err)
+        code, out, _ = self.cli("list", "--stage", "feito")
+        self.assertIn("Kanban", out)
+        self.assertEqual((Path(os.environ["COSTS_DIR"]) / "events.jsonl").read_bytes(), before)
+
+    def test_projection_for_the_console(self):
+        c = K.create("Kanban", "kanban")
+        K.move(c["card_id"], "Downstream")
+        j = K.KanbanJournal()
+        [state] = j.read({})
+        self.assertEqual((state["id"], state["stage"], state["domain"]), (c["card_id"], "Downstream", "kanban"))
+        self.assertEqual(len(j.read({"id": c["card_id"], "history": True})), 2)
+        self.assertEqual(len(j.read({"event": "card.moved"})), 1)
+        self.assertEqual(j.read({"id": "_"}), {})
+
+
+if __name__ == "__main__":
+    unittest.main()

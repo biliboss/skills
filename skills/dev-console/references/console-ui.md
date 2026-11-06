@@ -49,7 +49,9 @@ why and the numbers, read when changing a part of the screen.
 ## Domains and URLs
 
 - Many `--project` flags, one domain each; slug = `SLUG` or the skill folder name.
-  `/` redirects to the first domain; `/domain/<slug>` picks its open entity;
+  `/` is the home: `/domain/<slug>?tab=<CONSOLE_HOME>` of the first domain that declares `CONSOLE_HOME` and has an
+  entity (the Kanban's Quadro), else the first domain (`_first_domain()`, which the Playground's and Agents' "Domain"
+  and `/api/palette` without a domain also use); `/domain/<slug>` picks its open entity;
   routes: `/domain/<slug>/{t,w,do,source/stream}/…`. The JS prefixes every fetch with
   `D.base`; rail links keep `location.search` so the tab survives a switch.
 - The watcher watches the console folder and every project folder.
@@ -58,9 +60,9 @@ why and the numbers, read when changing a part of the screen.
 
 ## State in the URL
 
-`?tab=&ev=&side=&w=&e=` via `history.replaceState`; restore on load in order: tab,
-sidebar (`ev`), the widget popup (`w`). Switching tab or closing the
-sidebar clears `ev/side/w/e`, so a reload never reopens stale state.
+`?tab=&ev=&side=&w=&e=&ent=` via `history.replaceState`; restore on load in order: tab,
+sidebar (`ev`), the widget popup (`w`); in a widget module, the entity's sidebar (`ent`) once the widget is in. Switching
+tab or closing the sidebar clears `ev/side/w/e/ent`, so a reload never reopens stale state.
 
 Read-only JSON for agents (`scripts/console.sh` wraps them): `GET /api/domains` (`slug, name, path, origin`),
 `GET /api/domains/<slug>/actions` (names in `PROJECT.ACTIONS`) and `GET /domain/<slug>/state.json?task=<entity id>`
@@ -73,6 +75,12 @@ Read-only JSON for agents (`scripts/console.sh` wraps them): `GET /api/domains` 
   expandable parts `Widgets` (only with widgets) · `Code` · `JSON` · `Observability`, all open at first; each
   node remembers the parts the user closed in localStorage (`dev-console:part:<base>:<event>:<part>`). Close: ✕, `Esc`, click on the graph
   background; `Esc` closes the popup first.
+- A widget module (`MODULE_WIDGETS`) is `#module-view` (`data-w-host`: the widget's leading `h2` hides) beside the same
+  `SIDE_HTML` aside. A click, Enter or Space on a `[data-entity]` element calls `openEntity(id)`: header from
+  `data-entity-name` / `data-entity-sub`, parts from `D.entity_parts` (each `GET <base>/w/<id>/<root event>/<widget>?task=<id>`,
+  wrapped in `data-w-host`), then JSON (`state.json?task=<id>`, its `events`); closed parts are remembered per part for
+  every entity (`dev-console:part:<base>:entity:<part>`). The selection is one `<style id="ent-sel">` rule, so it survives
+  the widget's own redraws (an htmx `outerHTML` swap). A click on the module's background closes the sidebar.
 - `Widgets` is a list (name, docstring first line, `abrir`); `abrir` opens the widget
   in a centred popup (`fixed inset-0`, ~860 px, 82 vh) over the console.
 - Widgets render a **real** event: `?e=<id>` or the first event of that type in the

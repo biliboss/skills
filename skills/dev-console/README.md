@@ -9,7 +9,8 @@ and events drawn from the code, the entities, the journal and widgets per event.
 uv run --script scripts/dev-console.py --project scripts/dev_console_project.py --port 5057
 ```
 
-It listens on 127.0.0.1 only. One `--project` per domain. ⌘K switches the domain, ⌘P the module.
+It listens on 127.0.0.1 only. One `--project` per domain. ⌘K switches the domain, ⌘P the module. `/` opens the home:
+the Kanban's Quadro (skill `kanban`) when that domain is loaded and has a card, else the first domain.
 
 ## Modules
 

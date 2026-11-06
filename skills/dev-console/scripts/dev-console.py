@@ -14,6 +14,8 @@ Layout: the work area (entity rail on the left, the selected record on the right
 domain model (DDD: aggregate root, entities, commands, events); Model = the state machine.
 Keys (vim-style goto): g d Domain, g m Model, g v Visão, g p Proposed Actions, g o Observations, g r Relationships,
 g t Management, g e Eventos, g y Tipos; Esc closes the popup, then the sidebar. All UI state lives in the query.
+A module may be a project widget (MODULE_WIDGETS), and / opens the module a domain names with CONSOLE_HOME (the
+Kanban's Quadro), else the first domain.
 """
 from __future__ import annotations
 
@@ -622,6 +624,9 @@ html[data-embed=money] #money { border-left: 0; }
 /* the right menu's expandable parts: no Pico margins, the chevron right after the title */
 #ev-body details { margin: 0; padding: 0; } #ev-body details summary { margin: 0; list-style: none; }
 #ev-body details summary::after { float: none; margin-left: .25rem; }
+/* a project widget hosted by the console (a module, a sidebar part): the status line or the part already names it,
+   so the widget's own leading title hides (it shows in the popup) */
+[data-w-host] > div > h2:first-child { display: none; }
 """
 
 JS = r"""
@@ -645,6 +650,7 @@ const row = (e, cells) => `<div class="rec flex gap-4 px-4 py-2 cursor-pointer b
 const meta = (e, extra='') => `<span class="w-24 shrink-0 tabular-nums text-neutral-400">${when(e.value.observed_at || e.at)}</span>${extra}`;
 const empty = t => `<p class="px-4 py-6 text-neutral-400">${t}</p>`;
 const list = (es, cells) => es.length ? es.map((e, i) => row(e, cells(e, i))).join('') : empty('Nada aqui.');
+const jsonPre = x => `<pre class="m-0 p-4 !bg-transparent whitespace-pre-wrap text-neutral-600 dark:text-neutral-400">${esc(JSON.stringify(x, null, 2))}</pre>`;
 
 function items() {  // linked things and their last observed state
   const it = {};
@@ -1214,7 +1220,7 @@ const SIDE_TABS = {
       const d = s.parentElement; setTimeout(() => localStorage.setItem(key(d.dataset.codeItem), d.open ? 'open' : 'closed'), 0); }), 0);
     return Promise.resolve(`<p class="px-4 pt-3 text-neutral-400">pseudo-código · de ${esc(m.file)} · ao vivo</p><div class="px-2 py-2 leading-6 text-neutral-700 dark:text-neutral-300">${html}</div>`);
   },
-  'JSON': id => Promise.resolve(`<pre class="m-0 p-4 !bg-transparent whitespace-pre-wrap text-neutral-600 dark:text-neutral-400">${esc(JSON.stringify(E.filter(e => e.event === id), null, 2))}</pre>`),
+  'JSON': id => Promise.resolve(jsonPre(E.filter(e => e.event === id))),
   // every event has it, so it is a tab of the right menu (the last), not a widget in the list
   'Observability': id => frag(`${D.base}/w/${D.state.id}/${id}/Observability?e=${Q.get('e') || ''}`).then(h => `<div class="p-4">${h}</div>`),
 };
@@ -1238,13 +1244,15 @@ function openSide(id) {
 // closed, in localStorage (key per domain, event and part).
 const sideParts = id => Object.keys(SIDE_TABS).filter(t => t !== 'Widgets' || ((M().coverage || {})[id] || []).length);
 const partKey = (id, p) => `dev-console:part:${D.base}:${id}:${p}`;
+// one expandable part of the sidebar, the same markup for an event's parts and an entity's (a module's card)
+const partHtml = (p, open) => `<details data-part="${esc(p)}" ${open ? 'open' : ''}
+      class="border-b border-neutral-200 dark:border-neutral-800">
+      <summary class="flex items-center gap-2 px-4 h-9 cursor-pointer select-none text-[11px] uppercase tracking-widest text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">${esc(p)}</summary>
+      <div class="part-body pb-2"><p class="px-4 text-neutral-400">carregando…</p></div></details>`;
 function renderSide() {
   const want = side.id, parts = sideParts(want);
   $('ev-tabs').innerHTML = '';
-  $('ev-body').innerHTML = parts.map(p => `<details data-part="${p}" ${localStorage.getItem(partKey(want, p)) === 'closed' ? '' : 'open'}
-      class="border-b border-neutral-200 dark:border-neutral-800">
-      <summary class="flex items-center gap-2 px-4 h-9 cursor-pointer select-none text-[11px] uppercase tracking-widest text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">${p}</summary>
-      <div class="part-body pb-2"><p class="px-4 text-neutral-400">carregando…</p></div></details>`).join('');
+  $('ev-body').innerHTML = parts.map(p => partHtml(p, localStorage.getItem(partKey(want, p)) !== 'closed')).join('');
   $('ev-body').querySelectorAll('details').forEach(d => d.ontoggle = () =>
     d.open ? localStorage.removeItem(partKey(want, d.dataset.part)) : localStorage.setItem(partKey(want, d.dataset.part), 'closed'));
   parts.forEach(p => SIDE_TABS[p](want).then(html => {
@@ -1370,7 +1378,18 @@ function closeWidget() { setQ('mode', ''); setQ('w', ''); $('pop').classList.add
 const popOpen = () => !$('pop').classList.contains('hidden');
 $('pop-close').onclick = closeWidget;
 $('pop').onclick = e => { if (e.target === $('pop')) closeWidget(); };
-function closeSide() { side.id = null; setQ('ev', ''); setQ('side', ''); setQ('w', ''); setQ('e', ''); const el = $('ev-side'); if (el) el.classList.add('hidden'); }
+function closeSide() { side.id = null; setQ('ev', ''); setQ('side', ''); setQ('w', ''); setQ('e', ''); setQ('ent', ''); markEntity(null);
+  const el = $('ev-side'); if (el) el.classList.add('hidden'); }
+
+// The contextual sidebar: one markup for every view that opens it (a graph node, a module's entity)
+const SIDE_HTML = `<aside id="ev-side" class="hidden w-[min(380px,34vw)] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
+        <div class="shrink-0 flex items-start justify-between gap-3 px-4 pt-3 pb-2">
+          <div class="min-w-0"><p id="ev-name" class="font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100"></p>
+            <p id="ev-sub" class="text-neutral-400"></p></div>
+          <button id="ev-close" title="Esc" class="shrink-0 px-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">✕</button></div>
+        <div id="ev-tabs" class="shrink-0 flex px-2 border-b border-neutral-200 dark:border-neutral-800"></div>
+        <div id="ev-body" class="relative flex-1 min-h-0 overflow-y-auto"></div>
+      </aside>`;
 
 const TABS = {
   // Domain (DDD, Evans 2003) is the first tab and reuses the Model graph and sidebar: one graph, one style.
@@ -1385,14 +1404,7 @@ const TABS = {
         <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div>
           <button id="centre-human" class="hidden absolute right-3 bottom-3 z-10 px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">◎ Centralizar Human</button></div>
       </div>
-      <aside id="ev-side" class="hidden w-[min(380px,34vw)] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
-        <div class="shrink-0 flex items-start justify-between gap-3 px-4 pt-3 pb-2">
-          <div class="min-w-0"><p id="ev-name" class="font-sans text-base font-semibold text-neutral-900 dark:text-neutral-100"></p>
-            <p id="ev-sub" class="text-neutral-400"></p></div>
-          <button id="ev-close" title="Esc" class="shrink-0 px-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">✕</button></div>
-        <div id="ev-tabs" class="shrink-0 flex px-2 border-b border-neutral-200 dark:border-neutral-800"></div>
-        <div id="ev-body" class="relative flex-1 min-h-0 overflow-y-auto"></div>
-      </aside></div>`,
+      ${SIDE_HTML}</div>`,
   'Visão': () => {
     if (D.home.length) return `<div id="home" class="max-w-4xl px-8 py-8"><p class="text-neutral-400">carregando…</p></div>`;
     const it = items(), done = it.filter(i => isDone(i.state)).length, ps = proposals();
@@ -1468,13 +1480,61 @@ const ICON = {'Domain': '\uf0e8', 'Task Results': '\uf00c', 'Model': '\uf1b3', '
 const nf = t => ICON[t] ? `<i class="nf">${ICON[t]}</i>` : '';
 const keyed = t => { const k = KEYS[t]; if (!k) return t; const i = t.toLowerCase().indexOf(k);
   return i < 0 ? t : `${t.slice(0, i)}<span class="underline underline-offset-4">${t[i]}</span>${t.slice(i + 1)}`; };
+// --- a module drawn by one of the project's widgets (MODULE_WIDGETS: the Kanban's Quadro): full width, its leading
+// title hidden (the status line names it), beside the same contextual sidebar. An element of it with data-entity opens
+// that sidebar for its entity (click, Enter, Space): the project's ENTITY_PARTS widgets rendered for it, then its JSON;
+// ?ent= keeps it open across a reload. Its goto key is the first free letter of its name.
+const MW = D.module_widgets || {};
+const isModule = t => Object.prototype.hasOwnProperty.call(MW, t);
+Object.keys(MW).forEach(name => {
+  TABS[name] = () => `<div class="h-full flex"><div id="module-view" data-w-host class="flex-1 min-w-0 min-h-0 overflow-auto">
+      <p class="px-4 py-3 text-neutral-400">carregando…</p></div>${SIDE_HTML}</div>`;
+  if (!KEYS[name]) { const used = new Set(Object.values(KEYS)); KEYS[name] = [...name.toLowerCase()].find(c => /[a-z]/.test(c) && !used.has(c)); }
+});
+function loadModule(name) {
+  const [ev, w] = MW[name], box = $('module-view');
+  box.onclick = e => { const el = e.target.closest('[data-entity]'); if (el) openEntity(el.dataset.entity); else closeSide(); };
+  box.onkeydown = e => { const el = e.target.closest('[data-entity]');
+    if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEntity(el.dataset.entity); } };
+  frag(`${D.base}/w/${D.state.id}/${ev}/${encodeURIComponent(w)}`).then(h => {
+    if (tab !== name) return;
+    inject(box, h);
+    if (Q.get('ent')) openEntity(Q.get('ent'));
+  });
+}
+function markEntity(id) {  // the open entity looks selected (the rail's look); a style rule survives the module's own redraws
+  let st = $('ent-sel');
+  if (!st) { if (!id) return; st = document.createElement('style'); st.id = 'ent-sel'; document.head.appendChild(st); }
+  const s = id ? `#module-view [data-entity="${CSS.escape(id)}"]` : '';
+  st.textContent = id ? `${s}{background:rgb(229 229 229);border-left-color:rgb(23 23 23)} .dark ${s}{background:rgb(38 38 38);border-left-color:rgb(245 245 245)}` : '';
+}
+function openEntity(id) {
+  const el = document.querySelector(`#module-view [data-entity="${CSS.escape(id)}"]`);
+  if (!el) { setQ('ent', ''); return; }
+  side.id = null; setQ('ev', ''); setQ('ent', id); markEntity(id);
+  $('ev-side').classList.remove('hidden');
+  $('ev-name').textContent = el.dataset.entityName || id;
+  $('ev-sub').textContent = el.dataset.entitySub || '';
+  $('ev-tabs').innerHTML = '';
+  const parts = [...Object.entries(D.entity_parts || {}), ['JSON', null]], key = p => partKey('entity', p);
+  $('ev-body').innerHTML = parts.map(([p]) => partHtml(p, localStorage.getItem(key(p)) !== 'closed')).join('');
+  $('ev-body').querySelectorAll('details').forEach(d => d.ontoggle = () =>
+    d.open ? localStorage.removeItem(key(d.dataset.part)) : localStorage.setItem(key(d.dataset.part), 'closed'));
+  // each part is a project widget for this entity, on the root event (every entity has it); JSON is its events
+  parts.forEach(([p, w]) => (w
+    ? frag(`${D.base}/w/${encodeURIComponent(id)}/${M().root}/${encodeURIComponent(w)}?task=${encodeURIComponent(id)}`)
+        .then(h => `<div data-w-host class="px-4 pt-1">${h}</div>`)
+    : fetch(`${D.base}/state.json?task=${encodeURIComponent(id)}`).then(r => r.json()).then(d => jsonPre(d.events || d)))
+    .then(html => { if (Q.get('ent') !== id) return;
+      const body = $('ev-body').querySelector(`details[data-part="${CSS.escape(p)}"] .part-body`); if (body) inject(body, html); }));
+}
 let tab = Q.get('tab') || (location.hash ? decodeURIComponent(location.hash.slice(1)) : 'Domain');
 if (!(tab in TABS) || !D.tabs.includes(tab)) tab = 'Domain';
 function show(name) {
-  if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); side.id = null; }
+  if (name !== tab) { setQ('ev', ''); setQ('side', ''); setQ('w', ''); setQ('ent', ''); markEntity(null); side.id = null; }
   tab = name; setQ('tab', name === 'Domain' ? '' : name);
   $('mod-name').textContent = Q.get('embed') === 'toolbar' && Q.get('sim_tab') ? Q.get('sim_tab') : tab;  // SIMULADO: an example module
-  const wide = GRAPH(tab) || tab === 'Task Results';  // full width: no entity rail, no JSON inspector
+  const wide = GRAPH(tab) || tab === 'Task Results' || isModule(tab);  // full width: no entity rail, no JSON inspector
   $('rail').style.display = $('side').style.display = wide ? 'none' : '';
   $('main').innerHTML = TABS[tab]();
   $('main').querySelectorAll('.rec').forEach(r => r.onclick = () => select(r.dataset.id));
@@ -1486,6 +1546,7 @@ function show(name) {
     frag(`${D.base}/w/${D.state.id}/${D.home[0]}/${encodeURIComponent(D.home[1])}`).then(h => inject($('home'), h));
   else if (tab === 'Visão') mermaid.run({querySelector: '#main .mermaid'});
   if (GRAPH(tab)) { drawGraph(); $('ev-close').onclick = closeSide; }
+  if (isModule(tab)) { loadModule(tab); $('ev-close').onclick = closeSide; }
 }
 function select(id) {
   document.querySelectorAll('.rec').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
@@ -1598,8 +1659,12 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
         <span class="tabular-nums text-right font-semibold ${strong}">${brl(rows.reduce((a, d) => a + d.cost, 0))}</span></div>`;
   }
   const togglePop = open => { popOpen = open ?? !popOpen; pop.classList.toggle('hidden', !popOpen); if (popOpen) drawPop(); };
+  // after a start, a stop or an enter the clock may run somewhere else now: a module that draws money (the Kanban's
+  // Quadro) listens for devconsole-money on document and redraws at once
   const post = (path, body = {}) => fetch(`${D.base}/time/${path}`, {method: 'POST', body: new URLSearchParams(body)})
-    .then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); } return s; }).catch(() => {});
+    .then(r => r.json()).then(s => { if (s && !s.error) { S = s; t0 = performance.now(); draw(); }
+      if (path !== 'beat') document.dispatchEvent(new CustomEvent('devconsole-money', {detail: {path, running: !!(s && s.running)}}));
+      return s; }).catch(() => {});
   const stop = (by, trim = 0) => { if (!S.running) return; S.closed_money = spentNow(); S.closed_seconds = secondsNow(); S.running = false; draw(); return post('stop', {ended_by: by, trim_seconds: trim}); };
   const start = () => { entered = true; return post('start').then(() => { last = Date.now(); mine = true; }); };
   const auto = () => !EMB || mine;  // an embed stops, beats and enters only for a stretch its own click started
@@ -1966,8 +2031,24 @@ def event_widgets(slug: str, tid: str, event: str, e: str = ""):
 
 @rt("/")
 def index():
-    """The first domain; the bar switches between them."""
-    return RedirectResponse(f"/domain/{next(iter(DOMAINS))}", status_code=303)
+    """The console's home: the module a domain names with CONSOLE_HOME (the Kanban's Quadro), when that domain has an
+    entity to open; else the first domain, as before. The status line switches between them."""
+    for slug, mod in DOMAINS.items():
+        home = getattr(mod, "CONSOLE_HOME", None)
+        if not home or not use(slug):
+            continue
+        try:
+            has_entity = bool(journal.read())
+        except Exception:  # a broken journal must not take the home down: the first domain opens instead
+            has_entity = False
+        if has_entity:
+            return RedirectResponse(f"/domain/{slug}?tab={quote(home)}", status_code=303)
+    return RedirectResponse(f"/domain/{_first_domain()}", status_code=303)
+
+
+def _first_domain() -> str:
+    """The first domain of this console (its first --project, else the registry's first line)."""
+    return next(iter(DOMAINS))
 
 
 @rt("/domain/{slug}")
@@ -2005,7 +2086,11 @@ def _page_data(slug: str, tid: str, money=None):
     # Domain and Task Results are fixed (Task Results when the tasks domain is in the console); TABS is the context's
     tabs = _tabs()
     domains = [{"slug": s, "name": m.NAME, "entity": getattr(m, "ENTITY", "")} for s, m in DOMAINS.items()]
-    return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ()))}
+    # a module drawn by a project widget ({module: [event, widget]}, only the ones in TABS) and the parts of an entity's
+    # sidebar ({part title: widget}): see the project contract
+    module_widgets = {n: list(v) for n, v in dict(getattr(PROJECT, "MODULE_WIDGETS", None) or {}).items() if n in tabs}
+    return {"money": money, "base": base, "name": PROJECT.NAME, "tabs": tabs, "modules": _modules(tabs), "domains": domains, "journal_types": journal_types, "events": history, "state": state, "model": real_model(), "entities": PROJECT.ENTITIES, "home": list(getattr(PROJECT, "HOME", ())),
+            "module_widgets": module_widgets, "entity_parts": dict(getattr(PROJECT, "ENTITY_PARTS", None) or {})}
 
 
 def _default_entity() -> str | None:
@@ -2029,8 +2114,8 @@ def api_palette(domain: str = ""):
     domains = [{"slug": s, "name": m.NAME} for s, m in DOMAINS.items()]
     if domain and use(domain):
         modules = [{"id": t, "title": t, "url": f"/domain/{domain}?tab={quote(t)}"} for t in _tabs()]
-    else:
-        modules = [{"id": "Domain", "title": "Domain", "url": "/"}]
+    else:  # the first domain, as "/" used to open (the home may be another domain's module now)
+        modules = [{"id": "Domain", "title": "Domain", "url": f"/domain/{_first_domain()}"}]
     modules += [{"id": "playground", "title": "Playground", "url": "/playground"},
                 {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]}]
     return _json({"domains": domains, "modules": modules})
@@ -2095,7 +2180,7 @@ def tension(slug: str, tid: str, embed: str = ""):
     head = "px-4 pt-3 pb-1 text-[11px] uppercase tracking-widest text-neutral-500"
     line = "border-neutral-200 dark:border-neutral-800"
     bar = _status_bar(PROJECT.NAME, bool(money))
-    return Title(f"dev-console · {title}"), Style(CSS), Div(
+    return Title(f"dev-console · {title}"), Link(rel="icon", href="data:,"), Style(CSS), Div(
         Div(
             Div(Div(PROJECT.ENTITY_PLURAL, cls=head), *rail, id="rail", cls=f"w-56 shrink-0 overflow-y-auto border-r {line}"),
             Div(id="main", cls="flex-1 min-w-0 min-h-0 overflow-y-auto"),
@@ -2151,10 +2236,10 @@ AGENTS_MODULE = {"name": "Agents", "href": "/agents"}  # listed by ⌘P beside D
 
 def _modules(tabs: list[str] | None = None) -> list[dict]:
     """The one module model both pages ship as D.modules, listed by ⌘P: `{name, href}`. On a domain page: Domain and the
-    project's TABS (href null: shown in place), then Playground (href: navigates). On the Playground: Domain (href "/", the
-    first domain) and Playground. ⌘K never lists these: it lists domains only."""
+    project's TABS (href null: shown in place), then Playground (href: navigates). On the Playground: Domain (the first
+    domain, where "/" used to go; "/" is the home now) and Playground. ⌘K never lists these: it lists domains only."""
     if tabs is None:
-        return [{"name": "Domain", "href": "/"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
+        return [{"name": "Domain", "href": f"/domain/{_first_domain()}"}, {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
     return [*({"name": n, "href": None} for n in tabs), {"name": "Playground", "href": "/playground"}, AGENTS_MODULE]
 
 

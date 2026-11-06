@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.45.0] - 2026-11-06
+
+### Added
+
+- `kanban` 0.1.0: o quadro do dono no dev-console. Cada card é um trabalho ligado a um domínio do console, numa etapa (Upstream, Downstream, Feito); `kanban.sh` é o único escritor do diário (`create`, `move`) e lê o quadro (`list`, `show`, `money`). O dinheiro de cada card é o tempo do domínio dele enquanto esteve em Upstream, lido do diário de custos e pelo preço da hora do centro de custo; a faixa no topo do Quadro soma hoje, a semana (desde segunda) e o mês, e sobe a cada segundo enquanto o relógio roda.
+- `dev-console` 0.23.0: `/` abre o Quadro do Kanban (o `CONSOLE_HOME` do projeto), senão o primeiro domínio como antes; um módulo pode ser um widget do projeto (`MODULE_WIDGETS`), e um clique numa entidade dele abre a barra lateral do console com as partes do projeto (`ENTITY_PARTS`); a barra de dinheiro avisa a página ao ligar e desligar o relógio.
+
 ## [0.44.1] - 2026-11-06
 
 ### Changed
