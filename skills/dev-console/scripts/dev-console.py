@@ -699,8 +699,9 @@ function drawGraph() {
       {selector: 'node.used', style: {'background-color': 'data(color)', 'border-width': 0, color: bg, 'font-weight': 700}},
       {selector: 'node.root', style: {'font-size': 19, width: n => Math.max(...n.data('label').split('\n').map(l => l.length)) * 12 + 36, height: 66}},
       // UML initial pseudostate: a filled dot, named Human (who triggers the first transition).
-      {selector: 'node.human', style: {shape: 'ellipse', width: 34, height: 34, 'background-color': ink,
-        'border-width': 0, color: ink, 'font-size': 15, 'font-weight': 700, 'text-valign': 'bottom', 'text-margin-y': 8,
+      // the Human is the centre of every domain: twice an event node's height (56)
+      {selector: 'node.human', style: {shape: 'ellipse', width: 112, height: 112, 'background-color': ink,
+        'border-width': 0, color: ink, 'font-size': 22, 'font-weight': 700, 'text-valign': 'bottom', 'text-margin-y': 12,
         'font-family': 'ui-sans-serif, system-ui'}},
       {selector: 'edge', style: {label: 'data(label)', 'font-family': 'ui-monospace, monospace', 'font-size': 15,
         color: 'data(color)', 'text-background-color': bg, 'text-background-opacity': 1, 'text-background-padding': '3px',
@@ -717,8 +718,18 @@ function drawGraph() {
   new ResizeObserver(([e]) => {
     const k = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`;
     if (k === box || !e.contentRect.width) return;  // same size: do nothing (this guard stops the flicker loop)
-    box = k; cy.resize(); cy.fit(undefined, 20);
+    box = k; cy.resize(); cy.fit(undefined, 20); centreHuman();
   }).observe($('cy'));
+  // open centred on the Human (fit keeps the zoom, then the Human goes to the middle); off centre, a button brings it back
+  function centreHuman() { const h = cy.$('#human'); if (h.nonempty()) cy.center(h); offCentre(); }
+  function offCentre() {
+    const h = cy.$('#human'), b = $('centre-human'); if (!b || h.empty()) return;
+    const p = h.renderedPosition(), far = Math.hypot(p.x - cy.width() / 2, p.y - cy.height() / 2) > 40;
+    b.classList.toggle('hidden', !far);
+  }
+  cy.on('pan zoom', offCentre);
+  cy.ready(centreHuman);
+  if ($('centre-human')) $('centre-human').onclick = () => cy.animate({center: {eles: cy.$('#human')}, duration: 250, complete: offCentre});
   $('legend').innerHTML = Object.entries(PATH).filter(([c]) => c in M().lifecycle).map(([c, col]) => `<span style="color:${col}">● ${c}</span>`).join('')
     + '';
   cy.on('tap', ev => { if (ev.target === cy) closeSide(); });
@@ -928,7 +939,8 @@ const TABS = {
         <div class="flex items-center gap-4 px-4 pt-3 min-w-0">
           <span id="legend" class="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400 min-w-0"></span>
           <span class="ml-auto shrink-0 cursor-help text-neutral-500" title="Máquina de estados a partir do Human · aresta: comando (transição) · nó: evento (estado alcançado) · cheio: já no diário">?</span></div>
-        <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div></div>
+        <div class="relative flex-1 min-h-0"><div id="cy" class="absolute inset-0"></div>
+          <button id="centre-human" class="hidden absolute right-3 bottom-3 z-10 px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 hover:text-neutral-950 dark:hover:text-white">◎ Centralizar Human</button></div>
       </div>
       <aside id="ev-side" class="hidden w-[min(380px,34vw)] shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-800">
         <div class="shrink-0 flex items-start justify-between gap-3 px-4 pt-3 pb-2">
