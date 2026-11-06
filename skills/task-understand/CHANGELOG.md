@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.4] - 2026-11-06
+
+### Added
+
+- A step between verify and deliver: `diff-review.sh <worktree> --task <id>`; an open blocker sends the task back to `execute`.
+
 ## [0.13.3] - 2026-11-06
 
 ### Changed
