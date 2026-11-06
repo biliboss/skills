@@ -2,11 +2,19 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
-## [0.18.0] - 2026-11-05
+## [0.19.0] - 2026-11-05
 
 ### Added
 
 - `dev-console` 0.5.0: a native macOS window the agent drives. `DevConsole.app` shows the console page in a `WKWebView` (docked at two thirds of the screen, title follows the page); `scripts/window.sh` is the only writer of `command.json`, the app the only writer of `state.json` (url, title, size, last command and result, messages the page posts through the bridge). The headless browser stays how an agent reads the DOM.
+
+## [0.18.0] - 2026-11-05
+
+### Changed
+
+- `task-understand` 0.13.0: `verify` (independent verification, IV&V, in a fresh pi context), `deliver` and the PR
+  decision (`merge`, `request-review`) become real commands; a failed verification or a requested review sends the
+  task back to execution; the dev-console shows the verification and the delivery under the run.
 
 ## [0.16.0] - 2026-11-05
 

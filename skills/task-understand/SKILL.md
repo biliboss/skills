@@ -5,12 +5,12 @@ description: >-
   something, do not start: first repeat back what you understood (teach-back) and wait for the confirmation.
   Questions and one-line commands skip the gate.
 metadata:
-  version: 0.12.2
+  version: 0.13.0
 ---
 
 # task-understand
 
-One command runs the whole workflow, from `task.explained` to `task.executed`, including adjustments, feedback and styles. The domain is
+One command runs the whole workflow, from `task.explained` to `pull_request.merged`, including adjustments, feedback and styles, the independent verification and the delivery. The domain is
 **Tasks** (plural: the set of tasks), shown in the dev-console as Biliboss Skills - Tasks at `/domain/tasks`;
 other workflows of the domain come as `task-<action>` skills.
 
@@ -24,6 +24,9 @@ assignment at school, a ticket in a software team).
 | `understanding.taught_back` | `teach_back` | at the end, the receiver repeated it back the way they understood it |
 | `understanding.confirmed` | `confirm` | the Human said the repetition matches (an edge from the Human) |
 | `task.executed` | `execute` | the receiver, or the configured executor, did the work |
+| `task.verified` | `verify` | a fresh context (IV&V) checked the delivery against the confirmed request |
+| `task.delivered` | `deliver` | the verified work was handed over: a PR, a direct change, or nothing to hand over |
+| `pull_request.merged` / `pull_request.review_requested` | `merge` / `request-review` | the Human's decision on a delivered PR |
 
 The practice is **teach-back** (health literacy: "explain it back in your own words"); the loop it closes is
 **closed-loop communication** (aviation, crew resource management). Use these names; do not invent others.
@@ -69,7 +72,10 @@ shows which kinds of task each model does well and with what quality.
 
 1. Listen to the whole explanation; do not interrupt and do not start the work.
 2. Record the task as it came: what it is, the explanation, who explained it, to whom and the domain it is about
-   (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab.
+   (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab. The domain is
+   the one the work changes, never `tasks` by default: only work on this skill itself is `tasks`; a task about a
+   client's board or a personal tool goes under its own slug (or none when it has no domain yet), or it pollutes
+   another domain's Task Results.
 3. Repeat it all back in your own words, the way you understood it (`understanding.taught_back`), and ask for the
    confirmation with the harness's ask tool whenever it has one (Hermes `clarify`, Claude Code `AskUserQuestion`,
    pi's question tool): the repetition is the question and the choices are, in this order:
@@ -113,6 +119,29 @@ shows which kinds of task each model does well and with what quality.
    `task.executed` per model: the run's answer, model, provider, plan, harness, exit code, duration, worktree, branch
    and what pi's JSON reports (turns, tokens, cost). No `--models` runs the registry's default. After the runs,
    review each worktree's diff and open the PR from the one that came out best.
+10. Verify before delivering, with eyes that did not do the work (independent verification, IV&V): `uv run --script
+    scripts/tasks.py verify --task <id> [--model sonnet] [--executed <event id>] [--cwd <dir>]`, only after a
+    `task.executed`. It runs pi in a **fresh context** (`--no-session`, a flat-plan model from the registry, from the
+    delivery's worktree) whose prompt holds only the task's `text`, the last confirmed teach-back and the delivery under
+    test (worktree, branch, pull request and the executor's report): never the executor's transcript or its learnings.
+    The verifier checks the gap, not everything: what the report says it could not check, and what only shows outside
+    it (an installed app, a page); it does not re-run what the report proves with evidence unless it doubts it. It
+    answers a last JSON block `{"passed", "checks": [{"what", "how", "evidence", "passed"}]}`; `task.verified` records
+    it with the model, plan, duration and exit code. No parsable block, a failed check or a crashed verifier is
+    `passed: false`. Failing sends the task back to `confirmed`: `execute` runs again (another model, or by hand), told
+    which checks failed; then verify again. Pick the verifier model apart from the executor's when you can.
+11. Deliver once it passed: `... deliver --task <id> --kind pr|direct|none [--url <link>] [--text "..."]` records
+    `task.delivered`, refused unless the last verification passed. `pr` is one kind of delivery, not a mandatory step:
+    `direct` is a change made in place (an issue created, a card moved), `none` is nothing to hand over.
+12. When the delivery is a PR, ask the Human what to do with it (the harness's ask tool), the choices in this order,
+    the recommended first by the weight of the work: prototype or experiment → **Fazer o merge direto**; product or
+    client code → **Revisar antes do merge**; then **Deixar aberto**.
+    - *Fazer o merge direto*: run `gh pr merge` yourself, then `... merge --task <id>` records `pull_request.merged`
+      (it only records; the url comes from the delivery).
+    - *Revisar antes do merge*: `... request-review --task <id> --text "<why>"` records
+      `pull_request.review_requested` and the task goes back to `confirmed`: run `execute` again; the run is told
+      the reason. After the changes, verify and deliver again.
+    - *Deixar aberto*: no event; the PR stays as delivered.
 
 An agent applies this to its own requests: when someone explains a task to it, it runs `emit task.explained`
 with their words verbatim (`--actor <who explained>`, `"to": <the agent>`), then `emit understanding.taught_back`
@@ -140,9 +169,10 @@ before it starts.
 - When the task is to build something that may already exist ("implementa todo o desenho"), read the code before
   repeating back and split the repetition into **what is already done** and **what is missing**: he asked for the
   verification to come inside the teach-back, not after it.
-- After `execute`, review the executor's work before shipping: read its diff, run its tests yourself (it may have
-  been denied the commands to run them) and fix what its report says it could not check; then version, changelog
-  and PR.
+- After `execute`, `verify` is the review: an independent context reads the diff and runs the proofs. What is
+  left to you is only the gap, what neither the executor nor the verifier could run or prove (a build its
+  permissions blocked, the app on screen, a screenshot): fix that, and do not re-run what was already proved with
+  evidence; a second identical pass is waste. Then version, changelog and PR.
 
 ## Design stage
 
@@ -156,7 +186,9 @@ before it starts.
   - **TaskList**: only executed tasks, newest first, title and date (no status); a row opens the Tasks view.
   - **TaskExecutionResult**, for a person: first how it ran (method, harness, model, effort, cycle time from the
     confirmation to the end of the run, delivery as PR aberto / PR fechado / direto na main; a pi run adds provider,
-    plan, exit code, duration, turns, tokens, cost), then the run's report as markdown, then the date.
+    plan, exit code, duration, turns, tokens, cost), then the run's report as markdown, then the date; under them the
+    independent verification (passed or not, each check with how and its evidence) and the delivery (kind and link).
+    The Task List shows every task that has run, whatever came after.
   - **DomainDiff**: the diff of the domain's pseudo-code (the dev-console Code part) before and after the run;
     one line saying nothing changed when the run did not touch the domain.
   - **TaskExecutionLog**, for agents: when, who, harness, model and plan, worktree and branch, exit code, turns,
@@ -167,7 +199,8 @@ before it starts.
 - A run records its `ExecutionResult` whole in `task.executed` (method, harness, model, effort, cycle_time_s,
   delivery, session, pull_request, commits, before_afters, journeys; the report in `text` may carry mermaid and
   images). A pi run (one `task.executed` per model) adds provider, plan, exit_code, duration_s, worktree, branch,
-  turns, tokens and cost. Pictures live in `~/.local/share/tasks/media/<task id 8>/` and are referenced as
+  turns, tokens and cost. `task.verified` records `{text, passed, checks, model, provider, plan, duration_s, exit_code,
+  executed_id}`; `task.delivered` `{text, kind, url}`; `pull_request.merged` `{text, url}`. Pictures live in `~/.local/share/tasks/media/<task id 8>/` and are referenced as
   `media:<task id 8>/<file>`; the console serves them. A run that recorded only its text shows the text alone
   (no example data).
 - A domain's Task Results tab shows only the tasks whose `task.explained` names that domain.
