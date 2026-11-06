@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.1
+  version: 0.30.2
 ---
 
 # dev-console
@@ -25,6 +25,7 @@ devc show <slug> [--json]            # lanes, transitions (with the command), ev
 devc events <slug> [--task ID] [--tail] [-n N]   # events of the entity the domain opens (what state.json carries; no whole-journal route yet); --tail polls every 1 s, Ctrl-C ends
 devc focus                           # GET /agent/focus; 'sem foco ainda' while the route or the focus is missing
 devc open <slug|url> [--ev E] [--w W]  # agent.sh open (the URL carries agent=1); devc shot prints the PNG path
+devc browse <url>                    # a page an agent runs, in the Browser module (/browser?url=); the interview skill opens its queue here
 devc now | history [n] | eval '<js>' # the flight recorder and the window
 devc start [port] [--owner N] | stop <port> [--force] | list [port]   # console.sh
 devc check <url> [--shot f.png] [--eval '<js>']                        # check.sh

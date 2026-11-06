@@ -3,6 +3,16 @@
 All notable changes to the interview skill are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-06
+
+### Added
+- The dev-console is the window when it is up: the queue's page opens in its Browser module (`devc browse http://127.0.0.1:8398/`), and nothing opens when the console's window already shows the queue (`devc now --json`). With the console down, or `devc` failing, the window opens as before. Setting `console` (default `http://127.0.0.1:5057/`, `false` = off); `INTERVIEW_CONSOLE_URL` overrides it.
+- `README.md`: what the skill is, the standalone and dev-console uses, and the credits to pi-interview.
+- Tests for the launcher's three cases (a fake console and a fake `devc` first on PATH); the standalone tests point the console at a closed port.
+
+### Fixed
+- `SKILL.md` listed "The answer" twice.
+
 ## [1.0.0] - 2026-11-04
 
 First version in the public plugin, adapted from a local copy of `pi-interview` 0.14.0 (see `ATTRIBUTION.md`).
