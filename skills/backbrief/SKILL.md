@@ -6,7 +6,7 @@ description: >-
   brief back what you understood (teach-back, closed-loop communication) and wait for the confirmation. Questions and
   one-line commands skip the gate.
 metadata:
-  version: 0.17.1
+  version: 0.17.2
 ---
 
 # backbrief
@@ -75,7 +75,9 @@ shows which kinds of task each model does well and with what quality.
 ## Explain
 
 1. Listen to the whole explanation; do not interrupt and do not start the work.
-2. Record the task as it came: what it is, the explanation, who explained it, to whom and the domain it is about
+2. The work lives on the owner's Kanban: the task has (or gets) a card in **Upstream** (`skills/kanban`); only he
+   moves it to Downstream. If the request does not say, the ask in step 3 suggests the card.
+   Record the task as it came: what it is, the explanation, who explained it, to whom and the domain it is about
    (`task.explained`, `domain` = the dev-console slug), so it shows in that domain's Task Results tab. The domain is
    the one the work changes, never `tasks` by default: only work on this skill itself is `tasks`; a task about a
    client's board or a personal tool goes under its own slug (or none when it has no domain yet), or it pollutes
@@ -187,6 +189,15 @@ shows which kinds of task each model does well and with what quality.
       compile and run the tests before the merge: picking a side silently drops the other task's fix. A conflict
       resolved by hand is new code nobody reviewed: run `diff-review` on the merged branch and start what runs
       (step 10) before the final merge, because the other side may have removed what this one still uses.
+    - **A backlog of old PRs** ("review and merge all open PRs"): one subagent per ~4 PRs, not per repo: re-applying
+      a stale PR onto a moved main costs about a dozen tool calls, and a subagent at its iteration cap leaves a
+      replacement PR open and conflicting. Read first whether a merge to main deploys (the workflow file): if it
+      does, the subagent only rebases and reports, because publishing is the owner's.
+    - **A subagent that ran out of iterations before committing**: commit its files from a fresh worktree on
+      `origin/main` (`git worktree add <tmp> origin/main`, `git checkout <commit> -- <paths>`), never from the shared
+      local main clone: it lags origin and carries other sessions' edits, so the PR is born conflicting. For the same
+      reason never `git pull --autostash` in a clone with someone else's uncommitted edits: a stash that fails to pop
+      leaves files `UU`; save the stash as a patch (`git diff stash@{0}^ stash@{0}`) before restoring.
     - **The owner changes direction while a subagent runs**: steer it (`delegate_task` action `steer`, the new rule
       in one directive message) instead of killing and relaunching; a file-based brief to a running executor is
       not re-read, so a small addition is done by hand when it returns.

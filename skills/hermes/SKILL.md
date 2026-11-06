@@ -2,7 +2,7 @@
 name: hermes
 description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
 metadata:
-  version: 0.3.0
+  version: 0.3.1
   license: MIT
 ---
 
@@ -56,9 +56,36 @@ running `hermes -p <profile> --continue <slug>` in DIR (reused when it exists). 
   filtered of key-like fields.
 - **Proposals stay proposals.** `sre` and `via-ads` read, measure and propose; production, DNS, budget and indexing
   changes need the owner's go-ahead, so say so in the prompt.
+- **Brief for speed and landing**: file map, tool-call budget, commit early, batch reads, screen changes stop at a PR
+  with screenshots, no TUI polling, test env vars inline. Checklist and why in
+  [references/briefing.md](references/briefing.md).
+- **The orchestrator batches too.** Between delegations, plan the step and run it as one scratch `.sh` (checks,
+  actions, window screenshot together), not a chain of one-command probes: each extra call resends the whole
+  conversation, and the owner notices the stream of small calls.
+- **Use the owner's words for the system.** Talking to him, the Bili and its agents are "o Bili", one name; never
+  "mesa", "desk" or another term agents coined. Before naming a piece to him, use his word or the literature's, and
+  ask when neither exists.
 - **Check the profile's SOUL before routing to it.** A profile whose SOUL.md is a stub or a copy of another's (hipster
   once matched bili's; mantainer has no scope) does not own the subject yet: tell the owner, then spawn.
 - Whether a `-z` run writes the profile's memory is **unverified**; try it on a throwaway profile before promising it.
+
+## A session per card (the owner talks in one place)
+
+The owner's conversation with the Bili is the one door (control plane); the heavy context of each Kanban card lives in
+its own Hermes session (data plane), so the door stays small and he never has to hop. One name everywhere: the card's
+slug is the Hermes session title, the tmux/sesh session and the dev-console domain (`via-blog`).
+
+1. **Seed the session with a handoff**, not the chat: a short file with the card id, goal and metric, the state of
+   each PR, what waits for the owner, the rules; ends with "Responda só \"pronto\"". `hermes -p bili -z "$(cat
+   handoff.md)"`, then `hermes -p bili sessions list` (newest first) and `hermes -p bili sessions rename <id> <slug>`.
+   `-z` prints only the answer, so take the id from `sessions list`, not from the output.
+2. **Open it in tmux under the same name**: `tmux new-session -d -s <slug> -n hermes -c ~ "hermes -p bili --continue
+   <slug>; exec zsh"` (`--continue <name>` resumes by title). `sesh list` shows it; he enters with `sesh connect <slug>`.
+3. Check by capture: `tmux capture-pane -p -t <slug>:1` shows the resumed session and its context size.
+4. When the card goes to Feito, write the passage summary on the card and close the tmux session.
+
+Compaction is the safety net, not the way to work: a very long session resends its whole context on every call
+(slower, costlier) and its summaries lose nuance, so the state lives in the card, the PRs and the `.wiki`.
 
 ## Claude Code mods (later)
 

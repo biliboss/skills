@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.30.0
+  version: 0.30.1
 ---
 
 # dev-console
@@ -53,8 +53,10 @@ uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_con
 Verify in the headless browser (`browser_exec local=true`: load, read `window.__cy` and the DOM, screenshot)
 or `curl`. Outside Hermes (Claude Code, pi), use the skill's own `scripts/check.sh <url> [--shot f.png] [--eval '<js>']`
 (the installed Chrome, headless, 1000 px and dark by default; JSON with status, title, errors and the eval value),
-never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page as a tab in the Hermes desktop browser (`desktop_preview` open, with a label),
-or in the DevConsole window when it is his console. Never Safari: he asked for every link to open in the Hermes browser.
+never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page in **his
+DevConsole window** (`window.sh open <url>`), capture that window (`screencapture -x -l<window id>`, the id from Quartz
+`CGWindowListCopyWindowInfo`) and look at the PNG before telling him it is there. Pages outside the console (GitHub, a
+PR) open in the Mac's default browser (`open <url>`).
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
@@ -609,6 +611,16 @@ For a product whose code already records domain events (Domain.Imported):
 
 ## Evolve it while using it
 
+- **A change to the screen he uses is approved by screenshot before merge.** Layout, home, labels, panels, input
+  gestures: the subagent opens the PR, attaches screenshots at his window size (~1128×1074) and stops; merge only
+  after his ok. Two unseen layout changes merged in a row hid his side panel and event texts and had to be reverted
+  wholesale. Put the rule in every UI brief ("PR não mergeado, prints para aprovação"), or the subagent lands it.
+- **The console visualizes; it does not orchestrate.** It shows what helps him decide (domains, cards, the state of a
+  card's agent) and takes him there; creating things (cards, Hermes sessions, tmux windows, clock entries) belongs to
+  the skills that own them (`kanban`, `hermes`, `tmux`, `cost-track`). Add a view only when he names the need: keep it lean.
+- **When he says it got worse, restore first, redesign later**: revert the skill folder to the last state he liked in
+  one PR (`git checkout <good sha> -- skills/dev-console`, delete files added since, bump versions above main), keep
+  unrelated pieces that work (a CLI), reinstall the app, screenshot his window; then rebuild the idea with his ok.
 - **UI work goes to Opus at max effort**: screens, widgets, layout, the console's look and the Swift chrome are a
   focused job that needs taste; delegate them on the `ui-opus-max` route (Hermes delegation `model_map`), never the
   default Sonnet route, which shipped native pieces that compiled and passed tests but did not work by hand.
@@ -665,6 +677,19 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
 
 ## Pitfalls
 
+- **A registry line is the `dev_console_project.py` file, never its folder**: `console.sh domains add <file>`, not an
+  `echo >> domains.txt`. A folder path makes `spec_from_file_location` return None and the main console dies for every
+  domain on its next reload. If 5057 is down, read the tail of `~/.local/state/dev-console.log`, fix the line, and start
+  it again as a tracked long-lived process (`uv run --script dev-console.py --project <its own
+  dev_console_project.py>`, background, persisting past the session), never with `nohup`.
+- **Headless screenshot of a console page: wait for the widgets.** Chrome's `--screenshot` fires at load, before the
+  htmx fragments arrive ("carregando…"), and `--virtual-time-budget` never ends on a page that polls. Use a small uv
+  Playwright script with the installed Chrome (`chromium.launch(channel="chrome")`, viewport 1128×1074, dark), `goto`
+  then `wait_for_timeout(5000)`, screenshot, and read a `data-*` marker with `evaluate` to prove the piece rendered;
+  cap the run with a background kill.
+- **After deleting or editing entities by hand, move his window off them**: a page left on a removed card's URL
+  (`/t/<id>`) shows "não encontrado" on a black screen; `window.sh open` the module (`/domain/<slug>?tab=<Module>`) via
+  an entity that exists, then screenshot.
 - Start it from a stable folder (`cd ~`) with absolute paths: the hot reload spawns a new
   process that reads the current folder, and a folder that changed under it kills the console.
 - Test a change on a second console (another port, `DEV_CONSOLE_REGISTRY=<empty file>` so only your `--project`

@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-11-06
+
+### Changed
+
+- Learnings from sessions folded in.
+
 ## [0.2.0] - 2026-11-06
 
 ### Added

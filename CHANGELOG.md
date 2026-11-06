@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.69.0
+
+- Loose learnings from sessions landed: patch bumps for backbrief, brainstorm, dev-console, hermes (+`references/briefing.md`), kanban, linear, lp-draft, seo-audit, skill-smith (+`resolve_release_conflicts.py`), sync, tmux, wiki-smith.
+
 ## 0.68.0
 
 - domain-plan 0.1.0: planning in Upstream; the task's domain drawn in the dev-console as drafts (events, the real screen above each), a hand-editable `.plan/<slug>.jsonl` in the repo and `plan.sh drift` (to build, built, unplanned). kanban 0.6.1: `pull` opens the card's plan.

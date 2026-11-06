@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-11-06
+
+### Changed
+
+- Cards and the owner's focus, a card's workspace, test journals never leak, the Quadro moves only with his focus; `create` defaults to Todo.
+
 ## [0.6.1] - 2026-11-06
 
 ### Changed

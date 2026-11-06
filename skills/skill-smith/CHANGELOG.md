@@ -3,6 +3,12 @@
 All notable changes to skill-smith are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-06
+
+### Changed
+
+- Check the base before the release commit; `scripts/resolve_release_conflicts.py`.
+
 ## [0.4.1] - 2026-11-06
 
 ### Changed

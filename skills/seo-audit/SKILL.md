@@ -9,7 +9,7 @@ description: >-
   "checa as meta tags". Not search-console (what Google measured: clicks, positions, index status) and not
   keyword-ideas (what to write about).
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # seo-audit
@@ -30,6 +30,11 @@ $A/test.sh                                    # offline test on fixtures (local 
   finding, in the owner's words, with the page and what to change. Do not report a passing check.
 - **Group what repeats.** The same finding on many URLs (a whole sitemap redirecting, every post with the same
   canonical problem) is one line with the count and an example, never one line per URL.
+- **Count before you say "every".** One page is an example; to claim a finding for a whole section, audit every
+  sitemap URL (map them to the host they redirect to) and group by code:
+  `audit.sh $URLS | jq -r '[.pages[]|[.findings[].code]|join(",")]|group_by(.)|map("\(length)x \(.[0])")|.[]'`.
+- **A host migration is judged in the `<head>`, sitemap, robots.txt and llms.txt**, not in body text: a link from
+  an article to the other host is content and is fine.
 - **Confirm with Google before calling it a problem in production**: `search-console` `inspect <url>` shows the
   `googleCanonical`, the `userCanonical` and the coverage. The audit says what the HTML asks for; the inspection says
   what Google did with it.
