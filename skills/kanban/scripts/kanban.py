@@ -662,8 +662,6 @@ def _project(events: list[dict]) -> dict:
         "stage": c.stage.value,
         # when it entered its stage
         "since": c.since.isoformat(timespec="seconds"),
-        # its place in the owner's order of the stage (0 = top), None when never ranked
-        "rank": c.rank,
         "created_at": c.created_at.isoformat(timespec="seconds"),
         "updated_at": events[-1]["at"],
     }
