@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.10"
 # dependencies = []
 # ///
 """Kanban: the owner's board. Each card is one piece of work tied to a dev-console domain, and it sits in one stage:
@@ -39,7 +39,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timedelta
-from enum import StrEnum
+from enum import Enum
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -63,8 +63,10 @@ TRANSITIONS = {
 
 
 # --- the value objects: the screen and the CLI draw only these ------------------------------------------------------
-class Stage(StrEnum):
+class Stage(str, Enum):
     """Where a card is on the board: discovering, delivering, or done."""
+
+    __str__ = str.__str__  # str() and f-strings give the value, as StrEnum did (it is 3.11+; the console allows 3.10)
 
     UPSTREAM = "Upstream"  # discover and decide what to do (before the commitment point)
     DOWNSTREAM = "Downstream"  # deliver what was decided

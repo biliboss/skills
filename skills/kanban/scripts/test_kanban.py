@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.10"
 # dependencies = []
 # ///
 """Tests of kanban.py: the Upstream clipping, the band's periods, the running stretch, the journal and the CLI.
