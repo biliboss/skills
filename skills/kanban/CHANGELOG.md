@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3] - 2026-11-06
+
+### Changed
+
+- The console module is named `Kanban` (was `Quadro`): ⌘P and the domain's tab; `MODULE_ALIASES` keeps `?tab=Quadro` links working. The board widget's title stays "Quadro".
+
 ## [0.7.2] - 2026-11-06
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.5] - 2026-11-06
+
+### Changed
+
+- A project may rename a module and keep the old name: `MODULE_ALIASES = {"Quadro": "Kanban"}` makes `?tab=Quadro` open the renamed module (`D.module_aliases`). Test: `test_console_palette.py`.
+
 ## [0.30.4] - 2026-11-06
 
 ### Changed

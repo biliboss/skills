@@ -50,7 +50,7 @@ why and the numbers, read when changing a part of the screen.
 
 - Many `--project` flags, one domain each; slug = `SLUG` or the skill folder name.
   `/` is the home: `/domain/<slug>?tab=<CONSOLE_HOME>` of the first domain that declares `CONSOLE_HOME` and has an
-  entity (the Kanban's Quadro), else the first domain (`_first_domain()`, which the Playground's and Agents' "Domain"
+  entity (the Kanban module), else the first domain (`_first_domain()`, which the Playground's and Agents' "Domain"
   and `/api/palette` without a domain also use); `/domain/<slug>` picks its open entity;
   routes: `/domain/<slug>/{t,w,do,source/stream}/…`. The JS prefixes every fetch with
   `D.base`; rail links keep `location.search` so the tab survives a switch.
