@@ -1,7 +1,7 @@
 # The project contract
 
 A project is shown by the dev-console through one Python file, `dev_console_project.py`, that the
-console imports (`--project <path>`). The console's environment has FastHTML, so widgets may import it.
+console's project host (`scripts/console_project_host.py`, a Python helper the Hono server talks to) imports (`--project <path>`). The host's environment has FastHTML and MonsterUI, so widgets may import them. The console is light only: a `dark:` Tailwind class in a widget does nothing.
 
 | Name | What it is |
 |---|---|

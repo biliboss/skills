@@ -1,6 +1,6 @@
 """Kanban in the dev-console: the owner's board, the console's home (its Quadro module opens at /).
 
-Run: uv run --script ../../dev-console/scripts/dev-console.py --project scripts/dev_console_project.py
+Run: bun --cwd ../../dev-console ../../dev-console/scripts/dev-console.ts --project scripts/dev_console_project.py
 The console imports this file; fasthtml comes from the console's own environment. The widgets only draw the value
 objects kanban.py computes (Board, CardMoney, UpstreamTotals): no number is computed here.
 """

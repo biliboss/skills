@@ -1,23 +1,20 @@
 # The console UI, rule by rule
 
-Depth for `scripts/dev-console.py`. The always-on rules are in SKILL.md; this is the
+Depth for `scripts/dev-console.ts`. The always-on rules are in SKILL.md; this is the
 why and the numbers, read when changing a part of the screen.
 
 ## Working on the file
 
-- Start it once in a herdr `services` tab and just save: `run_process`
-  (watchfiles) restarts it on any change in the console folder or the project folder,
-  and FastHTML `live=True` reloads the page. Kill only a stale server holding the port
-  (`kill $(lsof -ti tcp:5057)`).
-- Edit by small `uv run --script` patcher files that `str.replace` exact snippets and
-  print one assert per replacement; sed silently misses JS with quotes/backslashes.
-- FastHTML writes a `.sesskey` (session secret) next to the script it runs and in the
-  project folder: keep `.sesskey` in `.gitignore` and never stage it.
-- `--project` must be read before the module body runs (the app is built at import);
-  the console sets `DEV_CONSOLE_PROJECT` from `sys.argv` first, then argparse.
-- The SSE stream never ends: serve with `timeout_graceful_shutdown=1` or a restart
-  hangs. FastHTML's live-reload socket logs `WebSocketDisconnected` on every reload;
-  harmless.
+- Start it once with the tmux skill's `run.sh start` and just save: the Python project host restarts on any change in a
+  project folder and the pages reload (`/__live`); run it as `bun --cwd <skill> --watch scripts/dev-console.ts ...` and a
+  save of `dev-console.ts` itself restarts the server (the pages reconnect and reload). Stop only your own console.
+- Edit by small patcher scripts that `replace` exact snippets and assert each one; sed silently misses JS with
+  quotes/backslashes. The client JS and CSS are template literals: a backslash is doubled, a backtick or `${` escaped.
+- `--project` flags are read first; `DEV_CONSOLE_PROJECT` and the registry add to them. `bun --cwd <skill>` is what lets
+  Bun install the pinned `hono` on first run (`bun install` in the skill folder for `bun test`).
+- The SSE streams never end by themselves: each route releases its watcher and timer when the client goes (the request's
+  abort signal), so a restart never waits on them. Light only: `tailwind.config.darkMode = 'selector'` and the `dark`
+  class is never set, so a project widget's `dark:` classes are inert.
 
 ## Shape
 

@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.105.0
+
+- dev-console 0.33.0: the console server is one Hono file (`scripts/dev-console.ts`, Bun, light style only) in place of FastHTML and its Python siblings; same routes, JSON shapes and ports, so `devc`, `console.sh`, `check.sh` and the skills that call it keep working. `console_project_host.py` is the one Python piece left: the project contract is Python, so a helper process loads the `dev_console_project.py` files for the server. Server tests are now `bun test` (`dev-console.test.ts`). Dark mode removed.
+
 ## 0.104.0
 
 - dev-console 0.32.0: the native macOS app is gone, the console is web only. Removed `app/` (DevConsole.app, Swift), `window.sh`, `agent.sh`, the flight recorder (`console_recorder.py`, `/agent/now|history|shot`), the app-only routes `/api/status` and `/api/palette`, the `webkit.messageHandlers` branches in the pages, and `devc shot|now|history|eval` (`devc open` now opens the browser). domain-model: the architecture seed drops the DevConsole.app node.

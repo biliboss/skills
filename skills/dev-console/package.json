@@ -1,0 +1,9 @@
+{
+  "name": "dev-console",
+  "private": true,
+  "type": "module",
+  "description": "scripts/dev-console.ts is the whole server (Hono on Bun). Bun auto-installs the pinned dependency; no install step.",
+  "dependencies": {
+    "hono": "4.6.14"
+  }
+}

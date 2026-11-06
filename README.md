@@ -14,7 +14,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `auth` | a identidade segura do agente: contas por provedor (Google primeiro), segredos só no envless e no Keychain, uma concessão por perfil, setup guiado |
 | `retro` | a revisão da sessão (after-action review): as correções do dono viram regras nos skills certos, escolhidas por ele e aplicadas num PR |
 | `diff-review` | a revisão de código de um diff local, com prompt próprio no plano flat: só problemas que o diff introduziu, cada um com cenário de falha; bloqueio aberto volta para a execução |
-| `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
+| `dev-console` | console de um arquivo só (Hono, Bun, só estilo claro) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; os projetos em Python entram por um processo auxiliar; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `thread` | o tópico de um card numa chamada só: janela tmux + sessão Hermes (branch ou nova) `<card> · <tópico>`, brief inline sem arquivo; as abas por recência (a mais recente é a 2) e a aba acende (✓) quando o agente termina um turno (skill tmux) |

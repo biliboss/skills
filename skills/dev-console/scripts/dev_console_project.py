@@ -24,7 +24,7 @@ journal = ConsoleJournal()
 render_widget_list = None  # set by the console: the right menu's WidgetList, for composition
 
 K = "text-[11px] uppercase tracking-widest text-neutral-500"
-BODY = "font-sans text-sm text-neutral-800 dark:text-neutral-200"
+BODY = "font-sans text-sm text-neutral-800"
 
 
 def title_of(history: list[dict], state: dict) -> str:
@@ -42,7 +42,7 @@ def event_list(ctx):
     """The event types this Domain declares, each with the command that records it."""
     if not ctx.events:
         return P("Nenhum evento declarado.", cls="text-neutral-400")
-    return Ul(*[Li(Span(e["value"]["event"], cls="w-56 shrink-0 font-semibold text-neutral-900 dark:text-neutral-100"),
+    return Ul(*[Li(Span(e["value"]["event"], cls="w-56 shrink-0 font-semibold text-neutral-900"),
                    Span(e["value"]["command"], cls=BODY), cls="flex gap-3 py-1") for e in ctx.events])
 
 
@@ -51,7 +51,7 @@ def toolbar(ctx):
     slug = (ctx.focus or {}).get("domain_id", SLUG)
     sim = "&sim_tab=Eventos" if ctx.mode == "sim" else ""  # SIMULADO: an example module from the context, nothing recorded
     return Iframe(src=f"/domain/{slug}?embed=toolbar{sim}",
-                  cls="w-full h-11 rounded border border-neutral-200 dark:border-neutral-800")
+                  cls="w-full h-11 rounded border border-neutral-200")
 
 
 # --- DomainView: the Domain's screen is the console's own Domain tab. The dev-console documents and builds itself:
@@ -60,7 +60,7 @@ def toolbar(ctx):
 def domain_view(ctx):
     """The Domain tab itself: StateGraph plus the sidebar and popup a click opens."""
     slug = ctx.entity_id if ctx.focus else SLUG  # no designed domain recorded yet: the dev-console shows itself
-    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=1", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=1", cls="w-full h-[68vh] rounded border border-neutral-200")
 
 
 domain_view.fake = True  # a console screen: it renders before any event is recorded
@@ -69,7 +69,7 @@ domain_view.fake = True  # a console screen: it renders before any event is reco
 def state_graph(ctx):
     """The state machine alone, drawn from the real code (EVENTS read with ast): Human, commands, events."""
     slug = ctx.entity_id if ctx.focus else SLUG
-    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=graph", cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+    return Iframe(src=f"/domain/{slug}?tab=Domain&embed=graph", cls="w-full h-[68vh] rounded border border-neutral-200")
 
 
 state_graph.fake = True  # drawn from code, so it exists before any event is recorded
@@ -79,7 +79,7 @@ def right_menu(ctx):
     """The right menu: a clicked event's sidebar, with its expandable parts (Widgets, Code, JSON, Observability)."""
     slug = SLUG  # ctx.event is an event of this domain (the dev-console's own), so its menu lives here
     return Iframe(src=f"/domain/{slug}?tab=Domain&embed=side&ev={ctx.event}",
-                  cls="w-full h-[68vh] rounded border border-neutral-200 dark:border-neutral-800")
+                  cls="w-full h-[68vh] rounded border border-neutral-200")
 
 
 right_menu.fake = True  # a console screen: it exists before any event is recorded
@@ -88,7 +88,7 @@ right_menu.fake = True  # a console screen: it exists before any event is record
 def domain_switcher(ctx):
     """Switch domain: the console's real Domain Switcher (⌘K), a fuzzy search over an overlay, embedded."""
     return Iframe(src=f"/domain/{SLUG}?tab=Domain&embed=switcher",
-                  cls="w-full h-[48vh] rounded border border-neutral-200 dark:border-neutral-800")
+                  cls="w-full h-[48vh] rounded border border-neutral-200")
 
 
 domain_switcher.fake = True  # a console screen: it exists before any event is recorded
@@ -97,7 +97,7 @@ domain_switcher.fake = True  # a console screen: it exists before any event is r
 def code(ctx):
     """The event's pseudo-code: the right menu's Code tab, embedded (never a copy)."""
     return Iframe(src=f"/domain/{SLUG}?tab=Domain&embed=code&ev={ctx.event}&side=Code",
-                  cls="w-full h-[60vh] rounded border border-neutral-200 dark:border-neutral-800")
+                  cls="w-full h-[60vh] rounded border border-neutral-200")
 
 
 code.fake = True  # drawn from the code, so it exists before any event is recorded

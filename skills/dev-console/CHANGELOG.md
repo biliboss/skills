@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.33.0] - 2026-11-06
+
+### Changed
+
+- The console server is one Hono file, `scripts/dev-console.ts` (Bun, light style only), in place of FastHTML (`dev-console.py` and the siblings `console_agents.py`, `console_home.py`, `console_store.py`, `console_playground.py`, `console_model.py`, `console_reload.py`, `playground/`). Same routes, JSON shapes, ports and CLI behaviour: `devc`, `console.sh`, `check.sh` and the skills that call the console keep working. The page CSS and JS (graph, sidebar, popup, money bar, Agents, Home, Playground canvas) are inlined in that file.
+- Light only: every dark-theme class, rule, toggle and `prefers-color-scheme` branch is gone (a project widget's `dark:` Tailwind class is inert). `check.sh` is light only (`--light` removed).
+- Start with `bun --cwd <skill> scripts/dev-console.ts ...` (`console.sh start` does); `hono` is pinned in `package.json` (`bun.lock`), Bun installs it on first run. `console.sh` finds instances by `dev-console.ts`; `console.sh playground import` is now a subcommand of the same file.
+- The Agents hub, the SQLite home and widgets catalogue, the playground server side, the model page and the money routes were ported function by function; the watchers are `fs.watch` instead of watchfiles. A reload of the pages after a project change is the new `/__live` stream (it replaces FastHTML's websocket).
+- Tests: `scripts/dev-console.test.ts` (`bun test`) replaces the five Python test files for the server (normalizer, tailer, SSE, home table, widgets catalogue, playground, model, and a real console on `DEVC_TEST_PORT`). `test_devc.py` stays with `devc.py`.
+
+### Added
+
+- `scripts/console_project_host.py`: the one Python piece left. The project contract is Python (a project is a `dev_console_project.py` imported by the console, its SOURCE read with `ast`, its widgets FastHTML functions, its journal and ACTIONS Python; 17 such files in other skills and repos), so one helper process loads the projects and answers the server over stdin/stdout. No HTTP, no UI. `costs.py` (cost-track) is loaded by it too.
+
+### Removed
+
+- FastHTML, MonsterUI-as-framework, watchfiles and uvicorn from the server, `.sesskey`, `console_reload.py` (a reload is a new host process) and the dark-mode CSS.
+
 ## [0.32.0] - 2026-11-06
 
 ### Removed

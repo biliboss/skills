@@ -163,7 +163,7 @@ has (Observation). Notes for humans live in `~/biliboss/.wiki/skill-tensions-o-q
 
 The screen is the **`dev-console` skill** (one file, any project); this skill only
 hooks into it with `scripts/dev_console_project.py`:
-`uv run --script <dev-console>/scripts/dev-console.py --project scripts/dev_console_project.py`.
+`bun --cwd <dev-console> <dev-console>/scripts/dev-console.ts --project scripts/dev_console_project.py`.
 The console's UI rules live in that skill. What is Tensions-specific stays here, in
 the project file: names (`Tension`, `tensões`, `tension_id`), `title_of`, and
 `WIDGETS` — each event's views (`management.created` → TensionList +

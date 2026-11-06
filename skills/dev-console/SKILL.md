@@ -1,15 +1,15 @@
 ---
 name: dev-console
 description: >-
-  Use when opening or evolving the dev-console for a project. One full-screen read-only web console (a single FastHTML
-  file) for any event-sourced project in development; the state machine of its commands and
+  Use when opening or evolving the dev-console for a project. One full-screen read-only web console (a single Hono
+  file, light style) for any event-sourced project in development; the state machine of its commands and
   events drawn from the code, the entities, the journal, and widgets per event. Use when the
   user says "dev-console", "abre o console", "mostra o projeto no console", "cria um widget
   para esse evento", "liga esse projeto no dev-console", "quero ver os eventos". Not tensions
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.32.0
+  version: 0.33.0
 ---
 
 # dev-console
@@ -38,7 +38,7 @@ retired (cited names first moved to `devc`) once nothing cites them. Tests: `pyt
 
 ## The console
 
-One file, `scripts/dev-console.py` (FastHTML + MonsterUI, PEP 723, `uv run --script`), shows
+One file, `scripts/dev-console.ts` (Hono on Bun, light style only; the CSS and JS are inlined), shows
 **domains**: each project file is one domain in its own context, `/domain/<slug>`; the status line at the bottom shows
 the current one and ⌘K (or a click on it) opens the Domain Switcher, a fuzzy finder over an overlay
 (fzf / command-palette style; never a list or cards of domains); ⌘P (or a click on the module) opens the same finder
@@ -48,21 +48,35 @@ root entity Domain, journal derived from every `dev_console_project.py` with `as
 ## Run it
 
 ```sh
-uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_console_project.py \
-  --project <path>/dev_console_project.py [--port 5057]   # one --project per domain
+bun --cwd <skill> <skill>/scripts/dev-console.ts --project <skill>/scripts/dev_console_project.py \
+  --project <path>/dev_console_project.py [--port 5057] [--no-live]   # one --project per domain
+bun --cwd <skill> --watch <skill>/scripts/dev-console.ts ...         # live: restarts when dev-console.ts itself is saved
 ```
+
+`bun --cwd <skill>` matters: the one dependency, `hono`, is pinned in the skill's `package.json` and Bun installs it on
+first run only when it starts inside that folder (a relative `--project` still means the folder you typed it in:
+`$PWD`). Run it from the tmux skill's `run.sh start`, never as a loose background process.
+
+**What is still Python, and why.** The project contract is Python: a project is a `dev_console_project.py` that
+the console imports, its SOURCE is read with `ast`, its widgets are FastHTML/MonsterUI functions, its journal and `ACTIONS`
+are Python (17 such files across the skills and repos). A TypeScript server cannot import them, so **one helper process,
+`scripts/console_project_host.py`** (`uv run --script`, started and restarted by `dev-console.ts`), loads them and answers
+the server over stdin/stdout, one JSON line per request (`page`, `state`, `model`, `widget`, `widget_list`, `action`, `money`,
+`default_entity`...). It has no HTTP, no UI and no state of its own; a change in a project folder restarts it (a new process is
+a clean reload) and the pages reload. `costs.py` (cost-track, the money bar's only writer) is loaded by it too. The dev-console's
+own domain (`console_domain.py`, `dev_console_project.py`) stays Python for the same reason. Everything else was ported.
 
 Verify in the headless browser (`browser_exec local=true`: load, read `window.__cy` and the DOM, screenshot)
 or `curl`. Outside Hermes (Claude Code, pi), use the skill's own `scripts/check.sh <url> [--shot f.png] [--eval '<js>']`
-(the installed Chrome, headless, 1000 px and dark by default; JSON with status, title, errors and the eval value),
+(the installed Chrome, headless, 1000 px, light; JSON with status, title, errors and the eval value),
 never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page in his browser (`devc open <slug|url>`, or `open <url>`) and look at a
 `check.sh --shot` PNG before telling him it is there.
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
 adding a domain needs no restart: `console.sh domains add <path>` (it appends the `dev_console_project.py` path to
-`~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
-in the project folder changes, and the page reloads; all UI state lives in the query string
+`~/.local/state/dev-console/domains.txt`) and the console re-reads the list and watches the new folder. The project host restarts by itself when anything
+in a project folder changes (not the registry's other files, only `domains.txt`), and the pages reload (unless `--no-live`); all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`, `ent`), so a reload or a shared link reopens the same view.
 **`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban module, skill `kanban`) when
 that domain's journal has an entity; else the first domain, as before (a domain page with an empty journal is a dead
@@ -110,12 +124,12 @@ line, with the component palette. It is **the console's own now** (the design-pl
 same origin, no iframe, no chat, so ⌘K and ⌘P work even with the canvas focused (the old cross-origin iframe turned ⌘P
 into the browser's Print). The two key handlers listen in the capture phase so tldraw cannot swallow them.
 
-- **Code.** `scripts/playground/` is the canvas web (`canvas.js`, `widgets.js`, `paleta.js`, `app.css` from the
-  design-playground; `eventos.js` is the small SSE relay the chat used to be), served at `/playground/web/*`.
-  `scripts/console_playground.py` is the server side, a sibling module the script imports: the canvas mirror, the
+- **Code.** the canvas web (`canvas.js`, `widgets.js`, `paleta.js`, `app.css` from the
+  design-playground; `eventos.js` is the small SSE relay the chat used to be) is inlined in `dev-console.ts` and served at
+  `/playground/web/*`. The server side is the same file (the `Playground` section): the canvas mirror, the
   component definitions (validation, wrapper folder reader, versions), the operations on the open page, and the routes
   `/playground/api/{canvas,canvas/diff,canvas/resposta,componentes,eventos}` (same JSON as the TS). Each operation is a
-  function or method (`Canvas.aplicar`, `Componentes.definir/definir_da_pasta/listar/conferir`, `Operacoes.executar`),
+  function or method (`Canvas.aplicar`, `Componentes.definir/definirDaPasta/listar/conferir`, `Operacoes.executar`),
   never code inside a route, so `console.sh` commands can call them. There is no `/api/estado` or `/api/mensagens`: they were the chat's.
 - **Data** lives in `~/.local/state/dev-console/playground/` (`DEV_CONSOLE_PLAYGROUND_DIR` moves it): `canvas.json` and
   `componentes/<produto>/<peça>.json`, the design-playground's format. `console.sh playground import [<dados dir>]
@@ -152,9 +166,6 @@ Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are anothe
 - **The toolbar is console text, not buttons**: spans with `tabindex="0"` (Enter and Space click them), grey, the active
   one white and underlined, one line. Never `<button>` or `role="button"`: MonsterUI paints both as blue filled
   buttons. It is the same bar in both views; the chips that only filter Prompts are dimmed in the Log, never hidden.
-- **The console loads its own sibling modules by path** (`_sibling`, before any project): a project from another
-  checkout of this skill puts its folder first on `sys.path`, and a test console would otherwise run that checkout's
-  `console_agents.py` beside its own `dev-console.py`.
 
 - **What is a prompt (an allow-list)**: exactly `origin.kind == "human"` with `promptSource == "typed"`, or `"queued"`
   (typed while the agent was busy: still a prompt, with `queued: true` and a `queued` badge on the row). A message typed
@@ -167,14 +178,14 @@ Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are anothe
   `notification`, anything else (no origin, `human` without a `promptSource`, unknown) is `other`, never `prompt`.
   `isSidechain` lines and `agent-*.jsonl` files carry `side` and stay out of Prompts unless the `side` chip is on.
   Lines above 1 MB (api-request-blob) are skipped without parsing.
-- **Real time by events**: one thread for all clients; `watchfiles` (FSEvents) names the `.jsonl` that changed and the hub
-  reads it from its stored byte offset (about 50 ms from the write to the SSE message, measured). Each SSE client has an `asyncio.Queue` fed by the watcher thread
-  (`call_soon_threadsafe`); nothing polls, and the queue is dropped when the client disconnects. A safety net rescans the roots
-  and checks every file every ~5 s. If `watchfiles` cannot be imported it polls every ~1 s and the page shows one warning line.
+- **Real time by events**: one hub for all clients; `fs.watch` (FSEvents) names the `.jsonl` that changed and the hub
+  reads it from its stored byte offset (well under a second from the write to the SSE message). Each SSE client is a callback
+  on the hub; nothing polls, and it is dropped when the client disconnects. A safety net rescans the roots
+  and checks every file every ~5 s. If the watcher cannot start it polls every ~1 s and the page shows one warning line.
 - **Backfill**: on start the hub reads the tail of the newest 150 files (until about 200 prompts and 500 log entries), so
   **prompts older than that do not appear**. Raise it with `DEV_CONSOLE_AGENTS_BACKFILL_FILES=<n>` (the constant
-  `BACKFILL_FILES` in `console_agents.py`); a bigger number makes the first request slower.
-- **Lifecycle**: the watcher is a daemon thread with a stop event (`Hub.shutdown`, called on the server's shutdown and at
+  `BACKFILL_FILES` in `dev-console.ts`); a bigger number makes the first request slower.
+- **Lifecycle**: the watchers stop in `Hub.shutdown` (called on the server's shutdown and at
   exit); a hot reload replaces the whole child process, so no thread or process is left behind.
 - `DEV_CONSOLE_AGENTS_DIRS`: roots, `os.pathsep`-separated (default `~/.claude/projects`; deduplicated by realpath, so
   the `~/.claude-mukutu/projects` symlink is read once). Tests point it at a temp folder.
@@ -184,8 +195,8 @@ Code only (`~/.claude/projects/<dir>/<session>.jsonl`); pi and Hermes are anothe
   127.0.0.1 cannot read `/agents/api/prompts`); allowed names are `127.0.0.1` and `localhost` (the port is not compared),
   extended by `DEV_CONSOLE_ALLOWED_HOSTS` (comma-separated). No CORS is configured: no `Access-Control-Allow-Origin` anywhere. Tests use
   invented lines; never commit a real prompt, id or path of a session.
-- Code: `scripts/console_agents.py` (source, normalizer, hub, SSE, page script); `dev-console.py` has only the glue.
-  Tests: `uv run --script scripts/test_console_agents.py`.
+- Code: the Agents section of `scripts/dev-console.ts` (source, normalizer, hub, SSE) and `AGENTS_JS` (page script).
+  Tests: `scripts/dev-console.test.ts`, the normalizer, tailer and SSE groups.
 
 ## Hook up a project
 
@@ -509,7 +520,7 @@ For a product whose code already records domain events (Domain.Imported):
 - **UI work goes to Opus at max effort**: screens, widgets, layout, the console's look are a
   focused job that needs taste; delegate them on the `ui-opus-max` route (Hermes delegation `model_map`), never the
   default Sonnet route, which shipped pieces that compiled and passed tests but did not work by hand.
-- Change the console in `scripts/dev-console.py` only (one file, forever). A project-specific
+- Change the console in `scripts/dev-console.ts` only (one file, forever; the Python project host changes only when the project contract does). A project-specific
   view goes in the project's `WIDGETS`, not here.
 - What the user corrects about the console becomes a line in this SKILL.md (a rule) or in a
   reference (depth), via `skill-smith`; screenshots go to the conversation, not the repo.
@@ -568,22 +579,21 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   module imported by new code is missing (`ModuleNotFoundError`) and the console dies for every domain. Back up
   `git diff` to scratch, `git pull --rebase --autostash`, resolve a conflict keeping both sides, then land the loose
   edits as their own PR so the next pull is clean.
-- **The hot reload purges imported modules only on a re-load caused by a saved file, never on the first import, and
-  never the console's own modules** (`__main__`, `dev-console.py`, its `console_*` siblings): the dev-console's own
-  project shares their folder, and purging them makes every later `@dataclass` fail (`sys.modules[cls.__module__]`
-  is None) so the console cannot start. Test a reload change from a clean process start, not only by touching a file.
+- **A project reload is a new project-host process**: nothing is purged, so a helper a project imports is always read
+  again after a save. The host watches the project folder, what the project put on `sys.path`, the folders of the modules it
+  loaded and its `WATCH` list (the Kanban's cost-track folder). If the host fails to start on a reload, the server keeps the
+  old projects and says why in its log.
 - **Headless screenshot of a console page: wait for the widgets.** Chrome's `--screenshot` fires at load, before the
   htmx fragments arrive ("carregando…"), and `--virtual-time-budget` never ends on a page that polls. Use a small uv
-  Playwright script with the installed Chrome (`chromium.launch(channel="chrome")`, viewport 1128×1074, dark), `goto`
+  Playwright script with the installed Chrome (`chromium.launch(channel="chrome")`, viewport 1128×1074, light), `goto`
   then `wait_for_timeout(5000)`, screenshot, and read a `data-*` marker with `evaluate` to prove the piece rendered;
   cap the run with a background kill.
 - **After deleting or editing entities by hand, move his window off them**: a page left on a removed card's URL
   (`/t/<id>`) shows "não encontrado" on a black screen; open the module (`/domain/<slug>?tab=<Module>`) via
   an entity that exists, then screenshot.
-- Start it from a stable folder (`cd ~`) with absolute paths, test consoles too: the hot reload spawns a new process
-  that reads the current folder (`os.getcwd()` in multiprocessing spawn), and a folder removed under it (a worktree
-  after `wt remove`) kills that console with `FileNotFoundError`. When 5057 is down, `pgrep -fl dev-console.py`: kill
-  leftover consoles whose paths point into removed worktrees, then `start-console.sh`.
+- Start it with absolute paths (the tmux skill's `run.sh start`, never a loose background process): a console whose
+  project paths point into a removed worktree (after `wt remove`) cannot reload its projects. When 5057 is down,
+  `pgrep -fl dev-console.ts`: stop leftover consoles whose paths point into removed worktrees, then start it again.
 - **Check a widget by curl through its listing first**: `GET /domain/<slug>/w/<entity id>/<event>` lists the registered
   widgets under their display names (a function `contas_e_cofre` shows as `ContasECofre`); take the name to put in
   `.../<event>/<name>` from there and grep a `data-*` marker of the widget. The domain page itself draws widgets
@@ -609,7 +619,7 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
 - Keep the SSE stream and the live-reload socket from blocking a restart: the server shuts
   down with a 1 s grace.
 - Fetch widget HTML with the `HX-Request: true` header and insert it with `inject()`:
-  without the header FastHTML wraps the fragment in a full page whose head breaks the
+  without the header the widget route answers a whole page (an iframe's view) whose head breaks the
   console's CSS, and plain `innerHTML` neither runs a widget's `<script>` nor wires its
   `hx-*` buttons (`inject` re-creates scripts and calls `htmx.process`).
 - A project-file constant the console reads (`HOME`, `ACTIONS`, `EXPECTED_WIDGETS`) must have
@@ -620,18 +630,16 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   entity key with `focus.get(...)` and keep the page's id, or `_ctx` raises `KeyError` and the widget 500s.
 - Read an entity's optional fields with `.get` in console code (`status`, `updated_at`, `event_count`):
   a new domain's projector does not have them and the page 500s. Read the server log in the services pane
-  (`~/.local/state/dev-console.log`) on any 500 before guessing.
-- Keep `.sesskey` out of git: FastHTML writes its session secret next to the script it runs.
+  (`~/.local/state/dev-console.log`, or `run.sh log`) on any 500 before guessing.
 - Lay out an embed with CSS keyed on `html[data-embed=…]`, set before `show()`: `show()` re-renders
   `#main`, so JS that hides or resizes elements first is lost or hits the wrong node.
 - An embedded console screen points at the domain whose event it shows (the dev-console's own
   `SLUG` for its process events): pointing at `ctx.entity_id` opened another domain without that
   event ("comando undefined").
 - Edit the console with small patcher scripts that assert each replacement: sed misses JS
-  with quotes and backslashes without saying so. Never add a `#` comment in the middle of a Python expression line
-  (a dict entry followed by `**derive(...)`): it swallows the rest of the line. After every patch to
-  `dev-console.py` run `uv run --with python-fasthtml python -m py_compile <file>`: the hot reload restarts on save,
-  and a syntax error kills the console for every domain, his browser tab included.
+  with quotes and backslashes without saying so. The client JS and CSS are template literals in `dev-console.ts`: a
+  backslash is doubled, a backtick or `${` is escaped. After every patch run `bun scripts/dev-console.ts --help` (it
+  parses the whole file); under `--watch` a syntax error kills the console for every domain, his browser tab included.
 - Generate Python for a project file with `repr`/`pprint`, never `json.dumps` (`null` is a `NameError`), and
   `py_compile` the project file after writing it: a registered project file that fails to import kills every console
   that watches it, the test one included.
@@ -639,7 +647,7 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   browser) must not close the running stretch; the page's first trusted input (`e.isTrusted` on keydown/click/pointer)
   posts `time/enter`, which ends a stretch running elsewhere (`domain_change`). Agents' synthetic clicks are not
   trusted. Still check other domains on a test console when you can.
-- The user iterates fast on the look: one change, screenshot at his width (~1000 px, dark
+- The user iterates fast on the look: one change, screenshot at his width (~1000 px, light
   mode), short report; spacing moves by small steps (too tight and too loose both get
   rejected).
 - The Tension-shaped tabs (Proposed Actions, Observations, …) are still console code; only the
@@ -681,20 +689,20 @@ devc home show <id> --html '<h2>…</h2>' | --html-file f.html | --url localhost
 devc home list [--json] | rm <id> | clear        # clear = back to only the logo row; rm of a parent removes what is inside it
 ```
 
-**One file**, `~/.local/share/dev-console/dev-console.sqlite` (`DEV_CONSOLE_DB`; WAL), `scripts/console_store.py`. Keep it
-outside the registry's folder (the reloader restarts the console on any write there; tests put the registry in a folder of its own).
+**One file**, `~/.local/share/dev-console/dev-console.sqlite` (`DEV_CONSOLE_DB`; WAL), the SQLite section of `dev-console.ts`. Keep it
+outside the project folders (a write inside a watched folder restarts the project host; tests put the registry in a folder of its own).
 
 - **`widgets`**: the catalogue. One row per widget of every loaded project: `id` = `<domain>/<event>/<Name>` (the URL `/w/<entity>/<event>/<Name>`
   and `devc home --widget`), `domain, event, name, kind (widget|expected), position, function, module, file, line, fake, roles`
-  (JSON: `home`, `module:X`, `entity_part:Y`), `code` (`inspect.getsource`), `code_sha256`, `project`, `exported_at`. The console rewrites it from the
+  (JSON: `home`, `module:X`, `entity_part:Y`), `code` (`inspect.getsource`, collected by the project host), `code_sha256`, `project`, `exported_at`. The console rewrites it from the
   loaded projects at start and on every hot reload, only when something differs: the code files stay the source of the code.
 - **`home`**: one row per placement. `id` (what `devc home show <id>` uses), `widget_id` (a `widgets.id`; null for raw html/url), `source`
   (`widget|html|url`), `content` (the html or the url), `task` (the entity a widget renders), `title`, `position` (grid order),
   `span`, `height`, `parent_id` (composition: a placement drawn inside another; a missing parent or a loop falls back to the top),
   `created_at`, `updated_at`, `actor` (`DEVC_ACTOR`). Seeded once with the logo; the logo row has no frame.
-- **Writers**: from code, only the server (`console_home.py` -> `console_store.py`) through `POST /api/home/show|rm|clear`; the owner by hand.
-  External edits are noticed by watchfiles on the db and its `-wal` file (no polling loop), compared with the last snapshot, and pushed as the same SSE.
+- **Writers**: from code, only the server through `POST /api/home/show|rm|clear`; the owner by hand.
+  External edits are noticed by `fs.watch` on the db and its `-wal` file (no polling loop), compared with the last snapshot, and pushed as the same SSE.
 - **The old JSONL** (`~/.local/share/dev-console/home/events.jsonl`, `DEV_CONSOLE_HOME_DIR`) is archive: read once, when `home` is first created,
   to migrate its placements; never written or deleted after.
 - `html` is drawn in a sandboxed frame (scripts allowed, no same origin); `widget`/`url` in a frame of the route; the logo inline.
-- Tests: `uv run --script scripts/test_console_home.py` (temp database, a real console on `DEVC_TEST_PORT`, default 5097). Any test that starts a console sets `DEV_CONSOLE_DB` to a temp file.
+- Tests: `scripts/dev-console.test.ts`, the home group and the live console group (temp database, a real console on `DEVC_TEST_PORT`, default 5097). Any test that starts a console sets `DEV_CONSOLE_DB` to a temp file.
