@@ -2,6 +2,12 @@
 
 Todas as mudanças do skill `tmux`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-06
+
+### Added
+
+- `agent-state.sh sub+|sub-` (Hermes `subagent_start`/`subagent_stop` hooks; the window is found by `parent_session_id` = the parent's `@hsid`): `@subagents=N`, never below 0. The tab shows one grey Nerd Font glyph (U+F013, `AGENT_STATE_ICON` overrides, e.g. `⚙`) + the count before the name; while N > 0 the turn's end does NOT light ✓ (`@turnended`), which lights when N drops to 0.
+
 ## [0.3.0] - 2026-11-06
 
 ### Added

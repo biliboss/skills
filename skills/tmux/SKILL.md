@@ -2,7 +2,7 @@
 name: tmux
 description: Faz tudo o que um agente precisa no tmux por scripts, sem montar comando na mão: lê as últimas linhas de um pane, lista sessões, janelas e panes, manda texto (inclusive comando com barra para um Claude Code) com verificação antes do Enter, abre e renomeia janelas, espera um pane mostrar um texto, com prazo. E roda processo longo (servidor, watcher, suite de testes) numa sessão tmux nomeada presa à worktree do dono, com log, vaga global para testes e limpeza de órfão, nunca solto em segundo plano. Use quando o dono disser "lê o pane", "manda para a janela", "abre uma janela no tmux", "espera o pane mostrar", "lista as janelas do tmux", "renomeia a janela", "sobe o servidor", "roda os testes em tmux", "processo órfão", "mata o que ficou rodando", "o watcher ficou rodando". Para abas e sessões do herdr use a `duplo-local-agents`; esta é só do tmux.
 metadata:
-  version: 0.3.0
+  version: 0.4.0
 ---
 
 # tmux: panes e janelas por script
@@ -91,7 +91,7 @@ O dono (`--owner`) é, por padrão, a raiz da worktree git de `--cwd` (ou do pwd
 
 ## Estado do agente na aba (agent-state.sh)
 
-A aba do thread acende (` ✓ nome `, branco em negrito sobre bordô) quando o agente Hermes dela termina um turno e o dono não está nela; entrar na aba apaga. Quem dirige são os shell hooks do Hermes (sem polling): `pre_llm_call` → `agent-state.sh working`, `post_llm_call` → `agent-state.sh done`; o `$TMUX_PANE` do TUI identifica a janela. `scripts/agent-state.sh install` liga o hook de limpeza no tmux (e no `~/.tmux.conf`) e imprime o bloco `hooks:`; `uninstall` desfaz. O script não escreve nada em stdout (o Hermes leria como diretiva) e sai 0 sempre. As opções da janela são `@agent` (`working`) e `@done` (`1`): o dev-console e o Quadro leem elas antes de raspar o pane. Os dois comandos também chamam `thread.sh touch`, que põe o thread na aba 2 (a aba 1 é o Bili, as janelas sem `@thread` ficam no fim) sem tirar o foco do dono.
+A aba do thread acende (` ✓ nome `, branco em negrito sobre bordô) quando o agente Hermes dela termina um turno e o dono não está nela; entrar na aba apaga. Quem dirige são os shell hooks do Hermes (sem polling): `pre_llm_call` → `agent-state.sh working`, `post_llm_call` → `agent-state.sh done`; o `$TMUX_PANE` do TUI identifica a janela. `scripts/agent-state.sh install` liga o hook de limpeza no tmux (e no `~/.tmux.conf`) e imprime o bloco `hooks:`; `uninstall` desfaz. O script não escreve nada em stdout (o Hermes leria como diretiva) e sai 0 sempre. As opções da janela são `@agent` (`working`) e `@done` (`1`): o dev-console e o Quadro leem elas antes de raspar o pane. Os dois comandos também chamam `thread.sh touch`, que põe o thread na aba 2 (a aba 1 é o Bili, as janelas sem `@thread` ficam no fim) sem tirar o foco do dono. Subagentes: `subagent_start` → `agent-state.sh sub+` e `subagent_stop` → `agent-state.sh sub-` (a janela é a do `@hsid` = `parent_session_id` do payload) mantêm `@subagents=N`; a aba mostra um glifo cinza (Nerd Font, `AGENT_STATE_ICON` troca, ex. `⚙`) + N antes do nome, e o ✓ só acende quando N chega a 0 depois do fim do turno.
 
 ## Evoluir
 

@@ -2,7 +2,9 @@
 # thread.sh: open/list/close a topic thread (a tmux window running a Hermes session) in the session where you are, in one call.
 #   thread.sh open <topic> [--card C] [--session S] [--from SESSION_ID | --new] [--profile P] [--cwd DIR] [--brief TEXT | --brief - | --brief-gz B64]
 #   thread.sh list
-#   thread.sh close <topic> [--session S]
+#   thread.sh close <topic> [--session S] [--summary TEXT] [--by owner|bili]   |   close --self [--summary TEXT]
+#   (the owner is on that tab: it closes when he leaves; each close writes a line to $THREAD_LOG, default ~/.local/state/threads.log)
+#   thread.sh sweep            closes the tabs marked done-and-closing that the owner left
 #   thread.sh touch <tab>      a thread becomes tab 2 (Bili = first window stays 1, non-threads stay last); never moves the owner's focus
 # A thread is a /branch of the Hermes session that invoked the skill ($HERMES_SESSION_ID; --from overrides; --new only when asked).
 # The tab opens right after the invoking agent's window (tab 2 for a desktop caller: right after the session's first window).
@@ -20,7 +22,7 @@ READY_TIMEOUT="${THREAD_READY_TIMEOUT:-40}"
 
 tm() { if [ -n "${TMUX_SOCKET:-}" ]; then "$TMUX_BIN" -L "$TMUX_SOCKET" "$@"; else "$TMUX_BIN" "$@"; fi; }
 die() { echo "thread.sh: $*" >&2; exit 1; }
-usage() { sed -n '2,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 
 # sessions as "id<TAB>title" lines (id = last column of `hermes sessions list`)
 sessions() {
@@ -191,20 +193,75 @@ cmd_touch() { # <tab>: a thread becomes tab 2, right after the session's first w
   fi
 }
 
+THREAD_LOG="${THREAD_LOG:-$HOME/.local/state/threads.log}"
+SWEEP_SLOT=72
+
+log_close() { # window id -> one line: when, topic, card, session id, summary, by (tab-separated)
+  local wid="$1" sum="$2" by="$3" topic card sid
+  topic="$(tm display-message -p -t "$wid" '#{@thread}')"; card="$(tm display-message -p -t "$wid" '#{@card}')"
+  sid="$(tm display-message -p -t "$wid" '#{@hsid}')"
+  mkdir -p "$(dirname "$THREAD_LOG")"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$topic" "${card:--}" "${sid:--}" "$(printf '%s' "$sum" | tr '\t\n' '  ')" "$by" >>"$THREAD_LOG"
+}
+
+do_close() { # window id, summary, by. The owner is on this tab: mark it and close it when he leaves (never move his focus).
+  local wid="$1" sum="$2" by="$3"
+  if [ "$(tm display-message -p -t "$wid" '#{window_active}')" = 1 ]; then
+    tm set-option -w -t "$wid" @closing "$by" \; set-option -w -t "$wid" @closesum "$sum"
+    tm set-hook -g "session-window-changed[$SWEEP_SLOT]" "run-shell -b '$HERE/thread.sh sweep'"
+    echo "deferred: the owner is on this tab; it closes when he leaves it"
+    return 0
+  fi
+  log_close "$wid" "$sum" "$by"
+  tm kill-window -t "$wid"
+}
+
+cmd_sweep() { # close the windows marked @closing that the owner is no longer on; drop the hook when none is left
+  local wid active by sum left=0
+  while IFS='|' read -r wid active by; do
+    [ -n "$by" ] || continue
+    if [ "$active" = 1 ]; then left=$((left + 1)); continue; fi
+    sum="$(tm display-message -p -t "$wid" '#{@closesum}')"
+    log_close "$wid" "$sum" "$by"; tm kill-window -t "$wid" 2>/dev/null || true
+  done < <(tm list-windows -a -F '#{window_id}|#{window_active}|#{@closing}' 2>/dev/null)
+  [ "$left" -gt 0 ] || tm set-hook -gu "session-window-changed[$SWEEP_SLOT]" 2>/dev/null || true
+}
+
 cmd_close() {
-  [ $# -ge 1 ] || usage
-  local topic="$1" session="" hits n; shift
+  local topic="" session="" hits n self=0 sum="" by="" wid="" w
   while [ $# -gt 0 ]; do
-    case "$1" in --session) session="${2:?}"; shift ;; *) die "unknown option: $1" ;; esac
+    case "$1" in
+      --session) session="${2:?}"; shift ;;
+      --self) self=1 ;;
+      --summary) sum="${2:?}"; shift ;;
+      --by) by="${2:?}"; shift ;;
+      -*) die "unknown option: $1" ;;
+      *) [ -z "$topic" ] || die "unexpected argument: $1"; topic="$1" ;;
+    esac
     shift
   done
+  if [ "$self" = 1 ]; then # the window whose @hsid is this session, else the window of $TMUX_PANE
+    [ -z "${HERMES_SESSION_ID:-}" ] || wid="$(tm list-windows -a -F '#{window_id} #{@hsid}' 2>/dev/null | awk -v s="$HERMES_SESSION_ID" '$2==s {print $1; exit}')"
+    [ -n "$wid" ] || [ -z "${TMUX_PANE:-}" ] || wid="$(tm display-message -p -t "$TMUX_PANE" '#{window_id}' 2>/dev/null || true)"
+    [ -n "$wid" ] || die "close --self: no window with @hsid=${HERMES_SESSION_ID:-<unset>} and not inside tmux"
+    [ -n "$(tm display-message -p -t "$wid" '#{@thread}')" ] || die "close --self: that window is not a thread"
+    topic="$(tm display-message -p -t "$wid" '#{@thread}')"; by="${by:-self}"
+    n="$(tm display-message -p -t "$wid" '#{@subagents}')"
+    case "$n" in ''|0) ;; *) die "close --self: $n subagent(s) still running; not done yet (close when the count is 0)" ;; esac
+    do_close "$wid" "$sum" "$by"
+    [ "$(tm display-message -p -t "$wid" '#{@closing}' 2>/dev/null)" ] || echo "closed $topic (the Hermes session stays)"
+    return 0
+  fi
+  [ -n "$topic" ] || usage
+  by="${by:-owner}"
   if [ -n "$session" ]; then hits="$(find_window "$session" "$topic" | sed "s|^|$session\t|")"
   else hits="$(cmd_list | awk -F'\t' -v t="$topic" '$2==t {print $1 "\t" $3}')"; fi
   n="$(printf '%s' "$hits" | grep -c . || true)"
   [ "$n" -ge 1 ] || die "no thread '$topic'"
   [ "$n" -eq 1 ] || die "thread '$topic' is open in more than one session; pass --session S"
-  tm kill-window -t "$(printf '%s' "$hits" | cut -f2)"
-  echo "closed $topic in $(printf '%s' "$hits" | cut -f1) (the Hermes session stays)"
+  w="$(printf '%s' "$hits" | cut -f2)"
+  do_close "$w" "$sum" "$by"
+  [ -n "$(tm display-message -p -t "$w" '#{@closing}' 2>/dev/null)" ] || echo "closed $topic in $(printf '%s' "$hits" | cut -f1) (the Hermes session stays)"
 }
 
 [ $# -gt 0 ] || usage
@@ -212,7 +269,8 @@ case "$1" in
   open) shift; cmd_open "$@" ;;
   list) shift; cmd_list "$@" ;;
   close) shift; cmd_close "$@" ;;
-  touch) shift; cmd_touch "$@" ;;
+  touch) shift; cmd_touch "$@"; cmd_sweep ;;
+  sweep) shift; cmd_sweep ;;
   -h|--help|help) usage 0 ;;
   *) usage ;;
 esac

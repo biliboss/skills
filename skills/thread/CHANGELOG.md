@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-06
+
+### Added
+
+- Closing a thread (SKILL.md): `thread.sh close --self --summary TEXT` for a delivered task thread; `close <topic> [--by owner|bili] [--summary]`; deferred when the owner is on the tab (`sweep`, also run by `touch`); one log line per close in `~/.local/state/threads.log`; refused while `@subagents` > 0. The brief ends with the self-close instruction.
+
 ## [0.4.0] - 2026-11-06
 
 ### Added

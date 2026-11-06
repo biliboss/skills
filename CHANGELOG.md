@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.81.0
+
+- thread 0.5.0: closing a thread (`thread.sh close --self --summary`, deferred when the owner is on the tab, one log line in `~/.local/state/threads.log`, never while it waits for him or has subagents running). tmux 0.4.0: `agent-state.sh sub+|sub-`, grey glyph + count of running subagents on the tab, ✓ only at 0.
+
 ## 0.80.0
 
 - tmux 0.3.0: `agent-state.sh`, the thread's tab lights up (✓, bordô) when its Hermes agent finishes a turn and clears when the owner enters it, driven by Hermes shell hooks (no polling). thread 0.4.0: `thread.sh touch`, tabs by recency (Bili = 1, threads newest first, non-threads last, focus never moved). kanban 0.7.4 and dev-console 0.30.6 read `@agent`/`@done` first.
