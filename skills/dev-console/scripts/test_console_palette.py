@@ -1,8 +1,7 @@
 # /// script
 # requires-python = ">=3.10"
 # ///
-"""The console home module (CONSOLE_HOME, the Kanban module) is in ⌘P from every page: D.modules of the web pages
-and /api/palette of the native app. Starts a real console on a test port with two projects, an empty registry and a
+"""The console home module (CONSOLE_HOME, the Kanban module) is in ⌘P from every page: D.modules of the web pages. Starts a real console on a test port with two projects, an empty registry and a
 temp costs dir (never the owner's console or journal).
 Run: uv run --script test_console_palette.py   (env DEVC_TEST_PORT, default 5098)"""
 import json
@@ -29,10 +28,6 @@ def modules(path: str) -> list[dict]:
     return json.loads(re.search(r'<script[^>]*id="data"[^>]*>(.*?)</script>', html, re.S).group(1))["modules"]
 
 
-def palette(query: str = "") -> list[dict]:
-    return json.loads(get("/api/palette" + query))["modules"]
-
-
 class HomeModuleInPalette(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -51,7 +46,7 @@ class HomeModuleInPalette(unittest.TestCase):
             if cls.proc.poll() is not None:
                 raise RuntimeError("console exited before answering")
             try:
-                get("/api/palette")
+                get("/api/domains")
                 break
             except OSError:
                 pass
@@ -76,13 +71,6 @@ class HomeModuleInPalette(unittest.TestCase):
     def test_kanban_page_does_not_duplicate_the_home(self):
         mods = modules("/domain/kanban")
         self.assertEqual([m for m in mods if m["name"] == "Kanban"], [{"name": "Kanban", "href": None}])
-
-    def test_api_palette_lists_the_home_once_with_or_without_domain(self):
-        for query in ("", "?domain=dev-console", "?domain=kanban"):
-            mods = palette(query)
-            kanban = [m for m in mods if m["title"] == "Kanban"]
-            self.assertEqual(kanban, [{"id": "Kanban", "title": "Kanban", "url": HOME["href"]}], query)
-            self.assertIn("/browser", [m["url"] for m in mods], query)  # same list as the web ⌘P
 
     def test_old_tab_name_still_opens_the_board(self):
         data = json.loads(re.search(r'<script[^>]*id="data"[^>]*>(.*?)</script>', get("/domain/kanban?tab=Quadro"), re.S).group(1))

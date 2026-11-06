@@ -6,8 +6,8 @@
 """devc: the dev-console's own CLI, one door for agents and people.
 
 Short text for people, JSON with --json for agents. Reads go to the console's HTTP routes
-(/api/domains, /domain/<slug>/state.json, /agent/*); the rest delegates to the skill's scripts
-(console.sh, agent.sh, window.sh, check.sh), which stay as they are.
+(/api/domains, /domain/<slug>/state.json, /agent/focus); the rest delegates to the skill's scripts
+(console.sh, check.sh), which stay as they are.
 
 Events are what state.json carries: the history of the entity the domain opens (--task <id> picks another one);
 there is no whole-journal route yet.
@@ -35,10 +35,7 @@ USAGE = """usage: devc [--port N] [--json] <command>
   show <slug> [--task ID]         the domain as text: lanes, stages, events in order, transitions
   events <slug> [--tail] [-n N]    the journal (--tail follows, polling 1 s, Ctrl-C ends)
   focus                            the current focus ('sem foco ainda' when there is none)
-  open <slug|url> [--ev E] [--w W] load it in the native window (marked as the agent's)
-  shot                             a fresh snapshot of the window: prints the PNG path
-  now | history [n]                what the window shows / the last n navigations
-  eval '<js>'                      run js in the window and print the value
+  open <slug|url> [--ev E] [--w W] open it in the browser (marked as the agent's)
   start [port] [--owner N]         start another console instance (console.sh start)
   stop <port> [--force]            stop one (5057 needs --force)
   list [port]                      running instances (console.sh list)
@@ -215,19 +212,6 @@ def script_out(name: str, args: list[str]) -> str:
     return p.stdout
 
 
-def kv_of(text: str) -> dict:
-    """agent.sh prints 'key   value' lines; the last block wins."""
-    d: dict = {}
-    for line in text.splitlines():
-        if line.startswith("--"):
-            d = {}
-            continue
-        k, _, v = line.partition(" ")
-        if v.strip():
-            d[k] = v.strip()
-    return d
-
-
 # ---------------------------------------------------------------- commands
 
 
@@ -356,76 +340,12 @@ def cmd_open(a: dict) -> int:
     if not target:
         raise DevcError("usage: devc open <slug|url> [--ev E] [--w W]", 2)
     url = window_url(a, target, ev, w)
-    out = script_out("agent.sh", ["open", url])
-    if a["json"]:
-        print(json.dumps({"url": url, **kv_of(out)}, ensure_ascii=False))
-    else:
-        print(f"opened {url}\n{out.rstrip()}")
-    return 0
-
-
-def cmd_shot(a: dict) -> int:
-    out = script_out("agent.sh", ["shot"])
-    kv = kv_of(out)
-    path = kv.get("shot")
-    if not path or path == "-":
-        raise DevcError("the window recorded no PNG")
-    print(json.dumps(kv, ensure_ascii=False) if a["json"] else path)
-    return 0
-
-
-def cmd_now(a: dict) -> int:
-    status, body = http_get(a["port"], "/agent/now")
-    return print_lines(a, status, body, many=False)
-
-
-def cmd_history(a: dict) -> int:
-    n = a["args"][0] if a["args"] else "5"
-    if not n.isdigit() or not 1 <= int(n) <= 20:
-        raise DevcError("history needs a number from 1 to 20", 2)
-    status, body = http_get(a["port"], f"/agent/history?n={n}")
-    return print_lines(a, status, body, many=True)
-
-
-def line_text(d: dict) -> str:
-    errs = d.get("errors") or []
-    return "\n".join(
-        [
-            f"at      {d.get('at')}",
-            f"url     {d.get('url') or '-'}",
-            f"domain  {d.get('domain') or '-'}",
-            f"module  {d.get('module') or '-'}",
-            f"event   {d.get('event') or '-'}",
-            f"widget  {d.get('widget') or '-'}",
-            f"errors  {len(errs)}" + (f"  first: {errs[0][:160]}" if errs else ""),
-            f"shot    {d.get('shot') or '-'}",
-        ]
-    )
-
-
-def print_lines(a: dict, status: int, body: object, many: bool) -> int:
-    if status == 0:
-        raise DevcError(str(body))
-    if status != 200:
-        err = body.get("error") if isinstance(body, dict) else body
-        raise DevcError(f"{err} (port {a['port']} answered {status})")
-    rows: list = [body]
-    if isinstance(body, list):
-        rows = body
-    elif isinstance(body, dict) and many:
-        rows = body.get("lines") or body.get("history") or [body]
-    if a["json"]:
-        print(json.dumps(rows if many else rows[0], ensure_ascii=False))
-    else:
-        print("\n--\n".join(line_text(r) for r in rows))
-    return 0
-
-
-def cmd_eval(a: dict) -> int:
-    if not a["args"]:
-        raise DevcError("usage: devc eval '<js>'", 2)
-    out = script_out("agent.sh", ["eval", a["args"][0]]).rstrip("\n")
-    print(json.dumps({"value": out}, ensure_ascii=False) if a["json"] else out)
+    opener = os.environ.get("DEVC_OPEN_CMD") or ("open" if sys.platform == "darwin" else "xdg-open")
+    try:
+        subprocess.run([opener, url], capture_output=True, timeout=SCRIPT_TIMEOUT, check=True)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise DevcError(f"could not open {url} with {opener}: {e}")
+    print(json.dumps({"url": url}, ensure_ascii=False) if a["json"] else f"opened {url}")
     return 0
 
 
@@ -596,7 +516,7 @@ def cmd_home(a: dict) -> int:
 COMMANDS = {
     "browse": cmd_browse,
     "domains": cmd_domains, "show": cmd_show, "events": cmd_events, "focus": cmd_focus, "open": cmd_open,
-    "shot": cmd_shot, "now": cmd_now, "history": cmd_history, "eval": cmd_eval, "start": cmd_start,
+    "start": cmd_start,
     "stop": cmd_stop, "list": cmd_list, "check": cmd_check, "install": cmd_install,
     "board": cmd_board, "home": cmd_home,
 }

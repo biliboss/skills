@@ -41,7 +41,7 @@ def save(sid, v):
     os.replace(tmp, path(sid))  # atomic: the TUI never reads half a file
 
 def gallery(sid, v):
-    """Full-screen grid of the artifacts in the dev-console look; opened in the DevConsole window.
+    """Full-screen grid of the artifacts in the dev-console look; opened in the browser.
     Each image is isolated (<img src=data:>), so SVG ids never collide. Confidence comes from the decision."""
     arts = [a for a in v.get("artifacts", []) if a.get("path") or a.get("state") == "drawing"]
     if not arts: v.pop("url", None); return
