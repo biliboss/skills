@@ -6,7 +6,7 @@ description: >-
   a domain becomes a time entry priced at what he is worth. Design stage, drawn in the dev-console as the Costs
   domain. Not task-understand (tasks) and not the dev-console's money bar code itself.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # cost-track

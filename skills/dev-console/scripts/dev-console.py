@@ -1114,7 +1114,7 @@ def _ctx(tid: str, event: str, eid: str | None = None, mode: str = "real", domai
     Its entity (not the one on screen) is what the widget renders."""
     of_type = journal.read({"event": event})
     focus = next((e for e in of_type if e["id"] == eid), None) or (of_type[0] if of_type else None)
-    tid = focus[entity_key()] if focus else tid
+    tid = (focus.get(entity_key()) or tid) if focus else tid  # an event of no entity (worth) keeps the page one
     entities = [{**t, "title": PROJECT.title_of(journal.read({"id": t["id"], "history": True}), t)} for t in journal.read()]
     return W.EventContext(
         event=event, focus=focus, entity_id=tid,
