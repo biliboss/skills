@@ -506,6 +506,11 @@ def render_screens(steps: list[dict], title: str = "", width: int = 390, height:
         vw, vh = st.get("viewport") or (width, height)
         return {"viewport": [vw, vh], "frame": list(st.get("frame") or (0, 0, vw, vh)), "radius": st.get("radius", 0)}
 
+    def safe(u):  # an iframe src is http(s) or a path of the same origin, never javascript: or data:
+        u = str(u or "")
+        return u if u.startswith(("http://", "https://", "/")) else ""
+
+    steps = [{**st, "url": safe(st.get("url"))} for st in steps]
     data = json.dumps([{**{k: st.get(k) for k in ("name", "url", "event", "note")}, **geo(st)} for st in steps], ensure_ascii=False)
     first, many = steps[0], len(steps) > 1
     # text controls, never <button>: Pico/MonsterUI paints a button as a blue filled square (the arrow sank in it)
