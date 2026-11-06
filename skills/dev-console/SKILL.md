@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.7.0
+  version: 0.7.1
 ---
 
 # dev-console
@@ -71,6 +71,10 @@ A page button talks back with `window.webkit.messageHandlers.devconsole.postMess
   person to look at and for the agent to move (open a view, dock, hide), and `eval` is for a quick read of one value.
 - **Never write either file by hand.** The id rule (above both the last one sent and the last one applied) and the
   atomic `mv` live in the script. A bad command is answered in `last_result` as `error: ...`, and its id is consumed.
+- **Read the layout from the graph, not the pixels**, when a screenshot cannot be trusted (the Mac's display asleep
+  or locked gives a black `screencapture`, and a headless capture can time out): `window.sh eval` a reduction of
+  `window.__cy` (per category, the angle of each node from `#human`; overlap counts of rendered label boxes), then
+  `wait | jq -r .last_result`. One angle per category = a metro line in the right clock direction.
 - **Do not run `install` just to open a view.** It rebuilds and relaunches; use it when the app is missing or its code changed.
 - `cd app && swift build && swift test` runs the `ConsoleCore` tests (command decode, apply once per id, state, frames).
   If `swift` fails on an SDK mismatch, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` (`build-app.sh` does it).
