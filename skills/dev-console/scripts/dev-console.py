@@ -35,7 +35,7 @@ from types import SimpleNamespace  # noqa: E402
 from typing import Any  # noqa: E402
 
 
-CONSOLE_MODULES = ("console_agents", "console_store", "console_home", "console_playground", "console_recorder", "console_reload", "console_model")
+CONSOLE_MODULES = ("console_agents", "console_store", "console_home", "console_playground", "console_reload", "console_model")
 PROJECT_PATHS: dict = {}  # project file -> the folders its import added to sys.path
 
 
@@ -1135,7 +1135,7 @@ function drawGraph() {
   const LEGIBLE = 14, fonts = cy.elements().filter(e => e.style('label')).map(e => parseFloat(e.style('font-size')));
   if (fonts.length) cy.minZoom(Math.min(cy.maxZoom(), LEGIBLE / Math.min(...fonts)));
   // The wheel, as in Figma and Maps: two fingers (or a mouse wheel) pan; a pinch zooms around the pointer (Chrome and
-  // Firefox send it as wheel + ctrlKey; WebKit, the native window, as gesture events), and so does ⌘ + scroll.
+  // Firefox send it as wheel + ctrlKey; Safari as gesture events), and so does ⌘ + scroll.
   const pane = $('cy'), at = e => { const r = pane.getBoundingClientRect();
     return Number.isFinite(e.clientX) ? {x: e.clientX - r.left, y: e.clientY - r.top} : {x: r.width / 2, y: r.height / 2}; };
   const zoomTo = (z, e) => cy.zoom({level: Math.min(cy.maxZoom(), Math.max(cy.minZoom(), z)), renderedPosition: at(e)});
@@ -1314,9 +1314,6 @@ function renderSide() {
 const frag = u => fetch(u, {headers: {'HX-Request': 'true'}}).then(r => r.text());
 // --- Switcher overlay: fuzzy subsequence match (fzf-style), matched letters in bold. One finder, two lists:
 // ⌘K the domains only (Enter opens /domain/<slug>), ⌘P the modules (D.modules: Domain, TABS, Playground) ---------
-// In DevConsole.app the chrome is native: its palette (⌘K / ⌘P through the menu, a click on the status line) replaces
-// this overlay, which stays off there. A plain browser (and every headless agent) keeps it.
-const IN_APP = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.devconsole);
 let domSel = 0, domHits = [], ovMode = 'domain';
 function fuzzy(q, s) {  // every letter of q, in order, inside s; a lower score is a tighter match
   q = q.toLowerCase(); const low = s.toLowerCase(); let i = -1, last = -1, gaps = 0; const at = [];
@@ -1346,14 +1343,11 @@ const domGo = () => {  // an href navigates; a module with none (a tab of this d
 };
 const domIsOpen = () => !$('dom').classList.contains('hidden');
 function domOpen(mode = 'domain') {
-  if (IN_APP) { window.webkit.messageHandlers.devconsole.postMessage({palette: mode === 'module' ? 'modules' : 'domains'}); return; }  // the native palette
   ovMode = mode; $('dom-q').placeholder = mode === 'module' ? 'módulo…' : 'domínio…';
   $('dom').classList.remove('hidden'); $('dom').classList.add('flex'); $('dom-q').value = ''; domSel = 0; domRender(); $('dom-q').focus();
 }
 function domClose() { if (Q.get('embed') === 'switcher') return; $('dom').classList.add('hidden'); $('dom').classList.remove('flex'); }
 const ovToggle = mode => { if (domIsOpen() && ovMode === mode) domClose(); else domOpen(mode); };
-window.devconsoleModules = () => ovToggle('module');  // the native app's ⌘P menu item (⌘P is Print in AppKit) calls these
-window.devconsoleDomains = () => ovToggle('domain');
 $('dom-open').onclick = () => domOpen('domain');
 if ($('mod-open')) $('mod-open').onclick = () => domOpen('module');
 $('dom').onclick = e => { if (e.target === $('dom')) domClose(); };
@@ -1367,7 +1361,6 @@ $('dom-q').onkeydown = e => {
 document.addEventListener('keydown', e => {
   if (!(e.metaKey || e.ctrlKey)) return;
   const k = e.key.toLowerCase();
-  if (IN_APP) { if (k === 'p' || k === 'k') e.preventDefault(); return; }  // the app's menu owns both keys: nothing on the page
   if (k === 'k') { ovToggle('domain'); e.preventDefault(); }
   else if (k === 'p') {
     e.preventDefault();  // never the browser's print panel
@@ -1628,31 +1621,14 @@ if (GRAPH(tab) && Q.get('ev')) {
 MONEY_JS = r"""
 // The money bar: spent today in the cost center ticks every second while the clock runs; Start / Pause is explicit.
 // The clock stops by itself on Pause, another domain's page (the server ends that one), the page hidden, and 5 min
-// idle on the Mac (the native app reports it through window.devconsoleIdle; a browser falls back to its own input).
+// idle (the page's own input).
 // Never on window blur. Coming back does not restart it. The server is the only writer of the Costs journal.
 const $ = id => document.getElementById(id);
 const D = JSON.parse($('data').textContent), Q = new URLSearchParams(location.search);
 const box = $('money');
-// Inside DevConsole.app the window draws the status line natively (chrome); the page keeps the content, so its own
-// line is hidden there and pushes the numbers to the app. In a plain browser nothing changes (agents read it headless).
-const APP = !!window.webkit?.messageHandlers?.devconsole && !Q.get('embed');
-let pushed = '';
-const pushStatus = s => {
-  if (!APP) return;
-  const mod = ($('mod-name') || {}).textContent || (D.name === 'Playground' ? 'Playground' : '');
-  const msg = JSON.stringify({type: 'status', domain: D.name, base: D.base, module: mod || null, cost_center: s ? s.name : null,
-    running: !!(s && s.running), today_brl: s ? s.spent : null, budget_brl: s && !s.investment ? s.budget : null});
-  if (msg !== pushed) { pushed = msg; window.webkit.messageHandlers.devconsole.postMessage(JSON.parse(msg)); }
-};
-if (APP) {
-  const hide = document.createElement('style');
-  hide.textContent = '#bar{display:none !important}';
-  document.head.appendChild(hide);
-  if (!(box && D.money)) { pushStatus(null); setInterval(() => pushStatus(null), 2000); }
-}
 const EMB = Q.get('embed') === 'money';  // the CostToolbar widget: it shows the bar and the ▶ works on click, but it never enters, beats or stops by itself
 if (box && D.money && (!Q.get('embed') || EMB)) {
-  let mine = false, S = D.money, t0 = performance.now(), last = Date.now(), leaving = false, native = null, popOpen = false;
+  let mine = false, S = D.money, t0 = performance.now(), last = Date.now(), leaving = false, popOpen = false;
   const brl = (v, d = 2) => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: d, maximumFractionDigits: d});
   const hm = sec => { const m = Math.floor(sec / 60); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
   const units = ['min', 'hora', 'dia'];
@@ -1682,10 +1658,7 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
         <span data-act="rate" tabindex="0" title="min · hora · dia" class="tabular-nums ${mute} hover:text-neutral-900">${rateText()}</span>${button()}`;
     }
     if (popOpen) drawPop();
-    pushStatus({name: S.name, running: S.running, spent, budget: S.budget, investment: S.investment});
   }
-  // the native status line's ▶/⏸ does what the web button does (the page keeps the beat and the idle rules)
-  window.devconsoleToggle = () => { if (S.running) stop('pause'); else start(); };
   // the popover: today per cost center and the total (the DayCost numbers); the running stretch counts live
   const pop = document.createElement('div');
   pop.id = 'money-pop';
@@ -1726,15 +1699,10 @@ if (box && D.money && (!Q.get('embed') || EMB)) {
   let entered = false;  // the first gesture of a person here ends a stretch running in another domain (agents' clicks are not trusted)
   for (const t of ['keydown', 'click', 'scroll', 'pointermove', 'wheel']) addEventListener(t, e => { last = Date.now();
     if (!EMB && !entered && e.isTrusted) { entered = true; post('enter'); } }, {capture: true, passive: true});
-  // the native app calls this every 5 s with the seconds since the Mac's last input of any kind
-  window.devconsoleIdle = seconds => { native = {seconds, at: Date.now()}; };
-  const idleSeconds = () => native ? native.seconds + (Date.now() - native.at) / 1000 : (Date.now() - last) / 1000;
+  const idleSeconds = () => (Date.now() - last) / 1000;
   addEventListener('pagehide', () => { leaving = true; });  // navigating inside the domain or reloading: the server keeps the stretch
   addEventListener('pageshow', e => { leaving = false; if (e.persisted && auto()) post('beat'); });
-  // the native app feeds the Mac's idle (devconsoleIdle): there a covered window or a reload behind the chat is not
-  // leaving, and only 5 min idle stops; a browser tab still stops when hidden
-  const NATIVE = /DevConsole/.test(navigator.userAgent) || !!window.webkit?.messageHandlers?.devconsole;
-  document.addEventListener('visibilitychange', () => { if (document.hidden && entered && !leaving && !NATIVE && !native && auto()) stop('hidden'); });  // only a page a person used
+  document.addEventListener('visibilitychange', () => { if (document.hidden && entered && !leaving && auto()) stop('hidden'); });  // only a page a person used
   setInterval(() => {
     const idle = idleSeconds();
     if (S.running && auto() && idle > S.idle_minutes * 60) stop('idle', idle);
@@ -2048,21 +2016,6 @@ def time_state(slug: str):
     return _json(state or {"error": "no cost center"}, 200 if state else 404)
 
 
-@rt("/api/status")
-def api_status(domain: str = ""):
-    """Read-only, for the native status line's slow refresh: {domain, cost_center, running, today_brl, budget_brl, module}.
-    `today_brl` counts the running stretch up to now. `module` is null: only the page knows its tab (it pushes it)."""
-    if not domain or not _known(domain):
-        return _json({"error": "no such domain"}, 404)
-    _settle() if C else None
-    m = _money_state(domain)
-    if not m:
-        return _json({"domain": domain, "cost_center": None, "running": False, "today_brl": None, "budget_brl": None, "module": None})
-    spent = m["closed_money"] + m["elapsed"] * m["rate_hour_running"] / 3600
-    return _json({"domain": domain, "cost_center": m["name"], "running": m["running"], "today_brl": round(spent, 2),
-                  "budget_brl": None if m["investment"] else m["budget"], "module": None})
-
-
 @rt("/domain/{slug}/time/enter", methods=["POST"])
 def time_enter(slug: str):
     """A person acted on this domain's page (a trusted gesture): a stretch running in another domain ends."""
@@ -2340,30 +2293,6 @@ def api_domains():
                   for s, m in DOMAINS.items()])
 
 
-@rt("/api/palette")
-def api_palette(domain: str = ""):
-    """What the native command palette (DevConsole.app, ⌘K / ⌘P) lists, read only: `domains` (slug, name) and `modules`
-    (id, title, url). Module urls are paths on this console: the domain's tabs as `/domain/<slug>?tab=<name>` (given
-    `?domain=<slug>`), then Playground and Agents; without a domain, Domain (the first one) and those two."""
-    domains = [{"slug": s, "name": m.NAME} for s, m in DOMAINS.items()]
-    if domain and use(domain):
-        modules = [{"id": t, "title": t, "url": f"/domain/{domain}?tab={quote(t)}"} for t in _tabs()]
-    else:  # the first domain, as "/" used to open (the home may be another domain's module now)
-        modules = [{"id": "Domain", "title": "Domain", "url": f"/domain/{_first_domain()}"}]
-    home = _home_module()  # the home module is listed from any page, first; on its own domain it is already a tab
-    if home and not any(m["title"] == home[1] for m in modules):
-        modules.insert(0, {"id": home[1], "title": home[1], "url": f"/domain/{home[0]}?tab={quote(home[1])}"})
-    modules += [{"id": "playground", "title": "Playground", "url": "/playground"},
-                {"id": AGENTS_MODULE["name"].lower(), "title": AGENTS_MODULE["name"], "url": AGENTS_MODULE["href"]},
-                {"id": BROWSER_MODULE["name"].lower(), "title": BROWSER_MODULE["name"], "url": BROWSER_MODULE["href"]},
-                {"id": MODEL_MODULE["name"].lower(), "title": MODEL_MODULE["name"], "url": MODEL_MODULE["href"]}]
-    return _json({"domains": domains, "modules": modules})
-
-
-import console_recorder as REC  # noqa: E402  (the agent API: /agent/now, /agent/history, /agent/shot; read only)
-
-REC.register(rt, _json)
-
 import console_model as MOD  # noqa: E402  (the domain module: dm_* rows as a live Mermaid map, /model/<slug>)
 
 MOD.register(rt, _json)
@@ -2581,8 +2510,6 @@ def _switcher():
 
 # `g h` goes home on every page that has the switcher (vim-style goto, beside the domain page's own `g <tab>`).
 GOTO_HOME_JS = """
-// In DevConsole.app the status line is native: the web one (#bar) never shows, on any page.
-if (window.webkit?.messageHandlers?.devconsole) { const b = document.getElementById('bar'); if (b) b.style.display = 'none'; }
 (() => { let g = 0;
   document.addEventListener('keydown', e => {
     const a = document.activeElement;

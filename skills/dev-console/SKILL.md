@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.31.0
+  version: 0.32.0
 ---
 
 # dev-console
@@ -26,15 +26,14 @@ devc domains                         # slug, origin, name
 devc show <slug> [--json]            # lanes, transitions (with the command), events in order as a small git-log graph
 devc events <slug> [--task ID] [--tail] [-n N]   # events of the entity the domain opens (what state.json carries; no whole-journal route yet); --tail polls every 1 s, Ctrl-C ends
 devc focus                           # GET /agent/focus; 'sem foco ainda' while the route or the focus is missing
-devc open <slug|url> [--ev E] [--w W]  # agent.sh open (the URL carries agent=1); devc shot prints the PNG path
+devc open <slug|url> [--ev E] [--w W]  # opens it in the browser (the URL carries agent=1)
 devc browse <url>                    # a page an agent runs, in the Browser module (/browser?url=); the interview skill opens its queue here
-devc now | history [n] | eval '<js>' # the flight recorder and the window
 devc start [port] [--owner N] | stop <port> [--force] | list [port]   # console.sh
 devc check <url> [--shot f.png] [--eval '<js>']                        # check.sh
 devc board [kanban args...]          # the one door to kanban.sh: devc board list, devc board move <card> Feito
 ```
 
-`console.sh`, `agent.sh`, `window.sh` and `check.sh` keep working as they are and `devc` calls them; they will be
+`console.sh` and `check.sh` keep working as they are and `devc` calls them; they will be
 retired (cited names first moved to `devc`) once nothing cites them. Tests: `python3 -m unittest test_devc` in `scripts/`.
 
 ## The console
@@ -56,12 +55,8 @@ uv run --script <skill>/scripts/dev-console.py --project <skill>/scripts/dev_con
 Verify in the headless browser (`browser_exec local=true`: load, read `window.__cy` and the DOM, screenshot)
 or `curl`. Outside Hermes (Claude Code, pi), use the skill's own `scripts/check.sh <url> [--shot f.png] [--eval '<js>']`
 (the installed Chrome, headless, 1000 px and dark by default; JSON with status, title, errors and the eval value),
-never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page in **his
-DevConsole window** (`window.sh open <url>`), capture that window (`screencapture -x -o -l<window id>`, the id from Quartz
-`CGWindowListCopyWindowInfo`: the **largest** layer-0 window owned by `DevConsole`, since the app also owns 38 px
-strips and a blank 500×500 window; a full-screen `screencapture` after `open -g` shows whatever app is in front) and
-look at the PNG before telling him it is there. Pages outside the console (GitHub, a
-PR) open in the Mac's default browser (`open <url>`).
+never another project's `node_modules`, which goes away when that project does. Then show Gabriel the page in his browser (`devc open <slug|url>`, or `open <url>`) and look at a
+`check.sh --shot` PNG before telling him it is there.
 Run the server in a herdr tab `services` of the working workspace (`herdr tab create --workspace <ws>
 --label services --cwd ~`, then `herdr pane send-text` the command piped to `tee ~/.local/state/dev-console.log`),
 never as an agent's background process (it dies with the session) nor in the user's tmux window;
@@ -71,8 +66,7 @@ in the project folder changes, and the page reloads; all UI state lives in the q
 (`tab`, `ev`, `side`, `w`, `e`, `ent`), so a reload or a shared link reopens the same view.
 **`/` is the console's home**: the module a domain names with `CONSOLE_HOME` (the Kanban module, skill `kanban`) when
 that domain's journal has an entity; else the first domain, as before (a domain page with an empty journal is a dead
-end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages,
-`/api/palette` without a domain) point at the first domain by its URL.
+end, with no status line). The "Domain" links that used to rely on `/` (⌘P on the Playground and Agents pages) point at the first domain by its URL.
 
 ## Agents: console.sh
 
@@ -107,152 +101,7 @@ $C actions [<slug>] [--port N]                       # PROJECT.ACTIONS names per
   touches the clock). Writing stays `PROJECT.ACTIONS` at `/domain/<slug>/do/<eid>/<name>`.
 - `instances.sh` and `second.sh` are wrappers (`console.sh "$@"` / `console.sh start "$@"`).
 - One instance per agent: the first keeps 5057; each other agent starts its own, opens it in its own browser window
-  (`console.sh url <slug> --port N | xargs open`) or its own native window (below).
-
-## A native window
-
-`app/` is a Swift package (product `DevConsole`, bundle `com.biliboss.devconsole`): one regular Dock app with one
-window holding a `WKWebView` (`isInspectable = true`) on the console page (default `http://127.0.0.1:5057/`; the
-FastHTML server still serves it, nothing moved out of the web). The title follows the page title. The console's UI
-is made for **two thirds of a screen**: on first launch the window takes two thirds of the main screen's visible
-width and its full height, docked to the right (the left third stays free for a terminal or chat); `dock left|right`
-re-docks it at two thirds, `resize` sets any size, and the frame is remembered after that.
-
-The agent drives it only through `scripts/window.sh`, and the two files in `~/.local/state/dev-console-window/`
-have one writer each:
-
-| file | writer | content |
-|---|---|---|
-| `command.json` | `scripts/window.sh` only | `id` (increments), `action`, `side`, `url`, `width`, `height`, `js`, `updated_at`; the app applies each new `id` once |
-| `state.json` | the app only | `url` (follows in-page `pushState` too), `title`, `visible`, `width`, `height`, `last_command_id`, `last_result` (the JS result or the error, for `eval`), `last_message`, `updated_at` |
-
-```sh
-W=<skill>/scripts/window.sh
-$W open http://127.0.0.1:5057/domain/tensions   # also: reload | show | hide | resize <w> <h> | dock left|right
-$W eval 'document.title'                        # the result lands in state.json last_result
-$W wait                                         # blocks until last_command_id is the last sent id (5 s cap), prints state
-$W status                                       # prints state.json
-$W install                                      # builds app/build-app.sh, copies to ~/Applications, opens it; $W quit stops it
-```
-
-**One window per agent.** The app already reads its state directory (`DEV_CONSOLE_WINDOW_STATE_DIR`) and start page
-(`DEV_CONSOLE_URL`) from the environment, and keeps its saved frame per state directory, so a second window is a second
-process, no rewrite:
-
-```sh
-$W --owner <name> launch http://127.0.0.1:5058/domain/tasks   # open -n: a window of its own, state in .../dev-console-window/<name>/
-$W --owner <name> open <url>      # any command with --owner drives that window; without it, the original one
-$W --owner <name> quit            # stops only that window (install/quit without --owner touch only the original)
-```
-
-`launch` needs the app installed (`$W install` once). It was written against `open -n --env`, which this guide could
-not exercise without putting a window on the owner's screen: the first `launch` is the check.
-
-A page button talks back with `window.webkit.messageHandlers.devconsole.postMessage({...})`: the object is written to
-`state.json` as `last_message`. The other native feature is the **Go menu**: ⌘P is Print in AppKit, so the app takes it
-for "Módulos" (and ⌘K for "Domínios"); each item opens the native palette (Native chrome, below), and no print panel
-can open. A browser handles the same keys in `keydown` (⌘P / Ctrl+P → `preventDefault`, the web overlay).
-
-- **Native chrome: status line.** The window draws its bottom status line itself (`StatusLineController`, under the web
-  view): ▶/⏸, cost center, `R$ today de R$ budget`, `domain · module`. The page keeps the content: when
-  `window.webkit.messageHandlers.devconsole` exists it hides its own `#bar` and pushes `postMessage({type:"status", ...})`
-  on every change (not logged as `last_message`); a plain browser at 5057 keeps the web line unchanged. ▶/⏸ calls the
-  page's `devconsoleToggle()` (the web button's action, so beat and idle rules stay), or posts to the same
-  `/domain/<slug>/time/start|stop` route; the app never writes the cost journal. A slow 8 s refresh reads the read-only
-  `GET /api/status?domain=<slug>` -> `{domain, cost_center, running, today_brl, budget_brl, module}` (`module` is null
-  there: only the page knows its tab). Formatting and decoding are pure code in `ConsoleCore/StatusLine.swift`.
-- **A native widget on the status line** (the clock is the first item): add an `NSTextField(labelWithString:)` to `StatusLineController` and put it first in `bar.setViews([...], in: .leading)`; system font only (`NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)`, `.labelColor`), so it looks like macOS/iOS and digits do not jump. Realtime = a `Timer` (0.5 s for a blinking colon, drawn as an attributed string with the colon `.clear` on the second half of each second) wrapped in `MainActor.assumeIsolated`. There is no Swift hot reload: `app/build-app.sh`, quit the app, `ditto build/DevConsole.app ~/Applications/DevConsole.app`, `open` it, then `window.sh open <console url>` (it comes up blank) and screenshot. The web bar gets the same item (`_status_bar`) for plain browsers.
-- **A mark (logo) on the status line is drawn in code as a template image**: `NSImage(size: 16×16, flipped: true) {
-  NSBezierPath … stroke }` with the chosen SVG's coordinates, `isTemplate = true`, in a 16×16 `NSImageView` placed first
-  in `setViews`. AppKit paints it in the label colour, so light and dark need no code and the bundle needs no resource.
-  **Choose small marks at their real size**: render each candidate with `rsvg-convert -w 16` (and 32), blow it up with
-  `magick … -filter point -resize 800%`, and look before showing; a glyph that reads at 256 px can read as another one
-  at 16 (tall thin braces read as `0`).
-- **Data for a native widget comes from a console route, never from the app itself**: the server owns the fetch and a
-  cache file, the Swift side does one `URLSession` GET on the web view's origin (`webView.url` with the path swapped) on a
-  slow `Timer`, and the web bar reads the same route. Example: the Claude accounts' weekly limit (`claude-usage.sh` →
-  `~/.local/state/dev-console/claude-usage.json`, `GET /api/claude-usage` refreshes it in the background when older than
-  5 min), shown as `mukutu 100% · pessoal 82%`, a spent account in red, reset times in the tooltip.
-- **A bar item about the owner's live context is derived from an event stream, never polled**: the source's own hook
-  appends one JSON line per change to a file in a folder of its own (`O_APPEND`, one short line = atomic, so hooks
-  firing together never lose a line; trim under `flock` past a size), `/live/stream` watches that folder as a new
-  `kind`, a small `/api/<x>` route folds the stream (its last line), and the bar's script refetches only on that kind.
-  Example: the thread in tmux focus (`tmux_focus.py` hooks pass `#{@thread}` → `~/.local/state/dev-console/focus/focus.jsonl`
-  → kind `focus` → `/api/focus` → `#bar-thread`, hidden when the focus is not a thread). Check it by calling the hook
-  command directly (`costs.sh tmux-focus <session> --card= --thread=<topic>`), never by `select-window` on the owner's
-  server; after changing the hook's arguments run `costs.sh tmux-install` so the live hooks pick them up.
-- **Claude account usage**: `GET https://api.anthropic.com/api/oauth/usage` with `anthropic-beta: oauth-2025-04-20`
-  (`seven_day.utilization`, `five_hour`, `resets_at`) needs a token with scope `user:profile`. Setup-tokens (the envless
-  cofre) lack it; Claude Code's own login of each account has it, in the keychain entry
-  `Claude Code-credentials-<first 8 hex of sha256(CLAUDE_CONFIG_DIR path)>` (`security find-generic-password -s … -w`,
-  `.claudeAiOauth.accessToken`). Read it inside the script, never print it, never refresh it (Claude Code owns that).
-- **To read the DOM or take a screenshot, keep using the headless browser on the same URL**; the window is for the
-  person to look at and for the agent to move (open a view, dock, hide), and `eval` is for a quick read of one value.
-- **Never write either file by hand.** The id rule (above both the last one sent and the last one applied) and the
-  atomic `mv` live in the script. A bad command is answered in `last_result` as `error: ...`, and its id is consumed.
-- **Read the layout from the graph, not the pixels**, when a screenshot cannot be trusted (the Mac's display asleep
-  or locked gives a black `screencapture`, and a headless capture can time out): `window.sh eval` a reduction of
-  `window.__cy` (per category, the angle of each node from `#human`; overlap counts of rendered label boxes), then
-  `wait | jq -r .last_result`. One angle per category = a metro line in the right clock direction.
-- **Do not run `install` just to open a view.** It rebuilds and relaunches; use it when the app is missing or its code changed.
-  After an install, `eval 'location.href'` then `wait`: the relaunched window can come up on `about:blank`; `open` the
-  console URL before telling him it is installed.
-- `cd app && swift build && swift test` runs the `ConsoleCore` tests (command decode, apply once per id, state, frames).
-  If `swift` fails on an SDK mismatch, `export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)` (`build-app.sh` does it).
-  `DEV_CONSOLE_WINDOW_STATE_DIR` moves both files (tests); `DEV_CONSOLE_URL` sets the app's default page.
-
-## Native chrome
-
-In `DevConsole.app` the **chrome** (the browser's frame around the content) is drawn by Swift and the page keeps the
-content. Native so far: the command palette, one borderless floating `NSPanel` (`PaletteController.swift`, vibrancy, search
-field, list, ↑↓ Enter Esc), opened by ⌘K (domains) and ⌘P (modules) from the Go menu, or by a click on the domain or the
-module of the native status line (`StatusLineController.onPalette`; a page that still posts `{palette: 'domains'|'modules'}`
-through the `devconsole` handler opens it too). Its items come from the read-only
-`GET /api/palette[?domain=<slug>]` (`{domains:[{slug,name}], modules:[{id,title,url}]}`) and the fuzzy ranking is
-`fuzzyMatch`/`fuzzyRank` in `ConsoleCore` (subsequence, case and accent insensitive, tested); Enter loads the URL in the web
-view like the web palette's `location.href`, so the new page's first trusted gesture still posts `time/enter` (the cost
-clock claim is unchanged). The status line is native too (above). Everything else stays web: graph, widgets, screens,
-Playground. Each native piece keeps the web one for the plain browser and talks to the server through the same routes, so
-the cost journal keeps one writer. Put each piece in its own Swift file with its pure logic in `ConsoleCore` (tested), and
-touch `AppDelegate.swift` with a few lines only: two pieces built in parallel then merge cleanly. The page knows it
-is in the app by `window.webkit.messageHandlers.devconsole`; there its own ⌘K/⌘P overlay is off, and in a plain browser
-(agents, headless) it works as before.
-
-- **⌘K/⌘P are read by the app before the web view** (a local key monitor, `PaletteMode.forShortcut`): a WKWebView reports those keys as handled, so the menu's key equivalents never fired and only a menu click opened the palette.
-- **Check a native piece without keystrokes first:** `System Events` → `click menu item "Domínios" of menu 1 of menu
-  bar item "Go"` of process DevConsole exercises the same action with no risk of typing elsewhere; then list the app's
-  on-screen windows with Quartz `CGWindowListCopyWindowInfo` (a uv script with `pyobjc-framework-Quartz`; the palette is
-  the layer-3 window, ~560 px wide) and capture just that window with `screencapture -x -l<window number>`.
-  `tell application "DevConsole" to activate` does not reliably bring it to the front.
-- **Testing real keys:** synthetic keystrokes (`osascript ... keystroke`) go to whatever app is in front, and the owner may be working in another one. Send them only when the Mac is idle (HIDIdleTime over 60 s), bring DevConsole to the front with `set frontmost of process "DevConsole" to true`, check that it is still in front before every key, and stop at the first key that lands elsewhere; never type text or Enter blind.
-
-## Agent API (flight recorder)
-
-DevConsole.app keeps a ring of the last 20 navigations, so an agent can see what the window shows without moving it.
-On every navigation (a URL load, a module/tab, a selected event, an opened widget) the app appends ONE line to
-`${DEV_CONSOLE_RECORDER_DIR:-~/.local/state/dev-console/recorder}/events.jsonl` and saves a PNG it took itself with
-`WKWebView.takeSnapshot` (no focus, no domain switch, no cost-clock claim) as `shots/<at>.png`. Older lines and their
-PNGs are deleted. Nothing leaves the machine.
-
-```json
-{"at":"20261106T081829.224Z","url":"http://127.0.0.1:5057/agents","domain":null,"module":"Agents","event":null,"widget":null,"width":1520,"height":1024,"errors":[],"shot":"/abs/path/shots/20261106T081829.224Z.png"}
-```
-
-`at` is UTC, `domain` the slug, `event`/`widget` the `ev`/`w` of the URL, `errors` the page JS errors since the previous
-line (`pageerror:`, `unhandledrejection:`, `console:`; at most 20, 300 characters each), `width`/`height` the web view in
-points. The page script is injected by the app and reports through `messageHandlers.devconsole` (`type: "recorder"`,
-debounced 0.5 s, so a burst is one line; an unchanged state is not a new line).
-
-- **Routes** (read only, JSON): `GET /agent/now` (the last line; 404 when empty), `GET /agent/history?n=5` (the last n,
-  at most 20), `GET /agent/shot` (asks the app through `window.sh shot` and returns the new line with `source: "app"`;
-  when the app is not running, a headless `check.sh` shot of the last known page with `source: "headless"` and a `note`,
-  not added to the ring).
-- **`scripts/agent.sh now | history [n] | shot | open <url> | eval '<js>' | status`**: one door; prints url, domain,
-  module, event, widget, errors count and the shot path in a few lines, then look at the PNG. `open` goes through
-  `window.sh open` (no domain claim) and prints the new line; `eval`/`status` wrap `window.sh`. `--owner <name>` first
-  drives that owner's window.
-- Pure helpers (line encoding, ring trimming, error clipping) are in `ConsoleCore/Recorder.swift` (`RecorderTests`); the
-  routes are in `scripts/console_recorder.py` (`test_console_recorder.py`).
+  (`console.sh url <slug> --port N | xargs open`).
 
 ## Playground
 
@@ -278,14 +127,13 @@ into the browser's Print). The two key handlers listen in the capture phase so t
 - **Modules.** Every page carries `D.modules` (`{name, href}`), built by one server function (`_modules`): Domain and the
   project's `TABS` (`href: null`, shown in place), then Playground (`/playground`, navigates). ⌘P lists them (the current
   one marked "· atual"); ⌘K lists **domains only**. The home module (`CONSOLE_HOME`, the Kanban module) is in ⌘P on
-  every page, first (also in `/api/palette`, which lists Browser too). The switcher script is the same on both pages (`SWITCHER_JS` is cut out
+  every page, first (Browser is listed too). The switcher script is the same on both pages (`SWITCHER_JS` is cut out
   of the main page's JS, one copy). The Playground page has the same bottom status line (`_status_bar`, its name there is
   "Playground") and ⌘P. Loading `/playground` never ends a running stretch: its script posts `enter` on the first trusted
   gesture like a domain page.
 - **Navigation he wants: ⌘K switches the domain, ⌘P the module** (Domain, the project's `TABS`, Playground), both the
   same floating fuzzy overlay; the tab bar goes away and a thin **status line at the bottom** carries `domain · module ·
-  money bar` (a click on each opens its switcher), so the graph or canvas gets the full height. In the native app ⌘P
-  is Print: the app menu takes it for the page.
+  money bar` (a click on each opens its switcher), so the graph or canvas gets the full height.
 - Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`) with
   `DEV_CONSOLE_PLAYGROUND_DIR=<temp>` after a `playground import` into it; never write the design-playground's `dados`. Keep the registry
   in a folder of its own: the watcher restarts the console on any write beside it (the money clock writes `running.json`).
@@ -363,8 +211,8 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   category order, so any domain draws. Esc closes the popup, then the sidebar.
 - **The wheel moves the graph, as in Figma and Maps**: two fingers (or a mouse wheel) pan it, a pinch or ⌘ + scroll
   zooms around the pointer; Cytoscape's own wheel zoom is off (`userZoomingEnabled: false`) and the handler calls
-  `preventDefault`, so the page never scrolls. Chrome sends a pinch as `wheel` + `ctrlKey`, WebKit (the native window)
-  as `gesturestart/change/end`: handle both, or the pinch dies in DevConsole.app.
+  `preventDefault`, so the page never scrolls. Chrome sends a pinch as `wheel` + `ctrlKey`, Safari
+  as `gesturestart/change/end`: handle both, or the pinch dies in Safari.
 - **No graph label under 14 px on screen at his window (~1128×1074).** Font sizes are model units, so the zoom has a
   floor, `cy.minZoom(14 / the smallest label font)` (stations and dashed commands are 14, so the floor is 1): fit, the
   home view and a pinch stop there, and a big domain opens larger than the window, read by panning. Never fold lanes,
@@ -578,7 +426,6 @@ For a product whose code already records domain events (Domain.Imported):
    first share is his onboarding; questions after the first collection are usage). Rays stay for small domains (Tasks, Costs); offer a key to toggle
    both so he compares on the real domain. When he asks "sugira algo" about layout, sketch it in ASCII first.
 5. The Human is the biggest node (twice an event node's size on the clock), the graph opens centred on it, and "◎ Centralizar Human" brings it back.
-   The native window hot-reloads like the browser when the project file changes.
 6. **The branch layout** (the default for every domain; a project's `LAYOUT` still wins; `L` cycles to the rays/metro, no button, the name shows as a brief toast): the same domain as a git graph (`git log --graph`) read
    left to right. The Human is the root at the top left; each category of `EVENTS` is a horizontal lane (a branch), top to
    bottom in `EVENTS` order; a line follows `TRANSITIONS` as the metro does, but its fork is a 45° spur inside the lane. A lane is
@@ -659,9 +506,9 @@ For a product whose code already records domain events (Domain.Imported):
   main). Run the touched skill's tests before the PR: a layout change breaks tests that find text by index (a lane
   named "Outros" matched a card titled "Outro"). Without that phrase, code changes go to a subagent on a fit-for-purpose
   model.
-- **UI work goes to Opus at max effort**: screens, widgets, layout, the console's look and the Swift chrome are a
+- **UI work goes to Opus at max effort**: screens, widgets, layout, the console's look are a
   focused job that needs taste; delegate them on the `ui-opus-max` route (Hermes delegation `model_map`), never the
-  default Sonnet route, which shipped native pieces that compiled and passed tests but did not work by hand.
+  default Sonnet route, which shipped pieces that compiled and passed tests but did not work by hand.
 - Change the console in `scripts/dev-console.py` only (one file, forever). A project-specific
   view goes in the project's `WIDGETS`, not here.
 - What the user corrects about the console becomes a line in this SKILL.md (a rule) or in a
@@ -700,14 +547,10 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   running stretch sits in `running.json` in the costs folder (`COSTS_DIR`), so a hot reload keeps it; the page pings
   `time/beat` every 10 s and a stretch silent for 45 s is closed (`close`). `GET /domain/<slug>/time` reads the numbers.
 - **What stops the clock:** Pause, switching domain (a person's first trusted gesture on another domain's page), 5 min
-  idle on the Mac, and, in a browser tab only and only on a page a person used or started the clock on, the page
+  idle (the page's own input), and, in a browser tab only and only on a page a person used or started the clock on, the page
   hidden (`visibilitychange`). **A page load never stops it** (an agent's headless read, a curl, a background tab,
-  the Playground opening): the clock stopped five times in one session from such loads. In the native app a hidden page never stops it: a window covered by the chat or hot-
-  reloaded behind it reports `document.hidden` while he is still working (detect the app by
-  `window.webkit.messageHandlers.devconsole`). **Never** window blur and never `document.hasFocus()`.
-  When he says to leave the clock running, re-check it after every console edit and restart it if it shows ▶. In the native app, every 5 s it calls
-  `window.devconsoleIdle(seconds)` with the Mac's idle time (`systemIdleSeconds()` in `ConsoleCore`: the any-input event
-  type `~0`, because `.null` answers with the time since boot); a normal browser falls back to its own input idle.
+  the Playground opening): the clock stopped five times in one session from such loads. **Never** window blur and never `document.hasFocus()`.
+  When he says to leave the clock running, re-check it after every console edit and restart it if it shows ▶.
   Coming back does **not** restart the clock: the button shows ▶. An embed (`?embed=`) never runs the clock on load nor
   ends another domain's stretch; `?embed=money` shows the bar (CostToolbar) and acts only for a stretch its own click
   started.
@@ -735,7 +578,7 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   then `wait_for_timeout(5000)`, screenshot, and read a `data-*` marker with `evaluate` to prove the piece rendered;
   cap the run with a background kill.
 - **After deleting or editing entities by hand, move his window off them**: a page left on a removed card's URL
-  (`/t/<id>`) shows "não encontrado" on a black screen; `window.sh open` the module (`/domain/<slug>?tab=<Module>`) via
+  (`/t/<id>`) shows "não encontrado" on a black screen; open the module (`/domain/<slug>?tab=<Module>`) via
   an entity that exists, then screenshot.
 - Start it from a stable folder (`cd ~`) with absolute paths, test consoles too: the hot reload spawns a new process
   that reads the current folder (`os.getcwd()` in multiprocessing spawn), and a folder removed under it (a worktree
@@ -746,8 +589,8 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   `.../<event>/<name>` from there and grep a `data-*` marker of the widget. The domain page itself draws widgets
   client-side, so a `curl` of `/domain/<slug>` never contains them.
 - Test a change on a second console (another port, `DEV_CONSOLE_REGISTRY=<empty file>` so only your `--project`
-  shows, temp env overrides for any data files) and read it in the headless browser; never point his native window at
-  that port, and if you did, `window.sh open` it back to 5057 before you stop: he takes the test console for his and
+  shows, temp env overrides for any data files) and read it in the headless browser; never point his browser tab at
+  that port, and if you did, open 5057 back before you stop: he takes the test console for his and
   thinks a domain vanished. Kill only the test server (`pkill -f 'port <n>'` is flagged as self-termination; kill its
   process session instead).
 - An imported domain whose journal is empty (the real one lives where the Mac cannot read it) must still return one
@@ -756,8 +599,6 @@ bar in its status line. Nothing is stored by the console: the Costs journal is t
   an empty chain raises `IndexError` and the page 500s. Hang a Human decision off an event in `TRANSITIONS` instead.
 - Centre on the Human after `fit`, then zoom out around it until the bounding box fits: centring alone pushes the far
   nodes off screen.
-- In the native window, `eval` right after `open` may run before the page draws (`window.__cy` undefined): `wait`,
-  then give it a few seconds. Make the web view the window's first responder, or `document.hasFocus()` stays false.
 
 Depth (numbers, layout, graph, server): [references/console-ui.md](references/console-ui.md).
 
@@ -790,7 +631,7 @@ Depth (numbers, layout, graph, server): [references/console-ui.md](references/co
   with quotes and backslashes without saying so. Never add a `#` comment in the middle of a Python expression line
   (a dict entry followed by `**derive(...)`): it swallows the rest of the line. After every patch to
   `dev-console.py` run `uv run --with python-fasthtml python -m py_compile <file>`: the hot reload restarts on save,
-  and a syntax error kills the console for every domain, his native window included.
+  and a syntax error kills the console for every domain, his browser tab included.
 - Generate Python for a project file with `repr`/`pprint`, never `json.dumps` (`null` is a `NameError`), and
   `py_compile` the project file after writing it: a registered project file that fails to import kills every console
   that watches it, the test one included.

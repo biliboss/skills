@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.104.0
+
+- dev-console 0.32.0: the native macOS app is gone, the console is web only. Removed `app/` (DevConsole.app, Swift), `window.sh`, `agent.sh`, the flight recorder (`console_recorder.py`, `/agent/now|history|shot`), the app-only routes `/api/status` and `/api/palette`, the `webkit.messageHandlers` branches in the pages, and `devc shot|now|history|eval` (`devc open` now opens the browser). domain-model: the architecture seed drops the DevConsole.app node.
+
 ## 0.102.0
 
 - handoff 0.2.0: the guard, a Hermes plugin (`handoff-guard`) that, in folders with `HANDOFF_AT=<percent>`, injects the handoff order at the threshold and blocks the turn at +15. setup-biliboss 0.2.0: fourth choice, the guard (off by default).

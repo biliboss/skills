@@ -79,9 +79,9 @@ class DevcTest(unittest.TestCase):
         self.thread.start()
         self.tmp = tempfile.TemporaryDirectory()
         self.scripts = Path(self.tmp.name)
-        for name in ("console.sh", "agent.sh", "window.sh", "check.sh"):  # stubs: echo their arguments
+        for name in ("console.sh", "check.sh"):  # stubs: echo their arguments
             p = self.scripts / name
-            p.write_text(f'#!/bin/bash\nif [ "$1" = shot ]; then echo "shot    /tmp/x.png"; exit 0; fi\necho "{name} $*"\n')
+            p.write_text(f'#!/bin/bash\necho "{name} $*"\n')
             p.chmod(p.stat().st_mode | stat.S_IEXEC)
 
     def tearDown(self):
@@ -179,39 +179,27 @@ class DevcTest(unittest.TestCase):
         _, out, _ = run(*self.p(), "--json", "focus")
         self.assertEqual(json.loads(out)["widget"], "w1")
 
-    def test_now_and_history(self):
-        line = {"at": "T", "url": "http://x/", "domain": "demo", "module": "M", "errors": [], "shot": "/p.png"}
-        Fake.routes["/agent/now"] = (200, line)
-        Fake.routes["/agent/history"] = (200, [line, line])
-        _, out, _ = run(*self.p(), "now")
-        self.assertIn("domain  demo", out)
-        _, out, _ = run(*self.p(), "--json", "history", "2")
-        self.assertEqual(len(json.loads(out)), 2)
-
-    def test_now_empty_is_an_error(self):
-        Fake.routes["/agent/now"] = (404, {"error": "no lines yet"})
-        code, _, err = run(*self.p(), "now")
-        self.assertEqual(code, 1)
-        self.assertIn("no lines yet", err)
-
-    def test_history_bounds(self):
-        self.assertEqual(run(*self.p(), "history", "99")[0], 2)
+    def _open_stub(self):
+        p = self.scripts / "opener.sh"
+        p.write_text('#!/bin/bash\necho "$1" > "$0.out"\n')
+        p.chmod(p.stat().st_mode | stat.S_IEXEC)
+        os.environ["DEVC_OPEN_CMD"] = str(p)
+        self.addCleanup(os.environ.pop, "DEVC_OPEN_CMD", None)
+        return Path(str(p) + ".out")
 
     def test_open_marks_agent_and_builds_url(self):
+        out_f = self._open_stub()
         _, out, _ = run(*self.p(), "open", "demo", "--ev", "e1", "--w", "W", scripts=self.scripts)
-        self.assertIn(f"agent.sh open http://127.0.0.1:{self.port}/domain/demo?ev=e1&w=W&agent=1", out)
+        url = f"http://127.0.0.1:{self.port}/domain/demo?ev=e1&w=W&agent=1"
+        self.assertIn(f"opened {url}", out)
+        self.assertEqual(out_f.read_text().strip(), url)
 
     def test_open_url(self):
-        _, out, _ = run(*self.p(), "open", "http://h/p?a=1", scripts=self.scripts)
-        self.assertIn("http://h/p?a=1&agent=1", out)
+        out_f = self._open_stub()
+        run(*self.p(), "open", "http://h/p?a=1", scripts=self.scripts)
+        self.assertEqual(out_f.read_text().strip(), "http://h/p?a=1&agent=1")
 
-    def test_shot_prints_path(self):
-        code, out, _ = run(*self.p(), "shot", scripts=self.scripts)
-        self.assertEqual((code, out.strip()), (0, "/tmp/x.png"))
-
-    def test_eval_start_stop_check_passthrough(self):
-        _, out, _ = run("eval", "1+1", scripts=self.scripts)
-        self.assertEqual(out.strip(), "agent.sh eval 1+1")
+    def test_start_stop_check_passthrough(self):
         for cmd in (["start", "5060", "--owner", "me"], ["stop", "5060"], ["check", "http://x"]):
             self.assertEqual(run(*cmd, scripts=self.scripts)[0], 0)  # passthrough writes to fd 1 itself
 

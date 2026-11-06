@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.32.0] - 2026-11-06
+
+### Removed
+
+- The native macOS app (DevConsole.app, `app/`, `scripts/window.sh`, `build-app.sh`) and everything that existed only for it: `agent.sh`, the flight recorder (`console_recorder.py`, `/agent/now`, `/agent/history`, `/agent/shot`), `/api/status`, `/api/palette`, the `webkit.messageHandlers` branches of the pages, `devc shot|now|history|eval`. The web console is the only one.
+
+### Changed
+
+- `devc open` opens the URL in the browser (`open`; `DEVC_OPEN_CMD` overrides).
+
 ## [0.31.0] - 2026-11-06
 
 ### Changed
