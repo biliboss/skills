@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.0] - 2026-11-06
+
+### Added
+- `--no-live` (and `DEV_CONSOLE_LIVE=0`): the server does not reload open pages on a save.
+- `scripts/second.sh [port]`: a second independent instance on its own port (default 5058), without live reload, one per agent; it copies the `--project` flags of the instance on `--from` (default 5057), so both show the same domains.
+
 ## [0.10.0] - 2026-11-06
 
 ### Added

@@ -9,7 +9,7 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.10.0
+  version: 0.11.0
 ---
 
 # dev-console
@@ -37,6 +37,27 @@ adding a domain needs no restart: append its `dev_console_project.py` path to
 `~/.local/state/dev-console/domains.txt` and the console re-reads the list and watches the new folder. It restarts by itself when this file or anything
 in the project folder changes, and the page reloads; all UI state lives in the query string
 (`tab`, `ev`, `side`, `w`, `e`), so a reload or a shared link reopens the same view.
+
+## Two independent instances
+
+The screen state lives in the URL, so two windows on one server already navigate apart. What they share is the
+live reload: the server runs with `live=True` and reloads **every** open page on each saved file, so when one agent
+saves, the other agent's window reloads.
+
+For two agents on the same project (Hermes on one window, Claude Code on the other), start a second instance:
+
+```sh
+<skill>/scripts/second.sh [port] [--from 5057]   # default 5058: same domains as :5057, no live reload
+```
+
+- It copies the `--project` flags of the instance on `--from` (read from its command line) and reads the same
+  `domains.txt`, so both show the same domains; only the port differs. With nothing on `--from`, only this skill's
+  own domain.
+- `--no-live` (or `DEV_CONSOLE_LIVE=0`) is what turns the reload off. The server still restarts itself when code
+  changes, so the new code is served, but the page changes only when its owner reloads it.
+- One instance per agent: the first keeps 5057, the other takes 5058 and opens it in a browser tab or window
+  of its own. The native window (below) is a single one, on 5057 by default.
+- Run it in a terminal tab of its own like the first one, never as an agent's background process.
 
 ## A native window
 

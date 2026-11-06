@@ -92,7 +92,10 @@ from fasthtml.common import A, Div, Li, NotStr, P, Script, Span, Style, Title, U
 from monsterui.all import Theme  # noqa: E402
 from starlette.responses import RedirectResponse  # noqa: E402
 
-app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=True)  # live: the browser reloads on save
+# live: every open page reloads on save. `--no-live` (or DEV_CONSOLE_LIVE=0) turns it off, for a second instance
+# that one agent drives while another agent saves files: its window never reloads because of someone else's save.
+LIVE = "--no-live" not in sys.argv and os.environ.get("DEV_CONSOLE_LIVE", "1") != "0"
+app, rt = fast_app(hdrs=Theme.neutral.headers(mode="auto"), live=LIVE)
 journal = _Live(lambda: CURRENT.get().journal)
 
 # The real code, read from disk on every request and pushed again when the file changes.
@@ -1986,6 +1989,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="dev-console for an event-sourced project")
     parser.add_argument("--project", action="append", help="path to a dev_console_project.py (repeat: one domain each)")
     parser.add_argument("--port", type=int, default=5057)
+    parser.add_argument("--no-live", action="store_true", help="never reload the open pages on a save (second instance)")
     args = parser.parse_args()
     projects = [Path(p).resolve() for p in dict.fromkeys((args.project or []) + os.environ.get("DEV_CONSOLE_PROJECT", "").split(os.pathsep)) if p]
     if not projects:
