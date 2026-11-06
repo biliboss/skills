@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.34.0] - 2026-11-06
+
+### Changed
+
+- `backbrief` 0.15.0: no Claude Code, a execução confirmada roda num subagente nativo (Agent, Sonnet, numa worktree); o pi fica para fora do Claude Code e para comparar modelos.
+
 ## [0.33.0] - 2026-11-06
 
 ### Added

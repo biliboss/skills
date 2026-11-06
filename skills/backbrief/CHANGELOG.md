@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-11-06
+
+### Changed
+
+- Step 9 in Claude Code runs the confirmed task on a native subagent (Agent tool, Sonnet, in the background, in a worktree of the right repo): same account and tools as the session, the report comes back here; `task.executed` is emitted by hand with `harness: claude-code`, `exit_code` and `worktree`. pi stays the executor elsewhere and for the parallel model comparison (option 2).
+
 ## [0.14.0] - 2026-11-06
 
 ### Changed
