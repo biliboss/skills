@@ -6,7 +6,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 ### Changed
 
-- Step 10: a delivery that runs (server, page, CLI) is verified running, started on a test port and called where it changed. Step 13: a conflict resolved by hand gets `diff-review` on the merged branch and a running check before the final merge.
+- Step 10: a delivery that runs (server, page, CLI) is verified running, started on a test port and called where it changed; the rule is also in `VERIFIER_RULES` (`scripts/tasks.py`), the only text the independent verifier reads. Step 13: a conflict resolved by hand gets `diff-review` on the merged branch and a running check before the final merge.
 
 ## [0.15.0] - 2026-11-06
 
