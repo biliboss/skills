@@ -128,6 +128,9 @@ export function criarApp(opcoes: OpcoesApp = {}): App {
     adeusMs: opcoes.adeusMs,
   });
 
+  // A Web (/api/*, estáticos) leva a mesma guarda de Host/Origin do /mcp (DNS rebinding e páginas de
+  // outra origem), sem o token: a página não o conhece.
+  const guardaWeb = criarGuarda({ tailnetIp });
   const fetch = (req: Request, servidor: Server<unknown>): Promise<Response> => {
     const { pathname } = new URL(req.url);
     if (pathname === ROTA_MCP) {
@@ -136,6 +139,8 @@ export function criarApp(opcoes: OpcoesApp = {}): App {
         return Response.json({ jsonrpc: "2.0", error: { code: -32603, message: "erro interno" }, id: null }, { status: 500 });
       });
     }
+    const recusa = guardaWeb.conferir(req);
+    if (recusa) return Promise.resolve(recusa);
     return rota(req, servidor);
   };
 

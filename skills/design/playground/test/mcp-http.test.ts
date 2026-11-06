@@ -87,8 +87,10 @@ describe("MCP por Streamable HTTP em /mcp", () => {
       const r = await postCru(a.url, { origin });
       expect({ origin, status: r.status }).toEqual({ origin, status: 403 });
     }
-    // A guarda é só do /mcp: a Web segue servida.
-    expect((await fetch(`${a.url}/api/estado`, { headers: { host: "evil.com" } })).status).toBe(200);
+    // A Web leva a guarda de Host/Origin (sem o token); com o Host certo segue servida.
+    expect((await fetch(`${a.url}/api/estado`, { headers: { host: "evil.com" } })).status).toBe(403);
+    expect((await fetch(`${a.url}/api/estado`, { headers: { origin: "http://evil.com" } })).status).toBe(403);
+    expect((await fetch(`${a.url}/api/estado`)).status).toBe(200);
     expect(a.mcpHttp.sessoes).toBe(0);
 
     const permitidos: Record<string, string>[] = [

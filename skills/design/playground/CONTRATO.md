@@ -20,7 +20,7 @@ O plano mora no wiki de quem usa o playground. Este arquivo fixa as interfaces e
 | `src/operacoes.ts` | as operações do canvas: manda à página e espera a resposta |
 | `src/http.ts` | as rotas e o SSE |
 | `src/componentes.ts` | as definições: valida, lê a pasta do wrapper, guarda com versão |
-| `src/mcp-http.ts` | o Streamable HTTP em `/mcp`, a guarda do Host e o motor único |
+| `src/mcp-http.ts` | o Streamable HTTP em `/mcp`, a guarda do Host (também na Web, sem o token) e o motor único |
 | `src/ferramentas.ts` | as instruções do `initialize` e as ferramentas |
 | `web/index.html`, `web/app.css` | o layout e a forma `tela` |
 | `web/canvas.js` | o tldraw, as formas `tela` e `widget`, a pilha, a migração e as operações |

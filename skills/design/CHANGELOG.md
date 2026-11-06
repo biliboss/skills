@@ -6,6 +6,9 @@
 - O design-playground passou a morar na skill, em `playground/`. `scripts/motor.sh` usa essa pasta por padrão (`DP_DIR` só sobrescreve), roda o `bun install` se faltar e passa `DESIGN_PRODUTOS`, `DADOS_DIR` e `PATCHES_DIRS` ao processo do MCP.
 - Seção "Mods: herdar, remendar, ligar estados": `herda`/`abstrato`, patches em `<produto>/patches/*.json`, modificadores, `requer` e `componentes_conferir`.
 
+### Security
+- A Web (`/api/*`) leva a mesma guarda de Host/Origin do `/mcp` (contra DNS rebinding e páginas de outra origem; o IP da tailnet segue permitido).
+
 ### Changed
 - Mudar um wrapper real sem rebuild é um patch, nunca editar o `peca.html`.
 - `DADOS_DIR` (conversa, canvas, cache) fica fora do git; padrão `~/.local/state/design-playground`.
