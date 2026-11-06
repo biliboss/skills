@@ -7,7 +7,7 @@ description: >-
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
   backbrief (tasks).
 metadata:
-  version: 0.4.1
+  version: 0.4.2
 ---
 
 # cost-track
@@ -27,6 +27,8 @@ The domain is **Costs** (`/domain/costs` in the dev-console, "Biliboss Skills - 
 The descriptions for humans are the comments on each command in `EVENTS`. The rule behind it: a client is charged at
 the current value and has a day budget (`pays_month / work_days_month`); an investment is charged at the goal price
 and has no budget; each entry stores the rate it used, so a later price change never rewrites the past.
+
+**One timer, checked in a microsecond.** Gabriel's time is one: at most one entry runs, in `~/.local/share/costs/running.json`, which exists only while it runs. `costs.sh running` (or `[ -e ~/.local/share/costs/running.json ]`) answers without uv: exit 0 and the JSON, or exit 1. Every start replaces the running entry; nothing keeps a second one.
 
 ## The one writer
 
