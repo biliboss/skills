@@ -75,9 +75,17 @@ target_session() { # explicit -> caller's session -> session of the most recentl
   printf '%s' "$s"
 }
 
+# The Value Object `thread`: ONE name for a thread, used as is everywhere (tmux session, its tab, @thread, the Hermes
+# session title). Lowercase ASCII, words joined by '-': "Sygnal 0.2" -> "sygnal-0-2", "Ação Já" -> "acao-ja".
+thread() { # raw text -> the thread name (empty when nothing is left)
+  printf '%s' "$1" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
 cmd_open() {
   [ $# -ge 1 ] || usage
-  local topic="$1"; shift
+  local topic; topic="$(thread "$1")"; shift
+  [ -n "$topic" ] || die "the thread name is empty after normalizing (use letters or digits)"
   local mode="" from="" card="" session="" PROFILE="bili" cwd="$PWD" brief="" have_brief=0 shape=1
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -331,7 +339,7 @@ cmd_close() {
       --summary) sum="${2:?}"; shift ;;
       --by) by="${2:?}"; shift ;;
       -*) die "unknown option: $1" ;;
-      *) [ -z "$topic" ] || die "unexpected argument: $1"; topic="$1" ;;
+      *) [ -z "$topic" ] || die "unexpected argument: $1"; topic="$(thread "$1")" ;;
     esac
     shift
   done
