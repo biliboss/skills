@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.28.0
+
+- The graph moves like a map: two fingers on the trackpad (or a mouse wheel) pan it, a pinch or ⌘ + scroll zooms around
+  the pointer (Chrome's wheel + ctrlKey and WebKit's gesture events, so DevConsole.app pinches too); the page never
+  scrolls under it.
+- No graph label renders under 14 px: the zoom has a floor (14 / the smallest label font), so fit, the home view and a
+  pinch stop there and a big domain opens larger than the window, read by panning. The dashed edges' commands go from
+  12 to 14 and the lane legend to 14 px. Lanes, labels, the side panel and the home stay as in 0.27.0.
+
 ## 0.27.0
 
 - Restores the domain page and the home to 0.24.0 (before the folded lanes of 0.25.0 and the focus home of 0.26.0): the owner lost the side panel and the event texts. devc stays.
