@@ -15,4 +15,8 @@ command -v uv >/dev/null 2>&1 || { echo "costs.sh: uv not found (install: https:
 [ "${1:-}" = "help" ] && set -- --help
 [ $# -gt 0 ] || set -- --help
 
+case "$1" in
+  tmux-focus|tmux-install|tmux-uninstall|status) export COSTS_SH="$DIR/costs.sh"; exec uv run --quiet --script "$DIR/tmux_focus.py" "$@" ;;
+esac
+
 exec uv run --quiet --script "$DIR/costs.py" "$@"

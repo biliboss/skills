@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-11-06
+
+### Added
+
+- `costs.sh tmux-focus <session|->`, `tmux-install`, `tmux-uninstall`, `status` (`scripts/tmux_focus.py`): the cost clock follows the tmux session the owner is attached to; a session named like an open Kanban card runs the clock in the card's domain (card id in the entry), any other session or a detach stops it. Hooks `client-session-changed`, `client-attached`, `client-detached` (indexed, marked block in `~/.tmux.conf`). Tests in `scripts/test_tmux_focus.py`.
+
+### Changed
+
+- The tmux hooks are the only writer of the clock (the DevConsole window no longer drives it, see dev-console 0.29.2).
+
 ## [0.3.2] - 2026-11-06
 
 ### Changed

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.2
+
+- The window no longer drives the cost clock (focus, hidden, idle, domain switch): `time/start|enter|beat|stop` only read, behind `DEVC_CLOCK_DRIVER=1` (default off). The clock is written by cost-track's `costs.sh tmux-focus`; the bar still shows it.
+
 ## 0.29.1
 
 - Removed `devc delegated` and `devc done` (0.29.0, #129): one card per piece of work the owner names; subagents never create cards. `devc board` stays.
