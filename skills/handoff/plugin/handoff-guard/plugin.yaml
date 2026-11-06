@@ -1,0 +1,6 @@
+name: handoff-guard
+version: "0.1.0"
+description: Nudges a long Hermes session to hand itself over (handoff.sh) when the folder opts in with HANDOFF_AT, and blocks the turn 15 points later.
+provides_hooks:
+  - post_api_request
+  - pre_llm_call

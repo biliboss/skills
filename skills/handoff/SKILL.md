@@ -7,7 +7,7 @@ description: >-
   agent's, and only when the copy is up sends /new plus a short summary to the original. `handoff.sh log` lists the
   last sessions with the resume command. Not for opening a topic (thread) nor compacting in place (/compress).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
@@ -69,8 +69,32 @@ target is the caller's own pane. None of them: refused, nothing changed. When th
   the message (`/new$`) in tests, not the whole line.
 - The summary tells the clean session to read the plan; the branch keeps the history, so ask it, not the log.
 
+## The guard
+
+`plugin/handoff-guard/` is a Hermes plugin that makes a long session hand itself over. Off by default; a folder opts in
+with `HANDOFF_AT=<percent>` in `<git toplevel>/.wiki/wiki.config`, else `<git toplevel>/.biliboss` (written by
+`setup-biliboss`). No key, not a git repo, or an unreadable file: it does nothing, and it never fails a turn.
+
+- At used% >= `HANDOFF_AT` it injects, once per crossing, the order to finish the step and run
+  `handoff.sh --from <session id> --detach` on itself.
+- At used% >= `HANDOFF_AT` + 15 it blocks the turn with that command. A user message containing `handoff` is never
+  blocked (the escape: say "handoff" and the agent can run it).
+- Used% is real, not an estimate: `post_api_request` stores `usage.prompt_tokens` and `context_length` (what the status
+  bar shows) in `~/.local/state/handoff-guard/<session id>`, and `pre_llm_call` (whose payload carries no agent) reads
+  it. A session with no API call yet (first turn after a resume) has no number, so nothing happens.
+
+Install (per profile; Hermes needs the plugin enabled):
+
+```
+ln -s <repo>/skills/handoff/plugin/handoff-guard ~/.hermes/profiles/<profile>/plugins/handoff-guard
+hermes -p <profile> plugins enable handoff-guard      # a running session only loads it on restart
+```
+
 ## Tests
 
 `scripts/test.sh`: the `thread` skill's fake hermes on a private tmux server (`-L handoff-test-<pid>`), a session
 name with a dot; covers the refusal without an id, the log line, the fork, the tab position, the focus, `/new` then
 the summary, `log`, a busy agent (timeout: no fork) and a failed fork (nothing sent).
+`scripts/test_guard.py` (`uv run`, pytest) drives the guard hooks with fake payloads and temp git repos: no key, below
+the line, inject once, re-inject after a drop, block at +15, the handoff escape, `wiki.config` over `.biliboss`, outside
+a repo, bad values.

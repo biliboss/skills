@@ -8,7 +8,7 @@ só então a aba original começa do zero, com um resumo de onde ficou tudo. Reg
 | `handoff.sh [<alvo tmux>] [--from ID]` | registra, faz o branch à direita e limpa a original (só com o branch pronto) |
 | `handoff.sh log [N]` | as últimas N sessões passadas, com `hermes -p bili --resume <id>` |
 
-Registro: `~/.local/state/bili-sessions.jsonl`. Testes: `scripts/test.sh` (tmux privado, hermes falso da skill thread).
+Guarda opcional (`HANDOFF_AT=<percent>`, plugin Hermes em `plugin/handoff-guard`): manda a sessão se passar sozinha ao chegar na porcentagem. Registro: `~/.local/state/bili-sessions.jsonl`. Testes: `scripts/test.sh` (tmux privado, hermes falso da skill thread).
 
 ## Créditos e referências
 
