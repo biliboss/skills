@@ -9,15 +9,16 @@ description: >-
   (that skill records Tension events; this one only shows a project) and not design (screens
   of a product).
 metadata:
-  version: 0.10.1
+  version: 0.11.0
 ---
 
 # dev-console
 
 One file, `scripts/dev-console.py` (FastHTML + MonsterUI, PEP 723, `uv run --script`), shows
-**domains**: each project file is one domain in its own context, `/domain/<slug>`; the bar shows
+**domains**: each project file is one domain in its own context, `/domain/<slug>`; the status line at the bottom shows
 the current one and ⌘K (or a click on it) opens the Domain Switcher, a fuzzy finder over an overlay
-(fzf / command-palette style; never a list or cards of domains). It only reads. The dev-console is a domain of itself (`scripts/dev_console_project.py`,
+(fzf / command-palette style; never a list or cards of domains); ⌘P (or a click on the module) opens the same finder
+over the **modules** of the current domain. It only reads. The dev-console is a domain of itself (`scripts/dev_console_project.py`,
 root entity Domain, journal derived from every `dev_console_project.py` with `ast`).
 
 ## Run it
@@ -65,7 +66,10 @@ $W install                                      # builds app/build-app.sh, copie
 ```
 
 A page button talks back with `window.webkit.messageHandlers.devconsole.postMessage({...})`: the object is written to
-`state.json` as `last_message`. That is the only native feature.
+`state.json` as `last_message`. The other native feature is the **Go menu**: ⌘P is Print in AppKit, so the app takes it
+for "Módulos" (and ⌘K for "Domínios"); each item evaluates `window.devconsoleModules && devconsoleModules()` (or
+`devconsoleDomains`) in the page, and no print panel can open. A browser handles the same keys in `keydown`
+(⌘P / Ctrl+P → `preventDefault`, overlay).
 
 - **To read the DOM or take a screenshot, keep using the headless browser on the same URL**; the window is for the
   person to look at and for the agent to move (open a view, dock, hide), and `eval` is for a quick read of one value.
@@ -93,9 +97,12 @@ right as it is**; hiding it is a change in the design-playground, the owner's ca
 - **The money bar**: no domain, so `PLAYGROUND_COST_CENTER` (env `DEV_CONSOLE_PLAYGROUND_COST_CENTER`, default
   `biliboss-skills`) names the cost center; the same bar and the same records (`domain: playground`), through
   `/domain/playground/time*` (the money routes answer for the Playground; a real domain called `playground` wins).
-- **Modules.** Every page carries `D.modules` (`{name, href}`: Domain, Playground); the Domain Switcher (⌘K, the
-  same script on both pages: `SWITCHER_JS` is cut out of the main page's JS, one copy) lists each module except Domain as
-  a fixed last row, after the domains, shown when it matches the query. The ⌘P module switcher that comes next reads `D.modules`.
+- **Modules.** Every page carries `D.modules` (`{name, href}`), built by one server function (`_modules`): Domain and the
+  project's `TABS` (`href: null`, shown in place), then Playground (`/playground`, navigates). ⌘P lists them (the current
+  one marked "· atual"); ⌘K lists **domains only**. The switcher script is the same on both pages (`SWITCHER_JS` is cut out
+  of the main page's JS, one copy). The Playground page has the same bottom status line (`_status_bar`, its name there is
+  "Playground") and ⌘P. Loading `/playground` never ends a running stretch: its script posts `enter` on the first trusted
+  gesture like a domain page.
 - Test it like any change (second console on another port, empty registry, temp `COSTS_DIR`), pointing the env at a
   closed port for the "not running" line and at a design-playground started on another port (`PORT=5318 ABRIR_WEB=0
   DADOS_DIR=<temp> bun run src/main.ts --servidor`) for the canvas; never at the owner's 5317. Keep the registry
@@ -118,8 +125,10 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   console has: `TABS` + `KEYS`, `drawGraph` (fCoSE, Human pinned in the centre, filled/outlined nodes),
   the contextual sidebar (expandable parts: Widgets, Code, JSON, Observability), the popup with REAL | SIMULADO, state in the
   query. A Mermaid diagram or a second Cytoscape function with its own layout was rejected twice.
-- **Tabs are the first element**; each has a vim-style goto (`g` then the underlined letter:
-  `g d` Domain, `g m` Model). Colours for unknown categories come from a fixed palette by
+- **No tab bar: modules are switched with ⌘P.** The screen is the graph at full height and one thin **status line** at
+  the bottom (28 px, VS Code / vim style): `<domain name>` (click = ⌘K), `· <module>` (click = ⌘P), the money bar, and a
+  faint hint `⌘K domínio · ⌘P módulo` on the right. The ⌘P overlay (same look and keys as ⌘K: ↑↓ escolher · Enter
+  abrir · Esc fechar, fzf-style typing) lists `D.modules`: Domain, the project's `TABS`, and Playground. Each module still has its vim-style goto (`g` then its letter: `g d` Domain, `g m` Model). Colours for unknown categories come from a fixed palette by
   category order, so any domain draws. Esc closes the popup, then the sidebar.
 - **Domain is the first tab and the default** (`g d`); it reuses the Model view (`drawGraph`, the
   same sidebar and popup). One graph, one style: a new graph tab joins `GRAPH(tab)`, never a second
@@ -135,9 +144,9 @@ Write `dev_console_project.py` next to the project's code. The contract is in
   "view"/"screen"/"menu" of this domain he means **the console's own screen**, embedded as a
   widget, not a new design: DomainView (the Domain tab, `?embed=1`), StateGraph (graph alone,
   `?embed=graph`), RightMenu (the event sidebar alone, `?embed=side&ev=…`), each an `Iframe` with
-  `fn.fake = True`, plus Code (`?embed=code`), Toolbar (`?embed=toolbar`, the real tab bar) and
+  `fn.fake = True`, plus Code (`?embed=code`), Toolbar (`?embed=toolbar`, the real status line) and
   WidgetList. A domain's widgets hang on **Domain.Updated only**: the starts (Designed,
-  Imported) have none. An embed never shows the tab bar (except Toolbar, which is the bar).
+  Imported) have none. An embed never shows the status line (except Toolbar and the money piece, which are the line).
 - **Design events small** (rules in skill `design-taste`, Domain design): one `Updated` per element
   for create, change and delete; every start leads to one hub (`HUB`); a configuration value (the
   home widget) rides in an event's value, never as its own event; keep out of the domain what
@@ -145,14 +154,14 @@ Write `dev_console_project.py` next to the project's code. The contract is in
 - **Composable, always.** A widget that shows something the console already draws composes that
   component: WidgetList calls `render_widget_list(slug, event)` (the right menu's own list, set on
   every project module by the console), screens embed with `?embed=`. A second copy of a view is a bug.
-  A piece of the toolbar that belongs to a domain (the money bar) is also that domain's widget (CostToolbar on
-  `time_entry.started`): an `Iframe` of `?embed=money`, an embed mode that shows only that piece of the bar.
-- **Playground is a mode, not a tab.** Free sketching with the agent (screens, dashboards, comparisons) lives in a
+  A piece of the status line that belongs to a domain (the money bar) is also that domain's widget (CostToolbar on
+  `time_entry.started`): an `Iframe` of `?embed=money`, an embed mode that shows only that piece of the line.
+- **Playground is a mode, not a tab** (a module of ⌘P, beside Domain, when its route exists). Free sketching with the agent (screens, dashboards, comparisons) lives in a
   dev-console mode beside Domain, not tied to any domain: the agent operates a canvas (the design-playground's,
   composed without its own chat, since the Hermes chat sits beside the window) and a sketch is promoted to a domain
   widget or a real component only when he says so. Proposing it as a per-domain "Esboço" tab was the misread.
-- **Tabs per domain.** Domain is the one fixed tab; a project lists the rest in `TABS` (absent =
-  Domain only). Tension-shaped tabs live only in the tensions project's `TABS`.
+- **Modules per domain.** Domain is the one fixed module; a project lists the rest in `TABS` (absent =
+  Domain only); they appear in the ⌘P overlay, never as a tab strip. Tension-shaped tabs live only in the tensions project's `TABS`.
 - **A list row opens on click, Enter or Space** (tabindex 0, aria-label, the button stays), with the
   same gray look: never `role="button"` on a row, Pico paints it as a blue centred button.
 - **Model** is the state machine (UML statechart vocabulary): **Human** is the initial
@@ -377,13 +386,13 @@ For a product whose code already records domain events (Domain.Imported):
 ## Money bar
 
 Everything is monetary, so every domain belongs to a cost center (see `cost-track`); a domain with one shows the money
-bar in its toolbar. Nothing is stored by the console: the Costs journal is the only storage and cost-track's
+bar in its status line. Nothing is stored by the console: the Costs journal is the only storage and cost-track's
 `scripts/costs.py` (found at `../../cost-track/scripts/costs.py`; missing means no bar) its only writer.
 
 - **The bar:** the center name; what it spent today in R$, ticking every second; for a client `de R$ <budget>` with a
   thin progress line, red over budget, plus `hoje a <cliente> pagou R$ X/h`; for an investment `<nome> · R$ X hoje`,
   no budget; the rate (R$/min; a click cycles min, hora, dia, kept in localStorage); ▶ / ⏸. A click on the center name
-  opens a popover with today per center and the total.
+  opens a popover (upward, the line is at the bottom) with today per center and the total.
 - **The center of a domain:** `COST_CENTER = "<id>"` in its project file, else the center whose `domains` lists the
   slug in the journal (`costs.center_of`). The Costs domain declares `biliboss-skills`; Tasks and dev-console are in
   that center's `domains`. A project that lives outside (Via Corretor) is listed in the journal, never declared here.

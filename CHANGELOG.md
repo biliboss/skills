@@ -2,6 +2,17 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.25.0] - 2026-11-06
+
+### Added
+
+- `dev-console` 0.11.0: ⌘P switches the module (Domain, the project's tabs, Playground) on every page, ⌘K lists domains only; a bottom status line (domain · module · money) replaces the tab bar, on a domain page and on the Playground too; the native app owns ⌘P and ⌘K in a menu so no print panel opens.
+
+### Fixed
+
+- `dev-console`: loading `/playground` no longer ends a running stretch (only the first trusted gesture posts `enter`); `?embed=money` shows the bar.
+- `task-understand` 0.13.2 (patch): the Task Results tab no longer 500s on a journal with `method: "pi"`.
+
 ## [0.24.0] - 2026-11-06
 
 ### Added

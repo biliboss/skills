@@ -263,6 +263,15 @@ class ExecuteParallel(RepoCase):
         self.assertIsNone(tasks.result_from({"text": "x", "exit_code": 1, "executor": "claude"}))  # 0.4-0.5 run
         self.assertIsNone(tasks.result_from({"text": "x"}))
 
+    def test_result_from_never_raises_on_what_the_real_journal_holds(self):
+        pi = {"method": "pi", "harness": "pi", "model": "glm", "effort": "high", "cycle_time_s": 9, "delivery": "PR aberto",
+              "pull_request": "https://github.com/o/r/pull/49", "exit_code": 0, "worktree": "w"}
+        x = tasks.result_from(pi)  # method "pi", delivery in words, the PR as a bare URL
+        self.assertEqual((x.method, x.pull_request.number, x.pull_request.state), (tasks.Method.PI, 49, tasks.PullRequestState.OPEN))
+        y = tasks.result_from({**pi, "method": "claude-code", "delivery": "PR fechado"})  # a value no enum knows is kept, not a 500
+        self.assertEqual((y.method, y.pull_request.state), ("claude-code", tasks.PullRequestState.CLOSED))
+        self.assertEqual(tasks.result_from({**pi, "method": "by-hand"}).method, "by-hand")
+
     def test_unknown_and_refused_never_run(self):
         with patch.dict(os.environ, self.env):
             j = tasks.TasksJournal()

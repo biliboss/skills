@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.2] - 2026-11-06
+
+### Fixed
+
+- The Task Results tab no longer 500s on the real journal: `Method.PI` (`execute` writes a pi run's `method` as `pi`), and `result_from` keeps a value no enum knows (`claude-code` or `by-hand` as a method) as the text it is, reads a `pull_request` kept as a bare URL, and ignores a `session` that is not an object. Test in `scripts/test_flow.py`.
+
 ## [0.13.0] - 2026-11-05
 
 ### Added

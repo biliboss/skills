@@ -251,7 +251,7 @@ FAKE_TASK, FAKE_AT = "Implementar todo o desenho do Tasks na skill e atualizar o
 # How each typed value reads for a person
 DELIVERY_KIND = {"pr": "Pull request", "direct": "Direto, sem PR", "none": "Nada a entregar"}
 LABEL = {Method.PRINT: "Execução de uma vez", Method.INTERACTIVE: "Sessão interativa", Method.BY_HAND: "À mão, pelo agente",
-         Harness.CLAUDE_CODE: "Claude Code", Harness.HERMES: "Hermes", Harness.PI: "pi",
+         Method.PI: "Execução pelo pi", Harness.CLAUDE_CODE: "Claude Code", Harness.HERMES: "Hermes", Harness.PI: "pi",
          Model.SONNET: "Sonnet", Model.OPUS: "Opus", Model.HAIKU: "Haiku",
          "sonnet": "Sonnet", "glm": "GLM 5.3", "glm-flash": "GLM 5.3 Flash",
          Effort.LOW: "baixo", Effort.MEDIUM: "médio", Effort.HIGH: "alto",
@@ -489,13 +489,13 @@ def task_execution_log(ctx):
     row = lambda k, v: Div(Span(k, cls="w-32 shrink-0 text-neutral-400"), Span(v, cls="min-w-0 break-all"),  # noqa: E731
                            cls="flex gap-3 py-1 font-mono text-xs")
     pr = x.pull_request
-    rows = [row("harness", x.harness.value if x.harness else ""), row("método", x.method.value if x.method else "")]
+    rows = [row("harness", str(x.harness) if x.harness else ""), row("método", str(x.method) if x.method else "")]
     if x.provider:  # a pi run: the flat plan that rode it and what the run itself reports
         rows.append(row("modelo", f"{x.model} · {x.provider} ({x.plan})"))
         rows.append(row("worktree", x.worktree))
         rows.append(row("branch", x.branch))
     elif x.model:
-        rows.append(row("modelo", f"{x.model} · {x.effort.value if x.effort else ''}"))
+        rows.append(row("modelo", f"{x.model} · {str(x.effort) if x.effort else ''}"))
     if x.session:
         rows.append(row("sessão", x.session.id or "sem id (rodou antes da saída JSON)"))
         rows.append(row("log", x.session.log))

@@ -47,9 +47,9 @@ def event_list(ctx):
 
 
 def toolbar(ctx):
-    """The domain's toolbar: the console's real tab bar, embedded (?embed=toolbar), never a copy of its markup."""
+    """The domain's toolbar: the console's real status line, embedded (?embed=toolbar), never a copy of its markup."""
     slug = (ctx.focus or {}).get("domain_id", SLUG)
-    sim = "&sim_tab=Eventos" if ctx.mode == "sim" else ""  # SIMULADO: an example tab from the context, nothing recorded
+    sim = "&sim_tab=Eventos" if ctx.mode == "sim" else ""  # SIMULADO: an example module from the context, nothing recorded
     return Iframe(src=f"/domain/{slug}?embed=toolbar{sim}",
                   cls="w-full h-11 rounded border border-neutral-200 dark:border-neutral-800")
 
