@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.30.2] - 2026-11-06
+
+### Changed
+
+- `devc browse <url>` is listed in the devc block: the interview skill (1.1.0) opens its queue page there when the console is up, and nothing when the window already shows it.
+
 ## [0.30.1] - 2026-11-06
 
 ### Changed

@@ -2,7 +2,7 @@
 name: interview
 description: Ask the user structured questions in a rich interactive form (pi-interview) in one browser, Orca or native macOS window shared by every call. Single and multi choice with recommendations, free text, image upload, and context panels with code, diffs, Markdown, tables, Mermaid and charts. Forms queue up in that window and the answers come back to each caller. Marked answers are never lost when time runs out. Use for grilling rounds, requirements gathering, design tradeoffs, or any batch of decisions that needs more context than AskUserQuestion can show. Use whenever the user asks to be grilled or interviewed, or says "interview", "pi-interview", "form".
 metadata:
-  version: 1.0.0
+  version: 1.1.0
   license: MIT
 ---
 
@@ -13,6 +13,11 @@ metadata:
 ## One window, a queue
 
 The first call starts a long-lived queue server on a fixed port (8398, or `port` in `settings.json`) and opens **one** window. Every later call, from any session, sees the server up, puts its form in the queue (no new window) and waits for its own answer. The window shows the form of the moment and how many wait; after each submit it moves to the next by itself. If the window was closed, the next call reopens it (one window). The server exits by itself after 30 minutes with no forms; logs go to `~/.pi/interview-queue.log`.
+
+**In the dev-console.** When the dev-console answers on `http://127.0.0.1:5057/` (setting `console`), it is the window:
+if its window already shows the queue (`devc now --json` is `/browser?url=http://127.0.0.1:8398…`) nothing opens and the
+queue's page moves on to the next form by itself; else `devc browse http://127.0.0.1:8398/` opens the queue in its Browser
+module. With the console down, or no `devc`, the window opens as always: the skill works on its own.
 
 ## Run it
 
@@ -29,7 +34,7 @@ The first call starts a long-lived queue server on a fixed port (8398, or `port`
 
 Flags: `--timeout <seconds>` (default 1800, counted from when your form is on screen and reset by every change), `--launcher browser|orca|glimpse`, `--no-open` (queue the form without opening a window, e.g. over SSH).
 
-Defaults live in `settings.json` next to this file (falls back to pi's `~/.pi/agent/settings.json` under `interview`): `launcher`, `browser`, `timeout`, `port`, `theme` (`{ "name": "default"|"tufte", "mode": "dark"|"light"|"auto" }`), `snapshotDir`, `autoSaveOnSubmit`, `glimpseFloating`. Without a launcher it opens a native window if `glimpseui` is installed globally, else the default browser.
+Defaults live in `settings.json` next to this file (falls back to pi's `~/.pi/agent/settings.json` under `interview`): `launcher`, `browser`, `timeout`, `port`, `theme` (`{ "name": "default"|"tufte", "mode": "dark"|"light"|"auto" }`), `snapshotDir`, `autoSaveOnSubmit`, `glimpseFloating`, `console` (the dev-console's URL, default `http://127.0.0.1:5057/`; `false` never uses it; `INTERVIEW_CONSOLE_URL` wins). Without a launcher it opens a native window if `glimpseui` is installed globally, else the default browser.
 
 ## Never lose answers
 
@@ -95,14 +100,10 @@ Defaults live in `settings.json` next to this file (falls back to pi's `~/.pi/ag
 
 Stdout has a readable summary plus a JSON block: `[{ "id", "question", "type", "value", "attachments"? }]`. Choice values are `{ "option", "note"? }` (a list for `multi`); text is a string; images are file paths. Unanswered questions are left out. If the user cancels or skips, proceed with your recommendations and say so.
 
-## The answer
-
-Stdout has a readable summary plus a JSON block: `[{ "id", "question", "type", "value", "attachments"? }]`. Choice values are `{ "option", "note"? }` (a list for `multi`); text is a string; images are file paths. Unanswered questions are left out. If the user cancels or skips, proceed with your recommendations and say so.
-
 ## Not wired (vs. pi)
 
 The Generate more / Review options / Ask buttons call models through pi's registry, so they are off here. Async delivery is the background Bash notification.
 
 ## Tests
 
-`bash <skill-dir>/test/run.sh` starts a throwaway queue (own port, own HOME, a fake window opener) and checks: two forms at once open one window and each caller gets its own answer; a form with `--timeout 5` exits 3 with the draft and the recovery file; the server exits when idle.
+`bash <skill-dir>/test/run.sh` starts a throwaway queue (own port, own HOME, a fake window opener) and checks: two forms at once open one window and each caller gets its own answer; a form with `--timeout 5` exits 3 with the draft and the recovery file; the server exits when idle; and the launcher's three cases, with a fake console and a fake `devc` first on PATH (console down: the window; console showing the queue: nothing; console elsewhere: `devc browse`). Credits and the standalone use: [README.md](README.md).

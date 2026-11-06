@@ -7,6 +7,18 @@ T="$(mktemp -d)"
 export HOME="$T/home"; mkdir -p "$HOME"
 export INTERVIEW_PORT="${INTERVIEW_PORT:-8461}"
 export INTERVIEW_IDLE_SEC=6
+# Standalone by default: the dev-console URL is a port nobody listens on (9), so Tests 1-4 take today's window path.
+# A fake devc comes first on PATH, so no test can ever drive the owner's real console window.
+export INTERVIEW_CONSOLE_URL="http://127.0.0.1:9/"
+mkdir -p "$T/bin"
+export DEVC_LOG="$T/devc.log" DEVC_NOW="$T/devc-now.json"; : > "$DEVC_LOG"
+cat > "$T/bin/devc" <<'DEVC'
+#!/bin/sh
+echo "$*" >> "$DEVC_LOG"
+case " $* " in *" now "*) cat "$DEVC_NOW" ;; esac
+DEVC
+chmod +x "$T/bin/devc"
+export PATH="$T/bin:$PATH"
 OPENS="$T/opens.log"
 cat > "$T/open.sh" <<OPEN
 #!/bin/sh
@@ -26,7 +38,7 @@ post_vendor() { # post_vendor <url-with-token> <route> <json-without-token>
 }
 waitfor() { for _ in $(seq 1 80); do if eval "$1"; then return 0; fi; node -e 'setTimeout(()=>{},250)'; done; return 1; }
 
-echo "== Test 1: two forms at once, one window =="
+echo "== Test 1: console down (standalone): two forms at once, one window =="
 node "$HERE/interview.ts" "$HERE/test/q1.json" > "$T/a.out" 2> "$T/a.err" &
 PA=$!
 node "$HERE/interview.ts" "$HERE/test/q2.json" > "$T/b.out" 2> "$T/b.err" &
@@ -75,5 +87,25 @@ echo "== Test 3: idle exit =="
 waitfor '! curl -s -m 1 "$BASE/health" >/dev/null'
 check "server exits by itself when idle" '! curl -s -m 1 "$BASE/health" >/dev/null'
 echo "--- server log"; cat "$HOME/.pi/interview-queue.log"
+
+echo "== Test 4: the launcher and the dev-console (fake console, fake devc) =="
+QURL="$BASE/"
+lines() { wc -l < "$1" | tr -d " "; }
+O0="$(lines "$OPENS")"
+INTERVIEW_CONSOLE_URL="http://127.0.0.1:9/" node "$HERE/test/open.ts" "$QURL"
+check "console down: today's window opens, devc untouched" '[ "$(lines "$OPENS")" = $((O0 + 1)) ] && [ "$(lines "$DEVC_LOG")" = 0 ]'
+CPORT=$((INTERVIEW_PORT + 1))
+node -e 'require("http").createServer((q,s)=>{s.writeHead(303,{Location:"/domain/kanban"});s.end()}).listen(+process.argv[1],"127.0.0.1")' "$CPORT" &
+PCON=$!
+waitfor 'curl -s -o /dev/null -m 1 "http://127.0.0.1:$CPORT/"'
+O1="$(lines "$OPENS")"
+echo '{"url":"http://127.0.0.1:'"$CPORT"'/browser?url=http%3A%2F%2F127.0.0.1%3A'"$INTERVIEW_PORT"'&agent=1"}' > "$DEVC_NOW"
+INTERVIEW_CONSOLE_URL="http://127.0.0.1:$CPORT/" node "$HERE/test/open.ts" "$QURL"
+check "console up, its window shows the queue: nothing opens ($(tr '\n' '|' < "$DEVC_LOG"))" '[ "$(lines "$OPENS")" = "$O1" ] && [ "$(cat "$DEVC_LOG")" = "--port $CPORT now --json" ]'
+: > "$DEVC_LOG"
+echo '{"url":"http://127.0.0.1:'"$CPORT"'/domain/kanban/t/x?tab=Quadro&agent=1"}' > "$DEVC_NOW"
+INTERVIEW_CONSOLE_URL="http://127.0.0.1:$CPORT/" node "$HERE/test/open.ts" "$QURL"
+check "console up, queue not on screen: devc browse the queue ($(tr '\n' '|' < "$DEVC_LOG"))" '[ "$(lines "$OPENS")" = "$O1" ] && [ "$(tail -1 "$DEVC_LOG")" = "--port $CPORT browse $QURL" ]'
+kill $PCON 2>/dev/null; wait $PCON 2>/dev/null
 if [ $fail = 0 ]; then echo ALL OK; else echo SOME FAILED; fi
 exit $fail

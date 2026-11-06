@@ -13,7 +13,7 @@ const OWN_SETTINGS = path.join(SKILL_DIR, "settings.json");
 export const DEFAULT_QUEUE_PORT = 8398;
 export const DEFAULT_TIMEOUT_SEC = 1800;
 export const DEFAULT_IDLE_SEC = 1800;
-export const QUEUE_VERSION = "1.0.0";
+export const QUEUE_VERSION = "1.1.0";
 
 export function readSettings(): InterviewSettings {
 	let parsed: InterviewSettings;

@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import { execFile, execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import type { InterviewSettings } from "./vendor/package/settings.ts";
+import { readSettings } from "./config.ts";
 
 function run(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -55,8 +56,41 @@ export interface OpenRequest {
 	title?: string;
 }
 
-// INTERVIEW_OPEN_CMD overrides everything: it is run with the URL as its only argument (used by the tests).
+// The dev-console (skills/dev-console), when it answers, is the window: (1) console down -> false, the caller opens
+// today's window; (2) its window already shows this queue (devc now: /browser?url=<the queue>) -> nothing opens, the
+// queue's page moves to the next form by itself; (3) else `devc browse <url>` opens the queue in its Browser module.
+// The console's URL: INTERVIEW_CONSOLE_URL (tests; "" turns it off), else `console` in settings (false = off), else
+// 5057. A devc that fails (not installed) falls back to the window, so a form is never left unseen.
+async function openInConsole(url: string): Promise<boolean> {
+	const setting = (readSettings() as { console?: string | false | null }).console;
+	const at = process.env.INTERVIEW_CONSOLE_URL ?? (setting === undefined ? "http://127.0.0.1:5057/" : setting || "");
+	if (!at) return false;
+	try {
+		const res = await fetch(at, { redirect: "manual", signal: AbortSignal.timeout(800) });
+		await res.body?.cancel().catch(() => {});
+		if (res.status < 200 || res.status >= 400) return false;
+	} catch {
+		return false;
+	}
+	const port = new URL(at).port || "80";
+	const queue = new URL(url);
+	try {
+		const now = new URL((JSON.parse(await run("devc", ["--port", port, "now", "--json"])) as { url?: string }).url ?? "", at);
+		const shown = now.pathname === "/browser" ? new URL(now.searchParams.get("url") ?? "", "http://invalid") : null;
+		if (shown && shown.port === queue.port && ["127.0.0.1", "localhost"].includes(shown.hostname)) return true;
+	} catch {} // no navigation recorded yet: open it
+	try {
+		await run("devc", ["--port", port, "browse", url]);
+		return true;
+	} catch (err) {
+		process.stderr.write(`devc browse failed, opening a window instead: ${err instanceof Error ? err.message : String(err)}\n`);
+		return false;
+	}
+}
+
+// INTERVIEW_OPEN_CMD stands in for the window (tests): it is run with the URL as its only argument.
 export async function openWindow(url: string, req: OpenRequest, remote: boolean): Promise<void> {
+	if (!remote && (await openInConsole(url))) return;
 	const custom = process.env.INTERVIEW_OPEN_CMD;
 	if (custom) {
 		await run(custom, [url]);
