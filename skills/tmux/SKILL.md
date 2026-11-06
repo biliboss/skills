@@ -13,7 +13,7 @@ Isto é para panes e janelas do **tmux**. As abas e sessões de agente do **herd
 
 ## Alvos (o argumento `<alvo>`)
 
-`%12` (id do pane) | `T02` (o id da casa, a opção `@tnn` do pane; fica quando o `%N` some) | `bili-sonnet` (nome da janela) | `main:3` ou `main:bili` (sessão:janela, nome ou índice) | `main:bili.1` (com o pane). A resolução é por **igualdade exata** e devolve um `%id`: `bili` nunca acerta `bili-sonnet`. Sem achar, ou com vários, o script falha e lista os candidatos (id, sessão:janela.pane, nome, comando). Janela com vários panes: vale o pane ativo.
+`%12` (id do pane) | `T02` (convenção opcional da casa: a opção `@tnn` do pane, que fica quando o `%N` some; sem a opção, o alvo cai na regra do nome) | `bili-sonnet` (nome da janela) | `main:3` ou `main:bili` (sessão:janela, nome ou índice) | `main:bili.1` (com o pane). A resolução é por **igualdade exata** e devolve um `%id`: `bili` nunca acerta `bili-sonnet`. Sem achar, ou com vários, o script falha e lista os candidatos (id, sessão:janela.pane, nome, comando). Janela com vários panes: vale o pane ativo.
 
 ## Comandos
 
@@ -44,4 +44,4 @@ Códigos de saída: 0 ok, 124 prazo esgotado (`send` sem ver o texto, `wait`), 1
 
 ## Evoluir
 
-Mudou um script: rode `scripts/test.sh` (servidor privado, sai 0 só se tudo passa), anote no `CHANGELOG.md` e suba a versão. O teste não cobre um Claude Code de verdade; confira à mão um `send` de `/comando` num TUI, num servidor privado (`TMUX_SOCKET=nome`), nunca na janela de outro agente. Conferido na v0.1.0 com o Claude Code 2.1.318: `/reload-plugins` chega inteiro e executa, e um texto de duas linhas aparece digitado, sem Enter, com `--no-enter`.
+Mudou um script: rode `scripts/test.sh` (servidor privado, sai 0 só se tudo passa), anote no `CHANGELOG.md` e suba a versão. O teste não cobre um Claude Code de verdade; confira à mão um `send` de `/comando` num TUI, num servidor privado (`TMUX_SOCKET=nome`), nunca na janela de outro agente. Conferido na v0.1.0 com o Claude Code 2.1.318: `/reload-plugins` chega inteiro e executa, um texto de duas linhas aparece digitado, sem Enter, com `--no-enter`, e uma colagem de 41 linhas (3558 caracteres) vira `[Pasted text ...]`, com o Enter enviando e a resposta voltando. `scripts/test.sh` também passa com o bash 3.2 do macOS (`/bin/bash`).
