@@ -2,7 +2,7 @@
 name: bili
 description: Hand a request to Bili, the owner's Hermes agent, by one of three routes chosen by configuration (CASA_BILI_ROTA, default local) through a single script, bili.sh pedir|esperar|ler|rota. local = an event on the Mac's NATS for the local Bili; remoto = an event on the VPS NATS for the VPS Bili; linear = a mention on the Linear card where the subject lives (project or card work). The Mac request is grilled first (method from the skill `grilling`; mode CASA_BILI_GRILL=ask|interview|plain), one binary question at a time. Never the Hermes API, SSH or duplo MCP. Also waits for and reads the reply, and shows or switches the route. Use when the user says "troca a rota do bili", "pede pro bili", "manda pro bili", "roteia pro bili", "pergunta pro bili", "marca o bili", "o que o bili respondeu", "em que pé o bili está". Not `linear` (that edits Linear itself) nor `duplo-local-agents` (other agent sessions in herdr) nor `delegate-and-review` (a subagent that opens a PR); this one asks the agent that keeps the memory.
 metadata:
-  version: 0.7.0
+  version: 0.8.0
 ---
 
 # bili — mandar um pedido ao Bili
@@ -59,6 +59,7 @@ Todo pedido do dono feito no Mac vai ao **Bili local** (o Hermes local, no pane 
    `uv run -q --script <pasta desta skill>/scripts/watch.py asks errors panes`
    Ele imprime uma linha por evento do NATS local que pede atenção humana, e cada linha vira um aviso na sessão: uma pergunta esperando o dono (`asks`), um erro de verdade (`errors`), um agente que parou ou travou (`panes`). Outros nomes: `cycle` (cada pedido respondido, com o lead time), `llm`, `routes`; `--list` mostra todos. O monitor expira (30 min no Claude Code): rearme quando o aviso de expiração chegar. Num terminal comum, o mesmo comando roda em primeiro plano.
    - **Um aviso é um fato, não uma resposta do dono:** passe ao dono só o que muda o que ele faria (uma pergunta para ele, um agente travado); o resto, ignore.
+   - **Os assuntos vigiados vêm de um arquivo** (`$CASA_BILI_WATCH_SUBJECTS_FILE`, JSON `{"asks": ["assunto.*"], ...}`; o nome que não está no arquivo mantém o assunto embutido de hoje). O `watch.py` é autocontido (não importa a lib da casa, a skill é pública): o arquivo só muda onde ouvir, o que cada nome imprime é do formatador.
    - **O próprio pane do dono não gera aviso** (`$CASA_DONO_PANE`, ou uma lista em `WATCH_IGNORE_PANES`); um aviso falso que se repete se corrige no `watch.py`, não ignorando.
    - **Teste de evento nunca no stream real** (um NATS de teste ou um subject `test.>`): o monitor e as views leem o stream real.
 6. **Diga ao dono** em poucas linhas o que foi decidido e o que foi ao Bili. A volta se acompanha pelo pane do Bili local e pelos avisos do monitor, nunca esperando em primeiro plano.

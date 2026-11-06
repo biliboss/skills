@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.56.0] - 2026-11-06
+
+### Added
+
+- `bili` 0.8.0: `watch.py` lê os assuntos de cada vigia de um arquivo JSON (`CASA_BILI_WATCH_SUBJECTS_FILE`); sem o arquivo, o comportamento é o de antes. Com `test_watch.py`. (Reaplica o PR #10.)
+
 ## [0.55.0] - 2026-11-06
 
 ### Added
