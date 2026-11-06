@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## [0.41.0] - 2026-11-06
+
+### Added
+
+- `seo-audit` 0.1.0: o SEO de uma página e dos sitemaps, lido do HTML sem JavaScript (`audit.sh`, `sitemap.sh`), com o canonical que volta por redirecionamento.
+- `keyword-ideas` 0.1.0: o autocompletar do Google em pt-BR (`suggest.sh`) e as oportunidades do Search Console (`opportunities.sh`, pela skill `search-console`).
+
 ## [0.40.0] - 2026-11-06
 
 ### Added
