@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ag-read <agente> [-n LINHAS] [--state] [--json]: lê o painel do agente.
+#   ag-read hipster -n 40        as últimas 40 linhas não vazias
+#   ag-read hipster --state      só o estado: idle | working | waiting | permission | menu
+#   ag-read hipster --state --json   {"agente":"hipster","painel":"w5R:p3D","estado":"idle"}
+# Saída: 0 ok, 1 sem painel, 2 uso errado. Com --state, o código de saída é 4 se o estado for permission.
+. "$(dirname "$0")/ag-lib.sh"
+
+n=40; so_estado=0; json=0; nome=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) n="${2:-}"; shift 2 ;;
+    --state) so_estado=1; shift ;;
+    --json) json=1; shift ;;
+    -*) ag_die 2 "opção desconhecida: $1" ;;
+    *) nome="$1"; shift ;;
+  esac
+done
+[ -n "$nome" ] || ag_die 2 'uso: ag-read <agente> [-n N] [--state] [--json]'
+case "$n" in ''|*[!0-9]*) ag_die 2 "-n precisa de um número" ;; esac
+
+pane="$(ag_pane "$nome")" || ag_die 1 "nenhum painel único para '$nome'"
+
+if [ "$so_estado" -eq 1 ]; then
+  est="$(ag_state "$pane")"
+  if [ "$json" -eq 1 ]; then
+    printf '{"agente":"%s","painel":"%s","estado":"%s"}\n' "$nome" "$pane" "$est"
+  else
+    echo "$est"
+  fi
+  [ "$est" = permission ] && exit 4
+  exit 0
+fi
+
+ag_capture "$pane" | grep -v '^[[:space:]]*$' | tail -n "$n"

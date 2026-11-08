@@ -6,7 +6,7 @@ description: >-
   five dimensions (environment, architecture, behavior, observability, agent), read-only findings with the exact fix.
   Not for unit tests alone (test() asks if behaviour is correct; doctor() asks if the system is ready to work).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
@@ -98,3 +98,7 @@ Start from the generic doctor's warnings: each one is a missing piece to either 
 - Never give the doctor network or secret access beyond reachability and presence-by-name.
 
 Origins and credits: [README.md](README.md#créditos-e-referências).
+
+## Capability contracts
+
+For executable `.doctor.yaml` contracts, use the separate `scripts/doctor` wrapper (or `uv run --script scripts/contracts.py`). Read [the contract reference](references/contracts.md) for selection, evidence, adapters and exit codes. The generic `doctor.py` above is unchanged. For new implementation load [doctor-driven](../doctor-driven/SKILL.md) before writing code.

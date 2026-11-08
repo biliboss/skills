@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# ag-pane <agente>: imprime o endereço do terminal do agente no herdr Desktop (tN, do hc).
+#   ag-pane hipster            -> t12
+#   ag-pane -n hipster         ensaio: mostra a pasta e a regra usada, sem consultar nada de volta
+# Procura primeiro um terminal com esse nome (hc run --name) e, se não achar, um terminal rodando o claude
+# dentro da pasta do agente (~/agents/<nome> ou o mapa .agentes).
+# Saída: 0 achou, 1 não achou, 2 mais de um candidato (listados no stderr) ou uso errado.
+. "$(dirname "$0")/ag-lib.sh"
+
+seco=0
+[ "${1:-}" = "-n" ] && { seco=1; shift; }
+[ $# -eq 1 ] || { ag_erro 'uso: ag-pane [-n] <agente>'; exit 2; }
+nome="$1"
+
+if [ "$seco" -eq 1 ]; then
+  echo "agente: $nome"
+  echo "pasta: $(ag_dir "$nome")"
+  echo "regra: nome do agente=$nome, depois rótulo do painel=$nome, depois claude na pasta"
+  exit 0
+fi
+
+pane="$(ag_pane "$nome")"; rc=$?
+case $rc in
+  0) echo "$pane" ;;
+  1) ag_die 1 "nenhum painel do agente '$nome' (pasta $(ag_dir "$nome"))" ;;
+  *) ag_die 2 "mais de um terminal candidato para '$nome' (listados acima); feche os que sobram ou use o endereço tN direto" ;;
+esac

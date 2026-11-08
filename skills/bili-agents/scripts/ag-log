@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# ag-log ls <agente> | ag-log cat <agente> [id] [--recusas] [--tudo]: lê as sessões de um agente (só leitura).
+#   ag-log ls hipster                 sessões da pasta do agente, da mais nova para a mais antiga (id, hora, primeiro pedido)
+#   ag-log cat hipster                conversa limpa da sessão mais recente: pedidos, respostas, ferramentas, recusas
+#   ag-log cat hipster 54f18601       uma sessão pelo começo do id
+#   ag-log cat hipster --recusas      só o que o the owner recusou e o motivo que deu
+# As sessões ficam em ~/.claude/projects/<pasta com / virando ->/<id>.jsonl. Sem ruído de api-request-blob.
+# Saída: 0 ok, 1 não achou, 2 uso errado.
+. "$(dirname "$0")/ag-lib.sh"
+
+[ $# -ge 2 ] || ag_die 2 'uso: ag-log ls <agente> | ag-log cat <agente> [id] [--recusas] [--tudo]'
+modo="$1"; nome="$2"; shift 2
+dir="$(ag_dir "$nome")"
+proj="$HOME/.claude/projects/$(printf '%s' "$dir" | sed 's/[\/._]/-/g')"
+[ -d "$proj" ] || ag_die 1 "sem sessões em $proj"
+
+id=""; recusas=0; tudo=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --recusas) recusas=1; shift ;;
+    --tudo) tudo=1; shift ;;
+    -*) ag_die 2 "opção desconhecida: $1" ;;
+    *) id="$1"; shift ;;
+  esac
+done
+
+python3 -I - "$modo" "$proj" "$id" "$recusas" "$tudo" <<'PY'
+import glob, json, os, sys, time
+modo, proj, id_, recusas, tudo = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1", sys.argv[5] == "1"
+arqs = sorted(glob.glob(os.path.join(proj, "*.jsonl")), key=os.path.getmtime, reverse=True)
+
+def linhas(arq):
+    for l in open(arq, encoding="utf-8", errors="ignore"):
+        try:
+            yield json.loads(l)
+        except Exception:
+            pass
+
+def texto_usuario(d):
+    c = (d.get("message") or {}).get("content")
+    if isinstance(c, str):
+        return c
+    for b in c or []:
+        if isinstance(b, dict) and b.get("type") == "text":
+            return b.get("text", "")
+    return ""
+
+def curto(s, n):
+    s = " ".join(str(s).split())
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+if modo == "ls":
+    for a in arqs:
+        primeiro = ""
+        for d in linhas(a):
+            if d.get("type") == "user":
+                t = texto_usuario(d)
+                if t and not t.startswith("<"):
+                    primeiro = t
+                    break
+        h = time.strftime("%d/%m %H:%M", time.localtime(os.path.getmtime(a)))
+        print(f"{os.path.basename(a)[:8]}\t{h}\t{curto(primeiro, 90)}")
+    sys.exit(0 if arqs else 1)
+
+if modo != "cat":
+    print("modo desconhecido: " + modo, file=sys.stderr)
+    sys.exit(2)
+
+alvo = None
+for a in arqs:
+    if not id_ or os.path.basename(a).startswith(id_):
+        alvo = a
+        break
+if not alvo:
+    print("sessão não encontrada", file=sys.stderr)
+    sys.exit(1)
+
+lim = 100000 if tudo else 400
+for d in linhas(alvo):
+    t = d.get("type")
+    c = (d.get("message") or {}).get("content")
+    if t == "user":
+        if isinstance(c, str):
+            if not c.startswith("<") and not recusas:
+                print("\n[voce] " + curto(c, lim))
+            continue
+        for b in c or []:
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "text" and not recusas:
+                tx = b.get("text", "")
+                if tx and not tx.startswith("<"):
+                    print("\n[voce] " + curto(tx, lim))
+            elif b.get("type") == "tool_result":
+                r = b.get("content")
+                r = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
+                if "doesn't want to proceed" in r or "STOP what you are doing" in r:
+                    motivo = r.split("the user said:")[-1].strip() if "the user said:" in r else "(sem motivo)"
+                    print("  [recusa] " + curto(motivo, lim))
+    elif t == "assistant" and not recusas:
+        for b in c or [] if isinstance(c, list) else []:
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "text" and b.get("text", "").strip():
+                print("[agente] " + curto(b["text"], lim))
+            elif b.get("type") == "tool_use":
+                print("  [ferramenta] " + b.get("name", "") + " " + curto(json.dumps(b.get("input", {}), ensure_ascii=False), 160))
+PY

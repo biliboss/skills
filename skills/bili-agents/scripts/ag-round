@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ag-round [-n] <agente> <comando> <alvo...>: uma rodada do Impeccable, só compondo os outros ag-*.
+#   ag-round hipster critique libs/page.ts libs/widget-paleta.ts
+# Passos: ag-snap das pastas de AG_ROUND_DIRS -> ag-send "/impeccable <comando> <alvo> <brief>" ->
+# ag-wait -> ag-read do fim do painel -> uma linha em AG_ROUNDS_LOG.
+# Variables: AG_ROUND_DIRS selects the snapshot directories explicitly.
+# AG_ROUNDS_LOG (padrão ~/agents/rodadas.md), AG_BRIEF (texto fixo do brief), AG_SETTLE (padrão 10), AG_TIMEOUT (padrão 900).
+# -n só mostra o que faria. Saída: a do passo que falhou (1, 2, 3 ou 4), ou 0.
+. "$(dirname "$0")/ag-lib.sh"
+BIN="$(dirname "$0")"
+
+seco=0
+[ "${1:-}" = "-n" ] && { seco=1; shift; }
+[ $# -ge 3 ] || ag_die 2 'uso: ag-round [-n] <agente> <comando> <alvo...>'
+nome="$1"; cmd="$2"; shift 2
+alvo="$*"
+
+DIRS="${AG_ROUND_DIRS:-}"
+[ -n "$DIRS" ] || ag_die 2 'set AG_ROUND_DIRS to the project directories before running a round'
+LOG="${AG_ROUNDS_LOG:-$AG_HOME/rodadas.md}"
+BRIEF="${AG_BRIEF:-Use the project design instructions. Verify the result and report what remains unconfirmed.}"
+SETTLE="${AG_SETTLE:-10}"; TIMEOUT="${AG_TIMEOUT:-900}"
+
+if [ -f "$LOG" ]; then n=$(( $(grep -c '^| [0-9]' "$LOG") + 1 )); else n=1; fi
+rotulo="round-$n-antes"
+prompt="/impeccable $cmd $alvo. $BRIEF"
+
+if [ "$seco" -eq 1 ]; then
+  echo "rodada: $n"
+  echo "snapshot: $rotulo de $DIRS"
+  echo "prompt: $prompt"
+  echo "espera: settle $SETTLE, limite $TIMEOUT"
+  echo "registro: $LOG"
+  exit 0
+fi
+
+# shellcheck disable=SC2086
+"$BIN/ag-snap" "$rotulo" $DIRS || exit $?
+"$BIN/ag-send" "$nome" "$prompt" || exit $?
+inicio="$(date +%H:%M)"
+"$BIN/ag-wait" "$nome" --settle "$SETTLE" --timeout "$TIMEOUT"; rc=$?
+fim="$(date +%H:%M)"
+"$BIN/ag-read" "$nome" -n 40
+resumo="$cmd $alvo"
+[ -f "$LOG" ] || printf '| # | início | fim | comando e alvo | espera |\n|---|--------|-----|----------------|--------|\n' > "$LOG"
+printf '| %s | %s | %s | %s | %s |\n' "$n" "$inicio" "$fim" "$resumo" "$([ $rc -eq 0 ] && echo ok || echo "código $rc")" >> "$LOG"
+exit $rc

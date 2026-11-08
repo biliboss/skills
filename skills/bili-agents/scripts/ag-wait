@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ag-wait <agente> [--settle S] [--timeout T] [--poll P]: espera o agente terminar de verdade.
+#   ag-wait hipster --settle 8 --timeout 600
+# Considera terminado quando o estado fica `idle` sem interrupção por S segundos (padrão 8); pausas
+# como "Waiting for 2 background agents" (estado waiting) não contam. Se existir ~/agents/events.jsonl
+# com eventos desse agente depois do início, exige também que o último evento tenha pelo menos S segundos.
+# Imprime o estado final. Saída: 0 terminou, 1 sem painel, 2 uso errado, 3 tempo esgotado, 4 parado em permissão.
+. "$(dirname "$0")/ag-lib.sh"
+
+settle=8; timeout=600; poll=2; nome=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --settle) settle="${2:-}"; shift 2 ;;
+    --timeout) timeout="${2:-}"; shift 2 ;;
+    --poll) poll="${2:-}"; shift 2 ;;
+    -*) ag_die 2 "opção desconhecida: $1" ;;
+    *) nome="$1"; shift ;;
+  esac
+done
+[ -n "$nome" ] || ag_die 2 'uso: ag-wait <agente> [--settle S] [--timeout T] [--poll P]'
+for v in "$settle" "$timeout" "$poll"; do case "$v" in ''|*[!0-9]*) ag_die 2 "valores numéricos esperados" ;; esac; done
+
+pane="$(ag_pane "$nome")" || ag_die 1 "nenhum painel único para '$nome'"
+inicio="$(ag_agora)"; fim=$(( inicio + timeout )); ocioso_desde=""
+
+# idade (segundos) do último evento do agente depois do início; vazio se não houver
+idade_evento() {
+  [ -f "$AG_EVENTS" ] || return 0
+  python3 -I - "$AG_EVENTS" "$nome" "$inicio" <<'PY'
+import json, sys, time
+arq, nome, ini = sys.argv[1], sys.argv[2], int(sys.argv[3])
+ultimo = None
+try:
+    for l in open(arq, encoding="utf-8", errors="ignore"):
+        try:
+            d = json.loads(l)
+        except Exception:
+            continue
+        if d.get("agente") == nome and int(d.get("ts", 0)) >= ini:
+            ultimo = int(d["ts"])
+except OSError:
+    pass
+if ultimo is not None:
+    print(int(time.time()) - ultimo)
+PY
+}
+
+while [ "$(ag_agora)" -lt "$fim" ]; do
+  est="$(ag_state "$pane")"
+  case "$est" in
+    permission) echo permission; exit 4 ;;
+    unsent) ocioso_desde="" ;;
+    idle)
+      [ -n "$ocioso_desde" ] || ocioso_desde="$(ag_agora)"
+      if [ $(( $(ag_agora) - ocioso_desde )) -ge "$settle" ]; then
+        idade="$(idade_evento)"
+        if [ -z "$idade" ] || [ "$idade" -ge "$settle" ]; then echo idle; exit 0; fi
+      fi ;;
+    *) ocioso_desde="" ;;
+  esac
+  sleep "$poll"
+done
+echo timeout
+exit 3

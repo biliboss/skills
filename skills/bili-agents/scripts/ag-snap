@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# ag-snap <rótulo> <pasta>...: cópia de segurança de pastas; ag-snap --restore <rótulo> <pasta>: volta.
+#   ag-snap round-5-antes /path/to/project/libs /path/to/project/apps      guarda cópias em $AG_SNAP/round-5-antes/<nome-da-pasta>
+#   ag-snap --restore round-5-antes /path/to/project/libs            devolve o conteúdo da cópia para a pasta
+#   ag-snap --ls                                               lista os rótulos
+#   ag-snap --diff round-5-antes /path/to/project/libs               mostra o que mudou desde a cópia
+# AG_SNAP é onde ficam as cópias (padrão ~/.cache/ag-snap). O restore só copia por cima e NÃO apaga o que
+# foi criado depois (acrescente --apagar para espelhar de verdade). -n mostra o que faria, sem fazer.
+# Saída: 0 ok, 1 rótulo ou pasta inexistente, 2 uso errado.
+. "$(dirname "$0")/ag-lib.sh"
+
+AG_SNAP="${AG_SNAP:-$HOME/.cache/ag-snap}"
+seco=0; apagar=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) seco=1; shift ;;
+    --apagar) apagar=1; shift ;;
+    *) break ;;
+  esac
+done
+
+modo=salvar
+case "${1:-}" in
+  --restore) modo=restaurar; shift ;;
+  --diff)    modo=diff; shift ;;
+  --ls)      modo=listar; shift ;;
+esac
+
+if [ "$modo" = listar ]; then
+  [ -d "$AG_SNAP" ] && find "$AG_SNAP" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort
+  exit 0
+fi
+
+[ $# -ge 2 ] || ag_die 2 'uso: ag-snap [-n] <rótulo> <pasta>... | --restore <rótulo> <pasta> | --diff <rótulo> <pasta> | --ls'
+rotulo="$1"; shift
+
+case "$modo" in
+  salvar)
+    for d in "$@"; do
+      [ -d "$d" ] || ag_die 1 "pasta inexistente: $d"
+      dest="$AG_SNAP/$rotulo/$(basename "$d")"
+      if [ "$seco" -eq 1 ]; then echo "copiaria $d -> $dest"; continue; fi
+      mkdir -p "$dest" && rsync -a --delete "$d"/ "$dest"/ && echo "salvo $d -> $dest"
+    done ;;
+  restaurar)
+    for d in "$@"; do
+      orig="$AG_SNAP/$rotulo/$(basename "$d")"
+      [ -d "$orig" ] || ag_die 1 "sem cópia '$rotulo' de $(basename "$d")"
+      opc=(-a); [ "$apagar" -eq 1 ] && opc+=(--delete); [ "$seco" -eq 1 ] && opc+=(-n -i)
+      rsync "${opc[@]}" "$orig"/ "$d"/ && echo "restaurado $orig -> $d"
+    done ;;
+  diff)
+    for d in "$@"; do
+      orig="$AG_SNAP/$rotulo/$(basename "$d")"
+      [ -d "$orig" ] || ag_die 1 "sem cópia '$rotulo' de $(basename "$d")"
+      diff -rq "$orig" "$d" || true
+    done ;;
+esac

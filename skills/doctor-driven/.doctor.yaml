@@ -1,0 +1,13 @@
+capabilities:
+  contract-first-delivery:
+    intent: A fresh session writes acceptance before code, confirms real red and delivers a verified journey.
+    checks:
+      - id: fresh-session-delivery
+        kind: journey
+        expected: A fresh agent session writes the contract before implementation and ends with every required check passing.
+        red: The session implements before acceptance or cannot demonstrate the real failure and subsequent green journey.
+        remedy: Configure a fresh-session adapter and inspect the ordered transcript and executable results.
+        agent:
+          task: In an isolated fixture, fix a greeting that omits its name; write acceptance before code, observe and confirm real red, then finish doctor --all green. Return ordered transcript evidence.
+    keep: []
+    success: [fresh-session-delivery]

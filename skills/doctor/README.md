@@ -1,19 +1,20 @@
-# doctor
+# Doctor
 
-O protocolo da casa para dizer se um projeto ou ferramenta está saudável e pronto para trabalhar: cinco dimensões
-(ambiente, arquitetura, comportamento, observabilidade, agente), achados só de leitura, cada um com o comando que
-conserta. `doctor()` pergunta "o sistema está saudável?"; `test()` pergunta "o comportamento está certo?". Regras e
-formato: [SKILL.md](SKILL.md).
+Diagnose project readiness with the existing five-dimension generic doctor, or execute `.doctor.yaml` capability
+contracts with explicit failure evidence. [Instructions](SKILL.md) · [Changelog](CHANGELOG.md).
 
-| Comando | O que faz |
-|---|---|
-| `scripts/doctor.py [repo]` | doctor genérico de qualquer repo; descobre e junta o doctor do projeto |
-| `scripts/doctor.py [repo] --run-tests --timeout 60` | também roda o comando de teste detectado |
-| `scripts/doctor.py [repo] --json --verbose` | um objeto JSON por achado, inclusive os `ok` |
-| `scripts/test.sh` | 14 checks em dois repos temporários (um saudável, um quebrado) |
+| Command | Purpose |
+| --- | --- |
+| `scripts/doctor.py [repo]` | Generic read-only readiness diagnosis |
+| `scripts/doctor --root [repo]` | Fast capability checks |
+| `scripts/doctor runtime` | Runtime checks |
+| `scripts/doctor journey` | User journeys |
+| `scripts/doctor --all --json` | Full capability report |
+| `scripts/doctor --changed --base origin/main` | Changed paths, fast and runtime |
+| `uv run --script scripts/test_contracts.py` | Isolated acceptance tests |
+| `scripts/test.sh` | Generic doctor regression fixtures |
 
-Exemplo de linha: `drift environment python-lock: pyproject.toml is newer than uv.lock -> uv lock`.
-Saída: `0` saudável, `1` drift ou falha, `2` o doctor não rodou. Histórico: [CHANGELOG.md](CHANGELOG.md).
+See [contract syntax and examples](references/contracts.md) for evidence recording and adapters.
 
 ## Créditos e referências
 

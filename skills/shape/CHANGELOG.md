@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.0] - 2026-11-08
+
+### Added
+- Implementation handoffs include doctor-driven acceptance before code and real journeys.
+
 ## 0.4.0
 
 ## [0.4.1] - 2026-11-06

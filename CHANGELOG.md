@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.105.0] - 2026-11-08
+
+### Added
+- Separate capability contract runner, doctor-driven delivery and evidence-grounded self-learning.
+- Portable bili-agents tools, four role cards and a shared output style.
+
+### Changed
+- Shape handoffs require executable acceptance before implementation.
+
+
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
 ## 0.104.0

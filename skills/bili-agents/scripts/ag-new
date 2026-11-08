@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Create an instance without replacing existing data. --worktree REPO creates its isolated checkout.
+set -eu
+. "$(dirname "$0")/ag-lib.sh"
+dry=0; name=""; role=""; project=""; repo=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) dry=1; shift ;;
+    --role|--papel) [ $# -ge 2 ] || ag_die 2 'missing role'; role="$2"; shift 2 ;;
+    --project|--projeto) [ $# -ge 2 ] || ag_die 2 'missing project'; project="$2"; shift 2 ;;
+    --worktree) [ $# -ge 2 ] || ag_die 2 'missing repository'; repo="$2"; shift 2 ;;
+    -*) ag_die 2 "unknown option: $1" ;;
+    *) [ -z "$name" ] || ag_die 2 'extra instance name'; name="$1"; shift ;;
+  esac
+done
+printf '%s' "$name" | grep -qE '^[a-z][a-z0-9_-]{0,31}$' || ag_die 2 'invalid instance name'
+printf '%s' "$role" | grep -qE '^[a-z][a-z0-9-]{0,31}$' || ag_die 2 'invalid or missing role'
+[ -n "$project" ] || ag_die 2 'missing --project'
+case "$project" in *$'\n'*|*$'\r'*) ag_die 2 'project must fit on one line' ;; esac
+skills="${AG_SKILLS_DIR:-$(dirname "$AG_SKILL")}"
+[ -f "$skills/roles-$role/SKILL.md" ] || ag_die 1 "role card missing: roles-$role"
+target="$AG_HOME/$name"
+[ ! -e "$target" ] || ag_die 1 "instance already exists: $target"
+printf 'instance: %s\nrole (papel): %s\nproject (projeto): %s\n' "$target" "$role" "$project"
+if [ -n "$repo" ]; then
+  git -C "$repo" rev-parse --git-dir >/dev/null || ag_die 2 'invalid worktree repository'
+  for f in AGENTS.md MEMORY.md .role; do
+    if git -C "$repo" cat-file -e "HEAD:$f" 2>/dev/null; then ag_die 1 "project already has $f; inspect it before configuring an instance"; fi
+  done
+  printf 'command: git worktree add -b run/%s %q HEAD\n' "$name" "$target"
+fi
+[ "$dry" -eq 0 ] || exit 0
+mkdir -p "$AG_HOME"
+if [ -n "$repo" ]; then git -C "$repo" worktree add -b "run/$name" "$target" HEAD; else mkdir "$target"; fi
+for f in AGENTS.md MEMORY.md .role; do [ ! -e "$target/$f" ] || ag_die 1 "project already has $f; inspect it before configuring an instance"; done
+printf '<!-- bili-agents:instance -->\n# Project\n\n%s\n\n@MEMORY.md\n' "$project" > "$target/AGENTS.md"
+printf '# Memory\n\nProject observations and verified decisions belong here.\n' > "$target/MEMORY.md"
+printf '%s\n' "$role" > "$target/.role"
+printf 'created: %s\n' "$target"

@@ -66,3 +66,11 @@ Os scripts carregam o arquivo com `. "${BILIBOSS_CASA:-$HOME/.config/biliboss/ca
 
 Edite aqui (`skills/<nome>/`), suba a versão no `.claude-plugin/plugin.json` e no `CHANGELOG.md`, commite e faça o push, depois `claude plugin update biliboss-skills@biliboss`. O `wiki-smith` e o `skill-smith` moravam em repos próprios, hoje arquivados.
 
+
+## Executable capability contracts
+
+`doctor` now includes a separate YAML interpreter alongside its existing generic diagnosis. `doctor-driven`
+uses those contracts before implementation; `self-learning` proposes small skill edits from real transcript loads
+and retains an explicitly applied edit only when the supplied doctor passes. `bili-agents` ships portable setup,
+role cards, a compatibility doctor and one output style. See [contract commands](skills/doctor/references/contracts.md)
+and [validation scope](skills/doctor/references/validation.md); missing adapters and unproven green checks remain pending.

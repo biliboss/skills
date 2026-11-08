@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# ag-send [-n] [--forcar] <agente> [texto | -]: digita um texto no painel do agente e dá o Enter.
+#   ag-send hipster '/impeccable critique libs/page.ts'
+#   echo 'várias linhas' | ag-send hipster -        (várias linhas entram por paste)
+#   ag-send -n hipster 'texto'                       ensaio: mostra o painel e o texto, não envia
+# O texto vai primeiro e o Enter depois, em chamadas separadas (juntos já perderam as primeiras letras).
+# Depois do Enter confere se o início do texto ainda está na caixa de entrada; se estiver, o Enter foi
+# engolido (por exemplo pelo menu de "/") e é repetido até 3 vezes.
+# Recusa enviar (código 4) se o agente estiver parado num pedido de permissão, a menos que --forcar.
+# Saída: 0 enviado, 1 sem painel, 2 uso errado, 4 parado em permissão.
+. "$(dirname "$0")/ag-lib.sh"
+
+seco=0; forcar=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) seco=1; shift ;;
+    --forcar) forcar=1; shift ;;
+    *) break ;;
+  esac
+done
+[ $# -ge 1 ] || ag_die 2 'uso: ag-send [-n] [--forcar] <agente> [texto | -]'
+nome="$1"; shift
+if [ "${1:-}" = "-" ]; then texto="$(cat)"; elif [ $# -ge 1 ]; then texto="$*"; else ag_die 2 "faltou o texto"; fi
+[ -n "$texto" ] || ag_die 2 "texto vazio"
+
+pane="$(ag_pane "$nome")" || ag_die 1 "nenhum painel único para '$nome'"
+est="$(ag_state "$pane")"
+
+if [ "$seco" -eq 1 ]; then
+  echo "painel: $pane"
+  echo "estado: $est"
+  echo "texto: $texto"
+  exit 0
+fi
+
+if [ "$est" = permission ] && [ "$forcar" -eq 0 ]; then
+  ag_die 4 "o agente '$nome' está parado num pedido de permissão; responda a ele ou use --forcar"
+fi
+
+# quem pediu: o hook de ping do agente responde a este terminal (rótulo asker); vale a última mensagem
+if [ -n "${HC_TERMINAL_ID:-}" ]; then ag_hc label "$pane" "asker=$HC_TERMINAL_ID" >/dev/null 2>&1 || true; fi
+# o hc send cola o texto (várias linhas entram como paste, sem virar Enter) e aperta o Enter depois de uma pausa
+if [ "$forcar" -eq 1 ]; then
+  ag_hc send --force "$pane" "$texto" >/dev/null 2>&1 || ag_die 1 "o hc não conseguiu enviar a '$nome' ($pane)"
+else
+  ag_hc send "$pane" "$texto" >/dev/null 2>&1 || ag_die 1 "o hc não conseguiu enviar a '$nome' ($pane)"
+fi
+
+trecho="${texto%%$'\n'*}"; trecho="${trecho:0:40}"
+for _ in 1 2 3 4; do
+  sleep 0.7
+  # texto longo vira "[Pasted text #N]" na caixa: o estado unsent cobre isso; o trecho cobre o texto curto
+  if [ "$(ag_state "$pane")" = unsent ] || ag_capture "$pane" | grep -v '^[[:space:]]*$' | tail -6 | grep -qF -- "❯ $trecho"; then
+    ag_teclas "$pane" Enter
+  else
+    break
+  fi
+done
+echo "enviado a $nome ($pane)"

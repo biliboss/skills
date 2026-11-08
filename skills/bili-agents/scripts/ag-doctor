@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Compatibility entrypoint. Legacy flags/output stay stable; --contract opts into the strict YAML verdict.
+. "$(dirname "$0")/ag-lib.sh"
+export AG_HOME AG_SKILL
+BIN="$AG_SKILL/scripts"; export BIN
+if [ "${1:-}" = --contract ]; then
+  shift
+  exec uv run --script "$(dirname "$AG_SKILL")/doctor/scripts/contracts.py" --root "$AG_SKILL" "$@"
+fi
+exec bash "$AG_SKILL/scripts/ag-doctor-legacy" "$@"
