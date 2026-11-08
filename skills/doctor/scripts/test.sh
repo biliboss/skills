@@ -75,6 +75,15 @@ echo "$out" | grep -q '^fail architecture readme'; check "broken: missing README
 echo "$out" | grep -q '^drift environment python-lock: .* -> uv lock'; check "broken: stale lock is drift with action" $?
 echo "$out" | grep -q '^fail behavior tests: .*exit 3.*boom'; check "broken: failing tests are fail with evidence" $?
 
+# ---- central wiki: no .wiki/ or docs/, but a $WIKI_HOME project claims this repo's origin
+W="$TMP/wiki-home"; mkdir -p "$W/proj" && printf 'REPO=owner/name\n' > "$W/proj/wiki.config"
+C="$TMP/central"; mkdir -p "$C" && echo "# c" > "$C/README.md"
+git -C "$C" init -q && git -C "$C" remote add origin git@github.com:owner/name.git
+out="$(WIKI_HOME="$W" "$DOC" "$C" --verbose --no-project-doctor 2>&1)"
+echo "$out" | grep -q '^ok architecture wiki-or-docs: .*WIKI_HOME/proj'; check "central wiki: REPO= match passes" $?
+out="$(WIKI_HOME="$TMP/no-such-home" "$DOC" "$C" --verbose --no-project-doctor 2>&1)"
+echo "$out" | grep -q '^warn architecture wiki-or-docs'; check "central wiki: no match still warns" $?
+
 # ---- cannot run
 "$DOC" "$TMP/does-not-exist" >/dev/null 2>&1; rc=$?
 check "missing dir: exit 2" $([ $rc -eq 2 ] && echo 0 || echo 1)

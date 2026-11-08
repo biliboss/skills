@@ -46,7 +46,7 @@ Where a lesson belongs:
 |---|---|
 | How to do a class of task (steps, pitfalls, format preferences) | a skill |
 | Who the user is, or the current state of things | memory / `CLAUDE.md` |
-| How this repo works, for everyone | the repo's `.wiki/` (or `AGENTS.md`), not a skill |
+| How this repo works, for everyone | the repo's `$WIKI_HOME/<projeto>/` (or `AGENTS.md`), not a skill |
 | Both a principle and a skill rule | both; write each once |
 
 ## Step 1b — Research the open source first (CREATE, ADAPT, any MINOR+ UPDATE)

@@ -3,16 +3,18 @@
 
 Reads ~/.claude/projects/<dir>/<session>.jsonl (read-only), finds the target turn and lists the resources
 the owner authored that were in play: instruction files (CLAUDE.md, AGENTS.md), skills called, user files
-read (.wiki, SKILL.md, memory, settings) and hooks that injected context. `efeito` and `peso` are left
+read (wiki, SKILL.md, memory, settings) and hooks that injected context. `efeito` and `peso` are left
 for the agent to fill (they are interpretation, so evidencia stays observed only for what the transcript shows).
 """
 import argparse, glob, hashlib, json, os, re, sys, time
 
 HOME = os.path.expanduser("~")
+WIKI_HOME = os.path.normpath(os.path.expanduser(os.path.expandvars(os.environ.get("WIKI_HOME") or "~/wiki")))
 PROJECTS = os.environ.get("BILIBOSS_PROJECTS", os.path.join(HOME, ".claude", "projects"))
 NOT_OWNER_SKILLS = ("anthropic-skills:",)  # the owner's plugins are not listed here: everything else counts
 OWNER_READ = re.compile(
-    r"(/\.claude/|/\.wiki/|/AGENTS\.md$|/CLAUDE\.md$|/SKILL\.md$|/\.claude-plugin/|/memory/|/settings(\.local)?\.json$)"
+    r"(/\.claude/|/\.wiki/|" + re.escape(WIKI_HOME) + r"/|/AGENTS\.md$|/CLAUDE\.md$|/SKILL\.md$|"
+    r"/\.claude-plugin/|/memory/|/settings(\.local)?\.json$)"
 )
 
 
@@ -79,7 +81,7 @@ def kind_of(p):
         return "claude_md"
     if p.endswith("SKILL.md"):
         return "skill"
-    if "/.wiki/" in p:
+    if "/.wiki/" in p or p.startswith(WIKI_HOME + "/"):
         return "wiki"
     if "/memory/" in p:
         return "memoria"

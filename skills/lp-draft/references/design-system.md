@@ -4,7 +4,7 @@ The page never hard-codes a color or a font. It reads tokens, so the next versio
 
 ## The token contract
 
-`.wiki/resources/<produto>/tokens.css` defines at least these custom properties, for light and for dark:
+`$WIKI_HOME/<projeto>/resources/<produto>/tokens.css` defines at least these custom properties, for light and for dark:
 
 | Token | What it is |
 |---|---|
@@ -28,7 +28,7 @@ Map what you find onto the contract above; do not invent names the source does n
 - **Live site**: read `getComputedStyle` of the body, headings and the main button with the browser JavaScript tool; note the URL and date in `design.md`.
 - **Design System artifact**: read it with `Artifact` (`action: "read"`) and take its tokens; link it in `design.md`.
 
-Absorbed values still go into `.wiki/resources/<produto>/tokens.css`, with `design.md` saying where they came from, so the draft works offline and the source can be re-read later.
+Absorbed values still go into `$WIKI_HOME/<projeto>/resources/<produto>/tokens.css`, with `design.md` saying where they came from, so the draft works offline and the source can be re-read later.
 
 ## Creating one
 

@@ -9,7 +9,7 @@ metadata:
 
 O [envless](https://github.com/biliboss/envless) é o nosso cofre: cada ambiente (`dev`, `prod`, `aws`…) é um arquivo cifrado `secrets/<env>.env.enc` dentro de uma **pasta de cofre** (a que tem `.envless/` com `identity.key` e `recipients`). O agente usa o segredo sem nunca ver o valor: ele vai do cofre direto para o ambiente do processo filho, nunca por argv, stdout, log, arquivo do repo, Linear ou conversa.
 
-Onde mora cada credencial da casa e quem a usa está na página `segredos` do wiki do repo da casa (`$CASA_REPO_PRINCIPAL/.wiki/segredos.md`). Procure lá antes de pedir uma chave.
+Onde mora cada credencial da casa e quem a usa está na página `segredos` do wiki do repo da casa (`$WIKI_HOME/biliboss/segredos.md`). Procure lá antes de pedir uma chave.
 
 ## Passos
 
@@ -38,7 +38,7 @@ Onde mora cada credencial da casa e quem a usa está na página `segredos` do wi
    ```
    - **Chave que só existe num segredo do GitHub Actions não volta para o envless:** o GitHub não devolve o valor (`gh secret list` mostra só o nome). Peça ao dono o `pbpaste | envless set` com o valor que ele guardou, ou com um token novo da mesma conta; o que não é segredo (ID de conta, subdomínio) sai do `gh variable list`. Peça isso no começo do trabalho e siga com o resto em paralelo, porque é caso de conta, só ele resolve.
    - O agente não digita nem gera o valor na conversa. Se é o dono quem tem o segredo, entregue a ele o comando exato para rodar com `!` no prompt (ou num terminal), e confira depois só com `envless list`.
-   - Depois de guardar, anote em `.wiki/segredos.md` onde mora e quem usa, nunca o valor.
+   - Depois de guardar, anote em `$WIKI_HOME/biliboss/segredos.md` onde mora e quem usa, nunca o valor.
 4. **`get` quase nunca.** Ele imprime o valor e exige `--confirm`. Só quando um programa não aceita variável de ambiente, e sempre para um pipe que não volta à tela (`envless get CHAVE --confirm | pbcopy`). Na dúvida, é `exec`.
 5. **Receber um segredo de outra pessoa (sem passar pelo chat).** O `set` recifra para **toda** chave pública em `.envless/recipients`, então:
    - Do seu lado: `mkdir -p ~/.cofre-<tema> && cd ~/.cofre-<tema> && envless init`; o `recipients` tem a sua chave pública (`age1…`, não é segredo, pode ir no texto).

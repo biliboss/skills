@@ -22,7 +22,7 @@ O subagente só sabe o que está no briefing, e você só vê o relatório dele.
 
 ```sh
 cd <repo> && git fetch -q && git status -sb | head -3 && git log --oneline -3
-ls apps libs 2>/dev/null; cat package.json | head -30; ls AGENTS.md CLAUDE.md .wiki 2>/dev/null
+ls apps libs 2>/dev/null; cat package.json | head -30; ls AGENTS.md CLAUDE.md $WIKI_HOME/<projeto> 2>/dev/null
 ```
 
 - Anote os comandos de teste e de tipos (`bun test`, `bun run typecheck`, `npm test`…) e quantos testes passam hoje: o subagente precisa de uma linha de base.
@@ -72,7 +72,7 @@ Agent(description="<3 a 5 palavras>", model="sonnet", prompt=<briefing>)
 - **Correção chega por steer, com os números exatos** ("raiz 50/50, barra com 2 linhas"), não refazendo à mão. Se você mexe ao mesmo tempo no que ele está aplicando ao vivo (um layout, um processo), os dois desfazem um ao outro. Se ele já terminou, o steer não chega (o subagente não existe mais): despache outro com o briefing completo.
 - **Confira cada entrega no remoto** (`git fetch` e `git log origin/<ramo>`) antes de contar ao dono, e procure nos relatórios o que ficou entre dois donos (um arquivo que nenhum dos dois atualizou).
 - **Quando um subagente publica e outro lê a mesma coisa (um evento, um KV, um arquivo de config), fixe o contrato nos dois briefings antes de lançar:** o nome exato (subject, chave, rótulo) e os campos. Sem isso, cada um inventa o seu nome, e quem lê não acha o que o outro publica. Se o contrato mudar no meio, mande o mesmo steer aos dois.
-- **O mesmo vale para um protocolo descrito em paralelo** (a skill que o define, a página do .wiki que o explica, a primeira ferramenta que o segue): escreva o protocolo inteiro, com a escala de status e os códigos de saída, em todos os briefings. Quem recebe um "0/1/2" sem o significado escolhe o seu, e a casa fica com duas escalas. Ao conferir, compare as entregas entre si, não só cada uma com o briefing, e corrija a que divergir para a da skill.
+- **O mesmo vale para um protocolo descrito em paralelo** (a skill que o define, a página da wiki do projeto (skill `wiki`) que o explica, a primeira ferramenta que o segue): escreva o protocolo inteiro, com a escala de status e os códigos de saída, em todos os briefings. Quem recebe um "0/1/2" sem o significado escolhe o seu, e a casa fica com duas escalas. Ao conferir, compare as entregas entre si, não só cada uma com o briefing, e corrija a que divergir para a da skill.
 - **"X não existe" num relatório pode estar velho:** um irmão pode ter acabado de criar. Confira (um `ls`, um `grep` no ramo remoto) antes de repassar a falta ao dono ou de despachar quem a faça.
 - **Arquivo compartilhado tem um dono só** (um justfile, um config). O subagente pede a mudança ao dono, com a interface exata (script, argumentos, linha de doc), e não edita. Se dois escrevem no mesmo arquivo ao mesmo tempo, sai uma receita duplicada e a CLI quebra.
 - **Subagente fazendo estrago ao vivo leva `stop`, não steer.** O steer só chega no próximo limite de ferramenta, e até lá ele segue publicando ou mexendo. Pare, limpe você mesmo e despache outro com o briefing completo, com a regra que faltou.
@@ -121,4 +121,4 @@ Agent(description="<3 a 5 palavras>", model="sonnet", prompt=<briefing>)
 - **Merge só com a permissão escrita do dono no pedido.** Com ela: corrija os blockers e as decisões que a revisão levantou (decida pela recomendação e escreva a decisão no README ou no PR), rode os testes uma vez, faça o merge squash pelo app (`gh pr merge <n> --squash --delete-branch`, com o token do app) e comente no PR "revisado por agente: …" com o resumo. Sem a permissão, ou com um achado grave que não dá para corrigir agora, não faça o merge e diga o quê. Deploy continua com o dono.
 - **Dois PRs abertos que sobem a versão do mesmo plugin** (`plugin.json` e o CHANGELOG da raiz): junte primeiro o de versão menor; no outro, faça `git merge origin/main` no ramo (não rebase: o `gh-app` recusa push com force, até `--force-with-lease`), resolva o CHANGELOG pondo o bloco novo acima do já juntado e o `plugin.json` com a descrição do main e a versão do ramo, rode os testes e só então o merge.
 - Relate: o PR, os achados e como cada um foi corrigido, o que ficou para ele decidir e o que ainda falta (deploy, teste ao vivo).
-- Se a revisão ensinou algo sobre o repo ou o produto, anote no `.wiki` dele, conforme o `AGENTS.md`.
+- Se a revisão ensinou algo sobre o repo ou o produto, anote no `$WIKI_HOME/<projeto>` dele, conforme o `AGENTS.md`.

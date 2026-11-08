@@ -27,7 +27,7 @@ Principle: errors are **understood from the events, not prevented by review**. W
    `scripts/timeline.sh --card <CARD> --since <ISO|2h> [--until <ISO>]` (or `--turn`, `--trace`). One line per event: time, subject, actor, short fields, grouped by turn. A card pulls every turn and trace it touches. Exit 1 = nothing matched: widen the window or fix the id. For a full record use `--json` (PROV-like: activities, entities used/generated, agents). Pull the full payload of the key events (`nats stream view`/`nats sub --start-time`, read-only) when a field is cut short.
 3. **Build the chain** request → read → tool calls → decision → effect. For each link say which event proves it (seq/time). Mark gaps ("no `decision.made` for this turn", "file read after the write") as findings, not guesses. Check the decision's `why` against the request: did the agent read what the user asked?
 4. **Write the postmortem** from [references/postmortem.md](references/postmortem.md): what happened, why, contributing causes (several; rarely one), what changes. Blameless, evidence-cited, short.
-5. **Apply the change** before closing: a rule in the repo wiki (wiki-smith) or a patch to the skill that was in play (skill-smith UPDATE), committed. A "next time I will…" with no file changed is not a result. Report the path of what changed.
+5. **Apply the change** before closing: a rule in the repo wiki (wiki) or a patch to the skill that was in play (skill-smith UPDATE), committed. A "next time I will…" with no file changed is not a result. Report the path of what changed.
 
 ## Pitfalls
 

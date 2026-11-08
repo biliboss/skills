@@ -75,7 +75,7 @@ Events: `session.started|finished`, `problem.classified {domain}`, `question.ask
 A short note, no template ceremony: the chosen approach and why, in the first person, "Decidi X porque Y", with
 the rejected approaches in one line each. Emit `approach.chosen` with it. When the owner agrees, run
 `session.finished` and hand the note to **task-backbrief** as the task to confirm. A decision about how the house works
-(who does what, which tool owns a job) needs no backbrief: write it at once in the `.wiki` page that governs it, with
+(who does what, which tool owns a job) needs no backbrief: write it at once in the project's wiki (skill `wiki`) page that governs it, with
 the session id as its source, and apply the small parts (a tab renamed, a window moved) in the same turn.
 
 An unsure answer ("sei lá, acho que…") still names a use: restate the use it implies (a habit, a test bench, a

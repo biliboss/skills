@@ -4,7 +4,7 @@ description: >-
   Use when the owner asks why the last response was made, which of his own resources shaped it, or for a "trace"
   of the turn. Triggers "trace", "/trace", "por que você respondeu assim", "o que você usou", "trace da
   resposta", "quais skills e CLAUDE.md pesaram". Prints an OpenTelemetry-style trace of the last response with only
-  what the owner authored (CLAUDE.md, AGENTS.md, .wiki pages, his skills, hooks, memory, settings); never the
+  what the owner authored (CLAUDE.md, AGENTS.md, the project's wiki (skill `wiki`) pages, his skills, hooks, memory, settings); never the
   system prompt, built-in tools, MCPs or anthropic-skills. Differs from retro (lessons from corrections, writes
   rules) and postmortem (one error, read from NATS events): this one only explains a turn.
 metadata:
@@ -50,7 +50,7 @@ resumo: 2 recursos seus, 1 decisivo, 0 sem efeito
 
 ## Rules
 
-- **Only the owner's resources.** Kept: `~/.claude/**`, `AGENTS.md`, `CLAUDE.md`, `.wiki/**`, `SKILL.md`, memory,
+- **Only the owner's resources.** Kept: `~/.claude/**`, `AGENTS.md`, `CLAUDE.md`, `$WIKI_HOME/<projeto>/**`, `SKILL.md`, memory,
   `settings*.json`, plugin manifests, hooks. Dropped: `anthropic-skills:*`, built-in tools, MCP servers, the system
   prompt. Add a prefix to `NOT_OWNER_SKILLS` in the script when a plugin that is not his shows up.
 - **The first skill listing is not usage.** Skills only appear when called with `Skill` (or read); the listing the

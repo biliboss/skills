@@ -10,9 +10,9 @@ metadata:
 
 A skill geral de escrita do Gabriel: texto que vende uma ideia, não um produto. Hoje ela cobre dois tipos: o **post do LinkedIn** (a série **Diário de um Dev em Desconstrução**) e o **artigo do LinkedIn**. As regras ficam na wiki do repo `~/biliboss`, a fonte da verdade, e esta skill não as repete:
 
-- **`.wiki/marketing-pessoal-voz.md`**: a voz, as regras numeradas (até a 24) e o formato do Diário. Leia-a inteira antes de escrever.
-- **`.wiki/copywriting-estruturas.md`**: textos reais de Ladeira, Érico Rocha, Paulo Maccedo e Neil Patel desmontados (gancho, virada, prova, fecho).
-- **`.wiki/copywriting-metricas.md`**: as métricas de prosa e a faixa-alvo de cada uma.
+- **`$WIKI_HOME/biliboss/marketing-pessoal-voz.md`**: a voz, as regras numeradas (até a 24) e o formato do Diário. Leia-a inteira antes de escrever.
+- **`$WIKI_HOME/biliboss/copywriting-estruturas.md`**: textos reais de Ladeira, Érico Rocha, Paulo Maccedo e Neil Patel desmontados (gancho, virada, prova, fecho).
+- **`$WIKI_HOME/biliboss/copywriting-metricas.md`**: as métricas de prosa e a faixa-alvo de cada uma.
 
 Os aprendizados de cada texto, um por linha e datados, ficam em [references/experiencias.md](references/experiencias.md). Quando o Gabriel corrigir o jeito de escrever, corrija a página da voz, acrescente a linha em `experiencias.md` e, se mudar o procedimento, esta skill.
 
@@ -23,7 +23,7 @@ Os aprendizados de cada texto, um por linha e datados, ficam em [references/expe
 3. **Ler o pedido direito.** Quando o Gabriel explica a intenção com uma analogia ("é um palco de teatro"), a analogia é o **porquê**, não conteúdo: ela não vira cena, imagem nem texto. Na dúvida, pergunte numa linha ("o palco é para eu desenhar ou é só o jeito de explicar?").
 4. **Alinhar o objetivo** com perguntas de múltipla escolha e oferecer 5 ou 6 aberturas (regra 21 da voz). Os objetivos vão escritos no topo do rascunho, antes do texto (regra 22).
 5. **Rascunhar** seguindo a página da voz e o tipo (abaixo).
-6. **Medir antes de mostrar.** Rode `scripts/metricas.sh rascunho.md` (desta pasta; `--secao Post` mede só uma seção, `--json` sai em JSON). A métrica é régua, não juiz: o que ficar fora da faixa vai citado nos Bastidores, e quem decide é o Gabriel. As faixas e a origem de cada métrica estão em `.wiki/copywriting-metricas.md`; as estruturas de referência, em `.wiki/copywriting-estruturas.md`.
+6. **Medir antes de mostrar.** Rode `scripts/metricas.sh rascunho.md` (desta pasta; `--secao Post` mede só uma seção, `--json` sai em JSON). A métrica é régua, não juiz: o que ficar fora da faixa vai citado nos Bastidores, e quem decide é o Gabriel. As faixas e a origem de cada métrica estão em `$WIKI_HOME/biliboss/copywriting-metricas.md`; as estruturas de referência, em `$WIKI_HOME/biliboss/copywriting-estruturas.md`.
 7. **Mostrar no painel lateral** do Hermes (`desktop_preview`) como HTML imitando o LinkedIn, com o aviso de "ainda não salvo no Linear". Nunca escreva no Linear antes do OK.
 8. **Imagem só depois do OK do texto** (a ordem fixa, abaixo).
 9. **Ajustar** com o feedback dele até o OK, e anotar cada correção em `references/experiencias.md`.
@@ -42,7 +42,7 @@ O formato está na página da voz: a abertura é uma verdade sem "eu" dita por u
 
 ## Tipo: artigo do LinkedIn
 
-A regra 24 da voz. O esqueleto aprovado está em [templates/artigo.html](templates/artigo.html), tirado do artigo "A quarta sócia" (`~/biliboss/.wiki/resources/velumma-diario-02.html`): copie e troque os marcadores `{{…}}`.
+A regra 24 da voz. O esqueleto aprovado está em [templates/artigo.html](templates/artigo.html), tirado do artigo "A quarta sócia" (`$WIKI_HOME/biliboss/resources/velumma-diario-02.html`): copie e troque os marcadores `{{…}}`.
 
 - **O objetivo vai escrito no topo do rascunho** e é sempre o mesmo: o leitor se enxergar e pensar "que ideia boa, serve para mim". Os outros dois: o secundário, o cliente (dá vontade de contratar); o oculto, o autor (só por tabela).
 - **Nada técnico:** nenhuma ferramenta explicada, nenhum jargão, nada para mostrar o quanto o autor sabe.
@@ -62,7 +62,7 @@ Não existe skill de SEO própria da casa: usamos as públicas, que quem as publ
 
 1. **Para escolher o tema e a frase de busca,** carregue a skill pública `seo-keyword-research`. No catálogo do Hermes ela é `skills-sh/thibaultbm/claude-seo-geo/seo-keyword-research`.
 2. **Para revisar o rascunho para a busca em IA,** carregue a `seo-aeo-best-practices`, que no catálogo é `skills-sh/sanity-io/agent-toolkit/seo-aeo-best-practices`.
-3. **Siga o checklist da casa** em `.wiki/seo-cheatsheet.md` do biliboss, que tem o mapa `moc-seo.md`. Lá estão os campos do LinkedIn (Gerenciar → Configurações → SEO: o título de SEO e a descrição de SEO) e os exemplos reais.
+3. **Siga o checklist da casa** em `$WIKI_HOME/biliboss/seo-cheatsheet.md` do biliboss, que tem o mapa `moc-seo.md`. Lá estão os campos do LinkedIn (Gerenciar → Configurações → SEO: o título de SEO e a descrição de SEO) e os exemplos reais.
 
 Se uma das duas skills não estiver instalada no perfil, instale-a antes pelo catálogo. As duas são só texto: não pedem chave nem mandam dados para fora.
 

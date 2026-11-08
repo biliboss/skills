@@ -85,7 +85,7 @@ slug is the Hermes session title, the tmux/sesh session and the dev-console doma
 4. When the card goes to Feito, write the passage summary on the card and close the tmux session.
 
 Compaction is the safety net, not the way to work: a very long session resends its whole context on every call
-(slower, costlier) and its summaries lose nuance, so the state lives in the card, the PRs and the `.wiki`.
+(slower, costlier) and its summaries lose nuance, so the state lives in the card, the PRs and the project's wiki (skill `wiki`).
 
 ## Checking the queue ("check queue", "hermes queue")
 

@@ -1,7 +1,7 @@
 # trace
 
-O trace de uma resposta, no estilo OpenTelemetry: só os recursos que o dono criou (CLAUDE.md, AGENTS.md, páginas do
-`.wiki`, as skills dele, hooks, memória, settings) e que estavam em jogo naquele turno. As regras estão no
+O trace de uma resposta, no estilo OpenTelemetry: só os recursos que o dono criou (CLAUDE.md, AGENTS.md, páginas
+da wiki do projeto (skill `wiki`), as skills dele, hooks, memória, settings) e que estavam em jogo naquele turno. As regras estão no
 [SKILL.md](SKILL.md); o histórico, no [CHANGELOG](CHANGELOG.md).
 
 ## Como funciona

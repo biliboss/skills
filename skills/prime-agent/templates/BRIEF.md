@@ -6,7 +6,7 @@
 ## Fontes e como acessar
 - HyperDX: `mcpc @clickstack tools-list`; chame com `mcpc @clickstack tools-call <ferramenta> '<json>'`. Dentro do Python, monte o JSON com `json.dumps` e passe por `shlex.quote`, senão as aspas simples do SQL somem.
 - <outra fonte, e como ler>
-- Contexto (só leitura, só as seções que importam): <páginas do .wiki do repo da casa>
+- Contexto (só leitura, só as seções que importam): <páginas do $WIKI_HOME/biliboss do repo da casa>
 
 ## Regras
 - SÓ LEITURA. No HyperDX, nunca chame ferramenta `[destructive]` (`save_*`, `delete_*`, `patch_*`).

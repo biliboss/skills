@@ -1,6 +1,6 @@
 # Publishing the LP on the product's own domain
 
-The draft stays in `.wiki/resources/`. When the owner says the product's domain should show it, he has made the
+The draft stays in `$WIKI_HOME/<projeto>/resources/`. When the owner says the product's domain should show it, he has made the
 "publish outward" decision; this is how to do it without touching the service already on that domain.
 
 ## When the domain already serves a running app

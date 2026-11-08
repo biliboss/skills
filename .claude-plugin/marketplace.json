@@ -6,7 +6,7 @@
     {
       "name": "biliboss-skills",
       "source": "./",
-      "description": "wiki-smith, skill-smith, sync, lp-draft e o setup por repo.",
+      "description": "wiki, skill-smith, sync, lp-draft e o setup por repo.",
       "category": "productivity",
       "keywords": ["wiki", "skills", "git", "sync"]
     }

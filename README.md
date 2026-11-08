@@ -17,7 +17,7 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `diff-review` | a revisão de código de um diff local, com prompt próprio no plano flat: só problemas que o diff introduziu, cada um com cenário de falha; bloqueio aberto volta para a execução |
 | `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
 | `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
-| `wiki-smith` | o `.wiki/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
+| `wiki` | o `$WIKI_HOME/<projeto>/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `thread` | o tópico de um card numa chamada só: janela tmux + sessão Hermes (branch ou nova) `<card> · <tópico>`, brief inline sem arquivo; as abas por recência (a mais recente é a 2) e a aba acende (✓) quando o agente termina um turno (skill tmux) |
 | `handoff` | a passagem de turno de um agente Hermes no tmux: registra a sessão em `bili-sessions.jsonl`, abre o branch numa aba à direita e só então limpa a original (`/new` + resumo) |
 | `skill-smith` | cria, atualiza e porta skills |

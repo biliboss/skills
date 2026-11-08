@@ -25,7 +25,7 @@ commitment point: the card goes to Downstream and Downstream builds the drift li
 2. **Open the plan**: `scripts/plan.sh start <slug> --repo <repo> --domain <domain> --events-file <path to the
    <name>_events.py> --console-source <the SOURCE the console reads>`. `kanban.sh pull` already does the first half (slug, repo, domain) when it puts a card in Upstream.
    **Then pin the outcome before drawing anything.** Read the plan's documents, the product's wiki on `origin/main`
-   (`git show origin/main:.wiki/<moc>.md` and what it lists; the plan branch may be older than main) and who asked for
+   (`git -C $WIKI_HOME show origin/main:<projeto>/<moc>.md` and what it lists; the plan branch may be older than main) and who asked for
    the task. Anything that landed on main after the plan opened (a brief, a design system) is a new candidate: record
    it with `plan.sh add --kind document` before asking, or the question offers stale options. Then ask the owner once,
    **through the `interview` skill** (a form with the recommendation pre-selected; it opens in the dev-console Browser when

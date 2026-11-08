@@ -93,7 +93,7 @@ ARCHITECTURE.md, "Tension Event Categories — Draft"; newest doc wins). Read th
 (`lin.sh` of skill `linear`: `projects(filter:{name:{containsIgnoreCase:"tension"}})`
 with `documents`, then `document(id){content}`) before naming a field, a Value
 Object or a screen block — otherwise you invent names ("Fact") the model already
-has (Observation). Notes for humans live in `~/biliboss/.wiki/skill-tensions-o-que-e.md`.
+has (Observation). Notes for humans live in `$WIKI_HOME/biliboss/skill-tensions-o-que-e.md`.
 
 - Entity ≠ Value Object ≠ Event: a fact enters **as an event**
   (`observation.recorded`) with the Observation Value Object as its `value`; no

@@ -10,7 +10,7 @@
 
 A métrica é régua, não juiz: ela mostra onde o texto foge do que o Gabriel já
 aprovou. A palavra final é o gosto dele. As métricas e as faixas estão
-explicadas em .wiki/copywriting-metricas.md.
+explicadas em $WIKI_HOME/biliboss/copywriting-metricas.md.
 
 Uso:
   uv run scripts/metricas.py rascunho.md
@@ -32,7 +32,7 @@ import unicodedata
 # A referência principal é o Diário #01, a régua de estilo da série (regra 21
 # da voz): cada faixa cobre o valor dele com folga. As frases aprovadas e
 # reprovadas da página da voz ajustam o lado (ex.: 1ª pessoa). Ver
-# .wiki/copywriting-metricas.md.
+# $WIKI_HOME/biliboss/copywriting-metricas.md.
 # (mín, máx); None = sem limite daquele lado.
 FAIXAS = {
     "palavras_por_frase": (5, 11),
@@ -75,7 +75,7 @@ ROTULOS = {
 }
 
 # ---------------------------------------------------------------- pares da voz
-# Aprovado x reprovado, copiados de .wiki/marketing-pessoal-voz.md.
+# Aprovado x reprovado, copiados de $WIKI_HOME/biliboss/marketing-pessoal-voz.md.
 PARES = [
     ("abertura com imagem",
      "Todo mundo quer um robô na recepção. Eu mandei os meus para o porão.",

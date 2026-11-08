@@ -558,9 +558,9 @@
    "source": "estimate",
    "learned_n": 0
   },
-  "skill:wiki-smith": {
+  "skill:wiki": {
    "kind": "skill",
-   "what_for": "own the repo's .wiki, the agents' memory",
+   "what_for": "own the project's wiki (skill `wiki`), the agents' memory",
    "est_minutes": 4,
    "est_tokens": 15000,
    "est_cost_brl": 0.6,

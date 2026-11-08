@@ -1,7 +1,8 @@
 """handoff-guard: keeps a long Hermes session from running past its context.
 
-Opt-in per folder: ``HANDOFF_AT=<percent>`` in ``<git toplevel>/.wiki/wiki.config``, else ``<git toplevel>/.biliboss``
-(shell ``KEY=value`` files). No key, not a git repo, or anything unreadable: the hooks do nothing.
+Opt-in per repo: ``HANDOFF_AT=<percent>`` in ``<git toplevel>/.wiki/wiki.config``, else in the ``wiki.config`` of
+the ``$WIKI_HOME`` project (default ``~/wiki``) whose ``REPO=`` matches the toplevel's origin remote, else
+``<git toplevel>/.biliboss`` (shell ``KEY=value`` files). No key, not a git repo, or anything unreadable: the hooks do nothing.
 
 - ``post_api_request`` records the REAL context use of the session (``usage.prompt_tokens`` of the last request and the
   model's ``context_length``) in ``$HANDOFF_GUARD_STATE`` (default ``~/.local/state/handoff-guard``). The
@@ -62,11 +63,39 @@ def _toplevel(cwd: str) -> Path | None:
         return None
 
 
-def _key_of(path: Path) -> str | None:
+def _key_of(path: Path, key: str = _KEY) -> str | None:
     for line in path.read_text().splitlines():
-        m = re.match(rf"\s*(?:export\s+)?{_KEY}=(.*)$", line)
+        m = re.match(rf"\s*(?:export\s+)?{key}=(.*)$", line)
         if m:
             return m.group(1).split("#")[0].strip().strip("'\"")
+    return None
+
+
+def _origin_repo(top: Path) -> str | None:
+    """owner/name of the toplevel's origin remote (github ssh or https, .git optional), else None."""
+    out = subprocess.run(["git", "-C", str(top), "remote", "get-url", "origin"],
+                         capture_output=True, text=True, timeout=3, check=False)
+    if out.returncode != 0:
+        return None
+    url = out.stdout.strip()
+    for pre in ("git@github.com:", "https://github.com/"):
+        if url.startswith(pre):
+            return url[len(pre):].removesuffix(".git")
+    return None
+
+
+def _central_wiki_config(top: Path) -> Path | None:
+    """wiki.config of the $WIKI_HOME project whose REPO= is the toplevel's origin, else None."""
+    repo = _origin_repo(top)
+    home = Path(os.path.expanduser(os.environ.get("WIKI_HOME") or "~/wiki"))
+    if not (repo and home.is_dir()):
+        return None
+    for cfg in sorted(home.glob("*/wiki.config")):
+        try:
+            if cfg.is_file() and _key_of(cfg, "REPO") == repo:
+                return cfg
+        except OSError:
+            continue
     return None
 
 
@@ -76,9 +105,8 @@ def threshold(cwd: str | None = None) -> float | None:
         top = _toplevel(cwd or os.environ.get("TERMINAL_CWD") or os.getcwd())
         if top is None:
             return None
-        for name in (".wiki/wiki.config", ".biliboss"):
-            f = top / name
-            if f.is_file():
+        for f in (top / ".wiki/wiki.config", _central_wiki_config(top), top / ".biliboss"):
+            if f is not None and f.is_file():
                 value = _key_of(f)
                 if value:
                     pct = float(value)

@@ -72,7 +72,7 @@ target is the caller's own pane. None of them: refused, nothing changed. When th
 ## The guard
 
 `plugin/handoff-guard/` is a Hermes plugin that makes a long session hand itself over. Off by default; a folder opts in
-with `HANDOFF_AT=<percent>` in `<git toplevel>/.wiki/wiki.config`, else `<git toplevel>/.biliboss` (written by
+with `HANDOFF_AT=<percent>` in `$WIKI_HOME/<projeto>/wiki.config`, else `<git toplevel>/.biliboss` (written by
 `setup-biliboss`). No key, not a git repo, or an unreadable file: it does nothing, and it never fails a turn.
 
 - At used% >= `HANDOFF_AT` it injects, once per crossing, the order to finish the step and run

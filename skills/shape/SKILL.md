@@ -32,7 +32,7 @@ a piece by name (`skill_view`) or by its file (`../<piece>/SKILL.md`).
 ## Steps
 
 1. **Context first.** Read what already answers the request: the Kanban card (`kanban.sh show`), the task's domain
-   in the dev-console (`/domain/<slug>`), the reports, the `.wiki`. Ask only what is still missing.
+   in the dev-console (`/domain/<slug>`), the reports, the project's wiki (skill `wiki`). Ask only what is still missing.
 2. **Route by the kind of request** (one row, sometimes two; never all):
 
    | The request | The piece |
@@ -57,7 +57,7 @@ Use this mode when the request **names a thing** (site, landing, página, app) o
 ("faz site pro Via Corretor"). Every task is asked by its outcome, not the thing: the thing is the means. The names
 come from the literature: *commander's intent* (Mission Command: say the why and the end state, not the steps),
 *Impact Mapping* (Gojko Adzic: goal, who, impact, deliverable) and *Fit for Purpose* (David Anderson: a weekly
-review of whether the number moved). The house's record is `.wiki/fit-for-purpose.md` in `~/biliboss`.
+review of whether the number moved). The house's record is `$WIKI_HOME/biliboss/fit-for-purpose.md`.
 
 1. **Context first.** Before asking anything read what already answers it: the task's domain (`/domain/<slug>`),
    the reports (Search Console, analytics, the Costs journal), the Kanban cards (`kanban.sh list`, `show`). Ask only

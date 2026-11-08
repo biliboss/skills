@@ -8,7 +8,7 @@ metadata:
 
 # linear — o Linear do dono, do jeito dele
 
-O Linear é o quadro do foco do dono: ele bate o olho e sabe o que está andando, o que espera alguém e o que acabou. Tudo o que um agente escreve lá sai com uma voz só, a do **app Bili**. As regras de fundo (os níveis, o tamanho dos cartões, o que é produção) estão no doc do time **"AGENTS.md · como os agentes usam este Linear"**, e o técnico do biliboss está no `.wiki/linear.md` do repo da casa (`$CASA_REPO_PRINCIPAL`).
+O Linear é o quadro do foco do dono: ele bate o olho e sabe o que está andando, o que espera alguém e o que acabou. Tudo o que um agente escreve lá sai com uma voz só, a do **app Bili**. As regras de fundo (os níveis, o tamanho dos cartões, o que é produção) estão no doc do time **"AGENTS.md · como os agentes usam este Linear"**, e o técnico do biliboss está no `$WIKI_HOME/biliboss/linear.md` do repo da casa (`$CASA_REPO_PRINCIPAL`).
 
 `S` abaixo é `scripts/` desta skill. Os ids fixos (time, dono, app, estados, status de projeto) vêm do `casa.env`, lidos pelo `S/ids.sh` (`$CASA_LINEAR_*`). Nenhum script imprime token.
 
@@ -20,7 +20,7 @@ O Linear é o quadro do foco do dono: ele bate o olho e sabe o que está andando
 | O que o MCP não faz (marco com progresso, upload, introspecção) ou quando o login do `@linear` venceu | `S/lin.sh '<query GraphQL>' [vars.json]`: a mesma voz do app, pelo `linear-gql` da VPS |
 | Ler o que é do dono (a inbox, as preferências de notificação) | `S/dono.sh '<query>'`, com a chave pessoal do Keychain. Escrever em nome dele, só com o OK dele |
 
-Se o `@linear` não responder, o `S/linear.sh` tenta `mcpc @linear restart`. Se não voltar, siga pelo `S/lin.sh` e avise o dono. **Nunca use `mcpc login` no `@linear`:** o navegador aprova na hora a conta do dono, e o token sai em nome dele. O app entra por header Bearer, pelo passo 8 do roteiro do app no `.wiki/linear.md` do repo da casa.
+Se o `@linear` não responder, o `S/linear.sh` tenta `mcpc @linear restart`. Se não voltar, siga pelo `S/lin.sh` e avise o dono. **Nunca use `mcpc login` no `@linear`:** o navegador aprova na hora a conta do dono, e o token sai em nome dele. O app entra por header Bearer, pelo passo 8 do roteiro do app no `$WIKI_HOME/biliboss/linear.md` do repo da casa.
 
 **Marcar o Bili** (para ele agir num cartão): no comentário, a menção vai como o link do perfil do app, `[@bili]($CASA_BILI_PERFIL_URL)`, e o comentário sai de uma pessoa, por `S/dono.sh` (`commentCreate`) ou pelo clique do dono. O que o próprio app escreve não abre sessão, e o duplo-server ignora, para o Bili não responder a si mesmo. Por isso um pedido ao Bili da VPS sai pelo `linear-bili.sh pedir <cartão> <arquivo.md>` da skill `bili`, que comenta pela conta do dono, e nunca pelo `S/lin.sh` nem pelo `S/linear.sh`. Ao delegar a um subagente um recado ao Bili, escreva isso no briefing. Num cartão, a menção abre uma sessão de agente, e o pedido segue pelo webhook e pelo duplo-server até o NATS (`entrada.linear.agente` e `tarefa.criada`) e ao Bili. A confirmação aparece no painel de agente do cartão: uma atividade "thought" em cerca de 10 s e, depois, a resposta.
 
@@ -35,7 +35,7 @@ O Linear é o lugar de toda a conversa. Escolha o nível antes de escrever:
 | Projeto | os **project updates** (o estado da semana, com fio) e os comentários do projeto |
 | Doc | os comentários no texto, entre pessoas |
 
-- Pedido ao Bili fora de um cartão (comentário de projeto ou de Doc) só chega quando o app tiver "Inbox notifications" e o duplo-server tratar o tipo (`projectCommentMention`, `documentCommentMention`); o estado está no `.wiki/linear.md` do repo da casa ("Onde a conversa mora"). Na dúvida, peça no cartão de conversa.
+- Pedido ao Bili fora de um cartão (comentário de projeto ou de Doc) só chega quando o app tiver "Inbox notifications" e o duplo-server tratar o tipo (`projectCommentMention`, `documentCommentMention`); o estado está no `$WIKI_HOME/biliboss/linear.md` do repo da casa ("Onde a conversa mora"). Na dúvida, peça no cartão de conversa.
 
 ## Passos
 

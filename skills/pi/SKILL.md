@@ -8,7 +8,7 @@ metadata:
 
 # pi — o pi.dev com as contas do Claude
 
-O `pi` é o agente de terminal (pi.dev) que roda os robôs da VPS e que também está no Mac. No Mac, ele usa o Claude **pela assinatura**, pela extensão `pi-claude-bridge`. A extensão chama o Claude Code pelo Agent SDK, então o pi usa os logins que o Claude Code já tem, e a conta se escolhe pelo `CLAUDE_CONFIG_DIR`. O detalhe (onde está cada coisa, a VPS) fica no `.wiki/pi.md` do repo da casa.
+O `pi` é o agente de terminal (pi.dev) que roda os robôs da VPS e que também está no Mac. No Mac, ele usa o Claude **pela assinatura**, pela extensão `pi-claude-bridge`. A extensão chama o Claude Code pelo Agent SDK, então o pi usa os logins que o Claude Code já tem, e a conta se escolhe pelo `CLAUDE_CONFIG_DIR`. O detalhe (onde está cada coisa, a VPS) fica no `$WIKI_HOME/biliboss/pi.md` do repo da casa.
 
 | Conta | Nome e pasta (`CLAUDE_CONFIG_DIR`), no `casa.env` |
 |---|---|

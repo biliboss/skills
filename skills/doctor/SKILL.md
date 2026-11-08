@@ -31,7 +31,7 @@ Five dimensions. A doctor diagnoses the software **and the agent's own ability t
 | Dimension | Asks | Typical checks |
 |---|---|---|
 | `environment` | Can I run it? | toolchain on PATH, dependencies installed, lock in sync, services up |
-| `architecture` | Do I understand how it works? | entry points, components and invariants written down (README, `.wiki/`, `AGENTS.md`) |
+| `architecture` | Do I understand how it works? | entry points, components and invariants written down (README, `$WIKI_HOME/<projeto>/`, `AGENTS.md`) |
 | `behavior` | Is current behaviour right? | the project's fast tests or a smoke, run as one check |
 | `observability` | Would I notice a failure? | logs, events, health endpoints, a heartbeat |
 | `agent` | Can this agent work here? | required CLIs, auth present **without reading secret values**, skills/wiki pages it needs, permissions, remote reachable |

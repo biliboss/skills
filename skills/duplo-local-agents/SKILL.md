@@ -78,9 +78,9 @@ herdr pane read <pane> --source recent --lines 30          # responda o prompt d
 
 
 - **Sem instrução** ("só com o nome"): abra e pare.
-- **Com tarefa:** escreva o briefing em `~/.local/state/<tema>.md` (objetivo verificável, contexto com repo e páginas do `.wiki`, limites, o que é do dono, como fechar, e o pedido do `<tema>.cartao.md` de `.wiki/herdr-focus.md`). Depois: `sh $A barra <id> 'goal <resultado numa linha>. Detalhe e regras em ~/.local/state/<tema>.md'`.
-- **Limites em todo briefing:** direto no `main`, sempre commitar e sincronizar; planejar escrevendo no `.wiki`; implementar com subagentes; Docker só se precisar e, no fim, remover o que criou (nunca `docker system prune`); segredo só pelo envless (`.wiki/segredos.md`).
-- **Registre a sessão** numa linha da foto em `.wiki/herdr-sessoes.md` (tema, pane, harness, modelo, id), no mesmo commit.
+- **Com tarefa:** escreva o briefing em `~/.local/state/<tema>.md` (objetivo verificável, contexto com repo e páginas da wiki do projeto (skill `wiki`), limites, o que é do dono, como fechar, e o pedido do `<tema>.cartao.md` de `$WIKI_HOME/biliboss/herdr-focus.md`). Depois: `sh $A barra <id> 'goal <resultado numa linha>. Detalhe e regras em ~/.local/state/<tema>.md'`.
+- **Limites em todo briefing:** direto no `main`, sempre commitar e sincronizar; planejar escrevendo na wiki do projeto (skill `wiki`); implementar com subagentes; Docker só se precisar e, no fim, remover o que criou (nunca `docker system prune`); segredo só pelo envless (`$WIKI_HOME/biliboss/segredos.md`).
+- **Registre a sessão** numa linha da foto em `$WIKI_HOME/biliboss/herdr-sessoes.md` (tema, pane, harness, modelo, id), no mesmo commit.
 
 ## 3. Conduzir
 
@@ -112,15 +112,15 @@ sh $A novo <tema> claude --retoma <id>
 sh $A novo <tema> pi --retoma <arquivo.jsonl> [--modelo M]
 ```
 
-- **Antes de fechar:** sessão parada, o que escreveu commitado, e o id na foto de `.wiki/herdr-sessoes.md`. "Fecha as outras" = as sessões de trabalho; a sua e a que o dono nomeou ficam.
+- **Antes de fechar:** sessão parada, o que escreveu commitado, e o id na foto de `$WIKI_HOME/biliboss/herdr-sessoes.md`. "Fecha as outras" = as sessões de trabalho; a sua e a que o dono nomeou ficam.
 - **Limpar a mesa (fechar tudo fora do foco):** liste os panes de cada workspace (`herdr pane list`, com status e cwd). Para cada agente, leia o rodapé: um vigia em segundo plano ou um subagente vivo quer dizer que não parou, mesmo com `done`. Rode `git status` no cwd dele: mudança suja de dono desconhecido deixa aquele pane aberto, e você diz qual. Feche os agentes com `agente.sh fecha` (junte as linhas `retomar:` para a foto). Pane só de ficha ou de cartão sai com `herdr pane close`, depois de conferir que a ficha existe. Por fim, `herdr workspace rename` e `close` nos vazios, e uma seção na foto com tema, harness, id e onde parou.
 - **O pi não guarda o modelo na sessão:** retome com o mesmo `--modelo`.
 - **Teste descartável:** `--cwd` numa pasta do scratchpad e `fecha` no fim.
-- **O contexto que importa mora no `.wiki` e nas skills**, não no resume.
+- **O contexto que importa mora na wiki do projeto (skill `wiki`) e nas skills**, não no resume.
 
 ## SOMENTE HERDR — a mesa em fases e o focus
 
-A regra, o layout, o KV `mesa_focus` e o formato do cartão estão em `.wiki/herdr-focus.md` do repo da casa; **não há cópia aqui**. O card e a title-bar são do `dev/prime-bili` (`scripts/card.py`, `scripts/title_bar.py`) e rodam por `just -f ~/biliboss/dev/prime-bili/justfile card|title-bar|focus-set|focus-check`.
+A regra, o layout, o KV `mesa_focus` e o formato do cartão estão em `$WIKI_HOME/biliboss/herdr-focus.md` do repo da casa; **não há cópia aqui**. O card e a title-bar são do `dev/prime-bili` (`scripts/card.py`, `scripts/title_bar.py`) e rodam por `just -f ~/biliboss/dev/prime-bili/justfile card|title-bar|focus-set|focus-check`.
 
 A sessão gestora só lê e move; quando algo precisa ser feito, manda a mensagem à sessão dona (seção 3). Fases (workspaces): `focus`, `backlog`, `working`, `ready to review`, `done today`; item = aba (os panes dela andam juntos). Fluxo: backlog → working → ready to review → focus (o dono revisa) → done today, ou de volta a working. Script: `S/herdr/fase.sh` (`estado`, `montar`, `mover <aba> <fase>`, `focar <aba>`, `concluir <aba>`).
 
@@ -130,7 +130,7 @@ A sessão gestora só lê e move; quando algo precisa ser feito, manda a mensage
 4. **O focus tem sempre 4 panes fixos:** card, title-bar, o agente da frente e o H00. É para o item que precisa do Gabriel; agente que trabalha sozinho vai para o working. `focar <aba>` com o focus vazio monta; com o focus montado é uma **troca**, nunca um pane novo: o agente da frente vai para o working (ainda trabalha) ou o backlog (com ficha), o novo entra embaixo do card (split down, ratio 0.7), a aba do focus é renomeada, e grava `focus-set --current <tema> --pick-next` (sem `--pick-next` no `focus_set.py`, vai `--next`). O card e a title-bar não reiniciam (leem o `mesa_focus`). No fim roda `focus-check`, se a receita existir. O ratio mínimo do herdr é 0.1: a title-bar fica com cerca de 6 linhas numa aba de 60; não tente menos.
 5. **O H00 sustenta o focus** de forma contínua e avisa o Gabriel na hora de pergunta, aprovação ou `blocked`.
 6. **Fechar o item revisado:** primeiro `focar` o próximo, depois `fase.sh concluir <aba>` (fecha os agentes, imprime o id para retomar, deixa só o cartão no done today). Na ordem inversa o focus esvazia e o herdr fecha o workspace.
-7. **O cartão** é do `~/.local/state/<tema>.cartao.md`, escrito pela sessão do item ao parar (estilo de `.wiki/escrever-bem.md`). Ponha o pedido em todo briefing.
+7. **O cartão** é do `~/.local/state/<tema>.cartao.md`, escrito pela sessão do item ao parar (estilo de `$WIKI_HOME/biliboss/escrever-bem.md`). Ponha o pedido em todo briefing.
 8. **Backlog e Bili em acompanhamento:** `S/herdr/backlog.sh` (fichas das sessões desligadas) e `S/herdr/bili-trabalho.sh` (trabalho passado ao Bili, na aba doing); ambos só herdr. O antigo `mesa.sh vigiar` saiu: se um ainda rodar (`pgrep -fl 'mesa.sh vigiar'`), desligue, senão ele desfaz as fases.
 
 Armadilhas do herdr:

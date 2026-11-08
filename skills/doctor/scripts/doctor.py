@@ -99,6 +99,41 @@ def package_json(root: Path) -> dict:
         return {}
 
 
+def config_value(path: Path, key: str) -> str | None:
+    try:
+        for line in path.read_text().splitlines():
+            m = re.match(rf"\s*(?:export\s+)?{key}=(.*)$", line)
+            if m:
+                return m.group(1).split("#")[0].strip().strip("'\"")
+    except OSError:
+        pass
+    return None
+
+
+def origin_repo(root: Path) -> str | None:
+    """owner/name of the origin remote (github ssh or https, .git optional), else None."""
+    if not (root / ".git").exists():
+        return None
+    rc, out = run(["git", "remote", "get-url", "origin"], root, 10)
+    url = out.strip() if rc == 0 else ""
+    for pre in ("git@github.com:", "https://github.com/"):
+        if url.startswith(pre):
+            return url[len(pre):].removesuffix(".git")
+    return None
+
+
+def central_wiki(root: Path) -> str | None:
+    """The $WIKI_HOME project whose wiki.config REPO= matches the repo's origin, else None."""
+    repo = origin_repo(root)
+    home = Path(os.path.expandvars(os.path.expanduser(os.environ.get("WIKI_HOME") or "~/wiki")))
+    if not (repo and home.is_dir()):
+        return None
+    for cfg in sorted(home.glob("*/wiki.config")):
+        if cfg.is_file() and config_value(cfg, "REPO") == repo:
+            return cfg.parent.name
+    return None
+
+
 class Doctor:
     def __init__(self, root: Path, run_tests: bool, timeout: float, project_doctor: bool):
         self.root = root
@@ -199,10 +234,14 @@ class Doctor:
         else:
             self.add(d, "readme", "fail", "no README", "write README.md: what it is, how to run, how to test")
         mem = [n for n in (".wiki", "docs", "doc") if (self.root / n).is_dir()]
+        proj = central_wiki(self.root) if not mem else None
+        if proj:
+            mem.append(f"$WIKI_HOME/{proj}")
         if mem:
             self.add(d, "wiki-or-docs", "ok", ", ".join(mem))
         else:
-            self.add(d, "wiki-or-docs", "warn", "no .wiki/ or docs/", "create .wiki/ (wiki-smith) with the components and invariants")
+            self.add(d, "wiki-or-docs", "warn", "no .wiki/, docs/ or $WIKI_HOME project",
+                     "create the project's folder in the central wiki (skill wiki)")
         guides = [n for n in ("AGENTS.md", "CLAUDE.md") if self.has(n)]
         if guides:
             self.add(d, "agent-guide", "ok", ", ".join(guides))
@@ -237,7 +276,7 @@ class Doctor:
         if eps:
             self.add(d, "entry-points", "ok", ", ".join(eps[:12]) + (" ..." if len(eps) > 12 else ""))
         else:
-            self.add(d, "entry-points", "warn", "none found", "document the entry points in README or .wiki/")
+            self.add(d, "entry-points", "warn", "none found", "document the entry points in README or the project's wiki")
 
     # ---------------------------------------------------------------- behavior
     def test_command(self) -> str | None:

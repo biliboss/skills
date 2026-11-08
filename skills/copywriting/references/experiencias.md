@@ -1,6 +1,6 @@
 # Experiências: o que cada texto ensinou
 
-Uma linha datada por aprendizado: `- AAAA-MM-DD — <regra + por quê>`. **Cada artigo ou post novo acrescenta as suas linhas aqui**, no fim, quando o Gabriel corrigir algo ou aprovar um jeito novo. A regra completa, com exemplos, mora na página da voz (`~/biliboss/.wiki/marketing-pessoal-voz.md`); as linhas 12 a 24 abaixo seguem a numeração de lá.
+Uma linha datada por aprendizado: `- AAAA-MM-DD — <regra + por quê>`. **Cada artigo ou post novo acrescenta as suas linhas aqui**, no fim, quando o Gabriel corrigir algo ou aprovar um jeito novo. A regra completa, com exemplos, mora na página da voz (`$WIKI_HOME/biliboss/marketing-pessoal-voz.md`); as linhas 12 a 24 abaixo seguem a numeração de lá.
 
 - 2026-11-04 — (12) Na série filosófica, o leitor sai pensando nele mesmo, não achando o autor foda: o fecho é uma pergunta para o leitor, porque a solução esperta do autor no centro tira o leitor do texto.
 - 2026-11-04 — (13) A tese é humana, não técnica (quem segura a ferramenta, não a ferramenta), carregada por uma analogia simples como a parafusadeira, porque ninguém se enxerga num framework.

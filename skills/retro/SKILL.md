@@ -36,7 +36,7 @@ scripts/retro.sh  scan <session.jsonl> [--max N]
    failures. A one-off request is not a standing rule unless he marked it general.
 4. **Shape each lesson** (at most 3 to 5 per retro):
    - **Home:** the skill that was in play, else an umbrella skill, else a `references/<topic>.md`, a new skill only
-     at class level. A fact about the repo goes to its `.wiki/`, never both places.
+     at class level. A fact about the repo goes to its `$WIKI_HOME/<projeto>/`, never both places.
    - **Rule:** one imperative sentence plus one clause of why; no date, PR or narrative in the text that lands.
    - **Evidence:** the owner's quote (it lives in the event, not in the skill).
    - **Kind:** `skill_gap` (the skill lacked it) or `alignment_gap` (ambiguous instruction).

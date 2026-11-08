@@ -6,7 +6,7 @@
 #   mover <tab> <fase>  leva a aba inteira (o grupo) para a fase, numa aba nova com o mesmo nome
 #   focar <tab>         focus vazio: monta os 4 panes fixos. Focus montado: TROCA (sem pane novo): o agente da frente vai para
 #                       working (trabalha sozinho) ou backlog (com ficha), o novo entra embaixo do card, a aba é renomeada,
-#                       grava o KV (focus-set --current X --pick-next) e roda o focus-check. Layout: .wiki/herdr-focus.md (card 70% e
+#                       grava o KV (focus-set --current X --pick-next) e roda o focus-check. Layout: $WIKI_HOME/biliboss/herdr-focus.md (card 70% e
 #                       agente 30% à esquerda; title-bar e o Bili, MESA_BILI/H00, à direita)
 #   concluir <tab>      fecha os agentes do item (imprime o id para retomar) e deixa só o cartão no done today
 # <tab> é o tab_id (w5R:t2D) ou o nome da aba. As fases mudam com MESA_FASES (separadas por "|").

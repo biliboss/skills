@@ -1094,7 +1094,7 @@ def _sibling(skill: str, *parts: str) -> Path:
 
 def default_context(title: str, domain: str) -> str:
     return (f"Sessão do cartão \"{title}\" (Kanban, Upstream; domínio {domain}). O Gabriel vai trabalhar nisso agora. "
-            "Leia o README e o .wiki do repositório, responda em até 6 linhas o que já existe sobre isso e termine "
+            "Leia o README e a wiki do projeto (skill `wiki`), responda em até 6 linhas o que já existe sobre isso e termine "
             "perguntando o objetivo. Upstream é descoberta: não escreva código ainda.")
 
 

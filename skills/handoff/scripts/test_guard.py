@@ -87,6 +87,17 @@ def test_wiki_config_wins_over_biliboss(guard):
     assert guard.threshold() == 50
 
 
+def test_central_wiki_beats_biliboss(guard, tmp_path, monkeypatch):
+    home = tmp_path / "wiki"
+    (home / "proj").mkdir(parents=True)
+    (home / "proj" / "wiki.config").write_text("REPO=owner/name\nHANDOFF_AT=55\n")
+    monkeypatch.setenv("WIKI_HOME", str(home))
+    subprocess.run(["git", "-C", str(guard.repo), "remote", "add", "origin", "git@github.com:owner/name.git"],
+                   check=True)
+    (guard.repo / ".biliboss").write_text("HANDOFF_AT=90\n")
+    assert guard.threshold() == 55
+
+
 def test_subfolder_reads_toplevel(guard, monkeypatch):
     (guard.repo / ".biliboss").write_text("HANDOFF_AT=40\n")
     sub = guard.repo / "a" / "b"
