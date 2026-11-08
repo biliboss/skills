@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.118.0
+
+- devin 0.2.0: verbo `batch` (roda um script `.mjs` no subconjunto da sintaxe de workflows do Claude e dispara Devins, sem gastar tokens do Claude enquanto esperam) e correções: estado `running` enquanto o Devin viver, estado `starting`, `clean.sh` à prova de falha aberta e de meta.env adulterado, pasta órfã desfeita, prompt por `--prompt-file`.
+
 ## 0.117.0
 
 - devin 0.1.0: delega tarefa ao Devin CLI em background, com um worktree e um branch por tarefa, `swe-2-max` por padrão e revisão do diff.

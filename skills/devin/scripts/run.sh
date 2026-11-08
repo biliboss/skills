@@ -37,6 +37,25 @@ branch="devin/$id"
 mkdir -p "$DEVIN_RUNS_DIR"
 mkdir "$dir" || die "rodada já existe: $id"
 
+# Qualquer falha daqui até o lançamento do worker desfaz o que foi criado (worktree, branch e pasta).
+armed=1 made_wt=0
+cleanup() {
+  [ "$armed" = 1 ] || return 0
+  armed=0
+  if [ "$made_wt" = 1 ]; then
+    git -C "$top" worktree remove --force --force "$dir/wt" >/dev/null 2>&1 || true
+    git -C "$top" worktree prune >/dev/null 2>&1 || true
+    git -C "$top" branch -q -D "$branch" >/dev/null 2>&1 || true
+  fi
+  rm -rf -- "$dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+
+# Marca de largada: sem pid ainda, a rodada está em `starting`, não `lost`. Expira sozinha (START_GRACE).
+date +%s > "$dir/starting"
+
 if [ -n "$prompt_file" ]; then cp "$prompt_file" "$dir/prompt.md"; else cat > "$dir/prompt.md"; fi
 [ -s "$dir/prompt.md" ] || die "pedido vazio"
 
@@ -52,11 +71,13 @@ q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
   echo "STARTED=$(date +%s)"
 } > "$dir/meta.env"
 
+made_wt=1
 git -C "$top" worktree add -q -b "$branch" "$dir/wt" "$base_sha" >&2
 
 # setsid desliga o Devin do grupo de processos de quem chamou: ele sobrevive ao fim do shell.
+# O worker grava o próprio pid (e a hora de início) e tira a marca de largada.
 nohup perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV or die' \
-  sh "$(dirname -- "$0")/_worker.sh" "$dir" >/dev/null 2>&1 </dev/null &
-echo $! > "$dir/pid"
+  sh "$SKILL_DIR/scripts/_worker.sh" "$dir" >/dev/null 2>&1 </dev/null &
+armed=0
 
 printf '%s\n' "$id"

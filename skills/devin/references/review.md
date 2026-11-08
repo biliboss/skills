@@ -2,7 +2,7 @@
 
 `scripts/review.sh <id>`
 
-Mostra estado, branch, worktree, base, resposta, commits, diff resumido e arquivos novos. Em falha, acrescenta o fim do log.
+Mostra estado, branch, worktree, base, resposta, commits, diff resumido e arquivos novos. Em falha, acrescenta o fim do log. Sem `meta.env`, sem git funcional no worktree ou com a base inalcançável, o relatório segue e marca o que faltou.
 
 O relatório do Devin é uma afirmação; o diff é a evidência. Antes de aceitar:
 
