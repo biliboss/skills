@@ -6,7 +6,7 @@ description: >-
   five dimensions (environment, architecture, behavior, observability, agent), read-only findings with the exact fix.
   The doctor is also the only behaviour check: smokes and critical rules in the project doctor, no test suite.
 metadata:
-  version: 0.2.0
+  version: 0.2.1
   license: MIT
 ---
 
@@ -80,8 +80,9 @@ Where it lives, in this order:
 2. No justfile, a CLI exists → a `doctor` subcommand of that CLI.
 3. Otherwise → an executable `scripts/doctor` (uv script, PEP 723, stdlib only).
 
-Contract for any of them: print findings in the text format above (or `--json`), honour the exit codes, stay
-read-only, and cover what is specific to the project: its services, queues, data files, credentials by name, the
+Contract for any of them: print findings in the text format above (or `--json`), accept `--verbose` (a just recipe
+declares `doctor *args:`) because the generic doctor calls it that way to see the `ok` findings, honour the exit
+codes, stay read-only, and cover what is specific to the project: its services, queues, data files, credentials by name, the
 invariants from its wiki, and in `behavior` a smoke of the real flow plus one check per critical rule. Do not repeat the generic checks; the generic doctor already runs them and merges yours.
 Start from the generic doctor's warnings: each one is a missing piece to either fix or check on purpose.
 

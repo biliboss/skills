@@ -351,8 +351,8 @@ class Doctor:
             break
 
     # ---------------------------------------------------------------- project doctor
-    def discover_project_doctor(self) -> list[tuple[str, list[str] | str, bool]]:
-        found: list[tuple[str, list[str] | str, bool]] = []
+    def discover_project_doctor(self) -> list[tuple[str, list[str], bool]]:
+        found: list[tuple[str, list[str], bool]] = []
         if "doctor" in self.recipes and shutil.which("just"):
             found.append(("just doctor", ["just", "doctor"], False))
         sdir = self.root / "scripts"
@@ -369,6 +369,14 @@ class Doctor:
                 found.append((f"{c} doctor", [c, "doctor", "--json"], True))
         return found
 
+    def run_project_doctor(self, cmd: list[str]) -> tuple[int | None, str, bool]:
+        """Asks for the ok findings with --verbose; a doctor that refuses the flag runs again without it."""
+        rc, out = run([*cmd, "--verbose"], self.root, self.timeout)
+        if rc is None or not (rc == 2 or (rc != 0 and not parse_findings(out))):
+            return rc, out, True
+        rc, out = run(cmd, self.root, self.timeout)
+        return rc, out, False
+
     def merge_project_doctor(self) -> None:
         if not self.project_doctor or os.environ.get(NESTED_ENV):
             return
@@ -378,9 +386,10 @@ class Doctor:
                      "propose one: `just doctor` recipe or scripts/doctor (see skill doctor)")
             return
         for label, cmd, _json in found:
-            rc, out = run(cmd, self.root, self.timeout)
+            rc, out, verbose = self.run_project_doctor(cmd)
             got = parse_findings(out)
-            self.add("architecture", "project-doctor", "ok", f"`{label}` ran, {len(got)} finding(s) merged")
+            how = "" if verbose else " (without --verbose: it refused the flag)"
+            self.add("architecture", "project-doctor", "ok", f"`{label}` ran, {len(got)} finding(s) merged{how}")
             for f in got:
                 f.check = f"{label}:{f.check}"
                 self.findings.append(f)

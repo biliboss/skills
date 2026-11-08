@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-11-08
+
+### Fixed
+
+- `--gate` failed every project doctor that follows the contract: the generic doctor did not ask for the `ok` findings.
+  It now calls the project doctor with `--verbose`, and again without it when the flag is refused.
+
 ## [0.2.0] - 2026-11-08
 
 ### Changed
