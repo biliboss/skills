@@ -6,3 +6,4 @@ A Herdr panel (beside Files and Changes) that shows a bot's `canvas/page.md` in 
 - Herdr config folder: the variable is `HERDR_APP_HOME` (not `HERDR_HOME`). Unset, the installer uses `~/.config/herdr-app` and prints it.
 - The mod loads when the owner first opens the panel or restarts Herdr. Installing opens nothing.
 - Fallback for rich text: see `../../apps/herdr-canvas/README.md` (plain text per block).
+- `canvas publish <bot> <file.html>` writes `canvas/page.html`. On the Herdr Bili build (v0.1.14+, `herdr.nativeView`) the panel shows it as a page; comments need the `page.md` twin (toggle Página/Blocos in the header). Official Herdr ignores page.html and shows the Markdown panel.

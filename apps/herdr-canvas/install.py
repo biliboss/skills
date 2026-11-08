@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
-MOD_FILES = ('main.js', 'blocks.js', 'store.js', 'notify.js', 'mod.json', 'canvas.svg')
+MOD_FILES = ('main.js', 'blocks.js', 'store.js', 'notify.js', 'pagemode.js', 'mod.json', 'canvas.svg')
 LAYOUTS = ('main', 'bili-bots')
 KEY = ('layout:bili-bots', 'cmd-alt-c', 'mod.open:herdr-canvas')
 STAMP = datetime.now().strftime('%Y%m%d-%H%M%S')

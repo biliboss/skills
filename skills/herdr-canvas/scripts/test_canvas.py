@@ -29,6 +29,18 @@ class CanvasTest(unittest.TestCase):
         self.assertEqual((self.folder / 'canvas/page.md').read_text(), '# T\n\ntexto\n')
         self.assertEqual((self.folder / 'canvas/version').read_text().strip(), out['version'])
 
+    def test_publish_html_keeps_md(self):
+        self.assertEqual(self.run_cli('publish', 'b1', str(self.page)).returncode, 0)
+        html = self.page.with_name('p.html')
+        html.write_text('<h1>T</h1>')
+        r = self.run_cli('publish', 'b1', str(html))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertTrue(out['page'].endswith('canvas/page.html'))
+        self.assertEqual((self.folder / 'canvas/page.html').read_text(), '<h1>T</h1>')
+        self.assertEqual((self.folder / 'canvas/page.md').read_text(), '# T\n\ntexto\n')
+        self.assertEqual((self.folder / 'canvas/version').read_text().strip(), out['version'])
+
     def test_refusals_go_to_stderr(self):
         r = self.run_cli('publish', 'nope', str(self.page))
         self.assertEqual(r.returncode, 1)

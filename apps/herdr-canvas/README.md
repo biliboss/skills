@@ -10,6 +10,10 @@ The installer copies `mod/` to `mods/herdr-canvas/`, adds a `canvas` child to th
 
 The Files/Changes buttons in the tab bar are fixed in the `tabs` mod, so Canvas has no button there: open it with the key, or `canvas open <bot>`.
 
+## page.html (Herdr Bili build)
+
+`mod/pagemode.js` decides: `canvas/page.html` + `herdr.nativeViewCapabilities()` with `available` and kind `web` -> native view (`trust: "static"`, one stable view id per bot, `browser.reload` on republish, disposed when leaving). Anything else -> the Markdown panel. Detection reads the `herdr` namespace defensively, so official Herdr loads the mod unchanged. No JS bridge: comments only on `page.md` (Página/Blocos toggle).
+
 ## Fallback
 
 Not measured on the real app: how `TextView.markdown` draws tables and code, and whether a click on the block body reaches the block. The gutter (number column) is the guaranteed click target. If the body renders badly, set `const PLAIN = true;` at the top of `mod/main.js` (or pass the layout prop `"plain": true`, or click the "Texto" button in the panel header): each block becomes plain text, headings bold.

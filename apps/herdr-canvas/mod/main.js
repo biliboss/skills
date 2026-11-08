@@ -3,7 +3,9 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextView, TextareaState, Textarea } from "gpui-base";
 import { home, props, readTextFile, writeTextFile, watchFolder, hc, agents, panes, notify, theme } from "herdr";
+import * as herdr from "herdr";
 import { splitMarkdown } from "./blocks.js";
+import { nativeCaps, pageMode, viewId, canDo } from "./pagemode.js";
 import { appendComment, appendLog, readComments, writeCommentsMarkdown, makeEntry } from "./store.js";
 import { buildMessage, sendToBot } from "./notify.js";
 
@@ -17,6 +19,9 @@ export default class Canvas extends View {
   init(_props, cx) {
     this.bots = []; this.bot = null; this.blocks = []; this.comments = []; this.version = null; this.error = null;
     this.selected = null; this.hover = null; this.plain = props()?.plain ?? PLAIN; this.sent = null;
+    // Native view support: null on stock Herdr (no API); read once, defensively.
+    this.caps = nativeCaps(herdr); this.choice = null; this.hasHtml = false; this.hasMd = false;
+    this.htmlStamp = null; this.liveView = null; this.viewBroken = false; this.pageErr = null;
     this.area = TextareaState.new({ placeholder: "Comentário · Enter envia, Shift+Enter quebra linha", rows: 3 });
     this.area.set_auto_grow(3, 8);
     this.area.on("submit", (e, cx) => this.onSubmit(e, cx));
@@ -32,8 +37,8 @@ export default class Canvas extends View {
     cx.spawn(async cx => {
       try {
         const reg = JSON.parse((await readTextFile(this.registry())) ?? "{}"), found = [];
-        for (const b of reg.bots ?? []) if ((await readTextFile(`${b.folder}/canvas/page.md`)) !== null) found.push({ id: b.id, name: b.name ?? b.id, folder: b.folder });
-        this.bots = found; this.error = found.length ? null : "Nenhum bot tem canvas/page.md. Use: canvas publish <bot> <arquivo.md>";
+        for (const b of reg.bots ?? []) if ((await readTextFile(`${b.folder}/canvas/page.md`)) !== null || (await readTextFile(`${b.folder}/canvas/page.html`)) !== null) found.push({ id: b.id, name: b.name ?? b.id, folder: b.folder });
+        this.bots = found; this.error = found.length ? null : "Nenhum bot tem canvas/page.md ou page.html. Use: canvas publish <bot> <arquivo.md|arquivo.html>";
         // `canvas open <bot>` writes "<bot>\t<timestamp>" here; a new line switches the shown bot once.
         const req = (await readTextFile(`${home()}/.local/state/herdr-canvas/bot`))?.trim() ?? null;
         let want = this.bot?.id ?? props()?.bot;
@@ -46,7 +51,7 @@ export default class Canvas extends View {
   }
 
   pick(bot, cx) {
-    this.bot = bot; this.selected = null; this.area.set_value("");
+    this.bot = bot; this.selected = null; this.choice = null; this.htmlStamp = null; this.area.set_value("");
     const mine = bot; this.watching = bot.id;
     this.reload(cx);
     cx.spawn(async cx => {
@@ -59,13 +64,45 @@ export default class Canvas extends View {
     const bot = this.bot; if (!bot) return;
     cx.spawn(async cx => {
       try {
-        const [page, jsonl, version] = await Promise.all([readTextFile(`${this.dir(bot)}/page.md`), readTextFile(`${this.dir(bot)}/comments.jsonl`), readTextFile(`${this.dir(bot)}/version`)]);
+        const [page, html, jsonl, version] = await Promise.all([readTextFile(`${this.dir(bot)}/page.md`), readTextFile(`${this.dir(bot)}/page.html`), readTextFile(`${this.dir(bot)}/comments.jsonl`), readTextFile(`${this.dir(bot)}/version`)]);
         if (this.bot?.id !== bot.id) return;
+        this.hasMd = page !== null; this.hasHtml = html !== null;
+        const stamp = html === null ? null : `${html.length}:${(version ?? "").trim()}`;
+        if (this.htmlStamp !== null && stamp !== null && stamp !== this.htmlStamp) this.reloadPage();
+        this.htmlStamp = stamp;
         this.blocks = splitMarkdown(page ?? ""); this.comments = readComments(jsonl); this.version = (version ?? "").trim() || null;
         if (this.selected && !this.blocks.some(b => b.id === this.selected)) this.selected = null;
         this.error = null;
       } catch (e) { this.error = "Não consegui ler o canvas: " + e; }
       finally { cx.notify(); }
+    });
+  }
+
+  // Republish: reload the live view in place (never focus).
+  reloadPage() {
+    if (!this.liveView || !canDo(this.caps, "browser.reload")) return;
+    try { herdr.nativeViewCall(this.liveView, "browser.reload", {}); } catch { /* view gone; render recreates it */ }
+  }
+
+  // Leaving the page (other bot, Blocos, closed panel, no html): drop the view so none leaks.
+  dropView() {
+    if (!this.liveView) return;
+    const id = this.liveView; this.liveView = null;
+    try { herdr.nativeViewCall(id, "dispose", {}); } catch { /* already disposed */ }
+  }
+
+  watchEvents(cx) {
+    if (this.eventsOn) return; this.eventsOn = true;
+    cx.spawn(async cx => {
+      try {
+        for (;;) {
+          const e = JSON.parse(await herdr.nextNativeViewEvent());
+          if (e.id !== this.liveView) continue;
+          if (e.event === "load.error") this.pageErr = String(e.data?.message ?? "erro ao carregar a página");
+          else if (e.event === "load.finish") this.pageErr = null;
+          cx.notify();
+        }
+      } catch { this.eventsOn = false; }
     });
   }
 
@@ -138,7 +175,11 @@ export default class Canvas extends View {
   }
 
   render(cx) {
-    const t = theme(), openCount = this.comments.filter(c => !c.resolved).length;
+    const t = theme();
+    const pm = pageMode({ hasHtml: this.hasHtml, hasMd: this.hasMd, caps: this.viewBroken ? null : this.caps, choice: this.choice });
+    const showPage = pm.mode === "page" && Boolean(this.bot);
+    if (!showPage) this.dropView();
+    const openCount = this.comments.filter(c => !c.resolved).length;
     const chip = (id, label, active, fn) => div().id(id).px(8).h(24).flex().items_center().rounded(6).flex_none().text_size(12).cursor_pointer()
       .bg(active ? t.selected : t.raised).text_color(active ? t.foreground : t.muted).hover(s => s.bg(t.hover)).on_click(fn).child(label);
     return v_flex().id("canvas").track_focus(this.handle).size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
@@ -146,12 +187,29 @@ export default class Canvas extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Canvas"))
         .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.dim).child(this.bot ? `${this.bot.name} · ${openCount} aberto${openCount === 1 ? "" : "s"}` : ""))
-        .child(chip("canvas-plain", "Texto", this.plain, (_e, cx) => { this.plain = !this.plain; cx.notify(); }))
+        .when(pm.canToggle, el => el.child(chip("canvas-mode-page", "Página", pm.mode === "page", (_e, cx) => { this.choice = "page"; cx.notify(); }))
+          .child(chip("canvas-mode-blocks", "Blocos", pm.mode === "blocks", (_e, cx) => { this.choice = "blocks"; cx.notify(); })))
+        .when(pm.mode === "blocks", el => el.child(chip("canvas-plain", "Texto", this.plain, (_e, cx) => { this.plain = !this.plain; cx.notify(); })))
         .child(chip("canvas-reload", "↻", false, (_e, cx) => { this.loadBots(cx); this.reload(cx); })))
       .when(this.bots.length > 1, el => el.child(h_flex().id("canvas-bots").flex_none().px(10).py(6).gap(6).overflow_x_scrollbar().border_b(1).border_color(t.border)
         .children(this.bots.map(b => chip(`bot-${b.id}`, b.name, b.id === this.bot?.id, (_e, cx) => this.pick(b, cx))))))
-      .child(v_flex().id("canvas-blocks").flex_1().min_h(0).overflow_y_scrollbar().p(8).gap(4)
+      .when(showPage, el => el.child(this.pageView(t, pm, cx)))
+      .when(!showPage, el => el.child(v_flex().id("canvas-blocks").flex_1().min_h(0).overflow_y_scrollbar().p(8).gap(4)
         .children(this.blocks.map(b => this.row(b, t)))
-        .when(Boolean(this.error) || !this.blocks.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || "Página vazia"))));
+        .when(Boolean(this.error) || !this.blocks.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || "Página vazia")))));
+  }
+
+  pageView(t, pm, cx) {
+    const id = viewId(this.bot.id);
+    if (this.liveView && this.liveView !== id) this.dropView();
+    this.liveView = id; this.watchEvents(cx);
+    const note = this.pageErr ?? pm.hint;
+    let view;
+    try {
+      const placeholder = v_flex().size_full().items_center().justify_center().text_size(12).text_color(t.dim).child("Carregando a página…");
+      view = herdr.nativeView.new(id, { kind: "web", path: `${this.dir()}/page.html`, trust: "static", root: this.dir() }).child(placeholder);
+    } catch (e) { this.viewBroken = true; this.liveView = null; cx.notify(); view = div().p(8).text_size(12).text_color(t.dim).child("Native view indisponível: " + e); }
+    return v_flex().id("canvas-page").flex_1().min_h(0).child(div().id("canvas-page-body").flex_1().min_h(0).relative().bg(t.background).child(view))
+      .when(Boolean(note), el => el.child(div().flex_none().px(12).h(24).flex().items_center().border_t(1).border_color(t.border).text_size(11).text_color(t.dim).child(note)));
   }
 }

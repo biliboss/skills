@@ -13,7 +13,7 @@ const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter(l => !/
 test("mod code, install.py and install.sh call no focus or layout command", () => {
   const files = readdirSync(join(here, "../mod")).filter(f => f.endsWith(".js")).map(f => join(here, "../mod", f));
   files.push(join(here, "../install.py"), join(here, "../install.sh"));
-  assert.ok(files.length === 6);
+  assert.ok(files.length === 7);
   for (const f of files) {
     const hit = FORBIDDEN.exec(strip(readFileSync(f, "utf8")).split(BINDING).join(""));
     assert.equal(hit, null, `${f}: ${hit && hit[0]}`);
@@ -25,4 +25,9 @@ test("install.py runs only `herdr-app check` as a subprocess", () => {
   const calls = text.match(/subprocess\.\w+\(\[[^\]]*\]/g) ?? [];
   assert.deepEqual(calls, ["subprocess.run(['herdr-app', 'check', str(mod)]"]);
   assert.ok(!/herdr-app['"],\s*['"]do/.test(text));
+});
+
+test("mod never calls the native view `focus` action", () => {
+  const text = strip(readFileSync(join(here, "../mod/main.js"), "utf8"));
+  assert.ok(!/call\([^)]*["']focus["']/.test(text) && !/nativeViewCall\([^)]*["']focus["']/.test(text));
 });

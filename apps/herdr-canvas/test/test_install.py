@@ -36,7 +36,7 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(keys['layout:bili-bots'], {'cmd-1': 'x', 'cmd-alt-c': 'mod.open:herdr-canvas'})
         self.assertEqual(keys['global'], {'cmd-q': 'app.quit'})
         self.assertTrue(list(self.home.glob('keys.json.bak-canvas-*')))
-        for f in ('main.js', 'blocks.js', 'store.js', 'notify.js', 'mod.json', 'canvas.svg'):
+        for f in ('main.js', 'blocks.js', 'store.js', 'notify.js', 'pagemode.js', 'mod.json', 'canvas.svg'):
             self.assertTrue((self.home / 'mods/herdr-canvas' / f).exists(), f)
         backups = len(list(self.home.rglob('*.bak-canvas-*')))
         second = run(self.home)

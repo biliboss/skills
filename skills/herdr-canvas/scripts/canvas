@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """canvas: publish a Markdown page for the Herdr Canvas panel, read and resolve the owner's comments.
 
-publish <bot> <file.md>   copy to <bot folder>/canvas/page.md and write canvas/version (sha1)
+publish <bot> <file>      .md -> <bot folder>/canvas/page.md, .html -> canvas/page.html; writes canvas/version (sha1).
+                          The other page file is left alone; both can live together.
 comments <bot> [--md]     JSON list of annotations (open and resolved), or the comments.md text
 resolve <bot> <id>        append a resolve line and rewrite comments.md
 open <bot>                ask the panel to show this bot (the only command that touches the Herdr window)
@@ -74,17 +75,19 @@ def markdown(comments):
 
 def cmd_publish(bot, source):
     src = Path(source).expanduser()
-    if src.suffix.lower() != '.md' or not src.is_file():
-        fail('publish needs an existing .md file')
+    ext = src.suffix.lower()
+    if ext not in ('.md', '.html') or not src.is_file():
+        fail('publish needs an existing .md or .html file')
     data = src.read_bytes()
     if len(data) > 1_000_000:
         fail('page larger than 1 MB; the panel reads at most 1 MiB')
     canvas = folder_of(bot) / 'canvas'
     canvas.mkdir(parents=True, exist_ok=True)
-    (canvas / 'page.md').write_bytes(data)
+    target = canvas / ('page.html' if ext == '.html' else 'page.md')
+    target.write_bytes(data)
     version = 'sha1:' + hashlib.sha1(data).hexdigest()
     (canvas / 'version').write_text(version + '\n')
-    return {'bot': bot, 'page': str(canvas / 'page.md'), 'version': version, 'bytes': len(data)}
+    return {'bot': bot, 'page': str(target), 'version': version, 'bytes': len(data)}
 
 
 def cmd_comments(bot, as_md):
@@ -138,7 +141,7 @@ def main(argv):
     elif cmd == 'install' and not rest:
         sys.exit(subprocess.run([str(REPO / 'apps/herdr-canvas/install.py')]).returncode)
     else:
-        fail('usage: canvas publish <bot> <file.md> | comments <bot> [--md] | resolve <bot> <id> | open <bot> | install')
+        fail('usage: canvas publish <bot> <file.md|file.html> | comments <bot> [--md] | resolve <bot> <id> | open <bot> | install')
     if out is not None:
         print(json.dumps(out, ensure_ascii=False))
 
