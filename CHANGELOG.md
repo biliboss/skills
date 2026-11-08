@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.118.0
+
+- design-taste 0.1.0: julga o gosto e a qualidade antes e depois de fazer, em cinco facetas (interface, negócio, produto, software, escrita); cada afirmação marcada como da casa ou geral. Usada pelo LP Bot.
+
 ## 0.117.0
 
 - devin 0.1.0: delega tarefa ao Devin CLI em background, com um worktree e um branch por tarefa, `swe-2-max` por padrão e revisão do diff.
