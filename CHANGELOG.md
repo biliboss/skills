@@ -4,7 +4,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 ## 0.107.0
 
-- hire 0.1.0: a new verb for an agent to hire, list, update and retire companion bots in Herdr on the owner's request; the principal bot can never be retired.
+- hire 0.2.0, roster, rebrief and fire 0.1.0: one small skill per step of a companion bot's life in Herdr, on the owner's request; the principal bot can never be fired. bili-agents 0.3.0: registry writes and the principal guard live in bots.py.
 
 ## 0.106.0
 

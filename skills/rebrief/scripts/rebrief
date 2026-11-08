@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Change a companion bot's name or identity, keeping the previous identity."""
+import argparse
+import os
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+import time
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'bili-agents' / 'scripts'))
+import bots  # noqa: E402
+
+
+def replace_identity(bot, brief):
+    folder = Path(bot['folder']).expanduser()
+    target = folder / 'AGENTS.md'
+    if target.exists():
+        keep = folder / '.hire' / 'previous'
+        keep.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(target, keep / f'AGENTS.{time.strftime("%Y%m%d-%H%M%S")}.md')
+    handle, name = tempfile.mkstemp(prefix='.AGENTS-', dir=folder)
+    with os.fdopen(handle, 'w') as output:
+        output.write(brief)
+    os.chmod(name, 0o644)
+    os.replace(name, target)
+
+
+def rebrief(args):
+    if args.name is None and args.brief is None:
+        raise bots.Refused('nothing to change: pass --name or --brief')
+    brief = bots.read_brief(args.brief) if args.brief else None
+    with bots.registry_lock():
+        data = bots.load()
+        bots.principal(data['bots'])
+        bot = bots.find(data, args.id)
+        if brief is not None and bot.get('principal') is True:
+            raise bots.Refused("the principal bot's identity is maintained by the owner; nothing changed")
+        if args.name is not None:
+            bots.check_name(data, args.name, ignore=args.id)
+            changed = {**bot, 'name': args.name.strip()}
+            bots.save(data, {**data, 'bots': [changed if item is bot else item for item in data['bots']]})
+        if brief is not None:
+            replace_identity(bot, brief)
+    return {'rebriefed': args.id, 'identity_changed': brief is not None,
+            'note': 'a running session reads a new identity only when it starts again'}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('id')
+    parser.add_argument('--name')
+    parser.add_argument('--brief')
+    args = parser.parse_args()
+    return bots.verb(lambda: rebrief(args))
+
+
+if __name__ == '__main__':
+    sys.exit(main())

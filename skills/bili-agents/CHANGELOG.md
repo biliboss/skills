@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- `bots.py` guards registry writes (lock, atomic replace, exactly one principal) for the hire, roster, rebrief and fire skills.
+
 ## 0.2.0
 
 - Bots sidebar shows live state per bot (working, blocked, done).

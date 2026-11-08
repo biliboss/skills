@@ -97,6 +97,9 @@
     "./skills/wiki-smith",
     "./skills/shape",
     "./skills/bili-agents",
-    "./skills/hire"
+    "./skills/hire",
+    "./skills/roster",
+    "./skills/rebrief",
+    "./skills/fire"
   ]
 }

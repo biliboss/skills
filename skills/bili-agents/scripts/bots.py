@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Local bot registry and Herdr session operations (no injected agent settings)."""
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -9,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 
@@ -23,8 +25,8 @@ def call(argv):
     return json.loads(result.stdout)
 
 
-def registry():
-    data = json.loads(REGISTRY.read_text())
+def registry(path=None):
+    data = json.loads((path or REGISTRY).read_text())
     bots = data['bots']
     if not isinstance(bots, list):
         raise ValueError('bots must be an array')
@@ -147,6 +149,102 @@ def session(bot):
 def last_active(bot):
     config = Path(os.environ.get('CLAUDE_CONFIG_DIR', Path.home() / '.claude')).expanduser()
     return max((p.stat().st_mtime for p in (config / 'projects').glob('*/' + bot['session_id'] + '.jsonl')), default=0)
+
+
+class Refused(ValueError):
+    """The request breaks a rule; nothing was changed."""
+
+
+@contextlib.contextmanager
+def registry_lock():
+    folder = HOME / '.bot-state'
+    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (folder / 'registry.lock').open('a+') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+
+
+def load():
+    return json.loads(REGISTRY.read_text())
+
+
+def principal(items):
+    found = [bot for bot in items if bot.get('principal') is True]
+    if len(found) != 1:
+        raise Refused(f'registry must mark exactly one principal bot, found {len(found)}; nothing changed')
+    return found[0]
+
+
+def find(data, ident):
+    for bot in data['bots']:
+        if bot['id'] == ident:
+            return bot
+    raise Refused(f'unknown bot: {ident}')
+
+
+def validated_temp(data):
+    """Write data beside the registry and validate it with the code that reads the registry."""
+    handle, name = tempfile.mkstemp(prefix='.bots-', suffix='.json', dir=REGISTRY.parent)
+    temp = Path(name)
+    try:
+        with os.fdopen(handle, 'w') as output:
+            output.write(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
+        shutil.copymode(REGISTRY, temp)
+        registry(temp)
+        return temp
+    except BaseException:
+        temp.unlink(missing_ok=True)
+        raise
+
+
+def save(previous, data):
+    """Replace the registry atomically; the principal bot must survive every write."""
+    before = principal(previous['bots'])
+    after = principal(data['bots'])
+    if (before['id'], before['session_id']) != (after['id'], after['session_id']):
+        raise Refused('the principal bot cannot change or be removed; nothing changed')
+    os.replace(validated_temp(data), REGISTRY)
+
+
+def is_live(bot):
+    """Raises when terminals cannot be inspected, so callers can fail closed."""
+    for entry in call(['hc', 'ls'])['terminals']:
+        if entry.get('state') != 'live':
+            continue
+        if entry.get('name') == identity(bot):
+            return True
+        labels = call(['hc', 'get', entry['address']]).get('labels', {})
+        if labels.get('bili.bot') == bot['id'] and labels.get('bili.session') == bot['session_id']:
+            return True
+    return False
+
+
+def read_brief(path):
+    text = Path(path).expanduser().read_text()
+    if not text.strip():
+        raise Refused(f'brief is empty: {path}')
+    return text
+
+
+def check_name(data, name, ignore=None):
+    if not name.strip():
+        raise Refused('name must not be empty')
+    for bot in data['bots']:
+        if bot['id'] != ignore and bot['name'].casefold() == name.strip().casefold():
+            raise Refused(f"name already used by bot {bot['id']}")
+
+
+def verb(action):
+    """Run one lifecycle command: stdout is the result, stderr the refusal, exit 0 or 1."""
+    program = Path(sys.argv[0]).name
+    try:
+        print(json.dumps(action(), indent=2, ensure_ascii=False))
+        return 0
+    except BlockingIOError:
+        print(f'{program}: this bot is being opened right now; nothing changed', file=sys.stderr)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f'{program}: {error}', file=sys.stderr)
+    return 1
 
 
 def main():

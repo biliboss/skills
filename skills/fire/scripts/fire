@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Remove a companion bot from the registry; its folder and conversation stay on disk."""
+import argparse
+from pathlib import Path
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'bili-agents' / 'scripts'))
+import bots  # noqa: E402
+
+
+def fire(args):
+    with bots.registry_lock():
+        data = bots.load()
+        lead = bots.principal(data['bots'])
+        bot = bots.find(data, args.id)
+        if bot['id'] == lead['id']:
+            raise bots.Refused(f"{bot['name']} is the principal bot and can never be fired")
+        if not args.confirm:
+            raise bots.Refused(f"fire needs --confirm; {bot['name']} stays registered")
+        with bots.lock(bot, '.open.lock'):
+            if bots.is_live(bot):
+                raise bots.Refused(f"{bot['name']} has a live terminal; close it first, nothing was killed")
+            bots.save(data, {**data, 'bots': [item for item in data['bots'] if item is not bot]})
+    return {'fired': bot['id'], 'folder_kept': bot['folder'], 'session_kept': bot['session_id']}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('id')
+    parser.add_argument('--confirm', action='store_true')
+    args = parser.parse_args()
+    return bots.verb(lambda: fire(args))
+
+
+if __name__ == '__main__':
+    sys.exit(main())
