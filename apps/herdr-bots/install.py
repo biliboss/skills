@@ -128,17 +128,19 @@ def main():
     spaces_source = spaces_mod / 'main.js'
     text = spaces_source.read_text()
     if '// bili-bots navigation hints' not in text:
-        text += '\n// bili-bots navigation hints\nfunction botShortcut(id) { const n = (shared("bili.botSpaces") ?? []).length + spaces().findIndex(s => s.id === id) + 1; return shared("bili.optionHints") && n > 0 && n <= 9 ? `⌥${n}` : ""; }\n'
+        text += '\n// bili-bots navigation hints\nfunction botShortcut(id) { const n = (shared("bili.botSpaces") ?? []).length + spaces().findIndex(s => s.id === id) + 1; return shared("bili.optionHints") && n > 0 && n <= 9 ? `⌘${n}` : ""; }\n'
         text = text.replace('.child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1()),', '.child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())\n          .child(div().flex_none().text_size(11).text_color(t.dim).child(botShortcut(w.id))),', 1)
         text = text.replace('.child(String(i + 1))', '.child(botShortcut(w.id) || String(i + 1))', 1)
         spaces_source.write_text(text)
-    text = spaces_source.read_text().replace('return n > 0 && n <= 9 ? `⌥${n}` : "";', 'return shared("bili.optionHints") && n > 0 && n <= 9 ? `⌥${n}` : "";')
+    text = spaces_source.read_text().replace('return n > 0 && n <= 9 ? `⌥${n}` : "";', 'return shared("bili.optionHints") && n > 0 && n <= 9 ? `⌥${n}` : "";').replace('`⌥${n}`', '`⌘${n}`')
     spaces_source.write_text(text)
     keys_path = app / 'keys.json'
     keys = json.loads(keys_path.read_text())
     bindings = keys.setdefault('layout:bili-bots', {})
+    # Cmd+digit selects a bot (then a Space); Option+digit takes over the tab shortcut Cmd+digit had.
     for number in range(1, 10):
-        bindings[f'alt-{number}'] = f'herdr-bots.select-{number}'
+        bindings[f'cmd-{number}'] = f'herdr-bots.select-{number}'
+        bindings[f'alt-{number}'] = f'tab.select:{number}'
     write(keys_path, keys)
     subprocess.run(['herdr-app', 'check', str(spaces_mod)], check=True)
     spaces_node['content']['mod'] = 'bili-bot-spaces'

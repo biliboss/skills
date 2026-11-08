@@ -104,7 +104,7 @@ export default class Bots extends View {
           .when(!narrow, el => el.child(div().flex_1().truncate().child(this.busy.has(bot.id) ? `${bot.name}…` : bot.name)))
           .when(botStatus(bot) === 'working', el => el.child(svg('mods/workspace-chrome/spinner.svg').size(12).flex_none().text_color(t.working).spin(900)))
           .when(botStatus(bot) === 'blocked' || botStatus(bot) === 'done', el => el.child(div().size(6).flex_none().rounded(3).bg(t[botStatus(bot)])))
-          .when(this.optionHeld && index < 9, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(`⌥${index + 1}`))))))
+          .when(this.optionHeld && index < 9, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(`⌘${index + 1}`))))))
       .when(Boolean(error), el => el.child(div().text_size(11).text_color(t.blocked).tooltip(error).child(narrow ? '!' : error)));
   }
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Cmd+1-9 selects bots in the Bots layout; Option+1-9 takes over tab selection there. Labels show while Command is held.
+
 ## 0.2.0
 
 - Bots sidebar shows live state per bot (working, blocked, done).
