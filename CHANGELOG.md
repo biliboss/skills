@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.114.2
+
+- herdr-canvas 0.2.2: id da native view único por painel, porque duas views com o mesmo id se apagam.
+
 ## 0.114.1
 
 - herdr-canvas 0.2.1: a native view ganha tamanho explícito no painel, como no exemplo real do fork.

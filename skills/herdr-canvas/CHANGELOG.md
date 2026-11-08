@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Mod: native view id is unique per panel; two panels on the same bot no longer erase each other's view.
+
 ## 0.2.1
 
 - Mod: the native view gets an explicit size (`w_full`, `flex_1`, `min_h(0)`) inside a flex column, as the fork's real example does.

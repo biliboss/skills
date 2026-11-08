@@ -20,6 +20,7 @@ export default class Canvas extends View {
     this.bots = []; this.bot = null; this.blocks = []; this.comments = []; this.version = null; this.error = null;
     this.selected = null; this.hover = null; this.plain = props()?.plain ?? PLAIN; this.sent = null;
     // Native view support: null on stock Herdr (no API); read once, defensively.
+    this.instance = Math.random().toString(36).slice(2, 8);
     this.caps = nativeCaps(herdr); this.choice = null; this.hasHtml = false; this.hasMd = false;
     this.htmlStamp = null; this.liveView = null; this.viewBroken = false; this.pageErr = null;
     this.area = TextareaState.new({ placeholder: "Comentário · Enter envia, Shift+Enter quebra linha", rows: 3 });
@@ -200,7 +201,7 @@ export default class Canvas extends View {
   }
 
   pageView(t, pm, cx) {
-    const id = viewId(this.bot.id);
+    const id = viewId(this.bot.id, this.instance);
     if (this.liveView && this.liveView !== id) this.dropView();
     this.liveView = id; this.watchEvents(cx);
     const note = this.pageErr ?? pm.hint;

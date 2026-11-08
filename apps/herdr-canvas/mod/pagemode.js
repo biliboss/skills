@@ -25,8 +25,9 @@ export function pageMode({ hasHtml, hasMd, caps, choice }) {
   return { mode: choice === "blocks" ? "blocks" : "page", canToggle: true, hint: null };
 }
 
-// Stable per bot, so a re-render never creates a second view.
-export const viewId = botId => `canvas-page-${botId}`;
+// Stable per panel and bot, so a re-render never creates a second view. The instance part is required:
+// two live views with the same id erase each other, and a bot can be open in two Canvas panels.
+export const viewId = (botId, instance) => `canvas-page-${botId}-${instance}`;
 
 // True when the capabilities list `action` for the `web` kind (check before every call).
 export const canDo = (caps, action) => Boolean(caps?.kinds?.some(k => k?.kind === "web" && Array.isArray(k.actions) && k.actions.includes(action)));

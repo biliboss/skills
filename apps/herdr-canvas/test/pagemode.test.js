@@ -44,7 +44,8 @@ test("nativeCaps survives a throwing host and returns caps otherwise", () => {
   assert.deepEqual(nativeCaps({ nativeView: { new() {} }, nativeViewCapabilities: () => WEB }), WEB);
 });
 
-test("view id is stable per bot", () => {
-  assert.equal(viewId("b1"), viewId("b1"));
-  assert.notEqual(viewId("b1"), viewId("b2"));
+test("view id is stable per panel and bot, unique across panels", () => {
+  assert.equal(viewId("b1", "p1"), viewId("b1", "p1"));
+  assert.notEqual(viewId("b1", "p1"), viewId("b2", "p1"));
+  assert.notEqual(viewId("b1", "p1"), viewId("b1", "p2"));
 });
