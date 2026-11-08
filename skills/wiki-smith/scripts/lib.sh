@@ -2,19 +2,43 @@
 # lib.sh - shared by the wiki-smith scripts (POSIX sh, sourced, not run).
 # Resolves the wiki folder and loads wiki.config (KEY=value, sh-sourceable).
 #
-# Wiki folder: -w DIR, else $WIKI_DIR, else ./.wiki, else <git toplevel>/.wiki.
+# Wiki folder, first hit: -w DIR; $WIKI_DIR; $WIKI_HOME/$WIKI_PROJECT (error
+# if missing); the $WIKI_HOME project whose wiki.config REPO=owner/name
+# matches the origin remote of the current git repo; $WIKI_HOME/biliboss.
+# WIKI_HOME defaults to $HOME/wiki. REPO= is read without sourcing the config.
 # Config file: -c FILE, else $WIKI_CONFIG, else <wiki>/wiki.config (optional).
 # The caller sets WIKI_ARG and CFG_ARG (from -w and -c) before calling wiki_resolve.
 
 wiki_resolve() {
+  : "${WIKI_HOME:=$HOME/wiki}"
   WIKI=${WIKI_ARG:-${WIKI_DIR:-}}
-  if [ -z "$WIKI" ]; then
-    if [ -d ./.wiki ]; then
-      WIKI=./.wiki
-    else
-      top=$(git rev-parse --show-toplevel 2>/dev/null || true)
-      if [ -n "$top" ] && [ -d "$top/.wiki" ]; then WIKI=$top/.wiki; fi
+  if [ -z "$WIKI" ] && [ -n "${WIKI_PROJECT:-}" ]; then
+    WIKI=$WIKI_HOME/$WIKI_PROJECT
+    if [ ! -d "$WIKI" ]; then
+      echo "wiki-smith: project wiki not found: $WIKI" >&2
+      exit 1
     fi
+  fi
+  if [ -z "$WIKI" ]; then
+    remote=$(git remote get-url origin 2>/dev/null || true)
+    case $remote in
+      git@github.com:*)     repo=${remote#git@github.com:} ;;
+      https://github.com/*) repo=${remote#https://github.com/} ;;
+      *)                    repo= ;;
+    esac
+    repo=${repo%.git}
+    if [ -n "$repo" ]; then
+      for c in "$WIKI_HOME"/*/wiki.config; do
+        [ -f "$c" ] || continue
+        if [ "$(sed -n 's/^REPO=//p' "$c" | head -n 1)" = "$repo" ]; then
+          WIKI=${c%/wiki.config}
+          break
+        fi
+      done
+    fi
+  fi
+  if [ -z "$WIKI" ]; then
+    WIKI=$WIKI_HOME/biliboss
   fi
   if [ -z "$WIKI" ] || [ ! -d "$WIKI" ]; then
     echo "wiki-smith: no wiki folder found (use -w DIR)" >&2
