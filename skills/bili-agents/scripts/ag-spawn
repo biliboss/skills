@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# ag-spawn [-n] [--role ROLE] [--continue] <agent> [folder]: opens the agent as a split beside the manager, in the herdr Desktop.
+#   ag-spawn myproject                       opens claude in ~/agents/myproject (the data home), named "myproject"
+#   ag-spawn --role hacker myproject         the role goes in AG_ROLE; the session-start hook loads the roles-<role> card
+#   ag-spawn --continue myproject            resumes the last session of the folder (claude --continue)
+#   ag-spawn -n myproject                    dry run: prints the command, opens nothing, writes nothing
+#
+# Every agent starts as `claude --settings $AG_HOME/.run/<agent>.settings.json`. ag-spawn generates that file: the ping
+# hooks (Stop, Notification, PreToolUse on AskUserQuestion) that tell WHO ASKED, the session-start hook that loads the role,
+# and the shared voice (outputStyle biliboss-skills:Bili, the plugin's output style; AG_VOICE overrides it, empty disables).
+# The file is generated, not shipped, because --settings does not expand ${CLAUDE_PLUGIN_ROOT}: the hook paths are the
+# real ones of the skill that is running.
+#
+# The split is drawn by herdr-app (`terminal.open --place right`); `hc run --bg` alone makes a hidden terminal. The terminal
+# is named after the agent, which is what ag-pane, ag-send, ag-read and ag-wait use to find it. The split goes to the right
+# of the manager's pane (this terminal, $HC_TERMINAL_ID); if the focus is elsewhere it comes back to it first.
+# Exit: 0 opened (or dry run), 1 agent folder missing or the app did not open it, 2 bad usage or invalid name, 5 already open.
+. "$(dirname "$0")/ag-lib.sh"
+
+seco=0; papel=""; nome=""; pasta=""; continuar=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) seco=1; shift ;;
+    --continue|--continuar) continuar=1; shift ;;
+    --role|--papel) [ $# -ge 2 ] || ag_die 2 'missing role'; papel="$2"; shift 2 ;;
+    -*) ag_die 2 "unknown option: $1" ;;
+    *) if [ -z "$nome" ]; then nome="$1"; elif [ -z "$pasta" ]; then pasta="$1"; else ag_die 2 "extra argument: $1"; fi; shift ;;
+  esac
+done
+[ -n "$nome" ] || ag_die 2 'usage: ag-spawn [-n] [--role ROLE] [--continue] <agent> [folder]'
+# hc accepts names of 1 to 32 characters in a-z 0-9 - _
+printf '%s' "${AG_PREFIX}${nome}" | grep -qE '^[a-z0-9_-]{1,32}$' || ag_die 2 "invalid name '$nome': use 1 to 32 characters of a-z, 0-9, - and _"
+if [ -n "$papel" ]; then printf '%s' "$papel" | grep -qE '^[a-z][a-z0-9-]{0,31}$' || ag_die 2 "invalid role '$papel'"; fi
+
+[ -n "$pasta" ] || pasta="$(ag_dir "$nome")"
+[ -d "$pasta" ] || ag_die 1 "the agent folder does not exist: $pasta"
+[ -n "$papel" ] || { [ ! -f "$pasta/.role" ] || papel="$(cat "$pasta/.role")"; }
+if [ -n "$papel" ]; then
+  printf '%s' "$papel" | grep -qE '^[a-z][a-z0-9-]{0,31}$' || ag_die 2 "invalid role '$papel'"
+  [ -f "${AG_SKILLS_DIR:-$(dirname "$AG_SKILL")}/roles-$papel/SKILL.md" ] || ag_die 1 "missing role card: roles-$papel"
+fi
+
+cfg="$AG_HOME/.run/$nome.settings.json"
+args=(claude --settings "$cfg")
+[ "$continuar" -eq 1 ] && args+=(--continue)
+[ -n "$papel" ] && args=(env "AG_ROLE=$papel" "${args[@]}")
+argv="$(printf '%s\n' "${args[@]}" | jq -R . | jq -cs .)"
+cmd=(herdr-app do terminal.open --argv "$argv" --folder "$pasta" --place right --name "${AG_PREFIX}${nome}")
+
+if [ "$seco" -eq 1 ]; then
+  echo "agent: $nome"
+  echo "folder: $pasta"
+  echo "role: ${papel:-none}"
+  echo "settings: $cfg (generated when the agent opens)"
+  printf 'command:'; printf ' %q' "${cmd[@]}"; echo
+  exit 0
+fi
+
+command -v herdr-app >/dev/null 2>&1 || ag_die 1 "no herdr-app in PATH (is the Desktop app installed?)"
+if ag_pane "$nome" >/dev/null 2>&1; then
+  ag_die 5 "'$nome' is already open at $(ag_pane "$nome"); use ag-send to talk to it"
+fi
+
+# the generated --settings: ping hooks, role loader and the shared voice
+voice="${AG_VOICE-biliboss-skills:Bili}"
+mkdir -p "$AG_HOME/.run"
+jq -n --arg ping "$AG_SKILL/scripts/manager-send-back.sh" --arg start "$AG_SKILL/scripts/session-start.sh" --arg voice "$voice" '
+  { hooks: {
+      Stop:         [ { hooks: [ { type: "command", command: $ping, timeout: 10 } ] } ],
+      Notification: [ { hooks: [ { type: "command", command: $ping, timeout: 10 } ] } ],
+      PreToolUse:   [ { matcher: "AskUserQuestion", hooks: [ { type: "command", command: $ping, timeout: 10 } ] } ],
+      SessionStart: [ { hooks: [ { type: "command", command: $start, timeout: 10 } ] } ] } }
+  + (if $voice == "" then {} else { outputStyle: $voice } end)' > "$cfg"
+
+# the split goes beside the focused pane: put the focus on the manager's pane (this terminal) if it is elsewhere
+if [ -n "${HC_TERMINAL_ID:-}" ]; then
+  meu="$(herdr-app ls 2>/dev/null | jq -r --arg t "$HC_TERMINAL_ID" '[.spaces[].tabs[].terminals[] | select(.terminal==$t) | .pane][0] // empty')"
+  foco="$(herdr-app status 2>/dev/null | jq -r '.focused_pane // empty')"
+  if [ -n "$meu" ] && [ "$meu" != "$foco" ]; then herdr-app do pane.focus --pane "$meu" >/dev/null 2>&1; fi
+fi
+
+saida="$("${cmd[@]}" 2>&1)" || ag_die 1 "herdr-app did not open the agent: $saida"
+# who asked: the terminal that opened the agent gets its pings (ag-send updates this on every message)
+novo="$(printf '%s' "$saida" | jq -r '.terminal // empty' 2>/dev/null || true)"
+if [ -n "$novo" ] && [ -n "${HC_TERMINAL_ID:-}" ]; then ag_hc label "$novo" "asker=$HC_TERMINAL_ID" >/dev/null 2>&1 || true; fi
+echo "opened $nome beside the manager: $(printf '%s' "$saida" | jq -c . 2>/dev/null || printf '%s' "$saida")"

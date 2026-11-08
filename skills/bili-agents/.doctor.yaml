@@ -1,0 +1,394 @@
+{
+  "doctor": {
+    "timeout": 30
+  },
+  "capabilities": {
+    "local-agents": {
+      "intent": "Operate local agents with isolated worktrees, generic roles and a shared voice.",
+      "checks": [
+        {
+          "id": "ag-spawn",
+          "kind": "fast",
+          "expected": "ag-spawn opens the agent as a split to the right of the manager, with a generated --settings (ping hooks, role loader, shared voice); dry run",
+          "red": "The invariant described by ag-spawn is not met.",
+          "remedy": "make ag-spawn build `herdr-app do terminal.open ... --argv [env AG_ROLE=<role>] claude --settings $AG_HOME/.run/<agent>.settings.json [--continue]` and validate the name (exit 2) and the folder (exit 1)",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/ag-spawn.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/ag-spawn.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "doctor-english",
+          "kind": "fast",
+          "expected": "everything the doctor prints is English: no Portuguese in the messages of any check, except the words listed in doctor/pt-ok.txt",
+          "red": "The invariant described by doctor-english is not met.",
+          "remedy": "translate the echo/printf messages of the listed checks to English (messages only; keep the logic). If a Portuguese word is a functional literal (the real output of another tool, or a UI label a check greps for), add it to doctor/pt-ok.txt",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/doctor-english.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/doctor-english.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "doctor-report-format",
+          "kind": "fast",
+          "expected": "the report is for humans (category blocks, summary) and for agents (FOR AGENTS block, stable --json with id, category, status, evidence, fix, order)",
+          "red": "The invariant described by doctor-report-format is not met.",
+          "remedy": "make ag-doctor read \"# category:\", \"# what:\" and \"# fix:\" from each check (categories.tsv for the old ones), group the output by category, print a FOR AGENTS block with NEXT steps, and add --json",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/doctor-report-format.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/doctor-report-format.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "events-fila",
+          "kind": "runtime",
+          "expected": "the ping hook also appends a JSON line to events.jsonl (PING_PAINEL=0 turns off sending to the panel)",
+          "red": "The invariant described by events-fila is not met.",
+          "remedy": "Inspect and repair events-fila; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/events-fila.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/events-fila.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "herdr-backend",
+          "kind": "runtime",
+          "expected": "the ag-* tools talk only to the herdr Desktop, through hc (herdr-core): neither tmux nor the `herdr` CLI (another server)",
+          "red": "The invariant described by herdr-backend is not met.",
+          "remedy": "Inspect and repair herdr-backend; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/herdr-backend.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/herdr-backend.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "hook-ping-seco",
+          "kind": "fast",
+          "expected": "the ping hook serves ALL bili-agents agents and answers WHO ASKED (dry mode: sends nothing)",
+          "red": "The invariant described by hook-ping-seco is not met.",
+          "remedy": "make scripts/manager-send-back.sh print \"[agent] finished: ...\", \"[agent] question: ...\" and \"[agent] needs you: ...\" in dry mode, take the agent name from the hook's cwd (~/agents/<name>), and resolve the target with --quem (PING_ASKER, then the asker label, then .manager-pane)",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/hook-ping-seco.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/hook-ping-seco.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "lento-selftest",
+          "kind": "journey",
+          "expected": "ag-selftest (fake panes in a throwaway herdr workspace) passes in full",
+          "red": "The invariant described by lento-selftest is not met.",
+          "remedy": "Inspect and repair lento-selftest; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/lento-selftest.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/lento-selftest.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "painel-do-gerente",
+          "kind": "runtime",
+          "expected": "the manager's terminal (the agent that drives the others) is registered and still exists in the herdr Desktop (hc)",
+          "red": "The invariant described by painel-do-gerente is not met.",
+          "remedy": "Inspect and repair painel-do-gerente; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/painel-do-gerente.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/painel-do-gerente.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "scripts-executaveis",
+          "kind": "fast",
+          "expected": "every ag-* and the scripts in ~/agents/scripts are executable and pass bash -n",
+          "red": "The invariant described by scripts-executaveis is not met.",
+          "remedy": "Inspect and repair scripts-executaveis; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/checks/scripts-executaveis.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/checks/scripts-executaveis.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "ag-new",
+          "kind": "fast",
+          "expected": "ag-new creates an instance from a role and a project (a dry run with -n writes nothing)",
+          "red": "The invariant described by ag-new is not met.",
+          "remedy": "Inspect and repair ag-new; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/ag-new.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/ag-new.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "lento-voz-pega",
+          "kind": "journey",
+          "expected": "behaviour test: a fresh agent with the shared voice answers a neutral probe in at most 3 sentences and 60 words (slow: opens a real agent)",
+          "red": "The invariant described by lento-voz-pega is not met.",
+          "remedy": "Configure AG_CLAUDE_CONFIG_DIR with an authorized subscription and run scripts/ag-voice-probe against the installed plugin.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/lento-voz-pega.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/lento-voz-pega.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh",
+            "scripts/ag-voice-probe",
+            "scripts/voice_probe.py"
+          ],
+          "timeout": 300
+        },
+        {
+          "id": "papeis-fichas",
+          "kind": "fast",
+          "expected": "every roles-* card has the required sections and is generic (no person, no date, no project name)",
+          "red": "The invariant described by papeis-fichas is not met.",
+          "remedy": "edit skills/roles-<role>/SKILL.md so it has the sections Mission, How you work, Deliverable, Never, Leans on, Default model, and remove any person name, dd/mm date or project name (project rules belong to the instance)",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/papeis-fichas.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/papeis-fichas.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "papel-carrega",
+          "kind": "runtime",
+          "expected": "a role is loaded when the agent starts: ag-spawn passes AG_ROLE and the session-start hook injects the role card",
+          "red": "The invariant described by papel-carrega is not met.",
+          "remedy": "make ag-spawn put AG_ROLE=<role> in the command, and add scripts/session-start.sh to the skill: with AG_ROLE set it prints {\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"<voice and the roles-<role> card>\"}}; wire it in the --settings that ag-spawn generates",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/papel-carrega.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/papel-carrega.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "skill-sem-caminho-da-casa",
+          "kind": "fast",
+          "expected": "the skill scripts hold no machine paths; code finds itself by dirname, data lives in AG_HOME",
+          "red": "The invariant described by skill-sem-caminho-da-casa is not met.",
+          "remedy": "replace hardcoded /Users/... and ~/agents/skills/bili-agents paths in the skill scripts with AG_SKILL (the script directory) and AG_HOME (the data home)",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/skill-sem-caminho-da-casa.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/skill-sem-caminho-da-casa.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "voz-unica",
+          "kind": "runtime",
+          "expected": "one voice for every agent, shipped by the plugin; no instance carries its own output style",
+          "red": "The invariant described by voz-unica is not met.",
+          "remedy": "put the single voice in the plugin (output-styles/bili.md or skills/bili-agents/voice.md, depending on the voice test), have ag-spawn apply it, and delete the per-instance .claude/output-styles and outputStyle settings",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/voz-unica.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/voz-unica.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "worktree-por-agente",
+          "kind": "runtime",
+          "expected": "ag-new --worktree creates a worktree of its own for the agent (a dry run with -n shows the branch)",
+          "red": "The invariant described by worktree-por-agente is not met.",
+          "remedy": "Inspect and repair worktree-por-agente; rerun this check.",
+          "run": {
+            "command": [
+              "bash",
+              "doctor/pendentes/worktree-por-agente.sh"
+            ],
+            "why_script": "Compatibility migration of an existing shell diagnostic; preserve its observed exit and output."
+          },
+          "scripts": [
+            "doctor/pendentes/worktree-por-agente.sh",
+            "scripts/ag-lib.sh",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        },
+        {
+          "id": "roles-and-instances",
+          "kind": "fast",
+          "expected": "Generic roles load at session start and instance creation preserves existing data.",
+          "red": "Role cards and instance creator are absent.",
+          "remedy": "Add role cards and ag-new, then verify them in an isolated temporary home.",
+          "run": {
+            "command": [
+              "bash",
+              "scripts/test-integration.sh"
+            ],
+            "why_script": "Exercises isolated creation and hook JSON across several commands."
+          },
+          "scripts": [
+            "scripts/test-integration.sh",
+            "scripts/ag-new",
+            "scripts/session-start.sh",
+            "scripts/setup",
+            "scripts/ag-spawn",
+            "scripts/session-start.sh",
+            "scripts/manager-send-back.sh"
+          ]
+        }
+      ],
+      "keep": [],
+      "success": [
+        "ag-spawn",
+        "doctor-english",
+        "doctor-report-format",
+        "events-fila",
+        "herdr-backend",
+        "hook-ping-seco",
+        "lento-selftest",
+        "painel-do-gerente",
+        "scripts-executaveis",
+        "ag-new",
+        "lento-voz-pega",
+        "papeis-fichas",
+        "papel-carrega",
+        "skill-sem-caminho-da-casa",
+        "voz-unica",
+        "worktree-por-agente",
+        "roles-and-instances"
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+capabilities:
+  contracts:
+    intent: Validate and execute capability contracts with trustworthy evidence.
+    checks:
+      - id: interpreter
+        kind: fast
+        expected: The YAML interpreter exists.
+        red: The interpreter file is absent.
+        remedy: Implement scripts/contracts.py.
+        file: scripts/contracts.py
+      - id: acceptance
+        kind: runtime
+        expected: The contract acceptance suite passes.
+        red: Observable contract semantics fail an acceptance assertion.
+        remedy: Correct validation, selection, execution or evidence handling.
+        run:
+          command: [uv, run, --script, scripts/test_contracts.py]
+          why_script: Stateful red evidence and Git selection require isolated integration fixtures.
+    keep: [interpreter]
+    success: [acceptance, interpreter]

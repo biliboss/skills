@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+. "$(dirname "$0")/ag-lib.sh"
+exec uv run --script "$AG_SKILL/scripts/voice_probe.py" "$@"

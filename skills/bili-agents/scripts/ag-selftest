@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# ag-selftest: testa os ag-* contra terminais de mentira no herdr-core (hc). Cada terminal falso roda `cat arquivo; sleep`
+# com os marcadores que o Claude Code mostra de verdade (idle, working, waiting, permission, menu, colado) mais um `cat`
+# que ecoa o que se digita. Os nomes levam o prefixo agt- (AG_PREFIX), então nunca esbarram em agente real, e nascem
+# sem rótulo de tela: não aparecem no seu Desktop. Todos são mortos no fim, mesmo se o teste quebrar.
+# Confere ag-pane, ag-read --state, ag-send (inclusive o rótulo asker), ag-wait, ag-snap e o hook de ping de ponta a ponta
+# (o aviso chega a um "gerente" falso, não a você). Se uma atualização do Claude Code mudar um marcador, o teste quebra
+# aqui (e o ajuste é só na função ag_state de ag-lib.sh). Não toca em ~/agents/events.jsonl.
+# Saída: 0 tudo certo, 1 alguma falha.
+BIN="$(cd "$(dirname "$0")" && pwd)"
+export AG_HOME="$(mktemp -d)"
+export AG_EVENTS="$AG_HOME/events.jsonl"
+export AG_PREFIX="agt-"
+unset PING_ASKER MANAGER_PANE
+. "$BIN/ag-lib.sh"
+
+falhas=0; total=0
+ok()   { total=$((total+1)); echo "  ok    $1"; }
+falha(){ total=$((total+1)); falhas=$((falhas+1)); echo "  FALHA $1"; }
+espera() { local i; for i in 1 2 3 4 5 6 7 8 9 10; do "$@" >/dev/null 2>&1 && return 0; sleep 0.3; done; return 1; }
+tela() { ag_hc read "${AG_PREFIX}$1" 2>/dev/null; }
+
+command -v hc >/dev/null 2>&1 || { echo "ag-selftest: sem hc no PATH"; exit 1; }
+NOMES="idle working waiting permission menu colado eco gerente"
+cleanup() { for n in $NOMES; do ag_hc kill "${AG_PREFIX}$n" >/dev/null 2>&1; done; rm -rf "$AG_HOME"; }
+trap cleanup EXIT
+cleanup_antes() { for n in $NOMES; do ag_hc kill "${AG_PREFIX}$n" >/dev/null 2>&1; done; }
+cleanup_antes
+
+mk() {  # mk <nome> <conteúdo> [comando]: um terminal escondido com o conteúdo na tela
+  local nome="$1" f="$AG_HOME/$1.txt" cmd="${3:-sleep 300}"
+  printf '%b' "$2" > "$f"
+  ag_hc run --bg --name "${AG_PREFIX}$nome" --cwd "$AG_HOME" --no-parent --no-notify "clear; cat $f; $cmd" >/dev/null 2>&1 \
+    || { echo "ag-selftest: não consegui abrir o terminal '$nome'"; return 1; }
+}
+
+mk idle       '\n● Pronto, terminei.\n\n❯ \n  -- INSERT -- ⏵⏵ auto mode on\n'
+mk working    '\n● Rodando.\n\n✢ Choreographing… (57s · ↓ 6.8k tokens)\n\n❯ \n'
+mk waiting    '\n● Esperando.\n\n✻ Waiting for 2 background agents to finish\n\n❯ \n'
+mk permission '\n  Bash command\n  mcpc @pw tools-call browser_navigate\n  This command requires approval\n\n  Do you want to proceed?\n  ❯ 1. Yes\n    2. Yes, and don'"'"'t ask again\n    4. No\n'
+mk menu       '\n  ❯ /impeccable                          Use when the user wants to design, redesign\n    /biliboss-skills:lp-draft            Draft a product landing page\n─────\n❯ /impeccable\n'
+mk colado     '\n● Pronto.\n\n──────────────────\n❯ [Pasted text #7]fim do texto longo\n──────────────────\n  -- INSERT --\n'
+mk eco        '' cat
+mk gerente    '' cat
+sleep 1.5
+
+echo "ag-pane"
+for n in idle working waiting permission menu; do
+  p="$("$BIN/ag-pane" "$n" 2>/dev/null)"
+  case "$p" in t[0-9a-z]*) ok "acha o terminal '$n' ($p)" ;; *) falha "ag-pane $n -> '$p'" ;; esac
+done
+"$BIN/ag-pane" nao-existe >/dev/null 2>&1; [ $? -eq 1 ] && ok "sai com 1 quando não acha" || falha "código de 'não achou'"
+"$BIN/ag-pane" >/dev/null 2>&1; [ $? -eq 2 ] && ok "sai com 2 sem argumento" || falha "código de uso errado"
+
+echo "ag-read --state"
+for n in idle working waiting permission menu; do
+  e="$("$BIN/ag-read" "$n" --state 2>/dev/null)"
+  [ "$e" = "$n" ] && ok "estado de '$n' = $e" || falha "estado de '$n' veio '$e'"
+done
+"$BIN/ag-read" permission --state >/dev/null 2>&1; [ $? -eq 4 ] && ok "permission sai com 4" || falha "permission não saiu com 4"
+j="$("$BIN/ag-read" idle --state --json)"
+case "$j" in *'"estado":"idle"'*) ok "--json" ;; *) falha "--json: $j" ;; esac
+
+echo "ag-send"
+"$BIN/ag-send" permission 'teste' >/dev/null 2>&1; [ $? -eq 4 ] && ok "recusa enviar em permission (4)" || falha "enviou em permission"
+"$BIN/ag-send" -n idle 'ensaio' | grep -q 'estado: idle' && ok "-n mostra o estado" || falha "-n"
+"$BIN/ag-send" eco 'ola mundo' >/dev/null 2>&1
+if espera sh -c "$(declare -f tela ag_hc); AG_PREFIX=agt-; HC_BIN=$HC_BIN; tela eco | grep -q 'ola mundo'"; then ok "texto chegou ao terminal"; else falha "texto não chegou"; fi
+printf 'linha um\nlinha dois\n' | "$BIN/ag-send" eco - >/dev/null 2>&1
+if espera sh -c "$(declare -f tela ag_hc); AG_PREFIX=agt-; HC_BIN=$HC_BIN; tela eco | grep -q 'linha dois'"; then ok "várias linhas por stdin"; else falha "várias linhas"; fi
+
+echo "ag-send: quem pediu (rótulo asker)"
+if [ -n "${HC_TERMINAL_ID:-}" ]; then
+  a="$(ag_hc get "${AG_PREFIX}eco" 2>/dev/null | jq -r '.labels.asker // empty')"
+  [ "$a" = "$HC_TERMINAL_ID" ] && ok "o ag-send gravou asker=$a" || falha "asker esperado $HC_TERMINAL_ID, veio '$a'"
+else
+  echo "  pulado: sem \$HC_TERMINAL_ID (rode dentro do Desktop)"
+fi
+
+echo "ag-read: texto colado e não enviado"
+est="$("$BIN/ag-read" colado --state 2>/dev/null)"
+[ "$est" = "unsent" ] && ok "caixa com texto colado = unsent" || falha "colado deveria ser unsent, veio '$est'"
+
+echo "hook de ping, de ponta a ponta (o aviso vai a quem pediu)"
+H="$AG_SKILL/scripts/manager-send-back.sh"
+ger="$(ag_hc get "${AG_PREFIX}gerente" 2>/dev/null | jq -r '.address // empty')"
+eco="$(ag_hc get "${AG_PREFIX}eco" 2>/dev/null | jq -r '.address // empty')"
+if [ -x "$H" ] && [ -n "$ger" ] && [ -n "$eco" ]; then
+  ag_hc label "$eco" "asker=$ger" >/dev/null 2>&1
+  q="$(env -u PING_ASKER HC_TERMINAL_ID="$eco" "$H" --quem)"
+  [ "$q" = "$ger" ] && ok "--quem lê o rótulo asker ($q)" || falha "--quem deveria ser $ger, veio '$q'"
+  echo '{"hook_event_name":"Stop","last_assistant_message":"fim do teste","cwd":"'"$AG_HOME"'/agente-falso"}' \
+    | env -u PING_ASKER HC_TERMINAL_ID="$eco" PING_NOME=agente-falso "$H"
+  if espera sh -c "$(declare -f tela ag_hc); AG_PREFIX=agt-; HC_BIN=$HC_BIN; tela gerente | grep -q 'agente-falso. finished: fim do teste'"; then ok "o aviso chegou ao gerente falso"; else falha "o aviso não chegou ao gerente falso"; fi
+else
+  falha "hook ($H) ou terminais falsos ausentes"
+fi
+
+echo "ag-wait"
+"$BIN/ag-wait" permission --settle 1 --timeout 5 >/dev/null 2>&1; [ $? -eq 4 ] && ok "permission sai com 4" || falha "wait em permission"
+"$BIN/ag-wait" working --settle 1 --timeout 3 >/dev/null 2>&1; [ $? -eq 3 ] && ok "working estoura o tempo (3)" || falha "wait em working"
+"$BIN/ag-wait" waiting --settle 1 --timeout 3 >/dev/null 2>&1; [ $? -eq 3 ] && ok "waiting não conta como terminado (3)" || falha "wait em waiting"
+inicio=$(date +%s)
+"$BIN/ag-wait" idle --settle 2 --timeout 10 >/dev/null 2>&1; rc=$?; dur=$(( $(date +%s) - inicio ))
+[ $rc -eq 0 ] && [ $dur -ge 2 ] && ok "idle termina após o settle (${dur}s)" || falha "wait em idle (rc=$rc, ${dur}s)"
+printf '{"ts":%s,"agente":"idle","evento":"Stop"}\n' "$(date +%s)" > "$AG_EVENTS"
+inicio=$(date +%s)
+"$BIN/ag-wait" idle --settle 3 --timeout 10 >/dev/null 2>&1; rc=$?; dur=$(( $(date +%s) - inicio ))
+[ $rc -eq 0 ] && ok "com evento recente, espera o settle também (${dur}s)" || falha "wait com evento (rc=$rc)"
+
+echo "ag-snap"
+mkdir -p "$AG_HOME/orig" && echo um > "$AG_HOME/orig/a.txt"
+AG_SNAP="$AG_HOME/snaps" "$BIN/ag-snap" r1 "$AG_HOME/orig" >/dev/null && ok "salva cópia" || falha "snap"
+echo dois > "$AG_HOME/orig/a.txt"
+AG_SNAP="$AG_HOME/snaps" "$BIN/ag-snap" --restore r1 "$AG_HOME/orig" >/dev/null && [ "$(command cat "$AG_HOME/orig/a.txt")" = um ] && ok "restaura o conteúdo" || falha "restore"
+
+echo
+if [ $falhas -eq 0 ]; then echo "ag-selftest: $total testes, tudo certo"; exit 0; fi
+echo "ag-selftest: $falhas falha(s) em $total testes"; exit 1

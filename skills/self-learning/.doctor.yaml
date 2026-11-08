@@ -1,0 +1,22 @@
+capabilities:
+  evidence:
+    intent: Propose small skill edits grounded in actual loads and session corrections, then retain explicitly applied edits only after a green doctor.
+    checks:
+      - id: grounded-learning
+        kind: fast
+        expected: Real loads are paired with results; proposals cite signals; failed doctors restore the original skill.
+        red: A completed skill load is not recognized and no evidence-grounded proposal can be produced.
+        remedy: Implement self-learning and run its isolated behavioral checks.
+        run:
+          command: [uv, run, --script, scripts/test_self_learning.py]
+          why_script: Transcript pairing and rollback need a multi-step behavioral fixture.
+      - id: proposal-application-journey
+        kind: journey
+        expected: A consumer creates a cited proposal, restores a failed application and retains an explicitly accepted green edit.
+        red: The proposal application cannot restore the original skill or retain the accepted green edit.
+        remedy: Repair the scan, proposal and explicit application path without weakening its evidence checks.
+        run:
+          command: [uv, run, --script, scripts/test_self_learning.py, EvidenceTests.test_explicit_apply_rolls_back_failed_doctor]
+          why_script: The fixture journey exercises transcript load, proposal creation, failed application rollback and green retention together.
+    keep: []
+    success: [grounded-learning, proposal-application-journey]

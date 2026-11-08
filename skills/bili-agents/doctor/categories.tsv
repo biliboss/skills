@@ -1,0 +1,11 @@
+ag-new	Instances	create bin/ag-new: an instance from a project and a role (optional git worktree), then promote this check
+ag-spawn	Runtime
+events-fila	Runtime
+ferramentas-base	Runtime
+herdr-backend	Runtime
+herdr-real	Runtime
+hook-ping-seco	Runtime
+lento-selftest	Runtime
+painel-do-gerente	Runtime	run skills/bili-agents/scripts/manager-send-back.sh --set inside the manager terminal in the herdr Desktop
+scripts-executaveis	Runtime
+worktree-por-agente	Instances	create bin/ag-new with --worktree so every agent works in its own git worktree, then promote this check

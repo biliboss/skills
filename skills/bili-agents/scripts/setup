@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# setup [-n] [--here]: makes ~/agents/bin/ag-* shortcuts into this skill, so the tools are on PATH and follow plugin updates.
+#   setup            link every tool in this skill's scripts/ into $AG_HOME/bin (replacing old copies)
+#   setup -n         dry run: say what it would change, change nothing
+#   setup --here     link to the directory this script runs from, even when an installed copy exists (for development)
+#
+# The shortcuts point at the STABLE install path (the marketplace clone, ~/.claude/plugins/marketplaces/biliboss/...),
+# not at the versioned plugin cache, which moves on every update. Idempotent: run it again and it reports "nothing to do".
+# Add $AG_HOME/bin to PATH once (the script prints the line when it is missing).
+. "$(dirname "$0")/ag-lib.sh"
+
+seco=0; aqui=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) seco=1; shift ;;
+    --here) aqui=1; shift ;;
+    *) ag_die 2 "unknown option: $1" ;;
+  esac
+done
+
+marketplace="${AG_MARKETPLACE:-biliboss}"
+printf '%s' "$marketplace" | grep -qE '^[a-zA-Z0-9_-]+$' || ag_die 2 'AG_MARKETPLACE must be a marketplace name'
+stable="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/$marketplace/skills/bili-agents/scripts"
+alvo="$AG_SKILL/scripts"
+if [ "$aqui" -eq 0 ]; then
+  if [ -d "$stable" ]; then alvo="$stable"
+  else
+    case "$alvo" in */plugins/cache/*)
+      ag_die 1 'stable marketplace checkout missing; set AG_MARKETPLACE and CLAUDE_CONFIG_DIR to its installed marketplace, or use --here only for intentionally version-pinned development shortcuts' ;;
+    esac
+  fi
+fi
+
+B="$AG_HOME/bin"
+mudou=0
+[ -d "$B" ] || { [ "$seco" -eq 1 ] || mkdir -p "$B"; echo "create $B"; mudou=1; }
+for f in "$alvo"/*; do
+  n="$(basename "$f")"
+  case "$n" in ag-lib.sh|ag-doctor-legacy|test-*|*.py) continue ;; ag-*) ;; *) continue ;; esac
+  atual="$(readlink "$B/$n" 2>/dev/null || true)"
+  if [ "$atual" = "$f" ]; then continue; fi
+  mudou=1
+  if [ "$seco" -eq 1 ]; then echo "would link $n -> $f"; else ln -sfn "$f" "$B/$n" && echo "linked $n -> $f"; fi
+done
+# the setup command itself is reachable as bili-agents-setup
+atual="$(readlink "$B/bili-agents-setup" 2>/dev/null || true)"
+if [ "$atual" != "$alvo/setup" ]; then
+  mudou=1
+  if [ "$seco" -eq 1 ]; then echo "would link bili-agents-setup -> $alvo/setup"; else ln -sfn "$alvo/setup" "$B/bili-agents-setup" && echo "linked bili-agents-setup -> $alvo/setup"; fi
+fi
+[ "$mudou" -eq 1 ] || echo "nothing to do: every ag-* tool already points into $alvo"
+case ":$PATH:" in *":$B:"*) ;; *) echo "note: $B is not in PATH; add: export PATH=\"$B:\$PATH\"" ;; esac
+exit 0

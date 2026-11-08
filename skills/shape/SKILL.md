@@ -9,7 +9,7 @@ description: >-
   "plan", "vamos fazer", "quero", "faz", "nova tarefa", "brainstorm", "backbrief". Questions and one-line commands skip
   it.
 metadata:
-  version: 0.4.0
+  version: 0.5.0
   license: MIT
 ---
 
@@ -47,8 +47,9 @@ a piece by name (`skill_view`) or by its file (`../<piece>/SKILL.md`).
 3. **Backbrief, always** (`backbrief`): the teach-back the owner confirms. Nothing is built before the ok. It has a
    ceiling: on the owner's 2nd adjustment the shaping opens a line of understanding instead of guessing a 3rd time
    (see *O melhor caminho*).
-4. **Choose the resources** (`shape.sh choose '<kind>'`): the least-cost combination, "Decidi X porque Y".
-5. **Hand back.** Shape ends here: the shaped request plus the recommended form ("Decidi thread porque…",
+4. **Executable acceptance before code.** For implementation work, include `doctor-driven` in the handoff. The executor writes the nearest `.doctor.yaml` before implementation, observes and confirms a relevant red, and includes a journey for capabilities with real users. Existing CI gates stay in place.
+5. **Choose the resources** (`shape.sh choose '<kind>'`): the least-cost combination, "Decidi X porque Y".
+6. **Hand back.** Shape ends here: the shaped request plus the recommended form ("Decidi thread porque…",
    `resources.chosen`). Shape never opens a thread, a subagent or a card (no `thread.sh`, no `delegate_task`, no
    `kanban.sh pull`): the caller (the Bili, or the agent that loaded it) executes and emits `work.delegated`.
 ## Pelo resultado (a coisa nomeada sem número)

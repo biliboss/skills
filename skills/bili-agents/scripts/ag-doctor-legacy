@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# ag-doctor: doctor-driven development for bili-agents. Write the check first, watch it fail, build, watch it pass.
+#
+#   ag-doctor                       run everything: checks/ (must pass) and pendentes/ (planned, expected to fail until built)
+#   ag-doctor --fast                skip the slow checks (files named lento-*.sh, such as the voice probe)
+#   ag-doctor --only NAME           run one check; prints one flat line (add --json for the record)
+#   ag-doctor --json                the report for agents: [{id, category, status, evidence, fix, order}], stable keys
+#   ag-doctor --new NAME [--category C] [--house]   create pendentes/NAME.sh already failing (the "watch it fail")
+#   ag-doctor --promote NAME        move pendentes/NAME.sh to checks/ once it passes (the "watch it pass")
+#   ag-doctor --ls                  list checks and pendentes with their categories
+#
+# Two places hold checks. The skill's own doctor/ (generic: it travels with the plugin) and the house's $AG_HOME/doctor
+# (this machine's own: client prototypes, named agents, the owner's repo). --house creates a new check in the house.
+# AG_DOCTOR=<dir> alone replaces both (the tests use it).
+#
+# A check is a script in <doctor>/{checks,pendentes}/NAME.sh. It prints one evidence line and exits 0 when it holds, 1 when
+# it does not. Its header says what it proves and how an agent fixes it:
+#   # category: Plugin           one of the categories below (old checks get theirs from categories.tsv)
+#   # what: one English sentence
+#   # fix: the imperative instruction for the agent that makes it pass
+# It receives AG_HOME (the data home), AG_SKILL (the skill directory), BIN (the skill's scripts) and AG_DOCTOR_DIRS
+# (the doctor directories, colon-separated) in the environment.
+#
+# Statuses: PASS (a check that holds), FAIL (a check that broke: a regression), PEND (planned, still failing: expected),
+# PROMOTE (planned and already passing: promote it). The report is for humans (category blocks) and for agents (the
+# FOR AGENTS block with NEXT steps, and --json).
+# Exit: 0 when there is no FAIL, 1 when there is one, 2 on bad usage.
+. "$(dirname "$0")/ag-lib.sh"
+BIN="$AG_SKILL/scripts"
+if [ -n "${AG_DOCTOR:-}" ]; then DOCS=("$AG_DOCTOR"); else DOCS=("$AG_SKILL/doctor" "${AG_HOUSE_DOCTOR:-$AG_HOME/doctor}"); fi
+AG_DOCTOR_DIRS="$(IFS=:; echo "${DOCS[*]}")"
+export AG_HOME AG_SKILL BIN AG_DOCTOR_DIRS
+
+CATEGORIES="Plugin|Code vs data|Roles|Voice|Runtime|Instances|Doctor|Prototype|Other"
+
+fast=0; json=0; only=""; modo=run; nome=""; categoria="Other"; casa=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fast|--rapido) fast=1; shift ;;
+    --json) json=1; shift ;;
+    --only|--so) only="${2:-}"; shift 2 ;;
+    --new|--novo) modo=new; nome="${2:-}"; shift 2 ;;
+    --category) categoria="${2:-Other}"; shift 2 ;;
+    --house) casa=1; shift ;;
+    --promote|--promover) modo=promote; nome="${2:-}"; shift 2 ;;
+    --ls) modo=ls; shift ;;
+    *) ag_die 2 "unknown option: $1" ;;
+  esac
+done
+for d in "${DOCS[@]}"; do mkdir -p "$d/checks" "$d/pendentes" 2>/dev/null || true; done
+
+# meta <file> <key>: a "# key: value" line from the header of a check
+meta() { sed -n '2,16p' "$1" | sed -n "s/^# $2: *//p" | head -1; }
+# tsv <name> <column>: the category (2) or fix (3) of an old check, from the categories.tsv of any doctor directory
+tsv() { local d v; for d in "${DOCS[@]}"; do [ -f "$d/categories.tsv" ] || continue; v="$(awk -F'\t' -v n="$1" -v c="$2" '$1==n{print $c; exit}' "$d/categories.tsv")"; [ -z "$v" ] || { printf '%s' "$v"; return; }; done; }
+cat_of() { local v; v="$(meta "$1" category)"; [ -n "$v" ] || v="$(tsv "$2" 2)"; printf '%s' "${v:-Other}"; }
+fix_of() { local v; v="$(meta "$1" fix)"; [ -n "$v" ] || v="$(tsv "$2" 3)"; printf '%s' "$v"; }
+rank_of() { printf '%s' "$CATEGORIES" | tr '|' '\n' | awk -v c="$1" '$0==c{print NR; f=1} END{if(!f) print 99}'; }
+
+case "$modo" in
+  new)
+    [ -n "$nome" ] || ag_die 2 "usage: ag-doctor --new NAME [--category C] [--house]"
+    alvo="${DOCS[0]}"; [ "$casa" -eq 1 ] && alvo="${AG_HOUSE_DOCTOR:-$AG_HOME/doctor}"
+    mkdir -p "$alvo/pendentes"
+    arq="$alvo/pendentes/$nome.sh"
+    [ ! -e "$arq" ] || ag_die 2 "already exists: $arq"
+    {
+      echo '#!/usr/bin/env bash'
+      echo "# category: $categoria"
+      echo '# what: TODO one English sentence: what this check proves'
+      echo '# fix: TODO the imperative instruction for the agent that makes this check pass'
+      echo '# 1) write the expectation below: print one evidence line, exit 0 when it holds and 1 when it does not'
+      echo "# 2) run: ag-doctor --only $nome   (it must say PEND: that is the \"watch it fail\")"
+      echo "# 3) build; run again until it says PROMOTE; then: ag-doctor --promote $nome"
+      echo "echo \"TODO: write the check for $nome\""
+      echo 'exit 1'
+    } > "$arq"
+    chmod +x "$arq"; echo "created $arq (fails on purpose)"; exit 0 ;;
+  promote)
+    [ -n "$nome" ] || ag_die 2 "usage: ag-doctor --promote NAME"
+    for d in "${DOCS[@]}"; do
+      if [ -f "$d/pendentes/$nome.sh" ]; then
+        out="$(bash "$d/pendentes/$nome.sh" 2>&1)" || ag_die 2 "it still fails, cannot promote: $out"
+        mv "$d/pendentes/$nome.sh" "$d/checks/$nome.sh"; echo "promoted: $d/checks/$nome.sh"; exit 0
+      fi
+    done
+    ag_die 1 "no pendentes/$nome.sh in any doctor directory" ;;
+  ls)
+    for d in "${DOCS[@]}"; do
+      for t in checks pendentes; do
+        echo "$d/$t:"
+        find "$d/$t" -name '*.sh' 2>/dev/null | sort | while read -r f; do n="$(basename "$f" .sh)"; printf '  %-32s %s\n' "$n" "$(cat_of "$f" "$n")"; done
+      done
+    done
+    exit 0 ;;
+esac
+
+REC="$(mktemp)"; SORTED="$(mktemp)"; trap 'rm -f "$REC" "$SORTED"' EXIT
+run_one() {  # run_one <file> <check|pendente>
+  local f="$1" tipo="$2" n out rc st ev cat fx
+  n="$(basename "$f" .sh)"
+  [ -z "$only" ] || [ "$only" = "$n" ] || return 0
+  if [ "$fast" -eq 1 ] && case "$n" in lento-*) true ;; *) false ;; esac; then return 0; fi
+  out="$(bash "$f" 2>&1)"; rc=$?
+  ev="$(printf '%s' "$out" | head -3 | tr '\n\t' '  ' | sed 's/  *$//')"
+  if [ "$tipo" = check ]; then if [ "$rc" -eq 0 ]; then st=PASS; else st=FAIL; fi
+  else if [ "$rc" -eq 0 ]; then st=PROMOTE; else st=PEND; fi; fi
+  cat="$(cat_of "$f" "$n")"; fx="$(fix_of "$f" "$n")"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$st" "$n" "$cat" "$ev" "$fx" >> "$REC"
+}
+for d in "${DOCS[@]}"; do
+  for f in $(find "$d/checks" -name '*.sh' 2>/dev/null | sort); do run_one "$f" check; done
+  for f in $(find "$d/pendentes" -name '*.sh' 2>/dev/null | sort); do run_one "$f" pendente; done
+done
+
+# order: category order, then FAIL, PEND, PROMOTE, PASS, then name
+while IFS="$(printf '\t')" read -r st n cat ev fx; do
+  sev=3; case "$st" in FAIL) sev=0 ;; PEND) sev=1 ;; PROMOTE) sev=2 ;; esac
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(rank_of "$cat")" "$sev" "$n" "$st" "$cat" "$ev" "$fx"
+done < "$REC" | sort -t"$(printf '\t')" -k1,1n -k2,2n -k3,3 | cut -f3- > "$SORTED"
+# SORTED columns: name, status, category, evidence, fix
+
+total="$(wc -l < "$SORTED" | tr -d ' ')"
+n_pass="$(awk -F'\t' '$2=="PASS"' "$SORTED" | wc -l | tr -d ' ')"
+n_fail="$(awk -F'\t' '$2=="FAIL"' "$SORTED" | wc -l | tr -d ' ')"
+n_pend="$(awk -F'\t' '$2=="PEND"' "$SORTED" | wc -l | tr -d ' ')"
+n_prom="$(awk -F'\t' '$2=="PROMOTE"' "$SORTED" | wc -l | tr -d ' ')"
+
+if [ "$json" -eq 1 ]; then
+  jq -Rn '[inputs | split("\t") | {id: .[0], category: .[2], status: .[1], evidence: .[3], fix: (.[4] // "")}] | to_entries | map(.value + {order: (.key + 1)})' < "$SORTED"
+elif [ -n "$only" ]; then
+  awk -F'\t' '{printf "%-8s %-30s %s\n", $2, $1, $4; if ($2 != "PASS" && $5 != "") printf "         fix: %s\n", $5}' "$SORTED"
+else
+  echo "bili-agents doctor — $total checks · $n_pass pass · $n_fail fail · $n_pend pending · $n_prom ready to promote"
+  awk -F'\t' '
+    { if ($3 != cat) { cat = $3; printf "\n%s\n", toupper(cat) }
+      printf "  %-8s %-30s %s\n", $2, $1, $4
+      if ($2 != "PASS" && $5 != "") printf "           fix: %s\n", $5 }' "$SORTED"
+  echo
+  echo "FOR AGENTS"
+  if [ $((n_fail + n_pend + n_prom)) -eq 0 ]; then
+    echo "  Nothing to do: every check passes."
+  else
+    echo "  Rules: fix every FAIL first (it is a regression); for a PEND run 'ag-doctor --only <id>' while you build until it says PROMOTE, then 'ag-doctor --promote <id>'."
+    awk -F'\t' '$2 != "PASS" { k++; instr = ($5 != "" ? $5 : $4); printf "  NEXT %d) %s [%s]: %s\n", k, $1, $2, instr }' "$SORTED"
+  fi
+fi
+[ "$n_fail" -eq 0 ]
