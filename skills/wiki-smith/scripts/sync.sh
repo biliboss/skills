@@ -1,8 +1,9 @@
 #!/bin/sh
 # sync.sh - commit the given paths (and only them), optionally publish to origin/<MAIN_BRANCH>.
-# Usage: sync.sh [-w WIKI_DIR] [-c CONFIG] -m "message" [-p] PATH...
-#        sync.sh [-w WIKI_DIR] [-c CONFIG] -W
+# Usage: sync.sh [-w WIKI_DIR] [-P PROJECT] [-c CONFIG] -m "message" [-p] PATH...
+#        sync.sh [-w WIKI_DIR] [-P PROJECT] [-c CONFIG] -W
 #   -m  commit message (required; add the attribution lines your repo asks for, with a blank line)
+#   -P  the project folder inside $WIKI_HOME, instead of -w DIR
 #   -p  push: fetch, rebase onto origin/<main>, `git push origin HEAD:<main>`. Without -p nothing is
 #       published. Use -p only when the user asked to sync.
 #   -W  create a fresh worktree from origin/<main> on a branch wiki-sync/<time> and print its path.
@@ -34,23 +35,24 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 WIKI_ARG='' CFG_ARG='' msg='' push=0 mkwt=0
-while getopts 'w:c:m:pW' o; do
+while getopts 'w:c:m:pWP:' o; do
   case $o in
     w) WIKI_ARG=$OPTARG ;;
     c) CFG_ARG=$OPTARG ;;
     m) msg=$OPTARG ;;
     p) push=1 ;;
     W) mkwt=1 ;;
+    P) WIKI_PROJECT=$OPTARG ;;
     *) exit 2 ;;
   esac
 done
 shift $((OPTIND - 1))
 if [ "$mkwt" -eq 0 ] && { [ -z "$msg" ] || [ $# -eq 0 ]; }; then
-  echo 'usage: sync.sh [-w DIR] [-c CONFIG] -m "message" [-p] PATH...' >&2
-  echo '       sync.sh [-w DIR] [-c CONFIG] -W' >&2
+  echo 'usage: sync.sh [-w DIR] [-P PROJECT] [-c CONFIG] -m "message" [-p] PATH...' >&2
+  echo '       sync.sh [-w DIR] [-P PROJECT] [-c CONFIG] -W' >&2
   exit 2
 fi
-export WIKI_ARG CFG_ARG
+export WIKI_ARG CFG_ARG WIKI_PROJECT
 # shellcheck source=lib.sh
 . "$here/lib.sh"
 wiki_resolve

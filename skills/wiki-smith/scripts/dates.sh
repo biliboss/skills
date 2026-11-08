@@ -1,6 +1,6 @@
 #!/bin/sh
 # dates.sh - keep the created/updated frontmatter of the wiki's root pages (dates in UTC, from git).
-# Usage: dates.sh [-w WIKI_DIR] [-c CONFIG]
+# Usage: dates.sh [-w WIKI_DIR] [-P PROJECT] [-c CONFIG]
 #
 # A page without the dates gets CREATED_KEY from its first commit (following renames) and UPDATED_KEY
 # from its last commit; a page without commits gets today. A page whose text, frontmatter aside,
@@ -9,14 +9,15 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 WIKI_ARG='' CFG_ARG=''
-while getopts 'w:c:' o; do
+while getopts 'w:c:P:' o; do
   case $o in
     w) WIKI_ARG=$OPTARG ;;
     c) CFG_ARG=$OPTARG ;;
+    P) WIKI_PROJECT=$OPTARG ;;
     *) exit 2 ;;
   esac
 done
-export WIKI_ARG CFG_ARG
+export WIKI_ARG CFG_ARG WIKI_PROJECT
 # shellcheck source=lib.sh
 . "$here/lib.sh"
 wiki_resolve

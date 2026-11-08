@@ -1,6 +1,6 @@
 #!/bin/sh
 # day-index.sh - regenerate the day index (<DIARY_DIR>/<day>.md) of every day from its notes folder.
-# Usage: day-index.sh [-w WIKI_DIR] [-c CONFIG]
+# Usage: day-index.sh [-w WIKI_DIR] [-P PROJECT] [-c CONFIG]
 # Prints the files it wrote. Exit 0 ok; 2 when a day file holds text the generator does not produce
 # (hand-written notes in the old format, a git conflict mark). It then writes nothing.
 #
@@ -10,14 +10,15 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 WIKI_ARG='' CFG_ARG=''
-while getopts 'w:c:' o; do
+while getopts 'w:c:P:' o; do
   case $o in
     w) WIKI_ARG=$OPTARG ;;
     c) CFG_ARG=$OPTARG ;;
+    P) WIKI_PROJECT=$OPTARG ;;
     *) exit 2 ;;
   esac
 done
-export WIKI_ARG CFG_ARG
+export WIKI_ARG CFG_ARG WIKI_PROJECT
 # shellcheck source=lib.sh
 . "$here/lib.sh"
 wiki_resolve

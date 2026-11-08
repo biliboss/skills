@@ -1,6 +1,6 @@
 #!/bin/sh
 # note.sh - create today's journal note and print its path.
-# Usage: note.sh [-w WIKI_DIR] [-c CONFIG] [-b] "Title that says what changed"
+# Usage: note.sh [-w WIKI_DIR] [-P PROJECT] [-c CONFIG] [-b] "Title that says what changed"
 # The file is <DIARY_DIR>/<YYYY-MM-DD>/<HHMM>-<slug>.md (UTC), starting with `## HH:MM — Title`.
 #   -b  read the body from stdin and append it after one blank line. Stdin is read ONLY with -b: agent
 #       shells and CI give a stdin that is open but never closes, so reading it implicitly would hang.
@@ -10,21 +10,22 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 WIKI_ARG='' CFG_ARG='' body=0
-while getopts 'w:c:b' o; do
+while getopts 'w:c:P:b' o; do
   case $o in
     w) WIKI_ARG=$OPTARG ;;
     c) CFG_ARG=$OPTARG ;;
+    P) WIKI_PROJECT=$OPTARG ;;
     b) body=1 ;;
     *) exit 2 ;;
   esac
 done
 shift $((OPTIND - 1))
 if [ $# -lt 1 ]; then
-  echo 'usage: note.sh [-w DIR] [-c CONFIG] [-b] "Title"' >&2
+  echo 'usage: note.sh [-w DIR] [-P PROJECT] [-c CONFIG] [-b] "Title"' >&2
   exit 2
 fi
 title=$1
-export WIKI_ARG CFG_ARG
+export WIKI_ARG CFG_ARG WIKI_PROJECT
 # shellcheck source=lib.sh
 . "$here/lib.sh"
 wiki_resolve

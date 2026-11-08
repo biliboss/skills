@@ -6,9 +6,13 @@ footer, empty or orphan pages, the diary (day index equal to the generated one, 
 headings, day linked from the inbox), notes in the old format inside the inbox, the created/updated
 frontmatter and the History section. Pages ignored by git are skipped.
 
-Usage: python3 -I scripts/lint.py [-w WIKI_DIR] [-c CONFIG]
+Usage: python3 -I scripts/lint.py [-w WIKI_DIR] [-P PROJECT] [-c CONFIG]
 Output: `<wiki>/<file>:<line>: <type>: <message>`, one per problem, sorted. Exit 0 clean, 2 problems.
 Config: <wiki>/wiki.config (KEY=value, same file the sh scripts source), see templates/.
+Wiki lookup, same order as the sh lib: -w/$WIKI_DIR, then $WIKI_HOME/<-P or
+$WIKI_PROJECT> (error when missing), then the $WIKI_HOME project whose
+wiki.config REPO=owner/name matches the origin remote, then
+$WIKI_HOME/biliboss. Never clones or pulls.
 WIKI_LANG=pt-BR switches the types and messages to Portuguese (the original tool's output).
 """
 import os
@@ -366,9 +370,43 @@ def ignoradas(root, caminhos):
         return set()
 
 
+def git_stdout(args):
+    try:
+        return subprocess.run(["git"] + args, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, universal_newlines=True).stdout.strip()
+    except OSError:
+        return ""
+
+
+def find_wiki(proj, home):
+    """The wiki_resolve order minus -w/$WIKI_DIR (handled by the caller) and minus
+    clone/pull: -P/$WIKI_PROJECT, origin match, default project."""
+    if proj:
+        wiki = os.path.join(home, proj)
+        if not os.path.isdir(wiki):
+            sys.stderr.write("wiki-smith: project wiki not found: %s\n" % wiki)
+            sys.exit(1)
+        return wiki
+    remote = git_stdout(["remote", "get-url", "origin"])
+    repo = ""
+    for pre in ("git@github.com:", "https://github.com/"):
+        if remote.startswith(pre):
+            repo = remote[len(pre):]
+            break
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+    if repo and os.path.isdir(home):
+        for name in sorted(os.listdir(home)):
+            cfg = os.path.join(home, name, "wiki.config")
+            if os.path.isfile(cfg) and parse_config(cfg).get("REPO") == repo:
+                return os.path.dirname(cfg)
+    return os.path.join(home, "biliboss")
+
+
 def main(argv):
     wiki = os.environ.get("WIKI_DIR")
     cfgp = os.environ.get("WIKI_CONFIG")
+    proj = os.environ.get("WIKI_PROJECT")
     i = 0
     while i < len(argv):
         if argv[i] == "-w" and i + 1 < len(argv):
@@ -377,18 +415,21 @@ def main(argv):
         elif argv[i] == "-c" and i + 1 < len(argv):
             cfgp = argv[i + 1]
             i += 2
+        elif argv[i] == "-P" and i + 1 < len(argv):
+            proj = argv[i + 1]
+            i += 2
         else:
             sys.stderr.write(__doc__)
             return 1
     if not wiki:
-        wiki = ".wiki"
-        if not os.path.isdir(wiki):
-            try:
-                top = subprocess.run(["git", "rev-parse", "--show-toplevel"], stdout=subprocess.PIPE,
-                                     stderr=subprocess.DEVNULL, universal_newlines=True).stdout.strip()
-            except OSError:
-                top = ""
-            wiki = os.path.join(top, ".wiki") if top else wiki
+        home = os.environ.get("WIKI_HOME")
+        if not home:
+            envf = os.environ.get("WIKI_SKILL_ENV") or os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+            home = os.path.expandvars(parse_config(envf).get("WIKI_HOME", ""))
+        if not home:
+            home = os.path.join(os.path.expanduser("~"), "wiki")
+        wiki = find_wiki(proj, home)
     if not os.path.isdir(wiki):
         sys.stderr.write("wiki-smith: no wiki folder found (use -w DIR)\n")
         return 1
