@@ -46,6 +46,8 @@ if [ "$force" = 0 ]; then
       die "não consegui verificar o worktree (git status falhou); conserte ou use --force"
     fi
     [ -z "$out" ] || die "o worktree tem alterações, arquivos novos ou ignorados; integre ou use --force"
+    gd=$(git -C "$WORKTREE" rev-parse --absolute-git-dir 2>/dev/null || true)
+    if [ -n "$gd" ] && [ -f "$gd/locked" ]; then die "o worktree está travado (git worktree lock); destrave com 'git worktree unlock' ou use --force"; fi
   fi
   if [ -n "$REPO" ]; then
     [ -d "$REPO" ] || die "o repositório $REPO sumiu; não dá para verificar o branch; use --force"
@@ -63,7 +65,11 @@ fi
 
 # Daqui para a frente nada pode interromper: com --force sempre termina; sem ele, tudo já foi verificado.
 if [ -n "$REPO" ] && [ -d "$REPO" ]; then
-  if [ -e "$WORKTREE" ]; then git -C "$REPO" worktree remove --force --force "$WORKTREE" >/dev/null 2>&1 || true; fi
+  if [ -e "$WORKTREE" ]; then
+    # Um segundo --force (remove worktree travado) só no caminho com --force.
+    if [ "$force" = 1 ]; then git -C "$REPO" worktree remove --force --force "$WORKTREE" >/dev/null 2>&1 || true
+    else git -C "$REPO" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true; fi
+  fi
   git -C "$REPO" worktree prune >/dev/null 2>&1 || true
   if git -C "$REPO" rev-parse --verify -q "$BRANCH" >/dev/null 2>&1; then
     git -C "$REPO" branch -q -D "$BRANCH" >/dev/null 2>&1 || true
