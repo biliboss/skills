@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- Bots sidebar shows live state per bot (working, blocked, done).
+- `bots.py list` keeps the principal first, then most recent session activity.
+- Option+1-9 navigation for bots.
+
 ## 0.1.0
 
 - Bots sidebar, local registry, explicit UUID sessions and dedicated workspaces hidden from Spaces.

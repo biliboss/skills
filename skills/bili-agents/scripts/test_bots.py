@@ -2,7 +2,9 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -95,6 +97,26 @@ class BotsTest(unittest.TestCase):
     def test_space_identity_is_stable_and_bot_specific(self):
         self.assertEqual(bots.space_id(self.bot), bots.space_id(dict(self.bot)))
         self.assertNotEqual(bots.space_id(self.bot), bots.space_id({**self.bot, 'id': 'other'}))
+
+    def test_list_keeps_principal_first_then_most_recent(self):
+        def session(n):
+            return f'00000000-0000-4000-8000-00000000000{n}'
+        entries = [{**self.bot, 'id': 'never', 'session_id': session(1)},
+                   {**self.bot, 'id': 'old', 'session_id': session(2)},
+                   {**self.bot, 'id': 'main', 'session_id': session(3), 'principal': True},
+                   {**self.bot, 'id': 'new', 'session_id': session(4)}]
+        self.registry.write_text(json.dumps({'bots': entries}))
+        projects = self.root / 'config/projects/demo'
+        projects.mkdir(parents=True)
+        for n, stamp in ((2, 100), (3, 50), (4, 200)):
+            path = projects / (session(n) + '.jsonl')
+            path.touch()
+            os.utime(path, (stamp, stamp))
+        output = io.StringIO()
+        env = {'CLAUDE_CONFIG_DIR': str(self.root / 'config')}
+        with patch.dict(os.environ, env), patch.object(sys, 'argv', ['bots.py', 'list']), contextlib.redirect_stdout(output):
+            self.assertEqual(bots.main(), 0)
+        self.assertEqual([b['id'] for b in json.loads(output.getvalue())['bots']], ['main', 'new', 'old', 'never'])
 
 
 if __name__ == '__main__':
