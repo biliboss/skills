@@ -144,7 +144,13 @@ def main():
     write(keys_path, keys)
     subprocess.run(['herdr-app', 'check', str(spaces_mod)], check=True)
     spaces_node['content']['mod'] = 'bili-bot-spaces'
-    node['size'] = {'px': min(240, 40 + 35 * len(registered))}
+    # Bots fills the sidebar; the Spaces and Agents lists collapse to nothing but stay for the Cmd+digit hints.
+    node['size'] = {'weight': 1}
+    lists = find(layout, 'sidebar-lists')
+    if lists:
+        lists['size'] = {'px': 0}
+        for child in lists.get('children', []):
+            child['min'] = 0
     node['content'] = {'mod': 'herdr-bots', 'props': {'opener': str(SKILL / 'scripts/ag-open'), 'registry': str(bots.REGISTRY), 'dataHome': str(bots.HOME)}}
     mod = app / 'mods/herdr-bots'
     mod.mkdir(parents=True, exist_ok=True)

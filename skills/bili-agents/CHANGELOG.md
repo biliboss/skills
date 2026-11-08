@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- The Bots panel fills the whole sidebar height; the Spaces and Agents lists collapse to zero height.
+
 ## 0.2.2
 
 - Opening a bot adopts the live terminal already shown in its folder instead of starting a second tab.

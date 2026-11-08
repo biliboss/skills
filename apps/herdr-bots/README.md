@@ -69,3 +69,7 @@ private JSON; selection and sidebar width are saved by Herdr. Do not stop the us
 ## Command navigation
 
 In the personal Bots layout, Cmd+1…9 selects bots first, then visible workspaces, and Option+1…9 takes over tab selection (Cmd+digit's default). Outside this layout nothing changes. On macOS, shortcut labels appear only while Command is held. Installation builds a small helper with Xcode command-line tools: it reads only the current Command modifier flag, captures no keystrokes, and exits on a change or after 18 seconds. Herdr owns each bounded call; no detached watcher is installed.
+
+## Layout
+
+In the personal Bots layout the Bots panel fills the sidebar between the brand block and the footer; the Spaces and Agents lists are collapsed to zero height (kept, so Spaces still supplies the Cmd+digit hints for non-bot workspaces).
