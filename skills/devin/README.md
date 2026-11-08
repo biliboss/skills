@@ -18,6 +18,7 @@ Delega uma tarefa de código ao Devin CLI em background: um worktree e um branch
 | `wait.sh` | Bloqueia até o fim e sai com o código do Devin | `scripts/wait.sh <id> --timeout 1800` |
 | `review.sh` | Resposta, commits, diff e arquivos novos | `scripts/review.sh <id>` |
 | `clean.sh` | Remove worktree, branch e estado | `scripts/clean.sh <id>` |
+| `batch.sh` | Roda um script `.mjs` que dispara vários Devins, sem gastar tokens enquanto esperam | `scripts/batch.sh --repo ~/src/app --max 3 revisa.mjs` |
 
 ## Configuração
 
@@ -25,4 +26,4 @@ Copie `example.env` para `.env` ao lado do `SKILL.md`. Todas as chaves são opci
 
 ## Testes
 
-Esta versão ainda não tem testes.
+Sem suíte automática. A 0.2.0 foi verificada com um `DEVIN_BIN` falso (um script `sh` que dorme, escreve arquivos ou sai com código) e com uma rodada real no `swe-2-medium`.

@@ -9,3 +9,4 @@ Cada verbo tem um script em `scripts/`, que responde a `--help`.
 | [check](check.md) | ver as rodadas |
 | [review](review.md) | revisar o que o Devin fez |
 | [clean](clean.md) | remover a rodada depois de integrar |
+| [batch](batch.md) | rodar um script que dispara vários Devins, sem gastar tokens enquanto esperam |

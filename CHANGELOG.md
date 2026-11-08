@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.119.0
+
+- devin 0.2.0: verbo `batch` (roda um script `.mjs` no subconjunto da sintaxe de workflows do Claude e dispara Devins, sem gastar tokens do Claude enquanto esperam) e correções: estado `running` enquanto o Devin viver, estado `starting`, `clean.sh` à prova de falha aberta, de worktree travado e de meta.env adulterado, pasta órfã desfeita, prompt por `--prompt-file`.
+
 ## 0.118.0
 
 - design-taste 0.1.0: julga o gosto e a qualidade antes e depois de fazer, em cinco facetas (interface, negócio, produto, software, escrita); cada afirmação marcada como da casa ou geral. Usada pelo LP Bot.
