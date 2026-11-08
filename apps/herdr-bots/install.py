@@ -124,12 +124,35 @@ def main():
         text = text.replace('import { spaces,', 'import { spaces as allSpaces,', 1)
         text += '\nfunction spaces() { return allSpaces().filter(space => !(shared("bili.botSpaces") ?? []).includes(space.id)); }\n'
         source.write_text(text)
+    # Number Bots first, then visible Spaces; one navigation handler owns the order.
+    spaces_source = spaces_mod / 'main.js'
+    text = spaces_source.read_text()
+    if '// bili-bots navigation hints' not in text:
+        text += '\n// bili-bots navigation hints\nfunction botShortcut(id) { const n = (shared("bili.botSpaces") ?? []).length + spaces().findIndex(s => s.id === id) + 1; return shared("bili.optionHints") && n > 0 && n <= 9 ? `⌥${n}` : ""; }\n'
+        text = text.replace('.child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1()),', '.child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())\n          .child(div().flex_none().text_size(11).text_color(t.dim).child(botShortcut(w.id))),', 1)
+        text = text.replace('.child(String(i + 1))', '.child(botShortcut(w.id) || String(i + 1))', 1)
+        spaces_source.write_text(text)
+    text = spaces_source.read_text().replace('return n > 0 && n <= 9 ? `⌥${n}` : "";', 'return shared("bili.optionHints") && n > 0 && n <= 9 ? `⌥${n}` : "";')
+    spaces_source.write_text(text)
+    keys_path = app / 'keys.json'
+    keys = json.loads(keys_path.read_text())
+    bindings = keys.setdefault('layout:bili-bots', {})
+    for number in range(1, 10):
+        bindings[f'alt-{number}'] = f'herdr-bots.select-{number}'
+    write(keys_path, keys)
     subprocess.run(['herdr-app', 'check', str(spaces_mod)], check=True)
     spaces_node['content']['mod'] = 'bili-bot-spaces'
     node['size'] = {'px': min(240, 40 + 35 * len(registered))}
     node['content'] = {'mod': 'herdr-bots', 'props': {'opener': str(SKILL / 'scripts/ag-open'), 'registry': str(bots.REGISTRY), 'dataHome': str(bots.HOME)}}
     mod = app / 'mods/herdr-bots'
     mod.mkdir(parents=True, exist_ok=True)
+    if sys.platform == 'darwin':
+        helper = mod / 'option-state'
+        temporary = mod / 'option-state.new'
+        sdk = subprocess.check_output(['xcrun', '--sdk', 'macosx', '--show-sdk-path'], text=True).strip()
+        subprocess.run(['xcrun', 'clang', '-isysroot', sdk, '-O2', str(HERE / 'option-state.c'), '-framework', 'ApplicationServices', '-o', str(temporary)], check=True)
+        os.replace(temporary, helper)
+        node['content']['props']['optionState'] = str(helper)
     for name in ('main.js', 'mod.json'):
         shutil.copy2(HERE / name, mod / name)
     subprocess.run(['herdr-app', 'check', str(mod)], check=True)

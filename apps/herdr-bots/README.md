@@ -65,3 +65,7 @@ herdr-app shot /tmp/herdr-bots.png
 
 A real restart should be verified when the user next closes and opens Herdr. Layout structure is saved in the
 private JSON; selection and sidebar width are saved by Herdr. Do not stop the user's app or other terminals.
+
+## Option navigation
+
+In the personal Bots layout, Option+1…9 selects bots first, then visible workspaces. On macOS, shortcut labels appear only while Option is held. Installation builds a small helper with Xcode command-line tools: it reads only the current Option modifier flag, captures no keystrokes, and exits on a change or after 18 seconds. Herdr owns each bounded call; no detached watcher is installed. These bindings take precedence over Option+digit text input in this layout.
