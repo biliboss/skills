@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Hire a companion bot: create its folder and identity, register it, open it."""
+import argparse
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'bili-agents' / 'scripts'))
+import bots  # noqa: E402
+
+
+def create(staging, brief):
+    (staging / '.claude').mkdir()
+    (staging / 'AGENTS.md').write_text(brief)
+    (staging / 'CLAUDE.md').write_text('@AGENTS.md\n')
+    (staging / '.claude' / 'settings.json').write_text('{}\n')
+    staging.chmod(0o755)
+
+
+def hire(args):
+    brief = bots.read_brief(args.brief)
+    with bots.registry_lock():
+        data = bots.load()
+        lead = bots.principal(data['bots'])
+        if any(bot['id'] == args.id for bot in data['bots']):
+            raise bots.Refused(f'bot already registered: {args.id}')
+        bots.check_name(data, args.name)
+        folder = Path(args.folder).expanduser() if args.folder else bots.HOME / args.id
+        if os.path.lexists(folder):
+            raise bots.Refused(f'folder already exists and was not touched: {folder}')
+        bot = {'id': args.id, 'name': args.name.strip(), 'folder': str(folder),
+               'session_id': str(uuid.uuid4()), 'command': lead['command']}
+        candidate = {**data, 'bots': [*data['bots'], bot]}
+        bots.validated_temp(candidate).unlink()
+        folder.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f'.hire-{args.id}-', dir=folder.parent))
+        try:
+            create(staging, brief)
+            os.rename(staging, folder)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        try:
+            bots.save(data, candidate)
+        except BaseException:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+    if not args.no_open:
+        try:
+            bots.open_bot(bot)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            raise bots.Refused(f"bot {bot['id']} was hired but did not open: {error}") from error
+    return {'hired': bot['id'], 'folder': bot['folder'], 'session_id': bot['session_id']}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('id')
+    parser.add_argument('name')
+    parser.add_argument('--brief', required=True)
+    parser.add_argument('--folder')
+    parser.add_argument('--no-open', action='store_true')
+    args = parser.parse_args()
+    return bots.verb(lambda: hire(args))
+
+
+if __name__ == '__main__':
+    sys.exit(main())

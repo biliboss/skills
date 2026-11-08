@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Claude Code hook: tell a listening bot, in its Herdr terminal, that this bot stopped or needs someone.
+
+Usage (from the target's .claude/settings.json, written by the listen skill):
+    ag-notify <listener-id> stop|notification
+
+Reads the hook JSON from stdin (session_id, cwd, message). Finds the listener's live terminal by its registered
+name, else by a live terminal whose cwd is the listener's folder; with none, exits 0 silently. Then it detaches,
+so the hook returns at once, and the detached copy waits until the listener's input line is empty (only `❯` plus
+whitespace) before `hc send`. It never types while the owner has text in that line; after 10 minutes it gives up.
+"""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bots  # noqa: E402
+
+PROMPT = '❯'
+EVENT_TEXT = {'stop': 'terminou o turno', 'notification': 'precisa de alguém'}
+POLL_SECONDS = 5
+WAIT_SECONDS = 600
+
+
+def prompt_empty(screen):
+    """True when the last `❯` line of the screen holds only the prompt (spaces and NBSP included)."""
+    lines = [line for line in screen.splitlines() if line.lstrip().startswith(PROMPT)]
+    if not lines:
+        return False
+    rest = lines[-1].lstrip()[len(PROMPT):]
+    return not rest.replace(' ', '').strip()
+
+
+def live_terminals():
+    return [t for t in bots.call(['hc', 'ls', '--json'])['terminals'] if t.get('state') == 'live']
+
+
+def listener_terminal(listener):
+    """The listener's terminal address: its registered name first, then any live terminal in its folder."""
+    terminals = live_terminals()
+    for entry in terminals:
+        if entry.get('name') == bots.identity(listener):
+            return entry['address']
+    folder = str(Path(listener['folder']).expanduser())
+    for entry in terminals:
+        if bots.call(['hc', 'get', entry['address'], '--json']).get('cwd') == folder:
+            return entry['address']
+    return None
+
+
+def target_bot(registry, payload):
+    """The bot whose hook fired: by session id, then by the hook's cwd."""
+    for bot in registry:
+        if bot['session_id'] == payload.get('session_id'):
+            return bot
+    cwd = payload.get('cwd')
+    for bot in registry:
+        if cwd and str(Path(bot['folder']).expanduser()) == cwd:
+            return bot
+    return None
+
+
+def target_terminal(target):
+    for entry in live_terminals():
+        if entry.get('name') == bots.identity(target):
+            return entry['address']
+    return None
+
+
+def compose(target, event, payload, address=None):
+    """The one-line <hook> the listener receives; the body says who, what, which session and how to read it."""
+    ident = target['id'] if target else Path(payload.get('cwd') or '').name or 'unknown'
+    name = target['name'] if target else ident
+    session = (payload.get('session_id') or '')[:8]
+    message = ' '.join(str(payload.get('message') or '').split())[:200]
+    where = f'hc read {address}' if address else f'hc read da aba do {name}'
+    body = f'{name}: {EVENT_TEXT.get(event, event)}' + (f' (sessão {session})' if session else '') + '.'
+    if message:
+        body += f' {message}' + ('' if message[-1] in '.!?' else '.')
+    return f'<hook from="{ident}">{body} Leia com {where}.</hook>'
+
+
+def read_screen(address):
+    result = subprocess.run(['hc', 'read', address], text=True, capture_output=True, timeout=20)
+    return result.stdout if result.returncode == 0 else ''
+
+
+def deliver(address, text, sleep=time.sleep, clock=time.monotonic):
+    """Wait for an empty input line, then send; False when the wait ran out."""
+    deadline = clock() + WAIT_SECONDS
+    while True:
+        if prompt_empty(read_screen(address)):
+            subprocess.run(['hc', 'send', address, text], text=True, capture_output=True, timeout=60)
+            return True
+        if clock() >= deadline:
+            return False
+        sleep(POLL_SECONDS)
+
+
+def main(argv):
+    if argv[1:2] == ['--deliver']:
+        return 0 if deliver(argv[2], argv[3]) else 1
+    if len(argv) != 3 or argv[2] not in bots.HOOK_EVENTS:
+        print('usage: ag-notify <listener-id> stop|notification', file=sys.stderr)
+        return 2
+    listener_id, event = argv[1], argv[2]
+    try:
+        payload = json.loads(sys.stdin.read() or '{}')
+    except ValueError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    try:
+        registry = bots.registry()
+        listener = next((b for b in registry if b['id'] == listener_id), None)
+        if listener is None:
+            return 0
+        address = listener_terminal(listener)
+        if address is None:
+            return 0
+        target = target_bot(registry, payload)
+        text = compose(target, event, payload, target_terminal(target) if target else None)
+    except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError):
+        return 0
+    if os.environ.get('AG_NOTIFY_FOREGROUND'):
+        return 0 if deliver(address, text) else 1
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--deliver', address, text],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
