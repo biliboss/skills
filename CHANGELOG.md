@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.108.0
+
+- bili-agents 0.2.4: o workspace e a aba de cada bot no Herdr levam o `name` do cadastro, iguais ao painel Bots.
+
 ## 0.106.0
 
 - bili-agents 0.2.0: Bots sidebar shows each bot state, keeps the principal first and the rest by recency, and adds Option+1-9 navigation.

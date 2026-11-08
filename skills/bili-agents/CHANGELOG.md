@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+- Opening a bot names its Herdr workspace and tab after the registry `name` (`sync_names`, idempotent).
+
 ## 0.2.3
 
 - The Bots panel fills the whole sidebar height; the Spaces and Agents lists collapse to zero height.

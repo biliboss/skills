@@ -2,7 +2,7 @@
 name: bili-agents
 description: Open or focus local bots in Herdr through the ag-* tools. Use for a bot registry, dedicated hidden bot workspaces, and explicit session creation or resumption.
 metadata:
-  version: 0.2.3
+  version: 0.2.4
 ---
 
 # Bots in Herdr

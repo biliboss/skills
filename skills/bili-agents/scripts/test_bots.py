@@ -113,6 +113,34 @@ class BotsTest(unittest.TestCase):
         self.assertIn('bili.session=' + self.bot['session_id'], run)
         self.assertIn('herdr.space=' + bots.space_id(self.bot), run)
 
+    def layout(self, space_name, tab_names):
+        tabs = [{'id': 'tab%d' % i, 'name': n, 'terminals': [{'terminal': 't%d' % i,
+                 'name': bots.identity(self.bot) if i == 1 else None}]} for i, n in enumerate(tab_names)]
+        return {'spaces': [{'id': bots.space_id(self.bot), 'name': space_name, 'tabs': tabs}]}
+
+    def run_sync(self, layout, **kw):
+        calls = []
+        with patch.object(bots, 'call', side_effect=lambda argv: calls.append(argv) or {}):
+            bots.sync_names(self.bot, layout, **kw)
+        return calls
+
+    def test_sync_names_renames_when_different(self):
+        calls = self.run_sync(self.layout('test', ['0', '1']))
+        self.assertEqual(calls, [
+            ['herdr-app', 'do', 'space.rename', json.dumps({'id': bots.space_id(self.bot), 'name': 'Test'})],
+            ['herdr-app', 'do', 'tab.rename', json.dumps({'id': 'tab1', 'name': 'Test'})]])
+
+    def test_sync_names_noop_when_equal(self):
+        self.assertEqual(self.run_sync(self.layout('Test', ['x', 'Test'])), [])
+
+    def test_sync_names_picks_the_tab_with_the_terminal(self):
+        calls = self.run_sync(self.layout('Test', ['a', 'b', 'c']), address='t2')
+        self.assertEqual(calls, [['herdr-app', 'do', 'tab.rename', json.dumps({'id': 'tab2', 'name': 'Test'})]])
+
+    def test_open_bot_syncs_names_after_terminal_shows(self):
+        calls = self.exercise_open([{'terminal': 't99', 'pane': 'p1'}])
+        self.assertEqual(sum(c[:2] == ['herdr-app', 'ls'] for c in calls) >= 2, True)
+
     def test_space_identity_is_stable_and_bot_specific(self):
         self.assertEqual(bots.space_id(self.bot), bots.space_id(dict(self.bot)))
         self.assertNotEqual(bots.space_id(self.bot), bots.space_id({**self.bot, 'id': 'other'}))

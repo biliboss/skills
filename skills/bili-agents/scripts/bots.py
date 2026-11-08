@@ -77,6 +77,26 @@ def ready(bot):
         raise ValueError(f"bot command is unavailable: {bot['command'][0]}")
 
 
+def sync_names(bot, layout=None, address=None):
+    """Name the bot's space and the tab holding its terminal after the registry name; only renames when different."""
+    layout = layout or call(['herdr-app', 'ls'])
+    name = bot['name']
+    renamed = []
+    for space in layout.get('spaces', []):
+        if space.get('id') != space_id(bot):
+            continue
+        if space.get('name') != name:
+            call(['herdr-app', 'do', 'space.rename', json.dumps({'id': space['id'], 'name': name})])
+            renamed.append('space')
+        for tab in space.get('tabs', []):
+            mine = any(t.get('terminal') == address if address else t.get('name') == identity(bot)
+                       for t in tab.get('terminals', []))
+            if mine and tab.get('id') and tab.get('name') != name:
+                call(['herdr-app', 'do', 'tab.rename', json.dumps({'id': tab['id'], 'name': name})])
+                renamed.append('tab')
+    return renamed
+
+
 def open_bot(bot):
     with lock(bot, '.open.lock'):
         entries = call(['hc', 'ls'])['terminals']
@@ -138,6 +158,7 @@ def open_bot(bot):
                 # A parked terminal already belongs to the bot workspace; select it before keeping.
                 call(['herdr-app', 'do', 'space.select', json.dumps({'id': space_id(bot)})])
                 call(['herdr-app', 'do', 'terminal.keep', json.dumps({'terminal': address, 'place': 'tab'})])
+        sync_names(bot, address=address)
         call(['herdr-app', 'do', 'agent.focus', json.dumps({'terminal': address})])
         print(json.dumps({'terminal': address, 'bot': bot['id'], 'session_id': bot['session_id']}))
 
