@@ -1,0 +1,66 @@
+# Gates TypeScript lidos pelo prek (https://prek.j178.dev). Copie para a raiz do projeto, junto de ratchet.py (em .gates/),
+# biome.json, tsconfig.json, .dependency-cruiser.cjs e knip.json. Hooks locais, language: system; nenhum modifica arquivo.
+# Rode: prek run --stage pre-commit --files <arquivos>   |   prek run --stage pre-push --files <arquivos>
+# Quem tem legado passa pela catraca (.gates/ratchet.py): só falha o que piorou contra .gates-baseline.json.
+# gitleaks nunca passa pela catraca: segredo novo ou antigo reprova sempre.
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  - repo: local
+    hooks:
+      - id: biome
+        name: biome ci (cognitiva 15, noRestrictedImports, formatação)
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name biome --baseline .gates-baseline.json --ignore '^Checked ' --ignore '^Found '
+          -- biome ci --reporter=github --colors=off --no-errors-on-unmatched
+        types_or: [ts, tsx, javascript, jsx, json]
+        stages: [pre-commit]
+
+      - id: tsc
+        name: tsc --noEmit incremental
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name tsc --baseline .gates-baseline.json
+          -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo --pretty false
+        types_or: [ts, tsx]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: gitleaks
+        name: gitleaks (vê arquivo não commitado)
+        language: system
+        entry: gitleaks dir --no-banner --redact --verbose --exit-code 1 .
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: dependency-cruiser
+        name: dependency-cruiser
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name depcruise --baseline .gates-baseline.json
+          -- npx --yes --package dependency-cruiser depcruise src --config .dependency-cruiser.cjs --output-type err
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: knip
+        name: knip (arquivos e exports mortos)
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name knip --baseline .gates-baseline.json
+          -- knip --reporter compact
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: jscpd
+        name: jscpd (duplicação)
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name jscpd --baseline .gates-baseline.json
+          -- jscpd --reporters console --min-lines 8 --min-tokens 60 --threshold 0
+          --ignore '**/node_modules/**,**/dist/**,**/.gates/**' --format typescript,tsx,javascript src
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

@@ -13,7 +13,7 @@ Cria um worktree no branch `devin/<id>`, dispara o Devin destacado e imprime só
 
 | Opção | Padrão | Regra |
 |---|---|---|
-| `--model` | `swe-2-max` | Sem custo por token no Pro, sujeito às cotas. Modelo pago só a pedido do dono. |
+| `--model` | `swe-2-medium` | Sem custo por token no Pro, sujeito às cotas. `swe-2-max` só na segunda retentativa ([retry](lote.md)). Modelo pago só a pedido do dono. |
 | `--mode` | `accept-edits` | `smart` quando precisar rodar comandos. `dangerous` é recusado. |
 | `--base` | `HEAD` | Para continuar uma rodada: `--base devin/<id>`, com o contexto no novo pedido, porque `-p` responde e sai. |
 

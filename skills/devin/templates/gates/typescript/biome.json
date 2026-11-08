@@ -1,0 +1,25 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
+  "files": { "includes": ["**", "!**/node_modules", "!**/dist", "!.gates", "!.tsbuildinfo"] },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 15 } }
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "moment": "use Intl ou date-fns",
+              "lodash": "importe a função de lodash-es"
+            }
+          }
+        }
+      }
+    }
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "lineWidth": 100 }
+}

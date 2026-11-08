@@ -1,0 +1,66 @@
+# Gates Python lidos pelo prek (https://prek.j178.dev). Copie para a raiz do projeto, junto de ratchet.py (em .gates/),
+# do trecho de pyproject.toml e de .importlinter. Hooks locais, language: system: nada é baixado, e nenhum modifica arquivo.
+# Rode: prek run --stage pre-commit --files <arquivos>   |   prek run --stage pre-push --files <arquivos>
+# Quem tem legado passa pela catraca (.gates/ratchet.py): só falha o que piorou contra .gates-baseline.json.
+# gitleaks nunca passa pela catraca: segredo novo ou antigo reprova sempre.
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format --check
+        language: system
+        entry: ruff format --check --force-exclude
+        types: [python]
+        stages: [pre-commit]
+
+      - id: ruff-check
+        name: ruff check (C901 max 10, TID251)
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name ruff --baseline .gates-baseline.json -- ruff check --no-fix --force-exclude --quiet --output-format=concise
+        types: [python]
+        stages: [pre-commit]
+
+      - id: pyright
+        name: pyright
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name pyright --baseline .gates-baseline.json --ignore '^\d+ errors?, ' -- pyright
+        types: [python]
+        stages: [pre-commit]
+
+      - id: gitleaks
+        name: gitleaks (vê arquivo não commitado)
+        language: system
+        entry: gitleaks dir --no-banner --redact --verbose --exit-code 1 .
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: import-linter
+        name: import-linter
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name import-linter --baseline .gates-baseline.json --ignore '^Analyzed ' --ignore '^Contracts: ' -- env PYTHONPATH=. uvx --quiet --from import-linter lint-imports
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: vulture
+        name: vulture (código morto)
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name vulture --baseline .gates-baseline.json -- uvx --quiet vulture . --min-confidence 80 --exclude '.venv,venv,node_modules,.git,.gates'
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: jscpd
+        name: jscpd (duplicação)
+        language: system
+        entry: >-
+          python3 .gates/ratchet.py --name jscpd --baseline .gates-baseline.json --ignore '^[┌│├└]' --ignore '^Found [0-9]+ clones' --ignore '^ERROR: jscpd' --ignore '^time: ' --ignore '^Duplications detection' -- jscpd --reporters console --min-lines 8 --min-tokens 60 --threshold 0 --ignore '**/.venv/**,**/node_modules/**,**/.gates/**' --format python .
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

@@ -1,0 +1,10 @@
+# Contratos de importação do import-linter. Troque `meuprojeto` pelo pacote raiz (precisa estar importável).
+[importlinter]
+root_package = meuprojeto
+
+[importlinter:contract:camadas]
+name = camadas: web acima de dominio
+type = layers
+layers =
+    meuprojeto.web
+    meuprojeto.dominio

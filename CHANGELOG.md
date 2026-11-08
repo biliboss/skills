@@ -2,6 +2,11 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.119.0
+
+- doctor 0.2.0: o comportamento só se prova por smoke e regras críticas do doctor do projeto; nova flag `--gate` (sem achado `behavior` verificado, `fail`); sem `--run-tests`.
+- devin 0.2.0: lote com `batch.sh`, `gate.sh`, `retry.sh` e `merge.sh`, teto `DEVIN_MAX_PARALLEL` (8), `swe-2-medium` por padrão, e gates copiáveis (prek, catraca) em `templates/gates/`.
+
 ## 0.118.0
 
 - design-taste 0.1.0: julga o gosto e a qualidade antes e depois de fazer, em cinco facetas (interface, negócio, produto, software, escrita); cada afirmação marcada como da casa ou geral. Usada pelo LP Bot.

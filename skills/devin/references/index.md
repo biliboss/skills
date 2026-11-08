@@ -9,3 +9,4 @@ Cada verbo tem um script em `scripts/`, que responde a `--help`.
 | [check](check.md) | ver as rodadas |
 | [review](review.md) | revisar o que o Devin fez |
 | [clean](clean.md) | remover a rodada depois de integrar |
+| [lote](lote.md) | vários cartões em paralelo: `batch.sh`, `gate.sh`, `retry.sh`, `merge.sh` |
