@@ -1,23 +1,41 @@
 #!/usr/bin/env python3
-"""canvas: publish a Markdown page for the Herdr Canvas panel, read and resolve the owner's comments.
+"""canvas: the page of a Herdr Canvas panel, edited live by the CLI; the owner's comments come back.
 
-publish <bot> <file>      .md -> <bot folder>/canvas/page.md, .html -> canvas/page.html; writes canvas/version (sha1).
-                          The other page file is left alone; both can live together.
+publish <bot> <file>      .md -> canvas/page.md, .html -> canvas/blocks/ (one file per top-level block);
+                          both generate canvas/page.html (daisyUI, offline) and bump canvas/version
+set <bot> <block> <file>  replace one block (id or number) with the file's content
+append <bot> <file>       add the file's content after the last block
+remove <bot> <block>      drop one block
+show <bot>                blocks with id, number, kind and first line
 comments <bot> [--md]     JSON list of annotations (open and resolved), or the comments.md text
 resolve <bot> <id>        append a resolve line and rewrite comments.md
-open <bot>                ask the panel to show this bot (the only command that touches the Herdr window)
-install                   run apps/herdr-canvas/install.py
-Exit 0 and JSON on stdout; refusals go to stderr with exit 1.
+open <bot>                show this bot in the panel (herdr-app do layout.select + layout.show; no focus, no split)
+serve [--detach|--stop]   local server on 127.0.0.1 that serves the pages and receives the comments
+install                   run apps/herdr-canvas/install.py (needs HERDR_APP_HOME)
+Exit 0 and JSON on stdout; refusals go to stderr with exit 1. page.html is derived: never edit it by hand.
 """
-import hashlib
+import hmac
 import json
 import os
+import secrets
+import signal
 import subprocess
 import sys
+import threading
+import time
+import urllib.request
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
 
-REPO = Path(__file__).resolve().parents[3]
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import canvaslib as lib  # noqa: E402
+
+REPO = lib.REPO
+DEFAULT_PORT = 47836
+BODY_LIMIT = 64 * 1024
 
 
 def fail(msg):
@@ -25,104 +43,375 @@ def fail(msg):
     sys.exit(1)
 
 
-def registry():
+def bots():
     path = Path(os.environ.get('CANVAS_BOTS', Path.home() / 'agents/bots.json')).expanduser()
     try:
         return json.loads(path.read_text()).get('bots', [])
     except (OSError, ValueError) as e:
-        fail(f'cannot read bot registry {path}: {e}')
+        raise lib.CanvasError(f'cannot read bot registry {path}: {e}')
 
 
-def folder_of(bot_id):
-    for b in registry():
+def bot_of(bot_id):
+    for b in bots():
         if b.get('id') == bot_id:
-            return Path(b['folder']).expanduser()
-    fail(f'unknown bot {bot_id!r}; registered: ' + ', '.join(b.get('id', '?') for b in registry()))
+            return b
+    raise lib.CanvasError(f'unknown bot {bot_id!r}; registered: ' + ', '.join(b.get('id', '?') for b in bots()))
 
 
-def parse(text):
-    comments, resolved = [], {}
-    for line in text.splitlines():
-        if not line.strip():
-            continue
-        try:
-            obj = json.loads(line)
-        except ValueError:
-            continue
-        if 'resolve' in obj:
-            resolved[obj['resolve']] = obj.get('at')
-        elif 'id' in obj:
-            comments.append(obj)
-    return [{**c, 'resolved': resolved.get(c['id'], c.get('resolved'))} for c in comments]
+def canvas_dir(bot_id):
+    return Path(bot_of(bot_id)['folder']).expanduser() / 'canvas'
 
 
-def markdown(comments):
-    open_, done = [c for c in comments if not c['resolved']], [c for c in comments if c['resolved']]
+def state_dir():
+    return Path.home() / '.local/state/herdr-canvas'
 
-    def one(c, strike):
-        t = c.get('target', {})
-        where = ' · '.join([f"bloco {t.get('index', '?')}"] + ([' › '.join(t['heading'])] if t.get('heading') else []))
-        body = str(c.get('body', {}).get('value', '')).replace('\n', '\n  ')
-        sel = t.get('selector') or [{}]
-        quote = f"\n  > {sel[0]['exact']}" if sel[0].get('exact') else ''
-        s = '~~' if strike else ''
-        return f"- {s}`{c['id']}` {where}{s}{quote}\n  {s}{body}{s}"
-    parts = ['# Comentários do canvas', '', f'## Abertos ({len(open_)})', '', *([one(c, False) for c in open_] or ['Nenhum.'])]
-    if done:
-        parts += ['', f'## Resolvidos ({len(done)})', '', *[one(c, True) for c in done]]
-    return '\n'.join(parts) + '\n'
+
+def title_of(bot_id):
+    b = bot_of(bot_id)
+    return b.get('name') or bot_id
+
+
+def _result(bot, written, **extra):
+    return {'bot': bot, 'version': written['version'], 'blocks': len(written['blocks']), **extra}
+
+
+# ---- verbs: page ---------------------------------------------------------------------------------
+
+def read_file(source, exts):
+    src = Path(source).expanduser()
+    if src.suffix.lower() not in exts or not src.is_file():
+        raise lib.CanvasError('needs an existing ' + ' or '.join(exts) + ' file')
+    data = src.read_bytes()
+    if len(data) > lib.MAX_PAGE:
+        raise lib.CanvasError('page larger than 1 MB; the panel reads at most 1 MiB')
+    return data.decode('utf-8')
 
 
 def cmd_publish(bot, source):
-    src = Path(source).expanduser()
-    ext = src.suffix.lower()
-    if ext not in ('.md', '.html') or not src.is_file():
-        fail('publish needs an existing .md or .html file')
-    data = src.read_bytes()
-    if len(data) > 1_000_000:
-        fail('page larger than 1 MB; the panel reads at most 1 MiB')
-    canvas = folder_of(bot) / 'canvas'
-    canvas.mkdir(parents=True, exist_ok=True)
-    target = canvas / ('page.html' if ext == '.html' else 'page.md')
-    target.write_bytes(data)
-    version = 'sha1:' + hashlib.sha1(data).hexdigest()
-    (canvas / 'version').write_text(version + '\n')
-    return {'bot': bot, 'page': str(target), 'version': version, 'bytes': len(data)}
+    ext = Path(source).suffix.lower()
+    if ext not in ('.md', '.html'):
+        raise lib.CanvasError('publish needs an existing .md or .html file')
+    text = read_file(source, (ext,))
+    canvas = canvas_dir(bot)
+    with lib.locked(canvas):
+        if ext == '.md':
+            written = lib.write_canvas(canvas, 'md', [], title_of(bot), md_text=text)
+        else:
+            lib.check_html(text)
+            written = lib.write_canvas(canvas, 'html', lib.split_html(text), title_of(bot))
+    return _result(bot, written, page=str(canvas / 'page.html'), source=ext[1:])
 
+
+def editable(bot):
+    canvas = canvas_dir(bot)
+    source, blocks = lib.load_blocks(canvas)
+    if source is None:
+        raise lib.CanvasError(f'{bot} has no canvas yet; use publish first')
+    return canvas, source, blocks
+
+
+def chunks_for(source, path):
+    if source == 'md':
+        text = read_file(path, ('.md', '.markdown', '.txt'))
+        return [text.strip('\n')] if text.strip() else []
+    text = read_file(path, ('.html', '.htm'))
+    lib.check_html(text)
+    return lib.split_html(text)
+
+
+def cmd_set(bot, ref, source_file):
+    canvas, source, blocks = editable(bot)
+    block = lib.find_block(blocks, ref)
+    new = chunks_for(source, source_file)
+    if not new:
+        raise lib.CanvasError('the file is empty; use remove to drop a block')
+    texts = lib.block_texts(blocks)
+    texts[block['index'] - 1:block['index']] = new
+    with lib.locked(canvas):
+        written = lib.write_canvas(canvas, source, texts, title_of(bot))
+    return _result(bot, written, replaced=block['id'])
+
+
+def cmd_append(bot, source_file):
+    canvas, source, blocks = editable(bot)
+    new = chunks_for(source, source_file)
+    if not new:
+        raise lib.CanvasError('the file is empty')
+    with lib.locked(canvas):
+        written = lib.write_canvas(canvas, source, lib.block_texts(blocks) + new, title_of(bot))
+    return _result(bot, written, added=[b['id'] for b in written['blocks'][len(blocks):]])
+
+
+def cmd_remove(bot, ref):
+    canvas, source, blocks = editable(bot)
+    block = lib.find_block(blocks, ref)
+    texts = lib.block_texts(blocks)
+    del texts[block['index'] - 1]
+    with lib.locked(canvas):
+        written = lib.write_canvas(canvas, source, texts, title_of(bot))
+    return _result(bot, written, removed=block['id'])
+
+
+def cmd_show(bot):
+    canvas, source, blocks = editable(bot)
+    version = (lib.read_text(canvas / 'version') or '').strip() or None
+    return {'bot': bot, 'source': source, 'version': version, 'blocks': [
+        {'id': b['id'], 'index': b['index'], 'kind': b['kind'], 'preview': next((l.strip() for l in b['text'].split('\n') if l.strip()), '')[:80]} for b in blocks]}
+
+
+# ---- verbs: comments -----------------------------------------------------------------------------
 
 def cmd_comments(bot, as_md):
-    canvas = folder_of(bot) / 'canvas'
-    path = canvas / 'comments.jsonl'
-    comments = parse(path.read_text()) if path.exists() else []
+    path = canvas_dir(bot) / 'comments.jsonl'
+    comments = lib.parse_comments(path.read_text()) if path.exists() else []
     if as_md:
-        print(markdown(comments), end='')
+        print(lib.comments_markdown(comments), end='')
         return None
     return {'bot': bot, 'comments': comments}
 
 
 def cmd_resolve(bot, cid):
-    canvas = folder_of(bot) / 'canvas'
+    canvas = canvas_dir(bot)
     path = canvas / 'comments.jsonl'
-    comments = parse(path.read_text()) if path.exists() else []
+    comments = lib.parse_comments(path.read_text()) if path.exists() else []
     if not any(c['id'] == cid for c in comments):
-        fail(f'no comment {cid} for {bot}')
+        raise lib.CanvasError(f'no comment {cid} for {bot}')
     at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    with path.open('a') as f:
-        f.write(json.dumps({'resolve': cid, 'at': at}) + '\n')
-    (canvas / 'comments.md').write_text(markdown(parse(path.read_text())))
+    lib.resolve_comment(canvas, cid, at)
     return {'bot': bot, 'resolved': cid, 'at': at}
 
 
 def cmd_open(bot):
-    folder_of(bot)
-    state = Path.home() / '.local/state/herdr-canvas'
+    bot_of(bot)
+    state = state_dir()
     state.mkdir(parents=True, exist_ok=True)
     (state / 'bot').write_text(f"{bot}\t{datetime.now(timezone.utc).isoformat()}\n")
-    for args in (['layout.show', 'id=panel'], ['layout.select', 'stack=panel-body', 'child=canvas']):
-        r = subprocess.run(['herdr-app', 'do', *args], text=True, capture_output=True)
+    home = os.environ.get('CANVAS_HERDR_HOME') or str(Path.home() / '.config/herdr-bili')
+    env = {**os.environ, 'HERDR_APP_HOME': str(Path(home).expanduser())}
+    for args in (['layout.select', '--stack', 'panel-body', '--child', 'canvas'], ['layout.show', '--id', 'panel']):
+        r = subprocess.run(['herdr-app', 'do', *args], text=True, capture_output=True, env=env)
         if r.returncode:
-            fail(f"herdr-app do {' '.join(args)} failed: {r.stderr.strip()}")
-    return {'bot': bot, 'opened': True}
+            raise lib.CanvasError(f"herdr-app do {' '.join(args)} failed: {r.stderr.strip() or r.stdout.strip()}")
+    return {'bot': bot, 'opened': True, 'home': env['HERDR_APP_HOME']}
+
+
+# ---- server ---------------------------------------------------------------------------------------
+
+def port_wanted():
+    raw = os.environ.get('CANVAS_PORT', str(DEFAULT_PORT))
+    if not raw.isdigit() or int(raw) > 65535:
+        raise lib.CanvasError(f'CANVAS_PORT={raw!r} is not a port')
+    return int(raw)
+
+
+def read_pid():
+    try:
+        pid = int((state_dir() / 'server.pid').read_text().strip())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def read_port():
+    try:
+        return int((state_dir() / 'port').read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def healthy(port):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2) as r:
+            return r.status == 200
+    except OSError:
+        return False
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = 'canvas'
+    protocol_version = 'HTTP/1.1'
+
+    def log_message(self, *args):
+        pass
+
+    def reply(self, code, payload, ctype='application/json; charset=utf-8', extra=None):
+        data = payload if isinstance(payload, bytes) else (payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'")
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(data)
+
+    def err(self, code, message, close=False):
+        self.close_connection = close or self.close_connection
+        self.reply(code, {'error': message}, extra={'Connection': 'close'} if close else None)
+
+    def route(self):
+        """-> (bot dict, tail) or None. The bot comes only from the registry, never from a path."""
+        parts = urlsplit(self.path).path.split('/')
+        if len(parts) < 2 or parts[0] != '':
+            return None
+        name = unquote(parts[1])
+        tail = '/'.join(parts[2:])
+        if tail not in ('', 'comments'):
+            return None
+        try:
+            found = next((b for b in bots() if b.get('id') == name), None)
+        except lib.CanvasError:
+            return None
+        return (found, tail) if found else None
+
+    def host_ok(self):
+        return self.headers.get('Host') == f'127.0.0.1:{self.server.server_address[1]}'
+
+    def do_GET(self):
+        if not self.host_ok():
+            return self.err(403, 'host')
+        url = urlsplit(self.path)
+        if url.path == '/health':
+            return self.reply(200, 'ok', 'text/plain; charset=utf-8')
+        hit = self.route()
+        if not hit or hit[1] != '':
+            return self.err(404, 'not found')
+        bot = hit[0]
+        canvas = Path(bot['folder']).expanduser() / 'canvas'
+        page = lib.read_text(canvas / 'page.html')
+        if page is None:
+            return self.err(404, 'no page')
+        theme = parse_qs(url.query).get('theme', ['light'])[0]
+        theme = theme if theme in ('light', 'dark') else 'light'
+        comments = lib.parse_comments(lib.read_text(canvas / 'comments.jsonl') or '')
+        version = (lib.read_text(canvas / 'version') or '').strip() or None
+        page = page.replace('data-theme="light"', f'data-theme="{theme}"', 1)
+        page = page.replace('<!--cv-boot-->', lib.boot_script(self.server.token, bot['id'], version, comments), 1)
+        self.reply(200, page, 'text/html; charset=utf-8')
+
+    def do_POST(self):
+        if not self.host_ok():
+            return self.err(403, 'host')
+        hit = self.route()
+        if not hit or hit[1] != 'comments':
+            return self.err(404, 'not found')
+        bot = hit[0]
+        if self.headers.get('Origin') != f'http://127.0.0.1:{self.server.server_address[1]}':
+            return self.err(403, 'origin')
+        if not hmac.compare_digest((self.headers.get('X-Canvas-Token') or '').encode(), self.server.token.encode()):
+            return self.err(403, 'token')
+        if not (self.headers.get('Content-Type') or '').lower().startswith('application/json'):
+            return self.err(415, 'content-type must be application/json')
+        length = self.headers.get('Content-Length', '')
+        if not length.isdigit():
+            return self.err(411, 'content-length required', close=True)
+        if int(length) > BODY_LIMIT:
+            self.rfile.read(min(int(length), 256 * 1024))
+            return self.err(413, 'body larger than 64 KiB', close=True)
+        try:
+            data = json.loads(self.rfile.read(int(length)))
+            block_ref, body = data['blockId'], data['body']
+            if not isinstance(block_ref, str) or not isinstance(body, str) or not body.strip() or len(body) > 4000:
+                raise ValueError
+        except (ValueError, KeyError, TypeError):
+            return self.err(422, 'expected JSON {"blockId": str, "body": non-empty str up to 4000 chars}')
+        folder = Path(bot['folder']).expanduser()
+        canvas = folder / 'canvas'
+        source, blocks = lib.load_blocks(canvas)
+        block = next((b for b in blocks if b['id'] == block_ref), None)
+        if not block:
+            return self.err(404, 'unknown block')
+        version = (lib.read_text(canvas / 'version') or '').strip() or None
+        entry = lib.make_entry(body.strip(), block, version, source=source)
+        lib.add_comment(canvas, entry)
+        lib.notify_async(canvas, folder, bot['id'], entry, delay=float(os.environ.get('CANVAS_RETRY_DELAY', '20')))
+        self.reply(200, {'ok': True, 'id': entry['id']})
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def serve_foreground():
+    if read_pid():
+        raise lib.CanvasError(f'already running (pid {read_pid()}, port {read_port()}); use serve --stop first')
+    state = state_dir()
+    state.mkdir(parents=True, exist_ok=True)
+    try:
+        server = Server(('127.0.0.1', port_wanted()), Handler)
+    except OSError as e:
+        raise lib.CanvasError(f'cannot listen on 127.0.0.1:{port_wanted()}: {e}')
+    server.token = secrets.token_urlsafe(32)
+    fd = os.open(state / 'token', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        f.write(server.token + '\n')
+    port = server.server_address[1]
+    (state / 'port').write_text(f'{port}\n')
+    (state / 'server.pid').write_text(f'{os.getpid()}\n')
+
+    def done(*_):
+        threading.Thread(target=server.shutdown, daemon=True).start()
+    signal.signal(signal.SIGTERM, done)
+    signal.signal(signal.SIGINT, done)
+    print(json.dumps({'serving': f'http://127.0.0.1:{port}/', 'pid': os.getpid(), 'port': port}), flush=True)
+    try:
+        server.serve_forever()
+    finally:
+        for name in ('server.pid', 'port', 'token'):
+            (state / name).unlink(missing_ok=True)
+        server.server_close()
+    return None
+
+
+def serve_detach():
+    pid, port = read_pid(), read_port()
+    if pid and port and healthy(port):
+        return {'running': True, 'started': False, 'pid': pid, 'port': port}
+    state = state_dir()
+    state.mkdir(parents=True, exist_ok=True)
+    for name in ('server.pid', 'port', 'token'):
+        (state / name).unlink(missing_ok=True)
+    with open(state / 'server.log', 'a') as log:
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'serve'], stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    for _ in range(50):
+        time.sleep(0.1)
+        port = read_port()
+        if port and healthy(port):
+            return {'running': True, 'started': True, 'pid': read_pid(), 'port': port}
+    raise lib.CanvasError(f'server did not come up; see {state / "server.log"}')
+
+
+def serve_stop():
+    pid = read_pid()
+    state = state_dir()
+    if pid:
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(30):
+            time.sleep(0.1)
+            if not read_pid():
+                break
+    for name in ('server.pid', 'port', 'token'):
+        (state / name).unlink(missing_ok=True)
+    return {'stopped': bool(pid), 'pid': pid}
+
+
+def cmd_serve(flags):
+    if flags == ['--stop']:
+        return serve_stop()
+    if flags == ['--detach']:
+        return serve_detach()
+    if flags == []:
+        return serve_foreground()
+    raise lib.CanvasError('usage: serve [--detach | --stop]')
+
+
+USAGE = ('usage: canvas publish <bot> <file.md|file.html> | set <bot> <block> <file> | append <bot> <file> | remove <bot> <block> | show <bot> | '
+         'comments <bot> [--md] | resolve <bot> <id> | open <bot> | serve [--detach|--stop] | install')
 
 
 def main(argv):
@@ -130,18 +419,31 @@ def main(argv):
         print(__doc__)
         return
     cmd, rest = argv[0], argv[1:]
-    if cmd == 'publish' and len(rest) == 2:
-        out = cmd_publish(*rest)
-    elif cmd == 'comments' and len(rest) in (1, 2) and (len(rest) == 1 or rest[1] == '--md'):
-        out = cmd_comments(rest[0], len(rest) == 2)
-    elif cmd == 'resolve' and len(rest) == 2:
-        out = cmd_resolve(*rest)
-    elif cmd == 'open' and len(rest) == 1:
-        out = cmd_open(*rest)
-    elif cmd == 'install' and not rest:
-        sys.exit(subprocess.run([str(REPO / 'apps/herdr-canvas/install.py')]).returncode)
-    else:
-        fail('usage: canvas publish <bot> <file.md|file.html> | comments <bot> [--md] | resolve <bot> <id> | open <bot> | install')
+    try:
+        if cmd == 'publish' and len(rest) == 2:
+            out = cmd_publish(*rest)
+        elif cmd == 'set' and len(rest) == 3:
+            out = cmd_set(*rest)
+        elif cmd == 'append' and len(rest) == 2:
+            out = cmd_append(*rest)
+        elif cmd == 'remove' and len(rest) == 2:
+            out = cmd_remove(*rest)
+        elif cmd == 'show' and len(rest) == 1:
+            out = cmd_show(*rest)
+        elif cmd == 'comments' and len(rest) in (1, 2) and (len(rest) == 1 or rest[1] == '--md'):
+            out = cmd_comments(rest[0], len(rest) == 2)
+        elif cmd == 'resolve' and len(rest) == 2:
+            out = cmd_resolve(*rest)
+        elif cmd == 'open' and len(rest) == 1:
+            out = cmd_open(*rest)
+        elif cmd == 'serve':
+            out = cmd_serve(rest)
+        elif cmd == 'install' and not rest:
+            sys.exit(subprocess.run([str(REPO / 'apps/herdr-canvas/install.py')]).returncode)
+        else:
+            fail(USAGE)
+    except lib.CanvasError as e:
+        fail(str(e))
     if out is not None:
         print(json.dumps(out, ensure_ascii=False))
 

@@ -1,0 +1,38 @@
+/* Source of canvas.css. Rebuild steps are in README.md. Only what the Canvas render and HTML blocks use. */
+@import "tailwindcss" source(none);
+@source "./classes.html";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+  logs: false;
+}
+
+body { background: var(--color-base-100); color: var(--color-base-content); font: 14px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.cv-page { max-width: 48rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+.cv-block { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .25rem .5rem; padding: .4rem .5rem; border-radius: .6rem; border: 1px solid transparent; }
+.cv-block:hover { border-color: var(--color-base-300); background: color-mix(in oklab, var(--color-base-200) 50%, transparent); }
+.cv-gutter { padding-top: .2rem; text-align: center; }
+.cv-body { min-width: 0; overflow-wrap: anywhere; }
+.cv-comment { opacity: 0; align-self: start; }
+.cv-block:hover .cv-comment, .cv-comment:focus { opacity: 1; }
+.cv-static .cv-comment { display: none; }
+.cv-notes, .cv-box { grid-column: 2 / -1; }
+.cv-body p { margin: .25rem 0; }
+.cv-h1 { font-size: 1.7rem; font-weight: 700; line-height: 1.25; margin: .4rem 0 .1rem; }
+.cv-h2 { font-size: 1.3rem; font-weight: 650; line-height: 1.3; margin: .3rem 0 .1rem; }
+.cv-h3 { font-size: 1.1rem; font-weight: 650; margin: .2rem 0; }
+.cv-h4, .cv-h5, .cv-h6 { font-size: 1rem; font-weight: 600; margin: .2rem 0; }
+.cv-list { margin: .25rem 0 .25rem 1.3rem; }
+ul.cv-list { list-style: disc; }
+ol.cv-list { list-style: decimal; }
+.cv-list .cv-list { margin-top: .1rem; margin-bottom: .1rem; }
+.cv-code { background: var(--color-base-200); padding: .6rem .8rem; border-radius: .5rem; overflow-x: auto; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+.cv-body code { background: var(--color-base-200); padding: .05rem .3rem; border-radius: .3rem; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; }
+.cv-code code { background: none; padding: 0; font-size: inherit; }
+.cv-quote { border-left: 3px solid var(--color-primary); padding: .1rem .8rem; color: color-mix(in oklab, var(--color-base-content) 75%, transparent); }
+.cv-body a { color: var(--color-primary); text-decoration: underline; }
+.cv-body img { max-width: 100%; height: auto; }
+.cv-note { font-size: .8rem; opacity: .85; }
+.cv-done { opacity: .5; text-decoration: line-through; }
+.cv-box { display: flex; flex-direction: column; gap: .4rem; margin-top: .3rem; }
+.cv-row { display: flex; gap: .5rem; align-items: center; }
+.cv-err { color: var(--color-error); font-size: .8rem; }

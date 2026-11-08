@@ -5,7 +5,7 @@ import { v_flex, h_flex, TextView, TextareaState, Textarea } from "gpui-base";
 import { home, props, readTextFile, writeTextFile, watchFolder, hc, agents, panes, notify, theme } from "herdr";
 import * as herdr from "herdr";
 import { splitMarkdown } from "./blocks.js";
-import { nativeCaps, pageMode, viewId, canDo } from "./pagemode.js";
+import { nativeCaps, pageMode, viewId, canDo, DEFAULT_PORT, isLight, webUrl, ensureServer } from "./pagemode.js";
 import { appendComment, appendLog, readComments, writeCommentsMarkdown, makeEntry } from "./store.js";
 import { buildMessage, sendToBot } from "./notify.js";
 
@@ -23,6 +23,8 @@ export default class Canvas extends View {
     this.instance = Math.random().toString(36).slice(2, 8);
     this.caps = nativeCaps(herdr); this.choice = null; this.hasHtml = false; this.hasMd = false;
     this.htmlStamp = null; this.liveView = null; this.viewBroken = false; this.pageErr = null;
+    // Local server (canvas serve): null = not tried; { state: "probing" | "ok" | "fallback", note }.
+    this.web = null;
     this.area = TextareaState.new({ placeholder: "Comentário · Enter envia, Shift+Enter quebra linha", rows: 3 });
     this.area.set_auto_grow(3, 8);
     this.area.on("submit", (e, cx) => this.onSubmit(e, cx));
@@ -68,7 +70,8 @@ export default class Canvas extends View {
         const [page, html, jsonl, version] = await Promise.all([readTextFile(`${this.dir(bot)}/page.md`), readTextFile(`${this.dir(bot)}/page.html`), readTextFile(`${this.dir(bot)}/comments.jsonl`), readTextFile(`${this.dir(bot)}/version`)]);
         if (this.bot?.id !== bot.id) return;
         this.hasMd = page !== null; this.hasHtml = html !== null;
-        const stamp = html === null ? null : `${html.length}:${(version ?? "").trim()}`;
+        // Every CLI verb (publish/set/append/remove) rewrites page.html and bumps `version`: a new version reloads the view.
+        const stamp = html === null ? null : (version ?? "").trim();
         if (this.htmlStamp !== null && stamp !== null && stamp !== this.htmlStamp) this.reloadPage();
         this.htmlStamp = stamp;
         this.blocks = splitMarkdown(page ?? ""); this.comments = readComments(jsonl); this.version = (version ?? "").trim() || null;
@@ -83,6 +86,22 @@ export default class Canvas extends View {
   reloadPage() {
     if (!this.liveView || !canDo(this.caps, "browser.reload")) return;
     try { herdr.nativeViewCall(this.liveView, "browser.reload", {}); } catch { /* view gone; render recreates it */ }
+  }
+
+  port() { return Number(props()?.port) || DEFAULT_PORT; }
+
+  // Probe the local server; if it is down start it once (herdr.exec of `canvas serve --detach`; herdr.run only runs
+  // Herdr commands, it cannot spawn a process). Failure falls back to the static file with a one-line note.
+  prepareWeb(cx) {
+    if (this.web) return;
+    this.web = { state: "probing", note: null };
+    cx.spawn(async cx => {
+      let r;
+      try { r = await ensureServer({ exec: herdr.exec, port: this.port(), bin: props()?.canvasBin ?? `${home()}/.local/bin/canvas` }); }
+      catch (e) { r = { ok: false, note: "Servidor local indisponível; página sem comentários." }; }
+      this.web = r.ok ? { state: "ok", note: null } : { state: "fallback", note: r.note };
+      cx.notify();
+    });
   }
 
   // Leaving the page (other bot, Blocos, closed panel, no html): drop the view so none leaks.
@@ -191,7 +210,7 @@ export default class Canvas extends View {
         .when(pm.canToggle, el => el.child(chip("canvas-mode-page", "Página", pm.mode === "page", (_e, cx) => { this.choice = "page"; cx.notify(); }))
           .child(chip("canvas-mode-blocks", "Blocos", pm.mode === "blocks", (_e, cx) => { this.choice = "blocks"; cx.notify(); })))
         .when(pm.mode === "blocks", el => el.child(chip("canvas-plain", "Texto", this.plain, (_e, cx) => { this.plain = !this.plain; cx.notify(); })))
-        .child(chip("canvas-reload", "↻", false, (_e, cx) => { this.loadBots(cx); this.reload(cx); })))
+        .child(chip("canvas-reload", "↻", false, (_e, cx) => { if (this.web?.state === "fallback") this.web = null; this.loadBots(cx); this.reload(cx); })))
       .when(this.bots.length > 1, el => el.child(h_flex().id("canvas-bots").flex_none().px(10).py(6).gap(6).overflow_x_scrollbar().border_b(1).border_color(t.border)
         .children(this.bots.map(b => chip(`bot-${b.id}`, b.name, b.id === this.bot?.id, (_e, cx) => this.pick(b, cx))))))
       .when(showPage, el => el.child(this.pageView(t, pm, cx)))
@@ -202,13 +221,23 @@ export default class Canvas extends View {
 
   pageView(t, pm, cx) {
     const id = viewId(this.bot.id, this.instance);
+    this.prepareWeb(cx);
+    const placeholder = text => v_flex().size_full().items_center().justify_center().text_size(12).text_color(t.dim).child(text);
+    if (this.web?.state === "probing") {
+      this.dropView();
+      return v_flex().id("canvas-page").flex_1().min_h(0).child(v_flex().id("canvas-page-body").flex_1().min_h(0).child(placeholder("Iniciando o servidor local…")));
+    }
     if (this.liveView && this.liveView !== id) this.dropView();
     this.liveView = id; this.watchEvents(cx);
-    const note = this.pageErr ?? pm.hint;
+    const live = this.web?.state === "ok";
+    const note = this.pageErr ?? this.web?.note ?? pm.hint;
     let view;
     try {
-      const placeholder = v_flex().size_full().items_center().justify_center().text_size(12).text_color(t.dim).child("Carregando a página…");
-      view = herdr.nativeView.new(id, { kind: "web", path: `${this.dir()}/page.html`, trust: "static", root: this.dir() }).w_full().flex_1().min_h(0).child(placeholder);
+      // Server up: the interactive page (comments through POST /<bot>/comments). Down: the file, scripts off, no comments.
+      const props_ = live
+        ? { kind: "web", url: webUrl(this.port(), this.bot.id, isLight(theme().background)), trust: "interactive" }
+        : { kind: "web", path: `${this.dir()}/page.html`, trust: "static", root: this.dir() };
+      view = herdr.nativeView.new(id, props_).w_full().flex_1().min_h(0).child(placeholder("Carregando a página…"));
     } catch (e) { this.viewBroken = true; this.liveView = null; cx.notify(); view = div().p(8).text_size(12).text_color(t.dim).child("Native view indisponível: " + e); }
     return v_flex().id("canvas-page").flex_1().min_h(0).child(v_flex().id("canvas-page-body").flex_1().min_h(0).relative().bg(t.background).child(view))
       .when(Boolean(note), el => el.child(div().flex_none().px(12).h(24).flex().items_center().border_t(1).border_color(t.border).text_size(11).text_color(t.dim).child(note)));

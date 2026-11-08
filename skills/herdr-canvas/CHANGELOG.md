@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- BREAKING (install): `install.py` requires `HERDR_APP_HOME` and refuses without it. It now also patches `mods/tabs/main.js` (Canvas button in the right panel next to Browser), idempotent, with backup and a clear error if the anchor is missing.
+- `page.html` is always derived, with Tailwind + daisyUI compiled once and vendored (`apps/herdr-canvas/vendor`), light and dark, inline, no CDN. `.md` publishes keep `page.md`; `.html` publishes are split into `canvas/blocks/`.
+- New verbs `show`, `set`, `append`, `remove` with block ids equal to the JS mod's; every verb rewrites `page.html` and bumps `version` atomically.
+- New `canvas serve [--detach|--stop]`: 127.0.0.1 only, token, Origin/Host/Content-Type/size checks, writes comments and notifies the bot like the mod does.
+- Mod: shows the page from the server (trust interactive) so comments work inside the HTML; falls back to the file (static). Starts the server with `herdr.exec`.
+- `canvas open` now runs `layout.select --child canvas` then `layout.show --id panel` with the home from `CANVAS_HERDR_HOME`; no split, no focus.
+- Not verified on a real window.
+
 ## 0.2.2
 
 - Mod: native view id is unique per panel; two panels on the same bot no longer erase each other's view.

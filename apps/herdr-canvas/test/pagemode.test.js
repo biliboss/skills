@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pageMode, nativeCaps, hasWeb, viewId } from "../mod/pagemode.js";
+import { pageMode, nativeCaps, hasWeb, viewId, isLight, webUrl, ensureServer, serverUp } from "../mod/pagemode.js";
 
 const WEB = { interface: "native-view/0", platform: "macos", available: true, kinds: [{ kind: "web", actions: ["browser.reload"] }, { kind: "pdf", actions: [] }] };
 const PDF_ONLY = { interface: "native-view/0", available: true, kinds: [{ kind: "pdf", actions: [] }] };
@@ -28,9 +28,9 @@ test("no page.html: Markdown even with web", () => {
   assert.equal(pageMode({ hasHtml: false, hasMd: true, caps: WEB, choice: "page" }).mode, "blocks");
 });
 
-test("no page.md: page, no toggle, one-line hint", () => {
+test("no page.md (HTML source): page, no toggle, no hint (comments go through the server)", () => {
   const r = pageMode({ hasHtml: true, hasMd: false, caps: WEB, choice: "blocks" });
-  assert.equal(r.mode, "page"); assert.equal(r.canToggle, false); assert.match(r.hint, /page\.md/);
+  assert.deepEqual(r, { mode: "page", canToggle: false, hint: null });
 });
 
 test("owner's choice switches between page and blocks", () => {
@@ -48,4 +48,48 @@ test("view id is stable per panel and bot, unique across panels", () => {
   assert.equal(viewId("b1", "p1"), viewId("b1", "p1"));
   assert.notEqual(viewId("b1", "p1"), viewId("b2", "p1"));
   assert.notEqual(viewId("b1", "p1"), viewId("b1", "p2"));
+});
+
+test("isLight reads hex colors", () => {
+  assert.equal(isLight("#ffffff"), true); assert.equal(isLight("#fafafa"), true);
+  assert.equal(isLight("#101010"), false); assert.equal(isLight("#111"), false);
+  assert.equal(isLight(undefined), true);
+});
+
+test("webUrl is loopback with the bot and theme", () => {
+  assert.equal(webUrl(47836, "via-assinatura", true), "http://127.0.0.1:47836/via-assinatura/?theme=light");
+  assert.equal(webUrl(1, "a b", false), "http://127.0.0.1:1/a%20b/?theme=dark");
+});
+
+const fakeExec = ({ upAfter = 0, startFails = false } = {}) => {
+  const calls = [];
+  let probes = 0;
+  const exec = async (cmd, args) => {
+    calls.push([cmd, ...args]);
+    if (cmd === "curl") { probes++; return probes > upAfter ? { code: 0, stdout: "200", stderr: "" } : { code: 7, stdout: "000", stderr: "" }; }
+    if (startFails) throw new Error("not found");
+    return { code: 0, stdout: "{}", stderr: "" };
+  };
+  return { exec, calls };
+};
+
+test("ensureServer: already up starts nothing", async () => {
+  const f = fakeExec();
+  assert.deepEqual(await ensureServer({ exec: f.exec, port: 5, bin: "/x/canvas" }), { ok: true, started: false, note: null });
+  assert.equal(f.calls.length, 1);
+});
+
+test("ensureServer: down -> starts once with serve --detach, probes again", async () => {
+  const f = fakeExec({ upAfter: 1 });
+  const r = await ensureServer({ exec: f.exec, port: 5, bin: "/x/canvas" });
+  assert.equal(r.ok, true); assert.equal(r.started, true);
+  assert.deepEqual(f.calls.filter(c => c[0] !== "curl"), [["/x/canvas", "serve", "--detach"]]);
+});
+
+test("ensureServer: failure to start or answer gives a one-line note, no throw", async () => {
+  const a = await ensureServer({ exec: fakeExec({ upAfter: 99, startFails: true }).exec, port: 5, bin: "b" });
+  assert.equal(a.ok, false); assert.match(a.note, /página sem comentários/);
+  const b = await ensureServer({ exec: fakeExec({ upAfter: 99 }).exec, port: 5, bin: "b" });
+  assert.equal(b.ok, false); assert.equal(b.started, true);
+  assert.equal(await serverUp(async () => { throw new Error("x"); }, 5), false);
 });
