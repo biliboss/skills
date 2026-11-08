@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Comment mode with outline. The per-block "comentar" button and the notes under the blocks are gone: the page is clean and shows only a "Comentar" toggle (top right, key `c`). With the mode on, the block under the mouse is outlined with its id; a click opens a popover (Enter sends, Shift+Enter breaks the line, Esc closes the popover, then leaves the mode). Links do not navigate in the mode. The mode survives a reload (sessionStorage); without the server there is no toggle.
+- The target is the block plus a `TextQuoteSelector {exact, prefix, suffix}` from the selection or the phrase under the click (`caretRangeFromPoint`, fallback `caretPositionFromPoint`; 120 chars, 32 of context). `POST /<bot>/comments` accepts an optional `quote`; it is validated, spaces are collapsed, and it is used only if `exact` is in the block's rendered text (so `**bold**`, links and code still match) or in its source; otherwise the selector stays the start of the block. A malformed quote never fails the post.
+- Pins: with the mode on, every block with open comments shows a count; clicking opens a read-only list. The page receives only open comments (`id`, `blockId`, `body`, `quote`); a post updates the pins without reload.
+- The page script moved to `scripts/page.js` (pure functions exported for `node --test`). The CSS was written by hand into `canvas.css` and `canvas.src.css` (daisyUI variables), not recompiled.
+
 ## 0.3.2
 
 - Fix: the local server now comes up with the data, not with the first render. The mod's `reload()` calls `prepareWeb` when `wantsServer({hasHtml, caps})` (page.html and native web view); before, only `render()` did, so a Herdr window on another Space never started it. `prepareWeb` stays idempotent and render keeps the call as a safeguard. Without the native API nothing starts.

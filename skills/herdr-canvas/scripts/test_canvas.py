@@ -1,8 +1,9 @@
-import json, re, subprocess, sys, unittest
+import json, re, shutil, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from testkit import CANVAS, Sandbox  # noqa: E402
+import canvaslib as lib  # noqa: E402
 
 DOC = '# Proposta\n\n## Assinatura\n\nTexto **forte** e `código` com [link](https://exemplo.com).\n\n- a\n- b\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```js\nconst x = 1;\n```\n\n> citação\n\n---\n'
 
@@ -36,7 +37,9 @@ class CanvasTest(unittest.TestCase):
         ids = re.findall(r'data-block="(cv-[0-9a-f]{6})"', page)
         self.assertEqual(len(ids), out['blocks'])
         self.assertEqual(len(set(ids)), len(ids))
-        self.assertEqual(page.count('class="btn btn-xs btn-ghost cv-comment"'), len(ids))
+        self.assertNotIn('cv-comment', page.replace('cv-comment-mode', ''))     # no per-block button
+        self.assertNotIn('cv-notes', page)
+        self.assertNotIn('data-notes', page)
         self.assertIn('data-theme="light"', page)
         self.assertIn('<strong>forte</strong>', page)
         self.assertIn('<h2 class="cv-h2">Assinatura</h2>', page)
@@ -213,3 +216,37 @@ class CanvasTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CommentModeTest(unittest.TestCase):
+    def test_boot_script_carries_only_open_comments_and_stays_escaped(self):
+        def c(cid, text, resolved=None, exact='trecho'):
+            return {'id': cid, 'resolved': resolved, 'body': {'value': text}, 'target': {'blockId': 'cv-aaaaaa', 'selector': [{'exact': exact}]}}
+        out = lib.boot_script('tok', 'b1', 'sha1:x', [c('c_1', '</script><b>'), c('c_2', 'feito', resolved='2026-01-01T00:00:00Z'), c('c_3', 'u\u2028v')])
+        self.assertTrue(out.startswith('<script>window.CV=') and out.endswith(';</script>'))
+        self.assertEqual(out.count('</script>'), 1)                       # the author's text cannot close the tag
+        data = json.loads(out[len('<script>window.CV='):-len(';</script>')])
+        self.assertEqual([x['id'] for x in data['comments']], ['c_1', 'c_3'])
+        self.assertEqual(data['comments'][0], {'id': 'c_1', 'blockId': 'cv-aaaaaa', 'body': '</script><b>', 'quote': 'trecho'})
+        self.assertNotIn('feito', out)
+        self.assertNotIn('\u2028', out.replace('\\u2028', ''))
+
+    def test_page_script_is_the_page_js_file_and_never_uses_innerhtml(self):
+        self.assertEqual(lib.PAGE_JS, (Path(lib.__file__).resolve().parent / 'page.js').read_text())
+        self.assertNotIn('innerHTML', lib.PAGE_JS)
+        self.assertNotIn('insertAdjacentHTML', lib.PAGE_JS)
+
+    @unittest.skipUnless(shutil.which('node'), 'needs node')
+    def test_generated_page_script_passes_node_check(self):
+        page = lib.render_page(lib.split_markdown('# T\n\ntexto\n'), 'T')
+        js = re.search(r'<script>(.*)</script>', page, re.S).group(1)
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / 'page.js'
+            f.write_text(js)
+            r = subprocess.run(['node', '--check', str(f)], text=True, capture_output=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_make_entry_without_quote_keeps_the_block_start_selector(self):
+        block = lib.split_markdown('# T\n\ntexto do bloco')[1]
+        sel = lib.make_entry('x', block, None, cid='c_1')['target']['selector'][0]
+        self.assertEqual(sel, {'type': 'TextQuoteSelector', 'exact': 'texto do bloco', 'prefix': '', 'suffix': ''})

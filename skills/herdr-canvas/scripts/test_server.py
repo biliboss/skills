@@ -239,7 +239,50 @@ class ServerTest(unittest.TestCase):
         out = subprocess.run([sys.executable, str(CANVAS), 'resolve', 'b1', cid], env=self.sb.env, text=True, capture_output=True)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn('Resolvidos (1)', (self.sb.canvas / 'comments.md').read_text())
-        self.assertIn('"resolved": true', self.req('GET', '/b1/')[2].decode())
+        self.assertNotIn('"body": "ajuste isto"', self.req('GET', '/b1/')[2].decode())     # resolved ones do not reach the page
+
+    # ---- quote (comment mode)
+    def selector(self, body):
+        status, _, out = self.post(body)
+        self.assertEqual(status, 200, out)
+        return self.lines()[-1]['target']['selector'][0]
+
+    def test_valid_quote_is_stored_in_the_selector_and_used_in_the_message(self):
+        sel = self.selector({**self.valid(), 'quote': {'exact': 'texto  dois', 'prefix': 'x' * 50, 'suffix': ' fim'}})
+        self.assertEqual(sel, {'type': 'TextQuoteSelector', 'exact': 'texto dois', 'prefix': 'x' * 32, 'suffix': ' fim'})
+        calls = self.wait_for(self.sb.hc_calls)
+        self.assertIn('> "texto dois"', calls[0][2])
+
+    def test_quote_outside_the_block_falls_back_to_the_block_start_without_losing_the_comment(self):
+        sel = self.selector({**self.valid(), 'quote': {'exact': 'frase de outro bloco', 'prefix': '', 'suffix': ''}})
+        self.assertEqual(sel['exact'], 'texto dois')
+        self.assertEqual(len(self.lines()), 1)
+
+    def test_malformed_quotes_do_not_break_the_post(self):
+        for i, bad in enumerate([None, 'texto', 7, [], {'exact': 5}, {'exact': ''}, {'exact': ' '}, {'exact': 'texto', 'prefix': 3},
+                                 {'exact': 'x' * 5000}, {'prefix': 'a'}]):
+            with self.subTest(bad=bad):
+                sel = self.selector({**self.valid(f'c{i}'), 'quote': bad})
+                self.assertEqual(sel['exact'], 'texto dois')
+                self.assertEqual((sel['prefix'], sel['suffix']), ('', ''))
+
+    def test_quote_with_inline_markdown_matches_the_rendered_text(self):
+        doc = 'Abertura.\n\nO preço é **R$ 10** por [mês](https://x.com), com `código` incluso.\n'
+        subprocess.run([sys.executable, str(CANVAS), 'publish', 'b1', str(self.sb.md(doc))], env=self.sb.env, check=True, capture_output=True)
+        self.block = self.blocks()[1]
+        sel = self.selector({**self.valid(), 'quote': {'exact': 'O preço é R$ 10 por mês, com código incluso.', 'prefix': '', 'suffix': ''}})
+        self.assertEqual(sel['exact'], 'O preço é R$ 10 por mês, com código incluso.')
+
+    def test_page_after_a_comment_lists_only_open_ones_for_the_pins(self):
+        self.post({**self.valid('aberto')})
+        cid = self.lines()[0]['id']
+        self.post(self.valid('fechado'))
+        second = self.lines()[1]['id']
+        subprocess.run([sys.executable, str(CANVAS), 'resolve', 'b1', second], env=self.sb.env, check=True, capture_output=True)
+        page = self.req('GET', '/b1/')[2].decode()
+        self.assertIn(f'"id": "{cid}"', page)
+        self.assertIn('"body": "aberto"', page)
+        self.assertNotIn('fechado', page)
 
 
 class ServeLifecycleTest(unittest.TestCase):

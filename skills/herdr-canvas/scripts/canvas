@@ -330,7 +330,8 @@ class Handler(BaseHTTPRequestHandler):
         if not block:
             return self.err(404, 'unknown block')
         version = (lib.read_text(canvas / 'version') or '').strip() or None
-        entry = lib.make_entry(body.strip(), block, version, source=source)
+        quote = lib.clean_quote(data.get('quote'), block) if isinstance(data, dict) else None
+        entry = lib.make_entry(body.strip(), block, version, source=source, quote=quote)
         lib.add_comment(canvas, entry)
         lib.notify_async(canvas, folder, bot['id'], entry, delay=float(os.environ.get('CANVAS_RETRY_DELAY', '20')))
         self.reply(200, {'ok': True, 'id': entry['id']})

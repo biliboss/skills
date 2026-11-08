@@ -346,8 +346,7 @@ def render_page(blocks, title, source='md'):
         f'<article class="cv-block" id="{b["id"]}" data-block="{b["id"]}" data-index="{b["index"]}" data-kind="{b["kind"]}">'
         f'<div class="cv-gutter"><span class="badge badge-ghost badge-sm">{b["index"]}</span></div>'
         f'<div class="cv-body">{render_block_body(b)}</div>'
-        f'<button type="button" class="btn btn-xs btn-ghost cv-comment" aria-label="Comentar o bloco {b["index"]}">comentar</button>'
-        f'<div class="cv-notes" data-notes="{b["id"]}"></div></article>'
+        '</article>'
         for b in blocks) or '<div class="alert"><span>Página vazia.</span></div>'
     return (
         '<!doctype html>\n<html lang="pt-BR" data-theme="light">\n<head><meta charset="utf-8">'
@@ -412,17 +411,45 @@ def new_comment_id(now_ms=None, rand=None):
     return 'c_' + _b36(now_ms)[-5:] + _b36(r).rjust(3, '0')
 
 
-def make_entry(body, block, version, now=None, cid=None, source='md'):
+def make_entry(body, block, version, now=None, cid=None, source='md', quote=None):
     now = now or datetime.now(timezone.utc)
-    quote = re.sub(r'\s+', ' ', block['text']).strip()
+    selector = {'type': 'TextQuoteSelector', 'exact': re.sub(r'\s+', ' ', block['text']).strip()[:120], 'prefix': '', 'suffix': ''}
+    if quote:
+        selector.update(quote)
     return {
         'id': cid or new_comment_id(int(now.timestamp() * 1000)), 'type': 'Annotation',
         'created': now.strftime('%Y-%m-%dT%H:%M:%SZ'), 'creator': 'owner', 'resolved': None,
         'body': {'type': 'TextualBody', 'value': body},
         'target': {'source': 'canvas/page.md' if source == 'md' else 'canvas/blocks', 'version': version, 'blockId': block['id'],
                    'index': block['index'], 'kind': block['kind'], 'heading': block['heading'],
-                   'selector': [{'type': 'TextQuoteSelector', 'exact': quote[:120], 'prefix': '', 'suffix': ''}]},
+                   'selector': [selector]},
     }
+
+
+def block_plain(block):
+    """The text of the block as the page shows it: rendered, tags dropped, spaces collapsed."""
+    return re.sub(r'\s+', ' ', htmllib.unescape(re.sub(r'<[^>]+>', '', render_block_body(block)))).strip()
+
+
+def clean_quote(raw, block):
+    """The quote sent by the page -> {exact, prefix, suffix}, or None when malformed or not found in the block."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for key, limit in (('exact', 1000), ('prefix', 200), ('suffix', 200)):
+        v = raw.get(key, '')
+        if not isinstance(v, str) or len(v) > limit:
+            return None
+        out[key] = re.sub(r'\s+', ' ', v).strip() if key == 'exact' else re.sub(r'\s+', ' ', v)
+    out['exact'] = out['exact'][:120].strip()
+    out['prefix'], out['suffix'] = out['prefix'][-32:], out['suffix'][:32]
+    if not out['exact']:
+        return None
+    bare = re.sub(r'\s', '', out['exact'])
+    for text in (block_plain(block), re.sub(r'\s+', ' ', block['text'])):
+        if out['exact'] in text or bare in re.sub(r'\s', '', text):
+            return out
+    return None
 
 
 def parse_comments(text):
@@ -570,52 +597,19 @@ def notify_async(canvas, folder, bot_id, entry, delay=20.0):
     return t
 
 
-# ---- the page script (comment box) --------------------------------------------------------------
+# ---- the page script (comment mode) -------------------------------------------------------------
 
-PAGE_JS = r"""
-(function () {
-  var CV = window.CV; if (!CV) return;
-  document.body.classList.remove('cv-static');
-  var notes = {};
-  function show(c) {
-    var host = document.querySelector('[data-notes="' + c.blockId + '"]'); if (!host) return;
-    var d = document.createElement('div'); d.className = 'cv-note' + (c.resolved ? ' cv-done' : '');
-    d.textContent = (c.resolved ? '✓ ' : '● ') + c.body; host.appendChild(d);
-  }
-  (CV.comments || []).forEach(show);
-  function closeBox() { var b = document.querySelector('.cv-box'); if (b) b.remove(); }
-  function send(block, area, btn, err) {
-    var body = area.value.trim(); if (!body) return;
-    btn.disabled = true; err.textContent = '';
-    fetch(CV.post, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Canvas-Token': CV.token },
-      body: JSON.stringify({ blockId: block.getAttribute('data-block'), body: body, version: CV.version }) })
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
-      .then(function (j) { show({ blockId: block.getAttribute('data-block'), body: body, resolved: null }); closeBox(); })
-      .catch(function (e) { btn.disabled = false; err.textContent = 'Não enviou: ' + e.message; });
-  }
-  document.addEventListener('click', function (ev) {
-    var btn = ev.target.closest && ev.target.closest('.cv-comment'); if (!btn) return;
-    var block = btn.closest('.cv-block'); var had = block.querySelector('.cv-box'); closeBox(); if (had) return;
-    var box = document.createElement('div'); box.className = 'cv-box';
-    var area = document.createElement('textarea'); area.className = 'textarea w-full'; area.rows = 3;
-    area.placeholder = 'Comentário · Enter envia, Shift+Enter quebra linha';
-    var row = document.createElement('div'); row.className = 'cv-row';
-    var go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-sm btn-primary'; go.textContent = 'Enviar';
-    var no = document.createElement('button'); no.type = 'button'; no.className = 'btn btn-sm btn-ghost'; no.textContent = 'Cancelar';
-    var err = document.createElement('span'); err.className = 'cv-err';
-    go.onclick = function () { send(block, area, go, err); }; no.onclick = closeBox;
-    area.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(block, area, go, err); }
-      if (e.key === 'Escape') closeBox();
-    });
-    row.appendChild(go); row.appendChild(no); row.appendChild(err); box.appendChild(area); box.appendChild(row);
-    block.appendChild(box); area.focus();
-  });
-})();
-"""
+PAGE_JS = (Path(__file__).resolve().parent / 'page.js').read_text(encoding='utf-8')
 
 
 def boot_script(token, bot_id, version, comments):
-    items = [{'blockId': (c.get('target') or {}).get('blockId'), 'body': str((c.get('body') or {}).get('value', '')), 'resolved': bool(c.get('resolved'))} for c in comments]
+    """Only open comments go to the page (the pins count them); the text is shown with textContent."""
+    items = []
+    for c in comments:
+        if c.get('resolved'):
+            continue
+        t = c.get('target') or {}
+        items.append({'id': c.get('id'), 'blockId': t.get('blockId'), 'body': str((c.get('body') or {}).get('value', '')),
+                      'quote': str(((t.get('selector') or [{}])[0] or {}).get('exact') or '')})
     data = {'token': token, 'post': f'/{bot_id}/comments', 'version': version, 'comments': items}
     return '<script>window.CV=' + json.dumps(data, ensure_ascii=False).replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029') + ';</script>'

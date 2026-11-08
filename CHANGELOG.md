@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.116.0
+
+- herdr-canvas 0.4.0: modo comentário com outline. Sem botão por bloco nem notas na página; toggle "Comentar" (tecla `c`), outline do bloco sob o mouse, popover com Enter/Shift+Enter/Esc em dois tempos, trecho citado (`TextQuoteSelector`) pela seleção ou pela frase sob o clique, pinos de comentários abertos. O servidor aceita `quote` opcional e cai no início do bloco quando não bate.
+
 ## 0.115.2
 
 - herdr-canvas 0.3.2: o servidor local sobe quando os dados carregam (`reload`), não só no primeiro render; `canvas open` garante o servidor antes dos `layout.*` e informa o resultado no campo `server`.
