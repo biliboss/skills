@@ -36,7 +36,7 @@ that goes public carries no private numbers or client names.
 3. **Two axes, one map.** Pick the two things that decide the customer's choice (ask: what makes them say no?).
    Prefer a measurable axis (tasks of the job covered, minutes to start) to a vague one. Score each alternative 0–10,
    mark every score that is not measured as "estimate", and place **us** (bordô, `kind: us`; a target not built yet is
-   `kind: target`, dashed). Data goes in `<project>/.wiki/resources/hustler-<slug>.json`; render with
+   `kind: target`, dashed). Data goes in `$WIKI_HOME/<projeto>/resources/hustler-<slug>.json`; render with
    `scripts/render-map.sh <json> <html>` (one standalone HTML, inline SVG, grays plus the bordô accent, dark and
    light). Open it at ~1100 px and check no label sits on another dot.
 4. **The upper quadrant, and the way in.** The upper right is where both axes are high: Gartner's Leaders sit at high
@@ -48,15 +48,15 @@ that goes public carries no private numbers or client names.
    **open-core** option (project open, sell what runs it: hosting, credits, services, paid features; the term is
    Lampitt's, 2008). For each: **who pays what**, a precedent from step 2, and its trap (open-core: say plainly what
    stays open, or contributors and users stop trusting the line).
-6. **Write it and list what to re-check.** One page `<project>/.wiki/hustler.md` (job line, alternatives table with
-   links, the map, findings, models, the re-check list) and the HTML in `<project>/.wiki/resources/`. Keep
+6. **Write it and list what to re-check.** One page `$WIKI_HOME/<projeto>/hustler.md` (job line, alternatives table with
+   links, the map, findings, models, the re-check list) and the HTML in `$WIKI_HOME/<projeto>/resources/`. Keep
    `findings` to three. The re-check list is mandatory and concrete: every "not found", every estimate to test, every
    source that changes by season (prices, RFS batches, platform rules). Register "Decidi X porque Y" for any choice
    made.
 
 ## Re-running ("always go further")
 
-- Read the project's `.wiki/hustler.md` and its JSON first; do **not** start over. Walk the re-check list, update scores,
+- Read the project's `$WIKI_HOME/<projeto>/hustler.md` and its JSON first; do **not** start over. Walk the re-check list, update scores,
   prices and dates, add the alternatives that appeared, and move the dots.
 - Each run adds one dated line to a "Rodadas" list at the end of the page: what moved, what is new, what is still open.
   If a new alternative lands in the upper quadrant, that is the headline.

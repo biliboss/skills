@@ -1,5 +1,5 @@
 ---
-name: wiki-smith
+name: wiki
 description: >-
   Own a repo's `.wiki/`, the memory that agents read and maintain themselves. At the end of a
   session (or during it) it looks at what happened and routes: a daily note, a fix to a topic

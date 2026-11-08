@@ -11,7 +11,7 @@ built to be re-run: each run starts from the last page and goes one step further
 3. Dois eixos que importam para o cliente e o mapa de posicionamento.
 4. Onde fica o quadrante superior e o que falta para chegar lá.
 5. Os modelos de negócio, incluindo open-core, e quem paga o quê.
-6. Uma página no `.wiki` do projeto, o HTML do mapa e a lista do que rever na próxima vez.
+6. Uma página na wiki do projeto (skill `wiki`), o HTML do mapa e a lista do que rever na próxima vez.
 
 As regras estão no [SKILL.md](SKILL.md); aqui não se repetem.
 
@@ -19,7 +19,7 @@ As regras estão no [SKILL.md](SKILL.md); aqui não se repetem.
 
 | Script | O que faz | Exemplo |
 |---|---|---|
-| `scripts/render-map.sh <json> <html>` | gera o mapa de posicionamento (HTML com SVG embutido, tabela, achados, modelos, fontes) a partir do JSON do projeto | `render-map.sh .wiki/resources/hustler-zelito.json .wiki/resources/hustler-zelito.html` |
+| `scripts/render-map.sh <json> <html>` | gera o mapa de posicionamento (HTML com SVG embutido, tabela, achados, modelos, fontes) a partir do JSON do projeto | `render-map.sh $WIKI_HOME/<projeto>/resources/hustler-zelito.json $WIKI_HOME/<projeto>/resources/hustler-zelito.html` |
 
 Forma do JSON: `title, job, customer, x_label, y_label, upper_label, items[{name, x, y, kind, note, price, src}], findings,
 models[{name, who_pays, what}], recheck, sources[{label, url}]` (notas de 0 a 10; `kind` é `alt`, `nothing`, `us` ou
