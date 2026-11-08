@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-08
+
+### Added
+
+- `Who asks` section: a request from another agent gets the backbrief back by the same channel (`hc send`) before acting; when asking another bot, end with "backbrief primeiro" and read its backbrief before delegating for good. Also states "no journal".
+
 ## [0.1.0] - 2026-11-08
 
 ### Added

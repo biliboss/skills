@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.110.0
+
+- backbrief 0.2.0: `Who asks` section so a bot can ask another bot for a backbrief (reply by the same channel, "backbrief primeiro"), no journal.
+
 ## 0.109.0
 
 - `backbrief` renamed to `task-backbrief` 0.20.0 (the Tasks-domain gate; `/task-understand` still lands there). New light `backbrief` 0.1.0: five lines of text before any non-trivial request, then act. Patch bumps for the skills that pointed at the old name: `brainstorm` 0.2.1, `choice` 0.1.2, `cost-track` 0.5.2, `dev-console` 0.31.1, `diff-review` 0.1.1, `hermes` 0.3.3, `hustler` 0.1.1, `kanban` 0.7.5, `shape` 0.4.2.

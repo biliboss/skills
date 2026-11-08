@@ -7,13 +7,13 @@ description: >-
   is done, then act. Not `shape` (the planning door for big work) and not `task-backbrief` (the Tasks-domain gate
   that waits for a confirmation and runs the journal).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
 # backbrief
 
-A short teach-back before acting, as plain text in the reply. No Skill tool, no AskUserQuestion, no form: the owner
+A short teach-back before acting, as plain text in the reply. No Skill tool, no AskUserQuestion, no form, no journal: the owner
 reads it as he reads anything else.
 
 ## Steps
@@ -27,6 +27,15 @@ reads it as he reads anything else.
 3. Act right after, in the same turn, without waiting for an ok.
 4. Stop and wait only for an irreversible decision (delete, pay, publish, force push) or a choice only the owner can
    make. Then ask that one thing in the same text.
+
+## Who asks
+
+The skill has no dependency, so a bot can ask another bot for a backbrief and get the same thing a human gets.
+
+- When the request comes from another agent (`hc`, a bot message), send the backbrief back through the same channel
+  (`hc send` to the origin terminal) in the same four items, before acting. Then act without waiting, as in step 3.
+- When you are the one asking another bot, end the request with the literal phrase "backbrief primeiro". Read its
+  backbrief before delegating for good.
 
 ## Which one
 
