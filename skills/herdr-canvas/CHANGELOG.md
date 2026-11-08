@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Fix: the comment now reaches a bot that finished its turn. `hc send --if` takes one exact status and a bot parked at the prompt is `done`, so `--if idle` refused with `status_mismatch`. Each attempt now reads `hc get <addr> --json` (`status.state`) and, when it is idle or done, runs `hc send <addr> <text>` without `--if`; working, blocked, any other state or a failed read counts as a refusal and follows the same retry (20 s, 3 times) and `notify.log`. Never `--force`. Same in `apps/herdr-canvas/mod/notify.js` and `canvaslib.py`.
+
 ## 0.3.0
 
 - BREAKING (install): `install.py` requires `HERDR_APP_HOME` and refuses without it. It now also patches `mods/tabs/main.js` (Canvas button in the right panel next to Browser), idempotent, with backup and a clear error if the anchor is missing.

@@ -528,12 +528,26 @@ def address_of(folder):
     return mine[0]['address'] if mine else None
 
 
+def _try_send(address, text):
+    g = subprocess.run(['hc', 'get', address, '--json'], text=True, capture_output=True, timeout=15)
+    if g.returncode != 0:
+        return False, 'não consegui ler o status: ' + _clean(g.stderr or g.stdout, 80)
+    try:
+        state = (json.loads(g.stdout).get('status') or {}).get('state')
+    except (ValueError, AttributeError):
+        return False, 'status ilegível'
+    if state not in ('idle', 'done'):
+        return False, f'status {state or "desconhecido"}, não idle nem done'
+    r = subprocess.run(['hc', 'send', address, text], text=True, capture_output=True, timeout=30)
+    return r.returncode == 0, _clean(r.stderr or r.stdout, 120)
+
+
 def send_to_bot(canvas, folder, address, text, retries=3, delay=20.0):
-    """hc send --if idle, retried like notify.js; the text goes as argv, never through a shell."""
+    """Send when the bot's status.state is idle or done (hc send --if takes one exact status), retried like
+    notify.js; the text goes as argv, never through a shell, never --force."""
     for n in range(1, retries + 1):
         try:
-            r = subprocess.run(['hc', 'send', '--if', 'idle', address, text], text=True, capture_output=True, timeout=30)
-            ok, why = r.returncode == 0, _clean(r.stderr or r.stdout, 120)
+            ok, why = _try_send(address, text)
         except (OSError, subprocess.SubprocessError) as e:
             ok, why = False, _clean(e, 120)
         append_log(canvas, f"{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')} {address} tentativa {n} {'enviado' if ok else 'recusado: ' + why}")

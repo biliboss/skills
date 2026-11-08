@@ -108,12 +108,14 @@ class ServerTest(unittest.TestCase):
         calls = self.wait_for(self.sb.hc_calls)
         self.assertEqual(len(calls), 1)
         args = calls[0]
-        self.assertEqual(args[:4], ['send', '--if', 'idle', 't9'])
-        self.assertEqual(len(args), 5)                       # the whole message is one argv item
-        self.assertTrue(args[4].startswith('[herdr-canvas] Novo comentário do dono no bloco 3 (Proposta).'))
-        self.assertEqual(len(args[4].split('\n')), 4)
-        self.assertIn('Comentário: troca $(touch /tmp/x) "aspas" `crase`; rm -rf ~ com quebra', args[4])
-        self.assertIn(f'canvas resolve b1 {cid}', args[4])
+        self.assertEqual(args[:2], ['send', 't9'])
+        self.assertNotIn('--if', args)
+        self.assertNotIn('--force', args)
+        self.assertEqual(len(args), 3)                       # the whole message is one argv item
+        self.assertTrue(args[2].startswith('[herdr-canvas] Novo comentário do dono no bloco 3 (Proposta).'))
+        self.assertEqual(len(args[2].split('\n')), 4)
+        self.assertIn('Comentário: troca $(touch /tmp/x) "aspas" `crase`; rm -rf ~ com quebra', args[2])
+        self.assertIn(f'canvas resolve b1 {cid}', args[2])
         self.assertFalse(Path('/tmp/x').exists() and Path('/tmp/x').stat().st_mtime > time.time() - 60)
         log = self.wait_for(lambda: (self.sb.canvas / 'notify.log').exists() and (self.sb.canvas / 'notify.log').read_text())
         self.assertRegex(log, r't9 tentativa 1 enviado')
@@ -131,6 +133,44 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(len(sends), 2)                      # first refused (exit 1), second accepted
         log = self.wait_for(lambda: 'tentativa 2 enviado' in (self.sb.canvas / 'notify.log').read_text() and (self.sb.canvas / 'notify.log').read_text())
         self.assertIn('tentativa 1 recusado: busy', log)
+
+    def _post_with_state(self, state):
+        self.proc.send_signal(signal.SIGTERM)
+        self.proc.wait(timeout=10)
+        self.proc.stdout.close(); self.proc.stderr.close()
+        self.sb.env['FAKE_HC_STATE'] = state
+        self.setUpServer()
+        self.assertEqual(self.post(self.valid())[0], 200)
+
+    def notify_log(self, needle):
+        f = self.sb.canvas / 'notify.log'
+        return f.exists() and needle in f.read_text() and f.read_text()
+
+    def sent(self):
+        return [c for c in self.sb.hc_calls() if c[:1] == ['send']]
+
+    def test_idle_and_done_bots_get_the_message_without_if(self):
+        for state in ('idle', 'done'):
+            with self.subTest(state=state):
+                self.sb.hc_log.unlink(missing_ok=True)
+                self._post_with_state(state)
+                sends = self.wait_for(self.sent)
+                self.assertEqual(sends[0][:2], ['send', 't9'])
+                self.assertNotIn('--if', sends[0])
+                self.assertNotIn('--force', sends[0])
+                self.wait_for(lambda: self.notify_log('tentativa 1 enviado'))
+
+    def test_working_bot_is_not_sent_to_and_is_retried_three_times(self):
+        self._post_with_state('working')
+        log = self.wait_for(lambda: self.notify_log('tentativa 3'))
+        self.assertIn('tentativa 1 recusado: status working', log)
+        self.assertEqual(self.sent(), [])
+
+    def test_blocked_bot_is_not_sent_to(self):
+        self._post_with_state('blocked')
+        log = self.wait_for(lambda: self.notify_log('tentativa 1 recusado'))
+        self.assertIn('status blocked', log)
+        self.assertEqual(self.sent(), [])
 
     def setUpServer(self):
         self.proc = subprocess.Popen([sys.executable, str(CANVAS), 'serve'], env=self.sb.env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

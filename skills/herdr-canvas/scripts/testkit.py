@@ -15,6 +15,9 @@ args = sys.argv[1:]
 if args[:2] == ["ls", "--json"]:
     print(json.dumps({"terminals": [{"address": "t9", "agent": "claude-code", "cwd": os.environ["FAKE_HC_CWD"], "state": "live", "status": "idle"}]}))
     sys.exit(0)
+if args[:1] == ["get"] and "--json" in args:
+    print(json.dumps({"address": args[1], "state": "live", "status": {"app": "claude-code", "state": os.environ.get("FAKE_HC_STATE", "idle")}}))
+    sys.exit(0)
 with open(log, "a") as f:
     f.write(json.dumps(args) + "\\n")
 count = os.environ.get("FAKE_HC_FAIL_FIRST")
