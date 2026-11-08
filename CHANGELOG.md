@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.117.0
+
+- devin 0.1.0: delega tarefa ao Devin CLI em background, com um worktree e um branch por tarefa, `swe-2-max` por padrão e revisão do diff.
+
 ## 0.116.0
 
 - herdr-canvas 0.4.0: modo comentário com outline. Sem botão por bloco nem notas na página; toggle "Comentar" (tecla `c`), outline do bloco sob o mouse, popover com Enter/Shift+Enter/Esc em dois tempos, trecho citado (`TextQuoteSelector`) pela seleção ou pela frase sob o clique, pinos de comentários abertos. O servidor aceita `quote` opcional e cai no início do bloco quando não bate.
