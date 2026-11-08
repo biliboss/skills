@@ -158,7 +158,7 @@
    "source": "estimate",
    "learned_n": 0
   },
-  "skill:backbrief": {
+  "skill:task-backbrief": {
    "kind": "skill",
    "what_for": "repeat the request back in own words; the owner confirms or adjusts",
    "est_minutes": 2.4,
@@ -488,9 +488,19 @@
    "source": "estimate",
    "learned_n": 0
   },
+  "skill:backbrief": {
+   "kind": "skill",
+   "what_for": "the everyday backbrief: five lines of text in the reply, then act",
+   "est_minutes": 0.2,
+   "est_tokens": 800,
+   "est_cost_brl": 0.03,
+   "owner_involved": false,
+   "source": "estimate",
+   "learned_n": 0
+  },
   "skill:shape": {
    "kind": "skill",
-   "what_for": "the default planning door: route, backbrief, delegate (the backbrief minutes are counted under skill:backbrief)",
+   "what_for": "the default planning door: route, backbrief, delegate (the backbrief minutes are counted under skill:task-backbrief)",
    "est_minutes": 1.0,
    "est_tokens": 4000,
    "est_cost_brl": 0.14,

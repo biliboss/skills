@@ -5,9 +5,9 @@ description: >-
   to a cost center (a client with a day budget, or an investment with no budget but a cost), and a running clock in
   a domain becomes a time entry priced at what he is worth. The only writer of the Costs journal (`costs.py emit`),
   drawn in the dev-console as the Costs domain; the console's money bar reads and writes it through this file. Not
-  backbrief (tasks).
+  task-backbrief (tasks).
 metadata:
-  version: 0.5.1
+  version: 0.5.2
 ---
 
 # cost-track

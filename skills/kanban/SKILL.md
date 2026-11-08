@@ -6,9 +6,9 @@ description: >-
   (`kanban.sh create`, `move`), drawn in the dev-console as the Kanban domain whose Kanban module is the console's
   home, with a money band (today, week, month) priced from the Costs journal. Use when he says "cria um card",
   "move o card", "manda para Downstream", "o que está em Upstream", "quanto custou esse card", "mostra o quadro",
-  "quadro kanban". Not backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
+  "quadro kanban". Not task-backbrief (a task explained and taught back) nor cost-track (the clock and the cost centers).
 metadata:
-  version: 0.7.4
+  version: 0.7.5
 ---
 
 # kanban
@@ -118,7 +118,7 @@ scripts/kanban.sh sweep [--hours 48] --repos a/b,c/d [--apply] [--json]
 
 **WIP limit.** `wip.limit` (default 3) in `~/.config/kanban/config.json` (override `KANBAN_CONFIG`;
 `wip.repos {"owner/name": n}` per repo). `wip` counts the repo's open PRs with `gh pr list` and exits **3** at or over the
-limit (1 when gh fails: an unknown count is not "over"). Run it before opening a PR (backbrief step 9);
+limit (1 when gh fails: an unknown count is not "over"). Run it before opening a PR (task-backbrief step 9);
 `hermes.sh spawn hacker ... --repo R` runs it and refuses (exit 6).
 
 **Aging sweep (daily).** `sweep` lists the open PRs (by creation) and branches (by last commit) older than `--hours`

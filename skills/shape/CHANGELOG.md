@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2] - 2026-11-08
+
+### Changed
+
+- References to the skill `backbrief` now point to `task-backbrief` (renamed); no behavior change. The catalog id is now skill:task-backbrief; skill:backbrief is the new light skill.
+
 ## 0.4.0
 
 ## [0.4.1] - 2026-11-06

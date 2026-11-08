@@ -1,6 +1,6 @@
-# Routing evals: does backbrief load on its own?
+# Routing evals: does task-backbrief load on its own?
 
-Manual evals for the description, run each prompt in a **fresh session** with no `/backbrief` and no hint.
+Manual evals for the description, run each prompt in a **fresh session** with no `/task-backbrief` and no hint.
 Pass = the agent behaves as the "expected" column says on its first reply. The point is the description alone, so
 run them after any change to it.
 
@@ -29,7 +29,7 @@ real use, each run in its own temp dir. Edit its `V` dict to try new wordings.
   break into a space and splits the word.
 
 In Hermes: `hermes -p <profile> chat -Q --oneshot --max-turns 6 -q "<prompt>"`, then look for a `skill_view` of
-`backbrief` in that session (`state.db`, `messages.tool_calls`). Hermes shows only the first ~60 characters of
+`task-backbrief` in that session (`state.db`, `messages.tool_calls`). Hermes shows only the first ~60 characters of
 each description in its index (the real line is in `system_prompts.prompt`), and a profile that says "act on your
 recommendation" outweighs any description, so test Hermes separately from pi.
 

@@ -6,10 +6,10 @@ description: >-
   market around an idea: the customer's job, the real alternatives (competitors, open source, do-nothing) with sources,
   a positioning map on the two axes the customer cares about, where the upper quadrant is and what it takes to get
   there, and the business model options (including open-core). Writes one wiki page plus the map, and lists what to
-  re-check, because it is meant to be re-run. Not for deciding what to build next in a clear task (backbrief) nor for an
+  re-check, because it is meant to be re-run. Not for deciding what to build next in a clear task (task-backbrief) nor for an
   idea still being shaped (brainstorm).
 metadata:
-  version: 0.1.0
+  version: 0.1.1
   license: MIT
 ---
 

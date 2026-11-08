@@ -31,5 +31,5 @@ Date: 2026-11-06. One line per source: what it does, the idea taken, the link.
 
 ## What is ours
 
-The journal with causal-loop events and the Brainstorm domain in the dev-console, the hand-off to backbrief, and the
+The journal with causal-loop events and the Brainstorm domain in the dev-console, the hand-off to task-backbrief, and the
 rule to use each tool where it fits instead of all of them every time.

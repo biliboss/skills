@@ -42,7 +42,7 @@ def _skill_meta() -> tuple[str, str, list[str]]:
 
     text = SKILL_MD.read_text()
     front = text.split("---")[1]
-    name = next((l.split(":", 1)[1].strip() for l in front.splitlines() if l.startswith("name:")), "backbrief")
+    name = next((l.split(":", 1)[1].strip() for l in front.splitlines() if l.startswith("name:")), "task-backbrief")
     desc = " ".join(l.strip() for l in front.split("description:", 1)[1].split("metadata:")[0].splitlines()[1:])
     body = text.split("## Explain", 1)[1].split("\n## ", 1)[0] if "## Explain" in text else ""
     steps = [re.sub(r"`([^`]+)`", r"\1", m) for m in re.findall(r"^\d+\.\s+(.+)$", body, re.M)]

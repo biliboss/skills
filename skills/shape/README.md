@@ -11,7 +11,7 @@ anyone builds it, then delegates. A compound skill: its pieces stay separate ski
 | `interview` | many decisions, rich context |
 | `domain-plan` | a screen, a flow, a service |
 | `design-taste` | taste and quality |
-| `backbrief` | always, before building |
+| `task-backbrief` | always, before building |
 
 ## Créditos e referências
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] - 2026-11-08
+
+### Changed
+
+- References to the skill `backbrief` now point to `task-backbrief` (renamed); no behavior change.
+
 ## [0.5.1] - 2026-11-06
 
 ### Changed

@@ -39,7 +39,7 @@ ROUTES = {
     "disk": "mantainer", "mac": "mantainer", "upkeep": "mantainer",
     "coordination": "bili", "coordinate": "bili",
 }
-NO_ROUTE = "no owning profile: run it with a subagent of the session (backbrief step 9)"
+NO_ROUTE = "no owning profile: run it with a subagent of the session (task-backbrief step 9)"
 EXIT_NOTE = {0: "ok", 1: "no text returned", 2: "partial or failed", 130: "interrupted", 124: "timeout"}
 
 

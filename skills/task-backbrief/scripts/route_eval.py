@@ -42,9 +42,9 @@ PROMPTS = [  # (prompt, the file it asks for)
 
 
 def variant(name: str, desc: str | None) -> Path:
-    dst = OUT / "skills" / name / "backbrief"
+    dst = OUT / "skills" / name / "task-backbrief"
     shutil.rmtree(dst, ignore_errors=True)
-    shutil.copytree(SKILLS / "backbrief", dst)
+    shutil.copytree(SKILLS / "task-backbrief", dst)
     if desc is not None:
         s = (dst / "SKILL.md").read_text()
         a, b = s.index("description: >-\n"), s.index("metadata:\n")
@@ -57,7 +57,7 @@ def run(model: str, name: str, skill: Path, k: int) -> dict:
     work = Path(tempfile.mkdtemp(prefix=f"{name}-{k}-", dir=OUT))
     prompt, target = PROMPTS[k]
     args = ["bash", str(PI), "mukutu", "-p", "--no-session", "--mode", "json", "--model", MODELS[model], "--no-skills"]
-    for p in [p for p in SKILLS.iterdir() if (p / "SKILL.md").exists() and p.name != "backbrief"] + [skill]:
+    for p in [p for p in SKILLS.iterdir() if (p / "SKILL.md").exists() and p.name != "task-backbrief"] + [skill]:
         args += ["--skill", str(p)]
     args.append(prompt.format(d=work))
     log = work.with_suffix(".jsonl")

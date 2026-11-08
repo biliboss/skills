@@ -1,9 +1,9 @@
 ---
 name: choice
 description: >-
-  Use when the owner has to choose between options (a logo, an icon, a screen, a name, a text, a palette): run it as a tournament of 4. Each round shows 4 options with the agent's confidence summing 100, ranked 01-04 (01 is the champion the agent picks, so there is always one), in a full-screen showcase in the dev-console; the owner answers with three fixed keys (⏎ another round: the champion against 3 new challengers, a accept, f feedback that becomes a criterion) until he accepts. scripts/tournament.py is the only writer of its journal and draws each round on the thread screen (skill thread). Use when he says "me dá opções", "4 opções", "outra rodada", "torneio", "desafiantes", "escolher o logo". Not brainstorm (an idea still open) nor backbrief (a task to confirm).
+  Use when the owner has to choose between options (a logo, an icon, a screen, a name, a text, a palette): run it as a tournament of 4. Each round shows 4 options with the agent's confidence summing 100, ranked 01-04 (01 is the champion the agent picks, so there is always one), in a full-screen showcase in the dev-console; the owner answers with three fixed keys (⏎ another round: the champion against 3 new challengers, a accept, f feedback that becomes a criterion) until he accepts. scripts/tournament.py is the only writer of its journal and draws each round on the thread screen (skill thread). Use when he says "me dá opções", "4 opções", "outra rodada", "torneio", "desafiantes", "escolher o logo". Not brainstorm (an idea still open) nor task-backbrief (a task to confirm).
 metadata:
-  version: 0.1.0
+  version: 0.1.2
   license: MIT
 ---
 

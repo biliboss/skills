@@ -2,12 +2,12 @@
 name: diff-review
 description: >-
   Use when the owner says "diff-review", "revisa o diff", "revisão de código" or "code review local", and between
-  verify and deliver in backbrief. An AI code review of a local git diff (a worktree against its base) with our
+  verify and deliver in task-backbrief. An AI code review of a local git diff (a worktree against its base) with our
   own prompt, run through pi on a flat-plan model; it reports only problems the diff introduced, each with a concrete
-  failure scenario, and logs them as events. Differs from backbrief's verify (does the delivery do what was
+  failure scenario, and logs them as events. Differs from task-backbrief's verify (does the delivery do what was
   asked) and from retro (lessons of the session).
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # diff-review
@@ -20,7 +20,7 @@ our own prompt ([references/review-prompt.md](references/review-prompt.md) plus
 
 ## When
 
-Between verify and deliver of backbrief: verify asks "does it do what was asked", this asks "is the code
+Between verify and deliver of task-backbrief: verify asks "does it do what was asked", this asks "is the code
 sound". A delivery with an **open blocker** goes back to execute. It also runs on any local branch on request.
 
 ## Run
@@ -32,7 +32,7 @@ scripts/diff-review.sh <worktree> [--base origin/main] [--task <id>] [--model so
 It refuses a dirty tree and an empty diff. It reads `git diff --unified=20 <merge-base>...HEAD`, adds the house
 rules and the worktree's previous findings (so nothing is repeated), runs
 `pi -p --no-session --mode json --model <registry model>` in the worktree with read-only tools, and keeps the
-findings with confidence >= 80 (at most 5). `--model` is an id of backbrief's registry (default `sonnet`, the
+findings with confidence >= 80 (at most 5). `--model` is an id of task-backbrief's registry (default `sonnet`, the
 mukutu subscription through the claude bridge; `glm` is the GLM Coding Plan; per-token providers are refused). The full
 output is in `runs/<review id>.md`. Exit: 0 no open blocker, 1 an open blocker, 2 refused or the output was not
 parsable (fail-closed: never read as "no findings").

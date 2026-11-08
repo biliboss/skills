@@ -31,7 +31,7 @@ def title_of(history: list[dict], state: dict) -> str:
 
 def _elements(g: dict) -> list[dict]:
     """Cytoscape elements: variables on a circle, links as arrows labelled + or -; the simplest graph the console
-    already supports (a widget with a cytoscape box, as backbrief's Skill widget)."""
+    already supports (a widget with a cytoscape box, as task-backbrief's Skill widget)."""
     import math
 
     n = max(len(g["nodes"]), 1)

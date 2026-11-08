@@ -6,7 +6,7 @@ agents that keep their own memory. One script, `scripts/hermes.sh`, wraps the `h
 
 How it works: `route` names the profile that owns a kind of task, `spawn` runs `hermes -p <profile> -z` from a
 directory under a per-profile lock, and prints the answer plus a final JSON line with the session id, exit code,
-duration and usage. backbrief's execute step uses it for tasks that have an owner.
+duration and usage. task-backbrief's execute step uses it for tasks that have an owner.
 
 | Command | Example |
 |---|---|

@@ -9,7 +9,7 @@ description: >-
   "plan", "vamos fazer", "quero", "faz", "nova tarefa", "brainstorm", "backbrief". Questions and one-line commands skip
   it.
 metadata:
-  version: 0.4.0
+  version: 0.4.2
   license: MIT
 ---
 
@@ -44,7 +44,7 @@ a piece by name (`skill_view`) or by its file (`../<piece>/SKILL.md`).
    | taste and quality (business, product, interface, software, writing) | `design-taste`, the facet that fits |
    | clear and small | straight to step 3 |
 
-3. **Backbrief, always** (`backbrief`): the teach-back the owner confirms. Nothing is built before the ok. It has a
+3. **Backbrief, always** (`task-backbrief`): the teach-back the owner confirms. Nothing is built before the ok. It has a
    ceiling: on the owner's 2nd adjustment the shaping opens a line of understanding instead of guessing a 3rd time
    (see *O melhor caminho*).
 4. **Choose the resources** (`shape.sh choose '<kind>'`): the least-cost combination, "Decidi X porque Y".

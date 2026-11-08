@@ -5,7 +5,8 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | Skill | O que faz |
 |---|---|
 | `tensions` | registra eventos de domínio significativos no JSONL global, com Python stdlib e recipes `just` opcionais |
-| `backbrief` | em desenho, domínio Tasks: um comando para a tarefa explicada a alguém e repetida de volta do jeito que foi entendida (teach-back) |
+| `backbrief` | o padrão do dia a dia: antes de agir num pedido não trivial, até cinco linhas de texto (o que entendi, o que vou fazer, o que fica de fora, como você vê que ficou pronto) e segue; `shape` fica para trabalho grande |
+| `task-backbrief` | em desenho, domínio Tasks: um comando para a tarefa explicada a alguém e repetida de volta do jeito que foi entendida (teach-back) |
 | `cost-track` | domínio Costs: tudo tem custo; cada domínio pertence a um centro de custo e o tempo ligado vira dinheiro; único escritor do diário de custos |
 | `kanban` | o quadro do dono (Todo, Upstream, Downstream, Feito; o topo da coluna é o card em foco), cada card ligado a um domínio do dev-console; o Quadro é a página inicial do console, com o que o tempo em Upstream custou hoje, na semana e no mês; limite de WIP por repo (3 PRs abertos) e a varredura diária do que passou de 48 h |
 | `domain-plan` | planejar a tarefa em Upstream: desenhar o domínio no dev-console (eventos e a tela de cada um), marcar rascunho ou real e detectar o drift entre o desenho e o código, que vira a lista do Downstream |

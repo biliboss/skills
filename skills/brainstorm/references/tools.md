@@ -6,7 +6,7 @@ Depth for the four tools in SKILL.md. Credits: the README.
 
 | Domain | The relation of cause and effect | Move | In a brainstorm |
 |---|---|---|---|
-| clear | obvious to everyone | sense, categorise, respond | apply the known rule; probably not a brainstorm: route to backbrief |
+| clear | obvious to everyone | sense, categorise, respond | apply the known rule; probably not a brainstorm: route to task-backbrief |
 | complicated | knowable by analysis or expertise | sense, analyse, respond | compare options, ask who knows; a design with a recommendation |
 | complex | visible only in hindsight | probe, sense, respond | the approach is a small, safe-to-fail experiment, with what it should teach |
 | chaotic | no useful link | act, sense, respond | stabilise first, think after |
