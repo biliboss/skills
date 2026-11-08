@@ -2,7 +2,7 @@
 name: thread
 description: Use only when the owner asks for a thread. Opens a branch.
 metadata:
-  version: 0.10.0
+  version: 0.10.1
 ---
 
 # thread — a topic, in one call

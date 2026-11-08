@@ -2,7 +2,7 @@
 name: interview
 description: Ask the user structured questions in a rich interactive form (pi-interview) in one browser, Orca or native macOS window shared by every call. Single and multi choice with recommendations, free text, image upload, and context panels with code, diffs, Markdown, tables, Mermaid and charts. Forms queue up in that window and the answers come back to each caller. Marked answers are never lost when time runs out. Use for grilling rounds, requirements gathering, design tradeoffs, or any batch of decisions that needs more context than AskUserQuestion can show. Use whenever the user asks to be grilled or interviewed, or says "interview", "pi-interview", "form".
 metadata:
-  version: 1.1.0
+  version: 1.1.1
   license: MIT
 ---
 
