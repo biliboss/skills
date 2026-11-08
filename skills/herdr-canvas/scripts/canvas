@@ -186,13 +186,18 @@ def cmd_open(bot):
     state = state_dir()
     state.mkdir(parents=True, exist_ok=True)
     (state / 'bot').write_text(f"{bot}\t{datetime.now(timezone.utc).isoformat()}\n")
+    # The server comes up with the open, not with the panel's first render (a window on another Space never renders).
+    try:
+        server = serve_detach()
+    except lib.CanvasError as e:
+        server = {'running': False, 'started': False, 'error': str(e)}
     home = os.environ.get('CANVAS_HERDR_HOME') or str(Path.home() / '.config/herdr-bili')
     env = {**os.environ, 'HERDR_APP_HOME': str(Path(home).expanduser())}
     for args in (['layout.select', '--stack', 'panel-body', '--child', 'canvas'], ['layout.show', '--id', 'panel']):
         r = subprocess.run(['herdr-app', 'do', *args], text=True, capture_output=True, env=env)
         if r.returncode:
             raise lib.CanvasError(f"herdr-app do {' '.join(args)} failed: {r.stderr.strip() or r.stdout.strip()}")
-    return {'bot': bot, 'opened': True, 'home': env['HERDR_APP_HOME']}
+    return {'bot': bot, 'opened': True, 'home': env['HERDR_APP_HOME'], 'server': server}
 
 
 # ---- server ---------------------------------------------------------------------------------------
@@ -372,6 +377,7 @@ def serve_detach():
     pid, port = read_pid(), read_port()
     if pid and port and healthy(port):
         return {'running': True, 'started': False, 'pid': pid, 'port': port}
+    port_wanted()  # refuse a bad CANVAS_PORT here, at once, not after waiting for the child
     state = state_dir()
     state.mkdir(parents=True, exist_ok=True)
     for name in ('server.pid', 'port', 'token'):

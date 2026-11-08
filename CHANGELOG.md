@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.115.2
+
+- herdr-canvas 0.3.2: o servidor local sobe quando os dados carregam (`reload`), não só no primeiro render; `canvas open` garante o servidor antes dos `layout.*` e informa o resultado no campo `server`.
+
 ## 0.115.1
 
 - herdr-canvas 0.3.1: o comentário chega ao bot que terminou o turno (status `done`); antes `hc send --if idle` recusava com `status_mismatch`.

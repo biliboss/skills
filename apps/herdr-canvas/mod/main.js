@@ -5,7 +5,7 @@ import { v_flex, h_flex, TextView, TextareaState, Textarea } from "gpui-base";
 import { home, props, readTextFile, writeTextFile, watchFolder, hc, agents, panes, notify, theme } from "herdr";
 import * as herdr from "herdr";
 import { splitMarkdown } from "./blocks.js";
-import { nativeCaps, pageMode, viewId, canDo, DEFAULT_PORT, isLight, webUrl, ensureServer } from "./pagemode.js";
+import { nativeCaps, pageMode, viewId, canDo, DEFAULT_PORT, isLight, webUrl, ensureServer, wantsServer } from "./pagemode.js";
 import { appendComment, appendLog, readComments, writeCommentsMarkdown, makeEntry } from "./store.js";
 import { buildMessage, sendToBot } from "./notify.js";
 
@@ -70,6 +70,8 @@ export default class Canvas extends View {
         const [page, html, jsonl, version] = await Promise.all([readTextFile(`${this.dir(bot)}/page.md`), readTextFile(`${this.dir(bot)}/page.html`), readTextFile(`${this.dir(bot)}/comments.jsonl`), readTextFile(`${this.dir(bot)}/version`)]);
         if (this.bot?.id !== bot.id) return;
         this.hasMd = page !== null; this.hasHtml = html !== null;
+        // Start the server with the data, not with the first render (render may never run on another Space). Idempotent.
+        if (wantsServer({ hasHtml: this.hasHtml, caps: this.viewBroken ? null : this.caps })) this.prepareWeb(cx);
         // Every CLI verb (publish/set/append/remove) rewrites page.html and bumps `version`: a new version reloads the view.
         const stamp = html === null ? null : (version ?? "").trim();
         if (this.htmlStamp !== null && stamp !== null && stamp !== this.htmlStamp) this.reloadPage();

@@ -25,6 +25,10 @@ export function pageMode({ hasHtml, hasMd, caps, choice }) {
   return { mode: choice === "blocks" ? "blocks" : "page", canToggle: true, hint: null };
 }
 
+// True when the panel needs the local server: there is a page.html and the build has native web views.
+// Decided at data time (reload), not at render time: a window on another Space never renders.
+export const wantsServer = ({ hasHtml, caps }) => Boolean(hasHtml) && hasWeb(caps);
+
 // Stable per panel and bot, so a re-render never creates a second view. The instance part is required:
 // two live views with the same id erase each other, and a bot can be open in two Canvas panels.
 export const viewId = (botId, instance) => `canvas-page-${botId}-${instance}`;

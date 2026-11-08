@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pageMode, nativeCaps, hasWeb, viewId, isLight, webUrl, ensureServer, serverUp } from "../mod/pagemode.js";
+import { pageMode, nativeCaps, hasWeb, viewId, isLight, webUrl, ensureServer, serverUp, wantsServer } from "../mod/pagemode.js";
 
 const WEB = { interface: "native-view/0", platform: "macos", available: true, kinds: [{ kind: "web", actions: ["browser.reload"] }, { kind: "pdf", actions: [] }] };
 const PDF_ONLY = { interface: "native-view/0", available: true, kinds: [{ kind: "pdf", actions: [] }] };
@@ -92,4 +92,21 @@ test("ensureServer: failure to start or answer gives a one-line note, no throw",
   const b = await ensureServer({ exec: fakeExec({ upAfter: 99 }).exec, port: 5, bin: "b" });
   assert.equal(b.ok, false); assert.equal(b.started, true);
   assert.equal(await serverUp(async () => { throw new Error("x"); }, 5), false);
+});
+
+test("wantsServer: only with page.html and web support", () => {
+  assert.equal(wantsServer({ hasHtml: true, caps: WEB }), true);
+  assert.equal(wantsServer({ hasHtml: false, caps: WEB }), false);
+  assert.equal(wantsServer({ hasHtml: true, caps: null }), false);
+  assert.equal(wantsServer({ hasHtml: true, caps: PDF_ONLY }), false);
+  assert.equal(wantsServer({ hasHtml: true, caps: { available: false, kinds: [{ kind: "web" }] } }), false);
+  assert.equal(wantsServer({}), false);
+});
+
+test("ensureServer: a second call finds it up and starts nothing more", async () => {
+  const f = fakeExec({ upAfter: 1 });
+  await ensureServer({ exec: f.exec, port: 5, bin: "/x/canvas" });
+  const r = await ensureServer({ exec: f.exec, port: 5, bin: "/x/canvas" });
+  assert.equal(r.started, false);
+  assert.equal(f.calls.filter(c => c[0] !== "curl").length, 1);
 });

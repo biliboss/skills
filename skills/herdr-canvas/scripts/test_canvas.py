@@ -177,6 +177,24 @@ class CanvasTest(unittest.TestCase):
         self.assertTrue(all('pane.split' not in ' '.join(c['argv']) and 'focus' not in ' '.join(c['argv']) for c in calls))
         self.assertTrue((self.sb.home / '.local/state/herdr-canvas/bot').read_text().startswith('b1\t'))
 
+    def test_open_starts_the_server_before_the_layout_calls(self):
+        out = self.ok('open', 'b1')
+        self.assertTrue(out['server']['running'])
+        self.assertTrue(out['server']['started'])
+        self.assertNotEqual(out['server']['port'], 47836)
+        self.assertTrue(all(c['server_pid'] for c in self.sb.herdr_calls()))
+        again = self.ok('open', 'b1')
+        self.assertFalse(again['server']['started'])
+        self.assertEqual(again['server']['pid'], out['server']['pid'])
+
+    def test_open_goes_on_when_the_server_fails(self):
+        self.sb.env['CANVAS_PORT'] = 'abc'
+        out = self.ok('open', 'b1')
+        self.assertTrue(out['opened'])
+        self.assertFalse(out['server']['running'])
+        self.assertIn('CANVAS_PORT', out['server']['error'])
+        self.assertEqual(len(self.sb.herdr_calls()), 2)
+
     def test_open_uses_canvas_herdr_home(self):
         self.sb.env['CANVAS_HERDR_HOME'] = str(self.sb.root / 'other')
         self.ok('open', 'b1')

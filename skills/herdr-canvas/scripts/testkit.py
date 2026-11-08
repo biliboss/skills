@@ -2,6 +2,7 @@
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -33,7 +34,7 @@ sys.exit(0)
 FAKE_HERDR_APP = '''#!/usr/bin/env python3
 import json, os, sys
 with open(os.environ["FAKE_HERDR_LOG"], "a") as f:
-    f.write(json.dumps({"argv": sys.argv[1:], "home": os.environ.get("HERDR_APP_HOME")}) + "\\n")
+    f.write(json.dumps({"argv": sys.argv[1:], "home": os.environ.get("HERDR_APP_HOME"), "server_pid": os.path.exists(os.path.join(os.environ["HOME"], ".local/state/herdr-canvas/server.pid"))}) + "\\n")
 sys.exit(int(os.environ.get("FAKE_HERDR_EXIT", "0")))
 '''
 
@@ -58,7 +59,8 @@ class Sandbox:
         self.hc_log, self.herdr_log = self.root / 'hc.log', self.root / 'herdr.log'
         self.env = {**os.environ, 'CANVAS_BOTS': str(self.root / 'bots.json'), 'HOME': str(self.home),
                     'PATH': f'{self.bin}{os.pathsep}{os.environ["PATH"]}', 'FAKE_HC_LOG': str(self.hc_log),
-                    'FAKE_HC_CWD': str(self.folder), 'FAKE_HERDR_LOG': str(self.herdr_log), 'CANVAS_RETRY_DELAY': '0.1'}
+                    'FAKE_HC_CWD': str(self.folder), 'FAKE_HERDR_LOG': str(self.herdr_log), 'CANVAS_RETRY_DELAY': '0.1',
+                    'CANVAS_PORT': '0'}  # ephemeral: never the real 47836; state lives under the sandbox HOME
         self.env.pop('HERDR_APP_HOME', None)
         self.env.pop('CANVAS_HERDR_HOME', None)
         self.canvas = self.folder / 'canvas'
@@ -75,6 +77,7 @@ class Sandbox:
         return [json.loads(l) for l in self.herdr_log.read_text().splitlines()] if self.herdr_log.exists() else []
 
     def cleanup(self):
+        subprocess.run([sys.executable, str(CANVAS), 'serve', '--stop'], env=self.env, capture_output=True)
         self.tmp.cleanup()
 
 

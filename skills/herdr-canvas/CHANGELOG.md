@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Fix: the local server now comes up with the data, not with the first render. The mod's `reload()` calls `prepareWeb` when `wantsServer({hasHtml, caps})` (page.html and native web view); before, only `render()` did, so a Herdr window on another Space never started it. `prepareWeb` stays idempotent and render keeps the call as a safeguard. Without the native API nothing starts.
+- `canvas open <bot>` ensures the server (same routine as `serve --detach`) before the two `layout.*` calls; a failure does not stop the open and is reported in the JSON field `server`. `serve --detach` refuses a bad `CANVAS_PORT` at once.
+
 ## 0.3.1
 
 - Fix: the comment now reaches a bot that finished its turn. `hc send --if` takes one exact status and a bot parked at the prompt is `done`, so `--if idle` refused with `status_mismatch`. Each attempt now reads `hc get <addr> --json` (`status.state`) and, when it is idle or done, runs `hc send <addr> <text>` without `--if`; working, blocked, any other state or a failed read counts as a refusal and follows the same retry (20 s, 3 times) and `notify.log`. Never `--force`. Same in `apps/herdr-canvas/mod/notify.js` and `canvaslib.py`.

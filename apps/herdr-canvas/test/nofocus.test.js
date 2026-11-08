@@ -31,3 +31,13 @@ test("mod never calls the native view `focus` action", () => {
   const text = strip(readFileSync(join(here, "../mod/main.js"), "utf8"));
   assert.ok(!/call\([^)]*["']focus["']/.test(text) && !/nativeViewCall\([^)]*["']focus["']/.test(text));
 });
+
+test("reload() starts the server from the data, not only from render", () => {
+  const text = strip(readFileSync(join(here, "../mod/main.js"), "utf8"));
+  const start = text.indexOf("\n  reload(cx) {");
+  const end = text.indexOf("\n  reloadPage()", start);
+  assert.ok(start > 0 && end > start);
+  const body = text.slice(start, end);
+  assert.match(body, /wantsServer\(\{[^}]*hasHtml: this\.hasHtml[^}]*\}\)\) this\.prepareWeb\(cx\)/);
+  assert.ok(body.indexOf("this.hasHtml = ") < body.indexOf("this.prepareWeb(cx)"));
+});
