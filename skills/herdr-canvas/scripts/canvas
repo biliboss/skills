@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""canvas: publish a Markdown page for the Herdr Canvas panel, read and resolve the owner's comments.
+
+publish <bot> <file.md>   copy to <bot folder>/canvas/page.md and write canvas/version (sha1)
+comments <bot> [--md]     JSON list of annotations (open and resolved), or the comments.md text
+resolve <bot> <id>        append a resolve line and rewrite comments.md
+open <bot>                ask the panel to show this bot (the only command that touches the Herdr window)
+install                   run apps/herdr-canvas/install.py
+Exit 0 and JSON on stdout; refusals go to stderr with exit 1.
+"""
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[3]
+
+
+def fail(msg):
+    print(f'canvas: {msg}', file=sys.stderr)
+    sys.exit(1)
+
+
+def registry():
+    path = Path(os.environ.get('CANVAS_BOTS', Path.home() / 'agents/bots.json')).expanduser()
+    try:
+        return json.loads(path.read_text()).get('bots', [])
+    except (OSError, ValueError) as e:
+        fail(f'cannot read bot registry {path}: {e}')
+
+
+def folder_of(bot_id):
+    for b in registry():
+        if b.get('id') == bot_id:
+            return Path(b['folder']).expanduser()
+    fail(f'unknown bot {bot_id!r}; registered: ' + ', '.join(b.get('id', '?') for b in registry()))
+
+
+def parse(text):
+    comments, resolved = [], {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if 'resolve' in obj:
+            resolved[obj['resolve']] = obj.get('at')
+        elif 'id' in obj:
+            comments.append(obj)
+    return [{**c, 'resolved': resolved.get(c['id'], c.get('resolved'))} for c in comments]
+
+
+def markdown(comments):
+    open_, done = [c for c in comments if not c['resolved']], [c for c in comments if c['resolved']]
+
+    def one(c, strike):
+        t = c.get('target', {})
+        where = ' · '.join([f"bloco {t.get('index', '?')}"] + ([' › '.join(t['heading'])] if t.get('heading') else []))
+        body = str(c.get('body', {}).get('value', '')).replace('\n', '\n  ')
+        sel = t.get('selector') or [{}]
+        quote = f"\n  > {sel[0]['exact']}" if sel[0].get('exact') else ''
+        s = '~~' if strike else ''
+        return f"- {s}`{c['id']}` {where}{s}{quote}\n  {s}{body}{s}"
+    parts = ['# Comentários do canvas', '', f'## Abertos ({len(open_)})', '', *([one(c, False) for c in open_] or ['Nenhum.'])]
+    if done:
+        parts += ['', f'## Resolvidos ({len(done)})', '', *[one(c, True) for c in done]]
+    return '\n'.join(parts) + '\n'
+
+
+def cmd_publish(bot, source):
+    src = Path(source).expanduser()
+    if src.suffix.lower() != '.md' or not src.is_file():
+        fail('publish needs an existing .md file')
+    data = src.read_bytes()
+    if len(data) > 1_000_000:
+        fail('page larger than 1 MB; the panel reads at most 1 MiB')
+    canvas = folder_of(bot) / 'canvas'
+    canvas.mkdir(parents=True, exist_ok=True)
+    (canvas / 'page.md').write_bytes(data)
+    version = 'sha1:' + hashlib.sha1(data).hexdigest()
+    (canvas / 'version').write_text(version + '\n')
+    return {'bot': bot, 'page': str(canvas / 'page.md'), 'version': version, 'bytes': len(data)}
+
+
+def cmd_comments(bot, as_md):
+    canvas = folder_of(bot) / 'canvas'
+    path = canvas / 'comments.jsonl'
+    comments = parse(path.read_text()) if path.exists() else []
+    if as_md:
+        print(markdown(comments), end='')
+        return None
+    return {'bot': bot, 'comments': comments}
+
+
+def cmd_resolve(bot, cid):
+    canvas = folder_of(bot) / 'canvas'
+    path = canvas / 'comments.jsonl'
+    comments = parse(path.read_text()) if path.exists() else []
+    if not any(c['id'] == cid for c in comments):
+        fail(f'no comment {cid} for {bot}')
+    at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    with path.open('a') as f:
+        f.write(json.dumps({'resolve': cid, 'at': at}) + '\n')
+    (canvas / 'comments.md').write_text(markdown(parse(path.read_text())))
+    return {'bot': bot, 'resolved': cid, 'at': at}
+
+
+def cmd_open(bot):
+    folder_of(bot)
+    state = Path.home() / '.local/state/herdr-canvas'
+    state.mkdir(parents=True, exist_ok=True)
+    (state / 'bot').write_text(f"{bot}\t{datetime.now(timezone.utc).isoformat()}\n")
+    for args in (['layout.show', 'id=panel'], ['layout.select', 'stack=panel-body', 'child=canvas']):
+        r = subprocess.run(['herdr-app', 'do', *args], text=True, capture_output=True)
+        if r.returncode:
+            fail(f"herdr-app do {' '.join(args)} failed: {r.stderr.strip()}")
+    return {'bot': bot, 'opened': True}
+
+
+def main(argv):
+    if not argv or argv[0] in ('-h', '--help'):
+        print(__doc__)
+        return
+    cmd, rest = argv[0], argv[1:]
+    if cmd == 'publish' and len(rest) == 2:
+        out = cmd_publish(*rest)
+    elif cmd == 'comments' and len(rest) in (1, 2) and (len(rest) == 1 or rest[1] == '--md'):
+        out = cmd_comments(rest[0], len(rest) == 2)
+    elif cmd == 'resolve' and len(rest) == 2:
+        out = cmd_resolve(*rest)
+    elif cmd == 'open' and len(rest) == 1:
+        out = cmd_open(*rest)
+    elif cmd == 'install' and not rest:
+        sys.exit(subprocess.run([str(REPO / 'apps/herdr-canvas/install.py')]).returncode)
+    else:
+        fail('usage: canvas publish <bot> <file.md> | comments <bot> [--md] | resolve <bot> <id> | open <bot> | install')
+    if out is not None:
+        print(json.dumps(out, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])

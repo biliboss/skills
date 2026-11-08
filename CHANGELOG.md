@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.112.0
+
+- herdr-canvas 0.1.0 (nova): painel Canvas do Herdr (`apps/herdr-canvas`) que mostra o `canvas/page.md` de um bot em blocos numerados; o dono clica no bloco, comenta, Enter manda o comentário ao terminal do bot. CLI `canvas publish|comments|resolve|open|install`. O instalador só copia arquivos e edita JSON com backup; nada abre nem foca.
+
 ## 0.111.0
 
 - bili-agents 0.3.0: criar/abrir bot nunca move o foco do dono. `bots.py open` e `ag-open` abrem em segundo plano por padrão (sem `agent.focus`, `space.select` nem `terminal.keep`); `--focus` só no clique do painel Bots (herdr-bots). Terminal que não aparece no workspace fica rotulado, estacionado, para adoção.
