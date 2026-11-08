@@ -2,6 +2,11 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.105.0
+
+- herdr 0.1.0: Herdr Desktop by scripts (where am I, spaces, tabs, splits, agents, waits, reads, remote machines, cleanup), every state-changing action logged through logging; references for surfaces, agents, remote, mods and safety.
+- logging 0.1.0: structured JSONL events (`emit.sh`, `tail.sh`, `query.sh`, `check.sh`) that other skills write through `LOGGING_EMIT`; the root `example.env` documents its settings.
+
 ## 0.104.0
 
 - trace 0.1.0: the trace of the last response, OpenTelemetry style, listing only the owner's resources (CLAUDE.md, AGENTS.md, .wiki, skills, hooks, memory, settings) with `observed` apart from `inferred`; `--otlp` exports OTLP/JSON.
