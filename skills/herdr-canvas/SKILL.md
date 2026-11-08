@@ -2,7 +2,7 @@
 name: herdr-canvas
 description: Publish a Markdown page for the owner to read in the Herdr Canvas panel, where he comments block by block and the comment reaches the bot. Use when a bot wants the owner's review of a document (proposal, plan, copy), when reading or resolving his comments, or when installing the Canvas mod.
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # Canvas: a page, blocks, comments
@@ -21,3 +21,7 @@ Environment: the Herdr config folder is `HERDR_APP_HOME` (not `HERDR_HOME`); uns
 
 Rule: no test or install of this skill may focus a terminal or open the panel on the owner's Herdr. `apps/herdr-canvas/test/nofocus.test.js` scans the mod and the installer for focus commands.
 Verify: `node --test apps/herdr-canvas/test/*.test.js`, `python3 -m unittest discover -s skills/herdr-canvas/scripts -p 'test_*.py'`, `python3 -m unittest apps/herdr-canvas/test/test_install.py`, `herdr-app check apps/herdr-canvas/mod`.
+
+## Next step
+
+Not implemented. The herdr-app fork with the `nativeView` patch (github.com/obqyuxi/herdr-universal-preview, issue #425) is being prepared separately. When `herdr.nativeView` exists, the mod should show `canvas/page.html` in a WKWebView inside the pane, and fall back to Markdown (`canvas/page.md`) when it does not. Today none of this exists.
