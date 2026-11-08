@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.105.0
+
+- Add bili-agents Bots in Herdr: configurable UUID sessions, dedicated workspaces hidden from Spaces, and safe empty-instance preparation with dated backups.
+
 ## 0.104.0
 
 - trace 0.1.0: the trace of the last response, OpenTelemetry style, listing only the owner's resources (CLAUDE.md, AGENTS.md, .wiki, skills, hooks, memory, settings) with `observed` apart from `inferred`; `--otlp` exports OTLP/JSON.
