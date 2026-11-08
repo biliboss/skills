@@ -36,15 +36,16 @@ EOF
 cat > "$H/scripts/doctor" <<'EOF'
 #!/usr/bin/env bash
 echo "warn behavior queue-depth: 3 jobs stuck -> restart the worker"
+echo "ok behavior smoke-login: POST /login returned 200"
 echo '{"dimension":"observability","check":"heartbeat","status":"ok","evidence":"fresh","action":""}'
 exit 0
 EOF
 chmod +x "$H/scripts/test.sh" "$H/scripts/doctor"
 git -C "$H" init -q && git -C "$H" add -A && git -C "$H" -c user.email=t@t -c user.name=t commit -qm init
 
-out="$("$DOC" "$H" --run-tests --verbose 2>"$TMP/err")"; rc=$?
+out="$("$DOC" "$H" --gate --verbose 2>"$TMP/err")"; rc=$?
 check "healthy: exit 0" $([ $rc -eq 0 ] && echo 0 || echo 1)
-echo "$out" | grep -q '^ok behavior tests: `bash scripts/test.sh` passed'; check "healthy: tests run and pass" $?
+echo "$out" | grep -q '^ok behavior smoke: 1 verified'; check "healthy: gate passes with a verified smoke" $?
 echo "$out" | grep -q '^ok architecture readme'; check "healthy: readme ok (verbose)" $?
 echo "$out" | grep -q 'scripts/doctor:queue-depth: 3 jobs stuck -> restart the worker'; check "healthy: project doctor text finding merged" $?
 echo "$out" | grep -q 'scripts/doctor:heartbeat'; check "healthy: project doctor json finding merged" $?
@@ -52,7 +53,7 @@ grep -q '^summary healthy:' "$TMP/err" || echo "$out" | grep -q '^summary health
 
 out="$("$DOC" "$H" --no-project-doctor 2>&1)"; rc=$?
 echo "$out" | grep -q '^ok '; [ $? -ne 0 ]; check "default hides ok findings" $?
-echo "$out" | grep -q '^warn behavior tests: .*not run'; check "tests not run -> warn" $?
+echo "$out" | grep -q '^warn behavior smoke: '; check "no project doctor -> behavior warn" $?
 
 # ---- --json: one parseable object per line
 "$DOC" "$H" --json --no-project-doctor 2>/dev/null > "$TMP/j.out"
@@ -69,11 +70,11 @@ version = "0.1.0"
 EOF
 echo "" > "$B/uv.lock"; touch -t 202001010000 "$B/uv.lock"
 mkdir -p "$B/scripts"; printf '#!/usr/bin/env bash\necho boom >&2\nexit 3\n' > "$B/scripts/test.sh"; chmod +x "$B/scripts/test.sh"
-out="$("$DOC" "$B" --run-tests --no-project-doctor 2>&1)"; rc=$?
+out="$("$DOC" "$B" --gate --no-project-doctor 2>&1)"; rc=$?
 check "broken: exit 1" $([ $rc -eq 1 ] && echo 0 || echo 1)
 echo "$out" | grep -q '^fail architecture readme'; check "broken: missing README is fail" $?
 echo "$out" | grep -q '^drift environment python-lock: .* -> uv lock'; check "broken: stale lock is drift with action" $?
-echo "$out" | grep -q '^fail behavior tests: .*exit 3.*boom'; check "broken: failing tests are fail with evidence" $?
+echo "$out" | grep -q '^fail behavior smoke: '; check "broken: gate without smoke is fail" $?
 
 # ---- cannot run
 "$DOC" "$TMP/does-not-exist" >/dev/null 2>&1; rc=$?

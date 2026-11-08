@@ -2,6 +2,21 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-08
+
+### Changed
+
+- Behaviour is proven by smokes and critical rules in the project doctor; the generic doctor no longer looks for tests.
+  Without a verified `behavior` finding, the check `behavior smoke` is `warn`.
+
+### Added
+
+- `--gate`: no verified `behavior` finding is a `fail` (exit 1).
+
+### Removed
+
+- `--run-tests`.
+
 ## [0.1.1] - 2026-11-06
 
 ### Changed

@@ -47,11 +47,11 @@ class Finding:
         return f"{self.status} {self.dimension} {self.check}: {self.evidence}{tail}"
 
 
-def run(cmd: list[str] | str, cwd: Path, timeout: float, shell: bool = False) -> tuple[int | None, str]:
+def run(cmd: list[str], cwd: Path, timeout: float) -> tuple[int | None, str]:
     """Run with a hard timeout (kills the process group). Returns (rc|None on timeout, output)."""
     env = {**os.environ, NESTED_ENV: "1", "GIT_TERMINAL_PROMPT": "0"}
     try:
-        p = subprocess.Popen(cmd, cwd=cwd, shell=shell, env=env, stdout=subprocess.PIPE,
+        p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, text=True, start_new_session=True)
     except OSError as e:
         return 127, str(e)
@@ -100,9 +100,9 @@ def package_json(root: Path) -> dict:
 
 
 class Doctor:
-    def __init__(self, root: Path, run_tests: bool, timeout: float, project_doctor: bool):
+    def __init__(self, root: Path, gate: bool, timeout: float, project_doctor: bool):
         self.root = root
-        self.run_tests = run_tests
+        self.gate = gate
         self.timeout = timeout
         self.project_doctor = project_doctor
         self.findings: list[Finding] = []
@@ -197,7 +197,7 @@ class Doctor:
         if readme:
             self.add(d, "readme", "ok", readme)
         else:
-            self.add(d, "readme", "fail", "no README", "write README.md: what it is, how to run, how to test")
+            self.add(d, "readme", "fail", "no README", "write README.md: what it is, how to run, how to verify")
         mem = [n for n in (".wiki", "docs", "doc") if (self.root / n).is_dir()]
         if mem:
             self.add(d, "wiki-or-docs", "ok", ", ".join(mem))
@@ -240,38 +240,16 @@ class Doctor:
             self.add(d, "entry-points", "warn", "none found", "document the entry points in README or .wiki/")
 
     # ---------------------------------------------------------------- behavior
-    def test_command(self) -> str | None:
-        if "test" in self.recipes:
-            return "just test"
-        if (self.root / "scripts" / "test.sh").exists():
-            return "bash scripts/test.sh"
-        if self.has("pyproject.toml") and (self.has("tests", "test") or "pytest" in json.dumps(self.pyproject)):
-            return "uv run pytest -q"
-        scripts = self.pkg.get("scripts", {}) if self.pkg else {}
-        if scripts.get("test") and "no test specified" not in scripts["test"]:
-            return "npm test"
-        if self.has("go.mod"):
-            return "go test ./..."
-        if self.has("Cargo.toml"):
-            return "cargo test"
-        return None
-
     def behavior(self) -> None:
+        """Runs after the project doctor: behaviour is proven only by the project's own smokes and critical rules."""
         d = "behavior"
-        cmd = self.test_command()
-        if not cmd:
-            self.add(d, "tests", "warn", "no test command found", "add a fast test or smoke command and expose it as `just test`")
+        verified = [f for f in self.findings if f.dimension == d and f.status == "ok"]
+        if verified:
+            self.add(d, "smoke", "ok", f"{len(verified)} verified finding(s) from the project doctor")
             return
-        if not self.run_tests:
-            self.add(d, "tests", "warn", f"found `{cmd}` but not run", f"doctor --run-tests (or run `{cmd}`)")
-            return
-        rc, out = run(cmd, self.root, self.timeout, shell=True)
-        if rc is None:
-            self.add(d, "tests", "fail", f"`{cmd}` timed out after {self.timeout:.0f}s", "run it by hand; make the fast suite faster")
-        elif rc == 0:
-            self.add(d, "tests", "ok", f"`{cmd}` passed")
-        else:
-            self.add(d, "tests", "fail", f"`{cmd}` exit {rc}: {tail(out)}", f"run `{cmd}` and fix the first failure")
+        status = "fail" if self.gate else "warn"
+        self.add(d, "smoke", status, "no verified `behavior` finding (ok) from a project doctor",
+                 "add smokes and critical-rule checks to the project doctor, dimension behavior (see skill doctor)")
 
     # ---------------------------------------------------------------- observability
     def observability(self) -> None:
@@ -415,10 +393,10 @@ class Doctor:
     def all(self) -> list[Finding]:
         self.environment()
         self.architecture()
-        self.behavior()
         self.observability()
         self.agent()
         self.merge_project_doctor()
+        self.behavior()
         return self.findings
 
 
@@ -448,8 +426,8 @@ def main() -> int:
     ap.add_argument("path", nargs="?", default=".", help="repo directory (default .)")
     ap.add_argument("--json", action="store_true", help="one JSON object per finding")
     ap.add_argument("--verbose", action="store_true", help="also print ok findings")
-    ap.add_argument("--run-tests", action="store_true", help="run the project's test command")
-    ap.add_argument("--timeout", type=float, default=120, help="seconds for tests and project doctors (default 120)")
+    ap.add_argument("--gate", action="store_true", help="no verified behavior finding from a project doctor is a fail")
+    ap.add_argument("--timeout", type=float, default=120, help="seconds for each project doctor (default 120)")
     ap.add_argument("--no-project-doctor", action="store_true", help="skip discovery of the project's own doctor")
     a = ap.parse_args()
 
@@ -458,7 +436,7 @@ def main() -> int:
         print(f"doctor: not a directory: {root}", file=sys.stderr)
         return 2
     try:
-        findings = Doctor(root, a.run_tests, a.timeout, not a.no_project_doctor).all()
+        findings = Doctor(root, a.gate, a.timeout, not a.no_project_doctor).all()
     except Exception as e:  # the doctor itself broke
         print(f"doctor: could not run: {e}", file=sys.stderr)
         return 2

@@ -4,16 +4,17 @@ description: >-
   Use when taking over a project (especially an unknown one), when the owner says "doctor", "roda o doctor", "is it
   healthy", "está saudável?", or when adding a health diagnosis to a project or tool. Every project gets a doctor():
   five dimensions (environment, architecture, behavior, observability, agent), read-only findings with the exact fix.
-  Not for unit tests alone (test() asks if behaviour is correct; doctor() asks if the system is ready to work).
+  The doctor is also the only behaviour check: smokes and critical rules in the project doctor, no test suite.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
 # doctor — "is the system healthy and ready to work?"
 
-Every project and tool gets a `doctor` method. **`doctor()` asks whether the system is healthy and ready to work;
-`test()` asks whether the implemented behaviour is correct.** Tests stay, and are one check the doctor invokes.
+Every project and tool gets a `doctor` method. **`doctor()` asks whether the system is healthy, ready to work, and
+behaving as it must.** There is no test suite: behaviour is proven by smokes and critical-rule checks in the project's
+own doctor, dimension `behavior`.
 The owner calls this *doctor driven development*: a faster loop for an agent than starting from unit tests, because
 the doctor also tells the agent whether it can work here at all.
 
@@ -32,7 +33,7 @@ Five dimensions. A doctor diagnoses the software **and the agent's own ability t
 |---|---|---|
 | `environment` | Can I run it? | toolchain on PATH, dependencies installed, lock in sync, services up |
 | `architecture` | Do I understand how it works? | entry points, components and invariants written down (README, `.wiki/`, `AGENTS.md`) |
-| `behavior` | Is current behaviour right? | the project's fast tests or a smoke, run as one check |
+| `behavior` | Is current behaviour right? | smokes of the real flow and critical-rule checks, written in the project doctor |
 | `observability` | Would I notice a failure? | logs, events, health endpoints, a heartbeat |
 | `agent` | Can this agent work here? | required CLIs, auth present **without reading secret values**, skills/wiki pages it needs, permissions, remote reachable |
 
@@ -56,17 +57,19 @@ Output:
 
 ```bash
 scripts/doctor.py <repo>                 # read-only; default .
-scripts/doctor.py <repo> --run-tests     # also runs the detected test command (timeout --timeout, default 120s)
+scripts/doctor.py <repo> --gate          # end of a batch: no verified behavior finding is a fail (exit 1)
 scripts/doctor.py <repo> --json --verbose
 ```
 
 It detects the stack by files (pyproject/uv.lock, package.json, go.mod, justfile, Dockerfile), checks the tools are on
-PATH, looks for README/`.wiki`/`docs`/`AGENTS.md`/`CLAUDE.md` and entry points, finds the test command (warns when not
-run), greps cheaply for logging/health/NATS, checks `git ls-remote` (timeout), `gh auth status` and write permission,
+PATH, looks for README/`.wiki`/`docs`/`AGENTS.md`/`CLAUDE.md` and entry points, greps cheaply for logging/health/NATS, checks `git ls-remote` (timeout), `gh auth status` and write permission,
 and compares `.env.example` names against the environment. It **discovers the project's own doctor** (`just doctor`,
 `scripts/doctor*`, `<cli> doctor`), runs it and merges its findings (prefixed with where they came from).
 
-Heavy test suites do not run inside an agent turn: use `--run-tests` only when the suite is fast.
+The generic doctor knows nothing about what a project must do, so `behavior` comes only from the project doctor: a
+finding `ok` there is the verified one. Without it the check `behavior smoke` is `warn`, and `fail` with `--gate`. A
+`warn` from the project doctor does not count as verified, because `warn` is also how a skipped check is reported.
+A smoke must be fast and read-only, like every other check.
 
 ## Adding a doctor to a project
 
@@ -79,7 +82,7 @@ Where it lives, in this order:
 
 Contract for any of them: print findings in the text format above (or `--json`), honour the exit codes, stay
 read-only, and cover what is specific to the project: its services, queues, data files, credentials by name, the
-invariants from its wiki. Do not repeat the generic checks; the generic doctor already runs them and merges yours.
+invariants from its wiki, and in `behavior` a smoke of the real flow plus one check per critical rule. Do not repeat the generic checks; the generic doctor already runs them and merges yours.
 Start from the generic doctor's warnings: each one is a missing piece to either fix or check on purpose.
 
 ## Pitfalls

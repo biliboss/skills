@@ -8,7 +8,7 @@ formato: [SKILL.md](SKILL.md).
 | Comando | O que faz |
 |---|---|
 | `scripts/doctor.py [repo]` | doctor genérico de qualquer repo; descobre e junta o doctor do projeto |
-| `scripts/doctor.py [repo] --run-tests --timeout 60` | também roda o comando de teste detectado |
+| `scripts/doctor.py [repo] --gate` | fim de lote: sem achado `behavior` verificado do doctor do projeto, `fail` e exit 1 |
 | `scripts/doctor.py [repo] --json --verbose` | um objeto JSON por achado, inclusive os `ok` |
 | `scripts/test.sh` | 14 checks em dois repos temporários (um saudável, um quebrado) |
 
