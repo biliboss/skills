@@ -28,7 +28,7 @@ From this directory:
 ```sh
 ./install.sh --bot assistant Assistant ~/agents/assistant 00000000-0000-4000-8000-000000000001
 # Existing registry and instances: ./install.sh
-../../scripts/ag-open assistant
+../../skills/bili-agents/scripts/ag-open assistant
 ```
 
 The installer checks all local process working directories and live core terminals before moving an existing
@@ -57,7 +57,7 @@ fall back. Inspect the terminal's output and `hc get <address>` for command erro
 Verification:
 
 ```sh
-python3 ../../scripts/test_bots.py
+python3 ../../skills/bili-agents/scripts/test_bots.py
 herdr-app check .
 herdr-app status
 herdr-app shot /tmp/herdr-bots.png

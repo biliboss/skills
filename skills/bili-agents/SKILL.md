@@ -7,7 +7,7 @@ metadata:
 
 # Bots in Herdr
 
-Read `app/herdr-bots/README.md` before installation. The code belongs here; personal bot folders,
+Read `../../apps/herdr-bots/README.md` before installation. The code belongs in this repository; personal bot folders,
 commands and UUIDs belong in `$AG_HOME/bots.json` (default `~/agents/bots.json`), outside this repository.
 
 - `scripts/ag-open --list`: validate and print the registry, including derived workspace IDs.
@@ -15,7 +15,7 @@ commands and UUIDs belong in `$AG_HOME/bots.json` (default `~/agents/bots.json`)
   Bot workspaces are hidden from Spaces, accessible through Bots. They never reuse a project workspace.
 - `scripts/ag-bot-session <id>`: internal launcher; create with `--session-id`, then explicitly `--resume`.
   Never use `--continue` or silently fall back to a new conversation.
-- `app/herdr-bots/install.sh`: clone the active layout and Spaces mod, install Bots below the brand.
+- `../../apps/herdr-bots/install.sh`: clone the active layout and Spaces mod, install Bots below the brand.
   `--bot ID NAME FOLDER UUID` also preserves an old instance in a dated backup and prepares an empty one.
 
 Inspect live sessions before operating them. Do not send prompts, stop another session or move its files.
@@ -23,6 +23,6 @@ Preparation refuses any process using the target folder. Automatic Claude memory
 these tools inject no role, memory, hooks or settings. Claude's normal user-wide configuration still applies.
 Keep legacy agent tooling separate from bot launch: it may inject roles and hooks.
 
-Verify with `python3 scripts/test_bots.py`, `herdr-app check app/herdr-bots`, and a screenshot from the app.
+Verify with `python3 scripts/test_bots.py`, `herdr-app check ../../apps/herdr-bots`, and a screenshot from the app.
 Do not restart the user's Herdr to test persistence; inspect the saved personal layout and state instead,
 and report that a real restart has not been exercised.

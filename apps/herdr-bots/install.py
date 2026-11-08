@@ -11,7 +11,8 @@ import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location('bots', HERE.parents[1] / 'scripts/bots.py')
+SKILL = HERE.parents[1] / 'skills/bili-agents'
+spec = importlib.util.spec_from_file_location('bots', SKILL / 'scripts/bots.py')
 bots = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bots)
 
@@ -126,7 +127,7 @@ def main():
     subprocess.run(['herdr-app', 'check', str(spaces_mod)], check=True)
     spaces_node['content']['mod'] = 'bili-bot-spaces'
     node['size'] = {'px': min(240, 40 + 35 * len(registered))}
-    node['content'] = {'mod': 'herdr-bots', 'props': {'opener': str(HERE.parents[1] / 'scripts/ag-open'), 'registry': str(bots.REGISTRY), 'dataHome': str(bots.HOME)}}
+    node['content'] = {'mod': 'herdr-bots', 'props': {'opener': str(SKILL / 'scripts/ag-open'), 'registry': str(bots.REGISTRY), 'dataHome': str(bots.HOME)}}
     mod = app / 'mods/herdr-bots'
     mod.mkdir(parents=True, exist_ok=True)
     for name in ('main.js', 'mod.json'):
