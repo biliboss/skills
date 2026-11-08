@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.107.0
+
+- hire 0.1.0: a new verb for an agent to hire, list, update and retire companion bots in Herdr on the owner's request; the principal bot can never be retired.
+
 ## 0.106.0
 
 - bili-agents 0.2.0: Bots sidebar shows each bot state, keeps the principal first and the rest by recency, and adds Option+1-9 navigation.
