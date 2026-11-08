@@ -144,6 +144,11 @@ def session(bot):
             print(message, file=sys.stderr)
         return result.returncode
 
+def last_active(bot):
+    config = Path(os.environ.get('CLAUDE_CONFIG_DIR', Path.home() / '.claude')).expanduser()
+    return max((p.stat().st_mtime for p in (config / 'projects').glob('*/' + bot['session_id'] + '.jsonl')), default=0)
+
+
 def main():
     try:
         bots = registry()
@@ -152,7 +157,10 @@ def main():
             for bot in bots:
                 error_path = HOME / '.bot-state' / (identity(bot) + '.error')
                 items.append({**bot, 'space_id': space_id(bot),
-                              'last_error': error_path.read_text() if error_path.exists() else ''})
+                              'last_error': error_path.read_text() if error_path.exists() else '',
+                              'last_active': last_active(bot)})
+            # The principal bot stays on top; the rest follow the latest session activity.
+            items.sort(key=lambda item: (not item.get('principal'), -item['last_active']))
             print(json.dumps({'bots': items}))
             return 0
         if len(sys.argv) != 3 or sys.argv[1] not in ('open', 'session'):
