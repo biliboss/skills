@@ -13,7 +13,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - `running` enquanto o worker ou o Devin viver (grupo de processos, com hora de início conferida); um `kill` educado vira `failed`, não `lost`; PID reutilizado não segura mais a rodada.
 - `run.sh` desfaz pasta, worktree e branch se falhar antes de lançar o worker.
-- `clean.sh`: arquivos ignorados contam como trabalho; falha do git recusa em vez de seguir; `--force` sempre termina (repositório sumido, worktree quebrado ou travado); `WORKTREE` e `BRANCH` do `meta.env` precisam bater com a pasta e o id; lida com pasta sem `meta.env`.
+- `clean.sh`: arquivos ignorados contam como trabalho; worktree travado (`git worktree lock`) é recusado sem `--force`; falha do git recusa em vez de seguir; `--force` sempre termina (repositório sumido, worktree quebrado ou travado); `WORKTREE` e `BRANCH` do `meta.env` precisam bater com a pasta e o id; lida com pasta sem `meta.env`.
 - `_worker.sh`: falha do `cd` grava log e `exit` atômico; o pedido vai por `--prompt-file`, não por argv.
 - `wait.sh`: `--timeout` inválido e argumentos extras dão erro de uso (2).
 - `DEVIN_RUNS_DIR` relativo vira absoluto uma vez.
