@@ -1,6 +1,10 @@
-# wiki.config: the conventions of this repo's wiki. Copy to <repo>/.wiki/wiki.config.
+# wiki.config: the conventions of a project's wiki. Copy to $WIKI_HOME/<projeto>/wiki.config
+# (or <repo>/.wiki/wiki.config, in a repo that keeps a local wiki).
 # Plain sh KEY=value (scripts/*.sh source it; scripts/lint.py parses the same lines).
 # Every key is optional; these are the defaults. See references/config.md.
+# REPO=owner/name: the GitHub repo this wiki serves; the scripts match it against the
+# current repo's `origin` to pick this project when no -w/-P is given.
+# REPO=owner/name
 WIKI_LANG=en
 DIARY_DIR=journal
 INBOX=inbox.md

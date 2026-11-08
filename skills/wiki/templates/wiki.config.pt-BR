@@ -1,5 +1,7 @@
 # wiki.config, pt-BR preset: the conventions of a Portuguese wiki (diario/, Mapa:, criado/atualizado).
-# Copy to <repo>/.wiki/wiki.config. Sh-sourceable KEY=value; lint.py reads the same file.
+# Copy to $WIKI_HOME/<projeto>/wiki.config (or <repo>/.wiki/wiki.config, in a repo with a local wiki).
+# Sh-sourceable KEY=value; lint.py reads the same file.
+# REPO=owner/name
 WIKI_LANG=pt-BR
 DIARY_DIR=diario
 INBOX=inbox.md

@@ -1,6 +1,6 @@
 # The method
 
-How a repo's `.wiki/` is organised and maintained. File and folder names below are the defaults; a repo overrides them in `.wiki/wiki.config` ([config.md](config.md)). When the repo's own wiki says otherwise, the repo wins.
+How a project's wiki is organised and maintained: `<projeto>/`, one folder per project inside the central `$WIKI_HOME` checkout (default `~/wiki`, the `biliboss/wiki` repo). A few repos instead keep a local `.wiki/` at the root, operated with `-w <repo>/.wiki`; it follows the same rules. File and folder names below are the defaults; a project overrides them in `wiki.config` ([config.md](config.md)). When the project's own wiki says otherwise, the project wins.
 
 The wiki is the agents' memory: they read it, and they keep it. The idea of an LLM that incrementally maintains a persistent, interlinked markdown wiki, instead of rediscovering things on every question, is Karpathy's ([ATTRIBUTION.md](../ATTRIBUTION.md)); the shape below is a working practice built on it.
 
@@ -20,8 +20,8 @@ The diary is what **happened**; the topic page is what **holds**. A lesson only 
 
 ## Consulting
 
-1. `rg -n -i '<word>' .wiki`, or the index list; read only the matching page or section.
-2. For what happened: the inbox (short) and only the days that matter. For a date: its day index, then only the notes that matter (a whole day: `cat .wiki/journal/YYYY-MM-DD/*.md`).
+1. `rg -n -i '<word>' "$WIKI_HOME/<projeto>"`, or the index list; read only the matching page or section.
+2. For what happened: the inbox (short) and only the days that matter. For a date: its day index, then only the notes that matter (a whole day: `cat "$WIKI_HOME/<projeto>"/journal/YYYY-MM-DD/*.md`).
 3. For what the system promises (requirements, scenarios), if the repo keeps specs: `rg -n -i '<word>' <specs>`.
 
 ## The diary
@@ -72,7 +72,7 @@ Every note carrying a rule, a lesson or a lasting fact also changes the topic pa
   ```
 
 - **Short:** past about 150 lines, or when kinds mix (rule, procedure, reference, history), split into sections by kind or into child pages.
-- **Rename:** change the links that pointed to it (`rg -l 'old-name' .wiki`), anchors included.
+- **Rename:** change the links that pointed to it (`rg -l 'old-name' "$WIKI_HOME/<projeto>"`), anchors included.
 - **Delete:** only when the content already moved to another page; swap the links to it.
 
 ## New subject: a map and its facet pages
@@ -114,7 +114,7 @@ An interactive page (a graph, an animation) lives in `resources/<name>.html` and
 
 ## Commit what you wrote
 
-Whoever writes in the wiki commits it in the same session, without waiting to be asked: the note, the page, the day index, and the files elsewhere the note describes. First run `scripts/dates.sh`, `scripts/day-index.sh` and `scripts/lint.py`. Commit only your own files, by path (`git add <file>`, never `git add -A`): what another session left modified in the checkout stays out. Committing is not publishing: pushing and opening a PR is the user's decision. `scripts/sync.sh` does the commit (after a lint), and the push when asked, safely when the checkout is behind or shared; for the index or inbox, which other sessions may also have edited, start with `sync.sh -W` and edit in the worktree it prints ([README](../README.md#the-scripts)).
+Whoever writes in the wiki commits it in the same session, without waiting to be asked: the note, the page, the day index, and the files elsewhere the note describes. First run `scripts/dates.sh`, `scripts/day-index.sh` and `scripts/lint.py`. Commit only your own files, by path (`git add <file>`, never `git add -A`): what another session left modified in the checkout stays out. Committing is not publishing: pushing and opening a PR is the user's decision. `scripts/sync.sh` does the commit (after a lint), and the push when asked, safely when the checkout is behind or shared; for the index or inbox, which other sessions may also have edited, start with `sync.sh -W` and edit in the worktree it prints ([SKILL.md](../SKILL.md)).
 
 ## "Wiki update"
 

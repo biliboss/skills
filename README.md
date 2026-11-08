@@ -16,20 +16,20 @@ Os skills do biliboss como um plugin do Claude Code, no molde do [mattpocock/ski
 | `retro` | a revisão da sessão (after-action review): as correções do dono viram regras nos skills certos, escolhidas por ele e aplicadas num PR |
 | `diff-review` | a revisão de código de um diff local, com prompt próprio no plano flat: só problemas que o diff introduziu, cada um com cenário de falha; bloqueio aberto volta para a execução |
 | `dev-console` | console de um arquivo só (FastHTML) para ver qualquer projeto event-sourced em desenvolvimento: máquina de estados, entidades, diário e widgets por evento; também numa janela nativa do Mac que o agente move por um script; a barra de dinheiro (▶ liga o relógio do centro de custo do domínio) |
-| `setup-biliboss` | configura o repo uma vez: o `.wiki`, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
+| `setup-biliboss` | configura o repo uma vez: a wiki do projeto, onde se trabalha (`main` direto ou `run/*` com PR) e o ramo principal |
 | `wiki` | o `$WIKI_HOME/<projeto>/` que os agentes leem e mantêm: notas do dia, páginas, mapas, lint e commit |
 | `thread` | o tópico de um card numa chamada só: janela tmux + sessão Hermes (branch ou nova) `<card> · <tópico>`, brief inline sem arquivo; as abas por recência (a mais recente é a 2) e a aba acende (✓) quando o agente termina um turno (skill tmux) |
 | `handoff` | a passagem de turno de um agente Hermes no tmux: registra a sessão em `bili-sessions.jsonl`, abre o branch numa aba à direita e só então limpa a original (`/new` + resumo) |
 | `skill-smith` | cria, atualiza e porta skills |
 | `sync` | deixa cada repo que a sessão tocou igual ao remoto e sem sujeira, à mão |
 | `postmortem` | do problema relatado até a decisão que o causou, reconstruída dos eventos do NATS, e a mudança aplicada |
-| `lp-draft` | o rascunho de uma landing page num HTML só, no `.wiki/resources/` |
+| `lp-draft` | o rascunho de uma landing page num HTML só, no `$WIKI_HOME/<projeto>/resources/` |
 | `bili` | falar com o Bili (o agente de vida longa) por um cartão do Linear: pedir, esperar, ler |
 | `linear` | o Linear do dono: ler um projeto, criar cartões, marcos e updates, subir imagens |
 | `duplo-local-agents` | sessões de agente locais (Claude Code, pi) no herdr, no tmux ou sem multiplexador, pelo `mux.sh`; a mesa em fases e o focus no herdr |
 | `delegate-and-review` | passar uma tarefa de código a um subagente que abre um PR, e revisar e corrigir depois |
 | `pi` | o pi.dev com as contas do Claude pela assinatura, as skills ligadas no pi e o pi da VPS |
-| `estudo-html` | um estudo entregue como página HTML local no `.wiki/resources/`, com veredito e matriz |
+| `estudo-html` | um estudo entregue como página HTML local no `$WIKI_HOME/<projeto>/resources/`, com veredito e matriz |
 | `design` | telas no canvas do design-playground com os widgets reais do produto: o wrapper a partir do código, as instâncias, o rascunho e o motor do MCP; leva o design-playground (`playground/`) dentro e mods ao estilo RimWorld (herdar, patch, modificadores) |
 | `hermes` | o Claude Code e o pi comandam os perfis locais do Hermes (researcher, designer, sre, via-ads, mantainer) como agentes com memória própria |
 | `shape` | a porta padrão de planejamento: contexto, a peça certa (brainstorm, pelo resultado, interview, domain-plan, design-taste), backbrief e só então a delegação |
@@ -65,5 +65,5 @@ Os scripts carregam o arquivo com `. "${BILIBOSS_CASA:-$HOME/.config/biliboss/ca
 
 ## Mudar um skill
 
-Edite aqui (`skills/<nome>/`), suba a versão no `.claude-plugin/plugin.json` e no `CHANGELOG.md`, commite e faça o push, depois `claude plugin update biliboss-skills@biliboss`. O `wiki-smith` e o `skill-smith` moravam em repos próprios, hoje arquivados.
+Edite aqui (`skills/<nome>/`), suba a versão no `.claude-plugin/plugin.json` e no `CHANGELOG.md`, commite e faça o push, depois `claude plugin update biliboss-skills@biliboss`. O `wiki` e o `skill-smith` moravam em repos próprios, hoje arquivados.
 

@@ -18,7 +18,7 @@ Os aprendizados de cada texto, um por linha e datados, ficam em [references/expe
 
 ## Passos (todo tipo)
 
-1. **Ler as páginas da wiki** acima (`git -C ~/biliboss fetch` e `git show origin/main:.wiki/<página>` se o checkout estiver defasado) e o [references/experiencias.md](references/experiencias.md).
+1. **Ler as páginas da wiki** acima (`git -C "$WIKI_HOME" fetch` e `git -C "$WIKI_HOME" show origin/main:biliboss/<página>` se o checkout estiver defasado) e o [references/experiencias.md](references/experiencias.md).
 2. **Ler os docs do projeto no Linear** (projeto `75d616a8-32ae-4227-8639-72f69c1ae540`) com `~/src/skills/skills/linear/scripts/lin.sh '{ document(id:"<id>"){title content} }'`: o Norte, a Voz, as Séries, o Aprendizado e o último Diário publicado. Os ids estão na página da voz. Sem ter lido os cinco, não escreva. Se o conteúdo do projeto contradiz o doc 04, vale o doc 04.
 3. **Ler o pedido direito.** Quando o Gabriel explica a intenção com uma analogia ("é um palco de teatro"), a analogia é o **porquê**, não conteúdo: ela não vira cena, imagem nem texto. Na dúvida, pergunte numa linha ("o palco é para eu desenhar ou é só o jeito de explicar?").
 4. **Alinhar o objetivo** com perguntas de múltipla escolha e oferecer 5 ou 6 aberturas (regra 21 da voz). Os objetivos vão escritos no topo do rascunho, antes do texto (regra 22).

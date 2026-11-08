@@ -32,10 +32,10 @@ Para cada arquivo sujo, decida de quem é:
 Escreva a mensagem num arquivo (assunto + corpo + as linhas de atribuição) e mande só os caminhos seus:
 
 ```sh
-$S enviar ~/biliboss "$SCRATCH/msg.txt" .wiki/moc-x.md apps/y/server.mjs
+$S enviar ~/biliboss "$SCRATCH/msg.txt" apps/y/server.mjs
 ```
 
-O script faz, nesta ordem: o lint da wiki do projeto (skill `wiki`) (se algum caminho está nele e o wiki tem `$WIKI_HOME/<projeto>/wiki.config`: datas, índice do dia, lint; um wiki sem `wiki.config` tem outras regras e fica como está), o `add` por caminho, o commit, o `pull --rebase --autostash` e o `push`. Ele para no primeiro erro e diz qual.
+O script faz, nesta ordem: o lint da wiki (só num repo com `.wiki/wiki.config` local e algum caminho do commit dentro dele: datas, índice do dia, lint — a wiki central em `$WIKI_HOME` é commitada pelo skill `wiki`, `scripts/sync.sh`; um wiki sem `wiki.config` tem outras regras e fica como está), o `add` por caminho, o commit, o `pull --rebase --autostash` e o `push`. Ele para no primeiro erro e diz qual.
 
 - **Lint vermelho para tudo.** Corrija e rode de novo; nunca encadeie comandos com `;` depois de um lint, porque o commit sai mesmo vermelho.
 - **Arquivo compartilhado com linhas de outra sessão** (o `$WIKI_HOME/<projeto>/index.md`, o índice do dia, o inbox): não passe o arquivo inteiro. Monte a versão com só as suas linhas sobre o `HEAD` e ponha no índice com `git update-index --cacheinfo 100644,$(git hash-object -w <arquivo>),<caminho>`. Depois rode o `enviar` com os outros caminhos (o que está no índice vai junto no commit).

@@ -61,7 +61,7 @@ scripts/doctor.py <repo> --json --verbose
 ```
 
 It detects the stack by files (pyproject/uv.lock, package.json, go.mod, justfile, Dockerfile), checks the tools are on
-PATH, looks for README/`.wiki`/`docs`/`AGENTS.md`/`CLAUDE.md` and entry points, finds the test command (warns when not
+PATH, looks for README, `.wiki`, `docs`, a `$WIKI_HOME` project matching the origin, `AGENTS.md` and `CLAUDE.md`, and entry points, finds the test command (warns when not
 run), greps cheaply for logging/health/NATS, checks `git ls-remote` (timeout), `gh auth status` and write permission,
 and compares `.env.example` names against the environment. It **discovers the project's own doctor** (`just doctor`,
 `scripts/doctor*`, `<cli> doctor`), runs it and merges its findings (prefixed with where they came from).

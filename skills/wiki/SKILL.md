@@ -1,35 +1,37 @@
 ---
 name: wiki
 description: >-
-  Own a repo's `.wiki/`, the memory that agents read and maintain themselves. At the end of a
-  session (or during it) it looks at what happened and routes: a daily note, a fix to a topic
-  page, a new map of content with its facet pages, or "nothing worth recording". Then it fixes the
-  dates, regenerates the day index, lints, commits only its own files and syncs. Also looks things
-  up in the wiki cheaply (rg first). Load it BEFORE writing anything in `.wiki/`, for any request
-  that touches the wiki (create a page or doc there, note, update, look up), never by hand-editing
-  first. Use when the user says "wiki", "update the wiki", "wiki update", "note this in the wiki",
-  "create a doc in .wiki", "create a moc for X", "what did we learn today", "lint the wiki",
-  "anota no wiki", "cria um doc no .wiki", "consulta o wiki". Not skill-smith: that writes skills (SKILL.md), this writes
-  wiki pages. Needs a repo with a `.wiki/` folder; names and language come from
-  `.wiki/wiki.config`.
+  Keep a project's wiki in the central checkout `$WIKI_HOME/<projeto>/` (one folder per project),
+  used from any folder: the memory agents read and maintain themselves. At the end of a session
+  it looks at what happened and routes: a daily note, a fix to a topic page, a new map of content
+  with its facet pages, or "nothing worth recording". Then it fixes the dates, regenerates the day
+  index, lints, commits only its own files and syncs. Also looks things up (rg inside
+  `$WIKI_HOME/<projeto>` first). Load it BEFORE writing anything in the wiki, for any request
+  that touches it, never by hand-editing first. Use when the user says "wiki", "update the wiki",
+  "anota no wiki", "cria uma página na wiki", "consulta o wiki", "lint the wiki", "create a moc
+  for X". Not skill-smith: that writes skills (SKILL.md), this writes wiki pages. A new project is
+  a new folder under `$WIKI_HOME` with its `wiki.config` (`REPO=owner/name`), created from
+  `templates/`; a few repos keep a local `.wiki`, operated with `-w <repo>/.wiki`.
 metadata:
-  version: 0.1.5
+  version: 0.2.0
   license: MIT
 ---
 
-# wiki-smith — keep the repo's `.wiki/`
+# wiki — keep the project's wiki in `$WIKI_HOME`
 
-A wiki is the repo's memory, written for agents: they find the rule here instead of asking again. The diary holds what **happened**; the topic page holds what **holds now**. A lesson that lives only in the diary is lost. wiki-smith decides which of the two a session needs, writes it the way this wiki's own rules say, and checks it.
+A wiki is the project's memory, written for agents: they find the rule here instead of asking again. The diary holds what **happened**; the topic page holds what **holds now**. A lesson that lives only in the diary is lost. This skill decides which of the two a session needs, writes it the way this wiki's own rules say, and checks it. The wiki lives in one central checkout — `$WIKI_HOME` (default `~/wiki`, the `biliboss/wiki` repo), one folder per project: `$WIKI_HOME/<projeto>/` — so it works from any folder.
 
-Full method (file types, note format, ingest, linking, dates, commit): [references/method.md](references/method.md). Config keys: [references/config.md](references/config.md). Credits: [ATTRIBUTION.md](ATTRIBUTION.md). Changes: [CHANGELOG.md](CHANGELOG.md). Its own memory: [.wiki/](.wiki/README.md).
+Full method (file types, note format, ingest, linking, dates, commit): [references/method.md](references/method.md). Config keys: [references/config.md](references/config.md). Credits: [ATTRIBUTION.md](ATTRIBUTION.md). Changes: [CHANGELOG.md](CHANGELOG.md). Its own memory: [.wiki/](.wiki/).
 
-`<skill>` below is this skill's folder (for example `~/.claude/skills/wiki-smith`). Every script takes `-w <wiki dir>` (default `./.wiki`) and `-c <config>` (default `<wiki>/wiki.config`).
+`<skill>` below is this skill's folder. Every script takes `-w <wiki dir>`, `-P <project>` and `-c <config>` (default `<wiki>/wiki.config`); in `sync.sh`, `-p` still means push and `-P` is the project. Without `-w`, the wiki folder resolves in this order: `$WIKI_DIR`; `-P`/`$WIKI_PROJECT` → `$WIKI_HOME/<project>` (an error if it is missing); the `$WIKI_HOME` project whose `wiki.config` has `REPO=` equal to the current repo's `origin`; then `$WIKI_HOME/biliboss`.
+
+The machine values — `WIKI_HOME` (default `~/wiki`), `WIKI_REPO` (default `biliboss/wiki`) and `WIKI_REMOTE` — live in `.env` beside this SKILL.md (see [example.env](example.env)); `$WIKI_SKILL_ENV` overrides that path, and the environment wins over the file. When the wiki is not pinned with `-w`/`$WIKI_DIR`, the scripts maintain the checkout: they clone `$WIKI_REMOTE` when `$WIKI_HOME` is missing or empty and `git pull --ff-only` when it holds `.git` (a failed pull warns once and the work goes on with the local copy); they never stash, reset or clean. A few repos keep a local `.wiki/` at the root instead: work it with `-w <repo>/.wiki`.
 
 ## Step 0 — Find the wiki and its rules
 
-1. The wiki is `.wiki/` at the repo root. If it has none, say so and offer to create one from [templates/](templates/) (`wiki.config.example` first); never create it unasked.
-2. Read `.wiki/wiki.config` if present (names: diary folder, inbox, index, footer label, date keys, main branch). Without it the defaults are generic English: `journal/`, `inbox.md`, `index.md`, `Map:`, `## History`, `created`/`updated`.
-3. **The wiki's own rules win.** If the repo has a page on how to maintain it (`rg -n -i 'maintain|manter' .wiki -l`) or an `AGENTS.md` rule about the wiki, read that section and follow it where it differs from this skill.
+1. The wiki is `$WIKI_HOME/<projeto>/`; the scripts resolve the project by the order above (`-P` pins it, and a repo resolves to the project whose `wiki.config` has its `origin` in `REPO=`). If the repo has no project of its own, say so and offer to create one: a new folder under `$WIKI_HOME` with its `wiki.config` (`REPO=owner/name`), from [templates/](templates/) (`wiki.config.example` first); never create it unasked. A few repos keep a local `.wiki/` at the root — same method, `-w <repo>/.wiki`.
+2. Read `$WIKI_HOME/<projeto>/wiki.config` if present (names: diary folder, inbox, index, footer label, date keys, main branch). Without it the defaults are generic English: `journal/`, `inbox.md`, `index.md`, `Map:`, `## History`, `created`/`updated`.
+3. **The wiki's own rules win.** If the project has a page on how to maintain it (`rg -n -i 'maintain|manter' "$WIKI_HOME/<projeto>" -l`) or an `AGENTS.md` rule about the wiki, read that section and follow it where it differs from this skill.
 4. If the user asked for "wiki update" and the wiki (usually the index) says to **confirm first**, do Step 1 and Step 2 as a plan only: one line per page with what changes, the titles of new notes, then ask "Apply?" and edit only after a yes. Otherwise act.
 
 ## Step 1 — Look at what happened, then route
@@ -52,7 +54,7 @@ Only a fresh note is ever created for the diary; never rewrite another agent's n
 
 **First note of the day:** `scripts/day-index.sh` creates the day's index; then add the day at the top of "last days" in the inbox. If the note changes how the repo works, also add one line to the inbox's highlights. The inbox never holds a note.
 
-**Topic page (ingest).** Find it (`rg -n -i '<word>' .wiki`); if it does not exist and the subject will return, create it (template: [templates/page.md](templates/page.md)); if it is small, put it in a section of a nearby page. Write the rule as it holds now. If a change alters what the page claims, add one line at the top of its History section. The note links to the page.
+**Topic page (ingest).** Find it (`rg -n -i '<word>' "$WIKI_HOME/<projeto>"`); if it does not exist and the subject will return, create it (template: [templates/page.md](templates/page.md)); if it is small, put it in a section of a nearby page. Write the rule as it holds now. If a change alters what the page claims, add one line at the top of its History section. The note links to the page.
 
 **New subject.**
 1. Write the pages first, one facet each, each self-contained from the first sentence. Typical facets: **cheatsheet** (the one to start with: addresses, commands, shortcuts), **install**, **integration**, **comparison with the tool in use today**.
@@ -65,7 +67,7 @@ Only a fresh note is ever created for the diary; never rewrite another agent's n
 1. `scripts/dates.sh` — the `created`/`updated` frontmatter, from git. Idempotent.
 2. `scripts/day-index.sh` — regenerate the day index. Never edit it by hand.
 3. `python3 -I scripts/lint.py` — fix every `file:line: type: message` it prints until it exits 0 (exit 2 means problems). Do not ship a red lint.
-4. Commit **only your own files, by path**, never `git add -A`: `scripts/sync.sh -m "wiki: <what>" <path>...`. It commits in place when the checkout is on `<main>`, current and has no changes outside your paths; otherwise it carries your paths into a fresh `git worktree` from `origin/<main>`. Either way it lints exactly what it commits and refuses a red lint (exit 1, checkout untouched, carry worktree removed). In the carry the generated day index is never copied: it is regenerated in the worktree, so it lists only the notes that are in the commit. Add the attribution lines the repo or your host requires to the message.
+4. Commit **only your own files, by path**, never `git add -A`: `scripts/sync.sh -P <projeto> -m "wiki: <what>" <path>...`. It commits in place when the checkout is on `<main>`, current and has no changes outside your paths; otherwise it carries your paths into a fresh `git worktree` from `origin/<main>`. Either way it lints exactly what it commits and refuses a red lint (exit 1, checkout untouched, carry worktree removed). In the carry the generated day index is never copied: it is regenerated in the worktree, so it lists only the notes that are in the commit. Add the attribution lines the repo or your host requires to the message.
 5. **Push only when the user asked to sync:** the same call with `-p` (fetch, rebase, `push HEAD:<main>`, fast-forward the checkout, remove the worktree). Never force, never touch other people's modified files: a file that differs from what you pushed and may hold another session's edits (index, inbox) is left as it is. If the checkout cannot be fast-forwarded (local `<main>` diverged, or overlapping local edits) it says so and still exits 0, because the push worked. Open a PR only when asked.
 
 Commit what you wrote in the same session without waiting to be asked; publishing is the user's call.
@@ -82,7 +84,7 @@ When a public skill covers the subject, do not write a house skill for it: use t
 
 ## Consulting the wiki
 
-`rg -n -i '<keyword>' .wiki` (or skim the index), then read **only** the matching page or section, never the whole wiki. **Check the checkout first** (`git status -sb`): a checkout behind `origin/<main>` (or on an old branch) can lack the wiki or the pages you want, so read them with `git show origin/<main>:.wiki/<page>.md` (list with `git ls-tree -r --name-only origin/<main> .wiki`) instead of concluding they do not exist; do not pull over another session's local changes just to read. For what happened: the inbox (short), then only the days that matter; one day = its index and the notes it lists. If the repo has specs, they say what the system promises: `rg -n -i '<keyword>' <specs dir>`.
+`rg -n -i '<keyword>' "$WIKI_HOME/<projeto>"` (or skim the index), then read **only** the matching page or section, never the whole wiki. **Check the checkout first** (`git -C "$WIKI_HOME" status -sb`): a checkout behind `origin/<main>` can lack the pages you want, so read them with `git -C "$WIKI_HOME" show origin/<main>:<projeto>/<page>.md` (list with `git -C "$WIKI_HOME" ls-tree -r --name-only origin/<main> <projeto>`) instead of concluding they do not exist; do not pull over another session's local changes just to read. For what happened: the inbox (short), then only the days that matter; one day = its index and the notes it lists. If the repo has specs, they say what the system promises: `rg -n -i '<keyword>' <specs dir>`.
 
 ## Pitfalls
 
@@ -110,7 +112,7 @@ When a public skill covers the subject, do not write a house skill for it: use t
   `HEAD:<main>`, and copy the result back to the checkout.
 - **Do not record the transient**: a command that failed once and worked on retry, an environment glitch, a one-off task. Capture the working fix on the topic page, never "X is broken" (it hardens into a refusal after the cause is gone).
 - **Links:** relative, first mention per section only; an anchor is GitHub's slug of the heading (lowercase, no punctuation, accents kept, space becomes hyphen). Renaming a heading breaks its anchors; the lint says so. Put a link example inside backticks so the lint does not read it.
-- **Rename or delete a page:** `rg -l 'old-name' .wiki` and fix every link, anchors included; delete only after the content moved.
+- **Rename or delete a page:** `rg -l 'old-name' "$WIKI_HOME/<projeto>"` and fix every link, anchors included; delete only after the content moved.
 - **Page size:** past about 150 lines, or when rule, procedure, reference and history mix, split by kind.
 - **Private data stays out.** Wiki pages are committed; keep secrets, tokens and personal data out, and reference where the secret lives instead.
 - **Lint limits:** it does not catch contradictions between pages or stale claims; that is an agent's review when time allows.
@@ -118,4 +120,4 @@ When a public skill covers the subject, do not write a house skill for it: use t
 
 ## Step 4 — Keep your own wiki
 
-If this run taught something about running wiki-smith itself (a routing mistake, a script quirk), add one line to [.wiki/lessons.md](.wiki/lessons.md): `- YYYY-MM-DD — <rule + why>`. Edit the source, `skills/wiki-smith/` in the plugin repo ([biliboss/skills](https://github.com/biliboss/skills)), commit and push, then update the plugin (`claude plugin update biliboss-skills@biliboss`); never the installed copy in the plugin cache, which an update overwrites. Design decisions go in [.wiki/design.md](.wiki/design.md).
+If this run taught something about running this skill itself (a routing mistake, a script quirk), add one line to [.wiki/lessons.md](.wiki/lessons.md): `- YYYY-MM-DD — <rule + why>`. Edit the source, `skills/wiki/` in the plugin repo ([biliboss/skills](https://github.com/biliboss/skills)), commit and push, then update the plugin (`claude plugin update biliboss-skills@biliboss`); never the installed copy in the plugin cache, which an update overwrites. Design decisions go in [.wiki/design.md](.wiki/design.md).
