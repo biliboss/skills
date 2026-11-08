@@ -2,6 +2,15 @@
 
 Todas as mudanças do skill `prime-agent`. Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-06
+
+### Added
+- Skill Python `mux` (`python/mux/`) para o REPL do Prime Agent; só chama o `mux.sh` da `duplo-local-agents`.
+- Verbo `fila`, o padrão para mandar mensagem: entra na fila do agente para o próximo turno.
+
+### Changed
+- `manda` fica só para corrigir o rumo de um turno em curso.
+
 ## [0.3.1] - 2026-11-04
 
 ### Changed
