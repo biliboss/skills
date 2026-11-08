@@ -2,7 +2,7 @@
 name: herdr-canvas
 description: Publish a Markdown or HTML page for the owner to read in the Herdr Canvas panel, where he comments block by block and the comment reaches the bot. Use when a bot wants the owner's review of a document (proposal, plan, copy), when reading or resolving his comments, or when installing the Canvas mod.
 metadata:
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # Canvas: a page, blocks, comments

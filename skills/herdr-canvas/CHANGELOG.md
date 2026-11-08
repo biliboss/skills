@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Mod: the native view gets an explicit size (`w_full`, `flex_1`, `min_h(0)`) inside a flex column, as the fork's real example does.
+
 ## 0.2.0
 
 - `canvas publish` accepts `.html` (writes `canvas/page.html`); `.md` unchanged; both coexist.

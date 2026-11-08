@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.114.1
+
+- herdr-canvas 0.2.1: a native view ganha tamanho explícito no painel, como no exemplo real do fork.
+
 ## 0.114.0
 
 - herdr-canvas 0.2.0: `canvas publish` aceita `.html` (`canvas/page.html`). No build Herdr Bili com `herdr.nativeView`, o painel mostra o HTML numa native view (alternância Página/Blocos quando há `page.md`; comentar exige `page.md`). Herdr oficial segue com o painel Markdown. Renderização real ainda não verificada.

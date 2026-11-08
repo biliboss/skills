@@ -207,9 +207,9 @@ export default class Canvas extends View {
     let view;
     try {
       const placeholder = v_flex().size_full().items_center().justify_center().text_size(12).text_color(t.dim).child("Carregando a página…");
-      view = herdr.nativeView.new(id, { kind: "web", path: `${this.dir()}/page.html`, trust: "static", root: this.dir() }).child(placeholder);
+      view = herdr.nativeView.new(id, { kind: "web", path: `${this.dir()}/page.html`, trust: "static", root: this.dir() }).w_full().flex_1().min_h(0).child(placeholder);
     } catch (e) { this.viewBroken = true; this.liveView = null; cx.notify(); view = div().p(8).text_size(12).text_color(t.dim).child("Native view indisponível: " + e); }
-    return v_flex().id("canvas-page").flex_1().min_h(0).child(div().id("canvas-page-body").flex_1().min_h(0).relative().bg(t.background).child(view))
+    return v_flex().id("canvas-page").flex_1().min_h(0).child(v_flex().id("canvas-page-body").flex_1().min_h(0).relative().bg(t.background).child(view))
       .when(Boolean(note), el => el.child(div().flex_none().px(12).h(24).flex().items_center().border_t(1).border_color(t.border).text_size(11).text_color(t.dim).child(note)));
   }
 }
