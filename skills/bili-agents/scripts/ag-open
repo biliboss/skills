@@ -2,5 +2,6 @@
 from pathlib import Path
 import runpy
 import sys
+# Default is background (no focus); --focus is only for the owner's click or Option+1-9.
 sys.argv = [sys.argv[0], 'list'] if sys.argv[1:] == ['--list'] else [sys.argv[0], 'open', *sys.argv[1:]]
 runpy.run_path(str(Path(__file__).resolve().with_name('bots.py')), run_name='__main__')

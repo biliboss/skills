@@ -97,7 +97,8 @@ def sync_names(bot, layout=None, address=None):
     return renamed
 
 
-def open_bot(bot):
+def open_bot(bot, focus=False):
+    """Open the bot's terminal. Never moves the owner's focus unless focus=True (explicit click/shortcut)."""
     with lock(bot, '.open.lock'):
         entries = call(['hc', 'ls'])['terminals']
         layout = call(['herdr-app', 'ls'])
@@ -146,6 +147,7 @@ def open_bot(bot):
             address = result.get('address') or result.get('terminal')
             if not address:
                 raise RuntimeError(f'core returned no terminal address: {result}')
+        adopted = True
         if not any(t.get('terminal') == address for t in shown):
             # Adoption through the bot's explicit space labels may arrive asynchronously.
             call(['hc', 'label', address, 'herdr.space=' + space_id(bot), 'herdr.tab=' + space_id(bot) + '-tab'])
@@ -155,12 +157,18 @@ def open_bot(bot):
                     break
                 time.sleep(0.1)
             else:
-                # A parked terminal already belongs to the bot workspace; select it before keeping.
-                call(['herdr-app', 'do', 'space.select', json.dumps({'id': space_id(bot)})])
-                call(['herdr-app', 'do', 'terminal.keep', json.dumps({'terminal': address, 'place': 'tab'})])
-        sync_names(bot, address=address)
-        call(['herdr-app', 'do', 'agent.focus', json.dumps({'terminal': address})])
-        print(json.dumps({'terminal': address, 'bot': bot['id'], 'session_id': bot['session_id']}))
+                if focus:
+                    # A parked terminal already belongs to the bot workspace; select it before keeping.
+                    call(['herdr-app', 'do', 'space.select', json.dumps({'id': space_id(bot)})])
+                    call(['herdr-app', 'do', 'terminal.keep', json.dumps({'terminal': address, 'place': 'tab'})])
+                # Without focus: terminal.keep only acts on the selected space, so it stays labeled, parked, for adoption.
+                adopted = False
+        if adopted:
+            sync_names(bot, address=address)
+        if focus:
+            call(['herdr-app', 'do', 'agent.focus', json.dumps({'terminal': address})])
+        print(json.dumps({'terminal': address, 'bot': bot['id'], 'session_id': bot['session_id'],
+                          'focused': focus, 'adopted': adopted}))
 
 def session(bot):
     with lock(bot, '.session.lock'):
@@ -200,18 +208,21 @@ def main():
             items.sort(key=lambda item: (not item.get('principal'), -item['last_active']))
             print(json.dumps({'bots': items}))
             return 0
-        if len(sys.argv) != 3 or sys.argv[1] not in ('open', 'session'):
-            raise ValueError('usage: bots.py list | open <id> | session <id>')
-        bot = next((b for b in bots if b['id'] == sys.argv[2]), None)
+        args = sys.argv[1:]
+        focus = '--focus' in args
+        args = [a for a in args if a != '--focus']
+        if len(args) != 2 or args[0] not in ('open', 'session') or (focus and args[0] != 'open'):
+            raise ValueError('usage: bots.py list | open [--focus] <id> | session <id>')
+        bot = next((b for b in bots if b['id'] == args[1]), None)
         if bot is None:
-            raise ValueError('unknown bot: ' + sys.argv[2])
-        if sys.argv[1] == 'session':
+            raise ValueError('unknown bot: ' + args[1])
+        if args[0] == 'session':
             return session(bot)
-        open_bot(bot)
+        open_bot(bot, focus=focus)
         return 0
     except BlockingIOError:
         print('Bot operation already in progress; no duplicate created.', file=sys.stderr)
-        return 0 if sys.argv[1] == 'open' else 1
+        return 0 if 'open' in sys.argv[1:2] else 1
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as error:
         print(f'Bots: {error}', file=sys.stderr)
         return 1

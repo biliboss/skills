@@ -2,7 +2,7 @@
 name: bili-agents
 description: Open or focus local bots in Herdr through the ag-* tools. Use for a bot registry, dedicated hidden bot workspaces, and explicit session creation or resumption.
 metadata:
-  version: 0.2.4
+  version: 0.3.0
 ---
 
 # Bots in Herdr
@@ -11,12 +11,14 @@ Read `../../apps/herdr-bots/README.md` before installation. The code belongs in 
 commands and UUIDs belong in `$AG_HOME/bots.json` (default `~/agents/bots.json`), outside this repository.
 
 - `scripts/ag-open --list`: validate and print the registry, including derived workspace IDs.
-- `scripts/ag-open <id>`: focus the existing terminal or open the bot in its dedicated workspace.
+- `scripts/ag-open <id>`: open the bot in its dedicated workspace in the background; it never moves focus. `ag-open --focus <id>` is only for the owner's own click or Option+1-9.
   Bot workspaces are hidden from Spaces, accessible through Bots. They never reuse a project workspace.
 - `scripts/ag-bot-session <id>`: internal launcher; create with `--session-id`, then explicitly `--resume`.
   Never use `--continue` or silently fall back to a new conversation.
 - `../../apps/herdr-bots/install.sh`: clone the active layout and Spaces mod, install Bots below the brand.
   `--bot ID NAME FOLDER UUID` also preserves an old instance in a dated backup and prepares an empty one.
+
+Rule: creating or opening a bot, workspace or tab never moves the owner's focus, and a test that changes focus never runs on the owner's Herdr (mocks only; `test_live_bots.py` is for a disposable Herdr).
 
 Inspect live sessions before operating them. Do not send prompts, stop another session or move its files.
 Preparation refuses any process using the target folder. Automatic Claude memory is disabled to avoid reusing a path’s older memory. Existing authentication remains available;

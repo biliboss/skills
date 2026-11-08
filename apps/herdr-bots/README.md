@@ -44,7 +44,7 @@ Reinstallation reuses the private layout, mod clones and section. The layout mus
 Mod paths refer to this checkout: keep it installed, or rerun the installer from its new location.
 
 Each bot has a stable core terminal name derived from its ID and UUID, plus `bili.bot` and `bili.session` labels.
-A live match is focused; a parked match is adopted into its own workspace. Otherwise the core starts the
+Rule: creating or opening never moves the owner's focus; only the panel click and Option+1-9 pass `--focus`, and tests that change focus never run on the owner's Herdr. A live match is focused on click (in the background otherwise); a parked match is adopted into its own workspace. Otherwise the core starts the
 launcher with explicit workspace labels. Locks and unique core names prevent duplicate starts, including
 concurrent clicks. Ambiguous multiple matches fail rather than choosing by folder.
 

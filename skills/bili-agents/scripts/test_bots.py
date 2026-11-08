@@ -58,7 +58,7 @@ class BotsTest(unittest.TestCase):
         finally:
             guard.close()
 
-    def exercise_open(self, shown, live=True):
+    def exercise_open(self, shown, live=True, focus=False, never_shown=False):
         calls = []
         def call(argv):
             calls.append(argv)
@@ -69,14 +69,55 @@ class BotsTest(unittest.TestCase):
             if argv == ['herdr-app', 'status']:
                 return {'focused_pane': 'p1'}
             if argv == ['herdr-app', 'ls']:
-                return {'spaces': [{'tabs': [{'terminals': shown if not any(c[:2] == ['hc', 'label'] for c in calls) else [{'terminal': 't99', 'pane': 'p99'}]}]}]}
+                return {'spaces': [{'tabs': [{'terminals': shown if never_shown or not any(c[:2] == ['hc', 'label'] for c in calls) else [{'terminal': 't99', 'pane': 'p99'}]}]}]}
             return {}
-        with patch.object(bots, 'call', side_effect=call), contextlib.redirect_stdout(io.StringIO()):
-            bots.open_bot(self.bot)
+        with patch.object(bots, 'call', side_effect=call), patch.object(bots.time, 'sleep'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            bots.open_bot(self.bot, focus=focus)
         return calls
 
+    FOCUS = ('agent.focus', 'space.select', 'terminal.keep', 'tab.select', 'pane.focus', 'tab.new', 'space.new')
+
+    def moves_focus(self, calls):
+        return [c for c in calls if any(f in part for part in c for f in self.FOCUS)]
+
+    def test_default_never_moves_focus_in_any_path(self):
+        paths = {'existing': dict(shown=[{'terminal': 't99', 'pane': 'p1'}]),
+                 'adopt_async': dict(shown=[{'terminal': 'other', 'pane': 'p1'}]),
+                 'new': dict(shown=[], live=False),
+                 'keep_never_shown': dict(shown=[{'terminal': 'other', 'pane': 'p1'}], never_shown=True)}
+        for name, kw in paths.items():
+            with self.subTest(name):
+                self.assertEqual(self.moves_focus(self.exercise_open(**kw)), [])
+
+    def test_never_shown_leaves_terminal_labeled_without_keep(self):
+        calls = self.exercise_open([{'terminal': 'other', 'pane': 'p1'}], never_shown=True)
+        self.assertTrue(any(c[:2] == ['hc', 'label'] for c in calls))
+        self.assertFalse(any('terminal.keep' in c or 'space.select' in c for c in calls))
+
+    def test_explicit_focus_selects_keeps_and_focuses(self):
+        calls = self.exercise_open([{'terminal': 'other', 'pane': 'p1'}], never_shown=True, focus=True)
+        flat = [' '.join(c) for c in calls]
+        self.assertTrue(any('space.select' in c for c in flat))
+        self.assertTrue(any('terminal.keep' in c for c in flat))
+        self.assertTrue(any('agent.focus' in c for c in flat))
+
+    def test_cli_focus_flag(self):
+        with patch.object(bots, 'open_bot') as opener:
+            for argv, expected in ((['open', 'test'], False), (['open', '--focus', 'test'], True)):
+                with patch.object(sys, 'argv', ['bots.py', *argv]):
+                    self.assertEqual(bots.main(), 0)
+                self.assertEqual(opener.call_args.kwargs['focus'], expected)
+            with patch.object(sys, 'argv', ['bots.py', 'session', '--focus', 'test']), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(bots.main(), 1)
+
+    def test_ag_open_forwards_flags_and_panel_click_requests_focus(self):
+        self.assertIn("'open', *sys.argv[1:]", Path(__file__).with_name('ag-open').read_text())
+        main_js = Path(__file__).resolve().parents[3] / 'apps/herdr-bots/main.js'
+        self.assertIn("props().opener, '--focus', bot.id", main_js.read_text())
+
     def test_focus_existing_without_creation(self):
-        calls = self.exercise_open([{'terminal': 't99', 'pane': 'p1'}])
+        calls = self.exercise_open([{'terminal': 't99', 'pane': 'p1'}], focus=True)
         self.assertFalse(any(c[:2] == ['hc', 'run'] for c in calls))
         self.assertFalse(any('terminal.keep' in c for c in calls))
         self.assertTrue(any('agent.focus' in c for c in calls))

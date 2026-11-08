@@ -8,6 +8,9 @@ import tempfile
 import time
 import uuid
 
+if os.environ.get("HERDR_DISPOSABLE") != "1":
+    raise SystemExit("Refusing: this test moves focus. Run it only on a disposable Herdr (HERDR_DISPOSABLE=1), never the owner's.")
+
 OPENER = str(Path(__file__).with_name('ag-open').resolve())
 
 
@@ -37,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='herdr-bots-test-') as temp:
     addresses = set()
 
     def open_bot():
-        return subprocess.run([OPENER, ident], env=env, text=True, capture_output=True)
+        return subprocess.run([OPENER, '--focus', ident], env=env, text=True, capture_output=True)
 
     def terminals():
         return [t for t in hc('ls')['terminals'] if t.get('name', '').startswith('bot-') and

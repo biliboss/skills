@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.111.0
+
+- bili-agents 0.3.0: criar/abrir bot nunca move o foco do dono. `bots.py open` e `ag-open` abrem em segundo plano por padrão (sem `agent.focus`, `space.select` nem `terminal.keep`); `--focus` só no clique do painel Bots (herdr-bots). Terminal que não aparece no workspace fica rotulado, estacionado, para adoção.
+
 ## 0.110.0
 
 - backbrief 0.2.0: `Who asks` section so a bot can ask another bot for a backbrief (reply by the same channel, "backbrief primeiro"), no journal.

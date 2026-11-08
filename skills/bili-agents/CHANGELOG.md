@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- `open_bot(bot, focus=False)`: opening never calls `agent.focus`, `space.select` or `terminal.keep` by default. A terminal not yet shown stays labeled for adoption. `bots.py open --focus` / `ag-open --focus` keep the old behavior for the owner's click.
+
 ## 0.2.4
 
 - Opening a bot names its Herdr workspace and tab after the registry `name` (`sync_names`, idempotent).

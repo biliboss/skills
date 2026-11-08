@@ -83,7 +83,7 @@ export default class Bots extends View {
     cx.notify();
     cx.spawn(async cx => {
       try {
-        const result = await exec('env', [`AG_HOME=${props().dataHome}`, `AG_BOTS_FILE=${props().registry}`, props().opener, bot.id]);
+        const result = await exec('env', [`AG_HOME=${props().dataHome}`, `AG_BOTS_FILE=${props().registry}`, props().opener, '--focus', bot.id]);
         if (result.code !== 0) throw new Error(result.stderr || result.stdout);
       } catch (error) { this.error = String(error); }
       finally { this.busy.delete(bot.id); cx.notify(); }
