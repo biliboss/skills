@@ -1,0 +1,185 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""Doctor of biliboss/skills: what the generic doctor cannot know about this repo.
+
+Read-only. Prints `<status> <dimension> <check>: <evidence> -> <action>`, or JSON lines with --json.
+`ok` findings only with --verbose. Exit: 0 healthy (ok/warn), 1 drift or fail, 2 could not run.
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+VERSION_RX = re.compile(r"^## \[?v?(\d+\.\d+\.\d+)", re.M)
+LINK_RX = re.compile(r"\]\(([^)#\s]+)")
+NOT_A_FILE = ("http", "$", "<", ".wiki/", "mailto:")
+SMOKE_SCRIPTS = ("run", "batch", "gate", "retry", "merge", "wait", "check", "review", "clean")
+findings: list[dict] = []
+
+
+def add(dimension: str, check: str, status: str, evidence: str, action: str = "") -> None:
+    findings.append({"dimension": dimension, "check": check, "status": status, "evidence": evidence, "action": action})
+
+
+def tracked(*patterns: str) -> list[Path]:
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", *patterns], capture_output=True, text=True, check=True).stdout
+    return [ROOT / p for p in out.split("\0") if p and (ROOT / p).is_file()]
+
+
+def rel(p: Path) -> str:
+    return str(p.relative_to(ROOT))
+
+
+def semver(v: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in v.split("."))
+
+
+def frontmatter(text: str) -> str:
+    parts = text.split("---", 2)
+    return parts[1] if len(parts) == 3 else ""
+
+
+def field(block: str, rx: str) -> str:
+    m = re.search(rx, block, re.M)
+    return m.group(1).strip().strip("\"'") if m else ""
+
+
+def skill_dirs() -> list[Path]:
+    return sorted(f.parent for f in tracked("skills/*/SKILL.md") if f.parent.parent == ROOT / "skills")
+
+
+def check_shell() -> None:
+    bad = [rel(f) for f in tracked("*.sh") if subprocess.run(["bash", "-n", str(f)], capture_output=True).returncode]
+    if bad:
+        add("behavior", "shell-syntax", "fail", ", ".join(bad), "fix the syntax error: bash -n <file>")
+    else:
+        add("behavior", "shell-syntax", "ok", "every tracked .sh parses")
+
+
+def check_python() -> None:
+    bad = 0
+    for f in tracked("*.py"):
+        try:
+            ast.parse(f.read_text())
+        except SyntaxError as e:
+            bad += 1
+            add("behavior", f"python-syntax:{rel(f)}", "fail", f"line {e.lineno}: {e.msg}", f"fix {rel(f)}:{e.lineno}")
+    if not bad:
+        add("behavior", "python-syntax", "ok", "every tracked .py parses")
+
+
+def check_plugin_version() -> None:
+    declared = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["version"]
+    versions = VERSION_RX.findall((ROOT / "CHANGELOG.md").read_text())
+    top = max(versions, key=semver) if versions else ""
+    if declared == top:
+        add("behavior", "plugin-version", "ok", declared)
+    else:
+        add("behavior", "plugin-version", "drift", f"plugin.json {declared}, CHANGELOG {top}", "align plugin.json and CHANGELOG.md")
+
+
+def check_skill(skill: Path, no_changelog: list[str]) -> None:
+    meta = frontmatter((skill / "SKILL.md").read_text())
+    name, version = field(meta, r"^name:\s*(.+)$"), field(meta, r"^\s*version:\s*(.+)$")
+    if name != skill.name:
+        add("behavior", f"skill-name:{skill.name}", "fail", f"name is '{name}'", "make `name:` equal the folder")
+    log = skill / "CHANGELOG.md"
+    if not log.is_file():
+        no_changelog.append(skill.name)
+        return
+    versions = VERSION_RX.findall(log.read_text())
+    top = max(versions, key=semver) if versions else ""
+    if version != top:
+        add("behavior", f"skill-version:{skill.name}", "drift", f"SKILL.md {version or 'none'}, CHANGELOG {top or 'none'}", f"align skills/{skill.name}/SKILL.md and its CHANGELOG")
+
+
+def check_skills() -> None:
+    skills, no_changelog = skill_dirs(), []
+    before = len(findings)
+    for skill in skills:
+        check_skill(skill, no_changelog)
+    if len(findings) == before:
+        add("behavior", "skill-metadata", "ok", f"{len(skills)} skills: name and version consistent")
+    if no_changelog:
+        add("architecture", "skill-changelog", "warn", ", ".join(no_changelog), "add a CHANGELOG.md to these skills")
+
+
+def check_links() -> None:
+    broken = []
+    for f in tracked("skills/*/SKILL.md"):
+        for link in LINK_RX.findall(f.read_text()):
+            if not link.startswith(NOT_A_FILE) and "<" not in link and link != "URL" and not (f.parent / link).exists():
+                broken.append(f"{rel(f)} -> {link}")
+    if broken:
+        add("architecture", "skill-links", "drift", "; ".join(broken), "fix or remove these links")
+    else:
+        add("architecture", "skill-links", "ok", "local links in SKILL.md resolve")
+
+
+def check_exec_bits() -> None:
+    missing = [rel(f) for f in tracked("skills/*/scripts/*") if f.read_bytes()[:2] == b"#!" and not os.access(f, os.X_OK)]
+    if missing:
+        add("environment", "exec-bit", "warn", ", ".join(missing), "chmod +x if run directly, or drop the shebang")
+    else:
+        add("environment", "exec-bit", "ok", "every script with a shebang is executable")
+
+
+def smoke(label: str, cmd: list[str]) -> None:
+    try:
+        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        add("behavior", f"smoke:{label}", "fail", "timed out after 30s", f"run {label} --help by hand")
+        return
+    if p.returncode == 0 and p.stdout.strip():
+        add("behavior", f"smoke:{label}", "ok", "--help answers")
+    else:
+        add("behavior", f"smoke:{label}", "fail", f"exit {p.returncode}: {(p.stderr or p.stdout).strip()[-200:]}", f"run {label} --help by hand")
+
+
+def check_smokes() -> None:
+    for name in SMOKE_SCRIPTS:
+        smoke(f"devin/{name}.sh", ["sh", str(ROOT / "skills/devin/scripts" / f"{name}.sh"), "--help"])
+    smoke("doctor.py", [sys.executable, str(ROOT / "skills/doctor/scripts/doctor.py"), "--help"])
+
+
+def report(as_json: bool, verbose: bool) -> None:
+    for f in findings:
+        if f["status"] == "ok" and not verbose:
+            continue
+        if as_json:
+            print(json.dumps(f, ensure_ascii=False))
+        else:
+            tail = f" -> {f['action']}" if f["action"] else ""
+            print(f"{f['status']} {f['dimension']} {f['check']}: {f['evidence']}{tail}")
+    counts = {s: sum(1 for f in findings if f["status"] == s) for s in ("ok", "warn", "drift", "fail")}
+    line = f"summary skills: {counts['ok']} ok, {counts['warn']} warn, {counts['drift']} drift, {counts['fail']} fail"
+    print(line, file=sys.stderr if as_json else sys.stdout)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--verbose", action="store_true")
+    a = ap.parse_args()
+    try:
+        for check in (check_exec_bits, check_links, check_shell, check_python, check_plugin_version, check_skills, check_smokes):
+            check()
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as e:
+        print(f"doctor: could not run: {e}", file=sys.stderr)
+        return 2
+    report(a.json, a.verbose)
+    return 1 if any(f["status"] in ("drift", "fail") for f in findings) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

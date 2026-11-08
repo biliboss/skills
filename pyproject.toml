@@ -1,0 +1,19 @@
+# Trecho para colar no pyproject.toml do projeto (os gates Python leem estas seções).
+[tool.ruff]
+line-length = 100
+extend-exclude = [".gates"]
+
+[tool.ruff.lint]
+select = ["C901", "TID251"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+# TID251: importações proibidas. Ajuste ao projeto (módulo = mensagem).
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"os.system".msg = "use subprocess.run com lista de argumentos"
+"pickle".msg = "não desserialize dados não confiáveis"
+
+[tool.pyright]
+typeCheckingMode = "standard"
+exclude = ["**/.venv", "**/node_modules", ".gates"]
