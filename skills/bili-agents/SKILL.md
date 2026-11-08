@@ -13,6 +13,9 @@ commands and UUIDs belong in `$AG_HOME/bots.json` (default `~/agents/bots.json`)
 - `scripts/ag-open --list`: validate and print the registry, including derived workspace IDs.
 - `scripts/ag-open <id>`: focus the existing terminal or open the bot in its dedicated workspace.
   Bot workspaces are hidden from Spaces, accessible through Bots. They never reuse a project workspace.
+- `scripts/ag-notify <listener-id> stop|notification`: the Claude Code hook the `listen` skill plants in a bot's
+  `.claude/settings.json`; it types a `<hook from="<bot>">` line into the listener's live terminal once its input
+  line is empty, and does nothing when the listener is not live.
 - `scripts/ag-bot-session <id>`: internal launcher; create with `--session-id`, then explicitly `--resume`.
   Never use `--continue` or silently fall back to a new conversation.
 - `../../apps/herdr-bots/install.sh`: clone the active layout and Spaces mod, install Bots below the brand.

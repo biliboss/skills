@@ -8,7 +8,8 @@ metadata:
 
 # roster
 
-Run `scripts/roster`. It prints JSON with each bot's `id`, `name`, `folder`, `principal` and `live`.
+Run `scripts/roster`. It prints JSON with each bot's `id`, `name`, `folder`, `principal`, `live` and `listeners`
+(the ids of the bots that listen to it, read from its project settings; see the listen skill).
 
 `live` is true, false, or null when Herdr cannot be inspected; report null as unknown, not as stopped.
 

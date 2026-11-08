@@ -35,6 +35,7 @@
     "keywords",
     "landing-page",
     "linear",
+    "listen",
     "market",
     "oauth",
     "pi",
@@ -100,6 +101,7 @@
     "./skills/hire",
     "./skills/roster",
     "./skills/rebrief",
-    "./skills/fire"
+    "./skills/fire",
+    "./skills/listen"
   ]
 }

@@ -4,4 +4,4 @@
 
 ### Added
 
-- Lista os bots companheiros.
+- Lista os bots companheiros, com `live` e `listeners` (os ids que escutam cada um, lidos do settings do bot).

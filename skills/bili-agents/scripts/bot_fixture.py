@@ -48,9 +48,9 @@ class BotCase(unittest.TestCase):
     def bot(self, ident):
         return next(item for item in self.data() if item['id'] == ident)
 
-    def run_verb(self, name, *args, **env):
+    def run_verb(self, name, *args, cwd=None, **env):
         return subprocess.run([sys.executable, str(SKILLS / name / 'scripts' / name), *args],
-                              capture_output=True, text=True, env={**self.env, **env})
+                              capture_output=True, text=True, env={**self.env, **env}, cwd=cwd)
 
     def add_helper(self):
         """Register a companion directly, so each verb's tests do not depend on another verb."""

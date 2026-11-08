@@ -19,7 +19,8 @@ def live(bot):
 
 def roster():
     return {'bots': [{'id': bot['id'], 'name': bot['name'], 'folder': bot['folder'],
-                      'principal': bot.get('principal') is True, 'live': live(bot)}
+                      'principal': bot.get('principal') is True, 'live': live(bot),
+                      'listeners': bots.listeners(bot)}
                      for bot in bots.registry()]}
 
 

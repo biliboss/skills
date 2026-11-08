@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Listen to a bot: register, in its project settings, hooks that notify this bot when it stops or needs someone."""
+import argparse
+from pathlib import Path
+import subprocess
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'bili-agents' / 'scripts'))
+import bots  # noqa: E402
+
+
+def same_folder(bot, folder):
+    return Path(bot['folder']).expanduser().resolve() == folder
+
+
+def resolve_listener(registry, as_id):
+    """The bot whose folder is the current directory, unless --as names one."""
+    if as_id:
+        listener = next((b for b in registry if b['id'] == as_id), None)
+        if listener is None:
+            raise bots.Refused(f'unknown listener: {as_id}')
+        return listener
+    cwd = Path.cwd().resolve()
+    found = [b for b in registry if same_folder(b, cwd)]
+    if len(found) != 1:
+        raise bots.Refused(f'no registered bot lives in {cwd}; pass --as <listener-id>')
+    return found[0]
+
+
+def parse_events(text):
+    events = [e.strip() for e in text.split(',') if e.strip()]
+    unknown = [e for e in events if e not in bots.HOOK_EVENTS]
+    if unknown or not events:
+        raise bots.Refused(f"events must be among {', '.join(bots.HOOK_EVENTS)}: {text}")
+    return list(dict.fromkeys(events))
+
+
+def live(bot):
+    try:
+        return bots.is_live(bot)
+    except (OSError, KeyError, ValueError, RuntimeError, subprocess.SubprocessError):
+        return None
+
+
+def listen(args):
+    registry = bots.registry()
+    target = next((b for b in registry if b['id'] == args.id), None)
+    if target is None:
+        raise bots.Refused(f'unknown bot: {args.id}')
+    listener = resolve_listener(registry, args.as_id)
+    if listener['id'] == target['id']:
+        raise bots.Refused(f"{target['name']} cannot listen to itself")
+    events = parse_events(args.events)
+    path = bots.settings_path(target)
+    settings = bots.read_settings(path)
+    if args.off:
+        bots.remove_listener(settings, listener['id'], events)
+    else:
+        bots.add_listener(settings, listener['id'], events)
+    bots.write_settings(path, settings)
+    is_live = live(target)
+    return {'target': target['id'], 'listener': listener['id'], 'events': events, 'listening': not args.off,
+            'settings': str(path), 'notifier': str(bots.NOTIFIER), 'target_live': is_live,
+            'needs_reload': bool(is_live)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('id', help='the bot to listen to')
+    parser.add_argument('--as', dest='as_id', metavar='LISTENER', help='the listening bot; default: the bot in cwd')
+    parser.add_argument('--events', default=','.join(bots.HOOK_EVENTS), help='comma list of stop, notification')
+    parser.add_argument('--off', action='store_true', help='stop listening; removes only this listener')
+    args = parser.parse_args()
+    return bots.verb(lambda: listen(args))
+
+
+if __name__ == '__main__':
+    sys.exit(main())

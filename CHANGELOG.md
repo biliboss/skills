@@ -4,7 +4,7 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 ## 0.107.0
 
-- hire 0.2.0, roster, rebrief and fire 0.1.0: one small skill per step of a companion bot's life in Herdr, on the owner's request; the principal bot can never be fired. bili-agents 0.3.0: registry writes and the principal guard live in bots.py.
+- hire 0.2.0, roster, rebrief, fire and listen 0.1.0: one small skill per step of a companion bot's life in Herdr, on the owner's request; the principal bot can never be fired; listen plants, in the listened bot's settings, the hooks that notify the listener's Herdr terminal when it stops or needs someone. bili-agents 0.3.0: registry writes, the principal guard, the listener hooks and `ag-notify` live in bots.py and scripts.
 
 ## 0.106.0
 
