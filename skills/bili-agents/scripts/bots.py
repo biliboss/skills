@@ -80,7 +80,10 @@ def ready(bot):
 def open_bot(bot):
     with lock(bot, '.open.lock'):
         entries = call(['hc', 'ls'])['terminals']
+        layout = call(['herdr-app', 'ls'])
+        shown = [t for s in layout['spaces'] for tab in s['tabs'] for t in tab['terminals']]
         found = []
+        live_details = {}
         for entry in entries:
             if entry.get('state') != 'live':
                 continue
@@ -89,13 +92,26 @@ def open_bot(bot):
                 found.append(entry['address'])
                 continue
             detail = call(['hc', 'get', entry['address']])
+            live_details[entry['address']] = detail
             labels = detail.get('labels', {})
             if labels.get('bili.bot') == bot['id'] and labels.get('bili.session') == bot['session_id']:
                 found.append(entry['address'])
         if len(found) > 1:
             raise RuntimeError('multiple terminals match this bot and UUID; refusing to choose')
-        layout = call(['herdr-app', 'ls'])
-        shown = [t for s in layout['spaces'] for tab in s['tabs'] for t in tab['terminals']]
+        if not found:
+            # Stale session_id: adopt the live terminal already shown in the bot folder instead of opening another tab.
+            folder = Path(bot['folder']).expanduser().resolve()
+            shown_ids = {t.get('terminal') for t in shown}
+            same_folder = []
+            for address, detail in live_details.items():
+                cwd = detail.get('cwd')
+                if address in shown_ids and cwd and Path(cwd).expanduser().resolve() == folder:
+                    same_folder.append(address)
+            if len(same_folder) > 1:
+                raise RuntimeError('multiple terminals in the bot folder; refusing to choose')
+            if same_folder:
+                found = same_folder
+                call(['hc', 'label', found[0], 'bili.bot=' + bot['id'], 'bili.session=' + bot['session_id']])
         if found:
             address = found[0]
         else:

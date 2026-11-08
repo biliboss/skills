@@ -88,6 +88,25 @@ class BotsTest(unittest.TestCase):
         self.assertIn('herdr.space=' + bots.space_id(self.bot), label)
         self.assertFalse(any('terminal.keep' in c for c in calls))
 
+    def test_stale_session_adopts_live_shown_terminal_in_folder(self):
+        calls = []
+        def call(argv):
+            calls.append(argv)
+            if argv[:2] == ['hc', 'ls']:
+                return {'terminals': [{'address': 't7', 'state': 'live', 'name': 'unrelated'}]}
+            if argv == ['hc', 'get', 't7']:
+                return {'labels': {'bili.bot': 'test', 'bili.session': 'stale'}, 'cwd': str(self.root)}
+            if argv == ['herdr-app', 'ls']:
+                return {'spaces': [{'tabs': [{'terminals': [{'terminal': 't7', 'pane': 'p1'}]}]}]}
+            return {}
+        with patch.object(bots, 'call', side_effect=call), contextlib.redirect_stdout(io.StringIO()) as out:
+            bots.open_bot(self.bot)
+        self.assertFalse(any(c[:2] == ['hc', 'run'] for c in calls))
+        label = next(c for c in calls if c[:2] == ['hc', 'label'])
+        self.assertEqual(label[2], 't7')
+        self.assertIn('bili.session=' + self.bot['session_id'], label)
+        self.assertEqual(json.loads(out.getvalue())['terminal'], 't7')
+
     def test_new_terminal_has_dedicated_workspace(self):
         calls = self.exercise_open([], live=False)
         run = next(c for c in calls if c[:2] == ['hc', 'run'])

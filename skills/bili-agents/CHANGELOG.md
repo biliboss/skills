@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Opening a bot adopts the live terminal already shown in its folder instead of starting a second tab.
+
 ## 0.2.1
 
 - Cmd+1-9 selects bots in the Bots layout; Option+1-9 takes over tab selection there. Labels show while Command is held.
