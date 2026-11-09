@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.119.2
+
+- Doctor do projeto (`scripts/doctor`) e gates com linha de base do legado; lote piloto do Devin: dev-console 0.31.2, versão de 7 skills alinhada ao CHANGELOG, entrada 0.4.0 no CHANGELOG do prime-agent.
+
 ## 0.119.1
 
 - doctor 0.2.1: `--gate` passa a enxergar os achados `ok` do doctor do projeto (chamado com `--verbose`, e sem a flag quando ele a recusa).
