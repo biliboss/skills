@@ -8,7 +8,7 @@ description: >-
   "AGENTS.md is too long" or "memória desatualizada". Not `wiki-smith` (the long-form wiki), not `memory` (reduces a
   session to facts.jsonl), not `skill-smith` (a class of task, not a project).
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   license: MIT
 ---
 
@@ -59,7 +59,9 @@ Sort every candidate line by this table before writing it.
 ## MIGRATE
 
 1. List every source: wikis, notes, issues, tracker, code, deployed system. Use parallel subagents when it is large,
-   one source each, and require a path or URL on every claim, marking fact versus inference.
+   one source each, and require a path or URL on every claim, marking fact versus inference. For past
+   sessions of an agent, run the `memory` skill on its folder and treat `facts.jsonl` as one more source: each fact's
+   `source` is its origin, and status facts still go through step 3.
 2. Rank the sources for each kind of fact. Live system and forge beat notes; the code on the default branch beats a
    local checkout, which may be behind; the newest dated note beats older notes.
 3. Verify every status claim at its primary source before copying it (`gh pr view`, the health endpoint, `git log`

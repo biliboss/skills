@@ -1,8 +1,8 @@
 ---
 name: memory
-description: Reduce an agent (all sessions of its folder) or one session to a small searchable memory (facts.jsonl) of decisions, preferences, corrections, durable facts and open requests, with the Devin SDK judging windows of the conversation and deterministic code validating every fact against its source. Use when the owner says "memory", "memória reduzida", "extrai a memória da sessão", "resume essa sessão em fatos", "processa as sessões do bot". Not wiki (curated project pages) and not memory-bot (talks to the Memory agent).
+description: Reduce an agent (all sessions of its folder) or one session to a small searchable memory (facts.jsonl) of decisions, preferences, corrections, durable facts and open requests, with the Devin SDK judging windows of the conversation and deterministic code validating every fact against its source. Use when the owner says "memory", "memória reduzida", "extrai a memória da sessão", "resume essa sessão em fatos", "processa as sessões do bot".
 metadata:
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # memory
@@ -56,9 +56,9 @@ Stdout prints the path of `facts.jsonl`; progress goes to stderr. Exit code is `
 ## Examples
 
 ```
-bun run scripts/memory.ts ~/agents/bili --last 10
-bun run scripts/memory.ts ~/agents/bili --rules ~/agents/bili/AGENTS.md
-bun run scripts/memory.ts 0879d991 --out ~/agents/bili/.memory/0879d991 --rules ~/agents/bili/AGENTS.md
+bun run scripts/memory.ts <agent folder> --last 10
+bun run scripts/memory.ts <agent folder> --rules <agent folder>/AGENTS.md
+bun run scripts/memory.ts <session id> --out <dir>
 bun run scripts/memory.ts ./session.jsonl --every 10 --limit 1
 ```
 

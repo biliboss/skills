@@ -13,7 +13,7 @@ Opções e exemplos estão no [SKILL.md](SKILL.md). O prompt está em [resources
 
 | Script | Exemplo |
 |---|---|
-| `scripts/memory.ts` | `bun run scripts/memory.ts ~/agents/bili --last 10` |
+| `scripts/memory.ts` | `bun run scripts/memory.ts <pasta do agente> --last 10` |
 
 Histórico: [CHANGELOG.md](CHANGELOG.md).
 

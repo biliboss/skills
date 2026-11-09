@@ -2,6 +2,12 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-11-09
+
+### Changed
+
+- A skill não cita mais nenhum agente nem caminho da casa: é independente.
+
 ## [0.2.0] - 2026-11-09
 
 ### Added
