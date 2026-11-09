@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.121.0
+
+- `skills/agentsmd`: nova skill que cria, migra e audita o `AGENTS.md` de um projeto, com regras estáveis separadas do `STATE.md` datado.
+
 ## 0.120.0
 
 - `skills/memory`: nova skill que reduz uma sessão de agente a `facts.jsonl`, com o SDK do Devin e validação determinística de cada fato.
