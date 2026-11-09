@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.123.1
+
+- Mapa do `skills/harness` sai da main para revisão em PR.
+
 ## 0.123.0
 
 - agentsmd 0.2.0: o modo de migrar usa a skill `memory`. memory 0.2.1: independente de agentes e caminhos da casa.
