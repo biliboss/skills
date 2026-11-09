@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('install', Path(__file__).parents[3] / 'apps/herdr-bots/install.py')
+spec = importlib.util.spec_from_file_location('install', Path(__file__).parents[1] / 'install.py')
 install = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(install)
 

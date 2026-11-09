@@ -11,8 +11,8 @@ import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
-SKILL = HERE.parents[1] / 'skills/bili-agents'
-spec = importlib.util.spec_from_file_location('bots', SKILL / 'scripts/bots.py')
+SCRIPTS = HERE / 'scripts'
+spec = importlib.util.spec_from_file_location('bots', SCRIPTS / 'bots.py')
 bots = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bots)
 
@@ -151,7 +151,7 @@ def main():
         lists['size'] = {'px': 0}
         for child in lists.get('children', []):
             child['min'] = 0
-    node['content'] = {'mod': 'herdr-bots', 'props': {'opener': str(SKILL / 'scripts/ag-open'), 'registry': str(bots.REGISTRY), 'dataHome': str(bots.HOME)}}
+    node['content'] = {'mod': 'herdr-bots', 'props': {'opener': str(SCRIPTS / 'ag-open'), 'registry': str(bots.REGISTRY), 'dataHome': str(bots.HOME)}}
     mod = app / 'mods/herdr-bots'
     mod.mkdir(parents=True, exist_ok=True)
     if sys.platform == 'darwin':
