@@ -58,6 +58,45 @@ def space_id(bot):
     return 'bot-' + str(uuid.uuid5(uuid.NAMESPACE_URL, bot['id'] + ':' + bot['session_id']))
 
 
+def is_candidate(entry, names, folders):
+    """Terminal worth an `hc get`: a bot's unique name, or unnamed and inside a bot folder. Keeps the 5s panel poll cheap."""
+    if entry.get('state') != 'live':
+        return False
+    if entry.get('name'):
+        return entry['name'] in names
+    cwd = entry.get('cwd')
+    if not cwd:
+        return False
+    path = Path(cwd).expanduser().resolve()
+    return any(path == folder or folder in path.parents for folder in folders)
+
+
+def live_spaces(bots):
+    """Map bot id to the workspace of its live terminal (label herdr.space); bots without one, or ambiguous, are absent."""
+    errors = (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError)
+    try:
+        entries = call(['hc', 'ls'])['terminals']
+    except errors:
+        return {}
+    names = {identity(bot): bot['id'] for bot in bots}
+    sessions = {(bot['id'], bot['session_id']) for bot in bots}
+    folders = [Path(bot['folder']).expanduser().resolve() for bot in bots]
+    seen = {}
+    for entry in entries:
+        if not is_candidate(entry, names, folders):
+            continue
+        try:
+            labels = call(['hc', 'get', entry['address']]).get('labels', {})
+        except errors:
+            continue
+        owner = names.get(entry.get('name'))
+        if owner is None and (labels.get('bili.bot'), labels.get('bili.session')) in sessions:
+            owner = labels['bili.bot']
+        if owner and labels.get('herdr.space'):
+            seen.setdefault(owner, set()).add(labels['herdr.space'])
+    return {owner: spaces.pop() for owner, spaces in seen.items() if len(spaces) == 1}
+
+
 def lock(bot, suffix):
     folder = HOME / '.bot-state'
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -77,13 +116,14 @@ def ready(bot):
         raise ValueError(f"bot command is unavailable: {bot['command'][0]}")
 
 
-def sync_names(bot, layout=None, address=None):
+def sync_names(bot, layout=None, address=None, space=None):
     """Name the bot's space and the tab holding its terminal after the registry name; only renames when different."""
     layout = layout or call(['herdr-app', 'ls'])
     name = bot['name']
+    space_key = space or space_id(bot)
     renamed = []
     for space in layout.get('spaces', []):
-        if space.get('id') != space_id(bot):
+        if space.get('id') != space_key:
             continue
         if space.get('name') != name:
             call(['herdr-app', 'do', 'space.rename', json.dumps({'id': space['id'], 'name': name})])
@@ -135,7 +175,10 @@ def open_bot(bot, focus=False):
                 call(['hc', 'label', found[0], 'bili.bot=' + bot['id'], 'bili.session=' + bot['session_id']])
         if found:
             address = found[0]
+            detail = live_details.get(address) or call(['hc', 'get', address])
+            space = detail.get('labels', {}).get('herdr.space') or space_id(bot)
         else:
+            space = space_id(bot)
             ready(bot)
             result = call(['hc', 'run', '--bg', '--no-parent', '--no-notify', '--name', identity(bot),
                            '--label', 'herdr.space=' + space_id(bot),
@@ -150,7 +193,7 @@ def open_bot(bot, focus=False):
         adopted = True
         if not any(t.get('terminal') == address for t in shown):
             # Adoption through the bot's explicit space labels may arrive asynchronously.
-            call(['hc', 'label', address, 'herdr.space=' + space_id(bot), 'herdr.tab=' + space_id(bot) + '-tab'])
+            call(['hc', 'label', address, 'herdr.space=' + space, 'herdr.tab=' + space + '-tab'])
             for attempt in range(40):
                 current = call(['herdr-app', 'ls'])
                 if any(t.get('terminal') == address for sp in current['spaces'] for tab in sp['tabs'] for t in tab['terminals']):
@@ -159,12 +202,12 @@ def open_bot(bot, focus=False):
             else:
                 if focus:
                     # A parked terminal already belongs to the bot workspace; select it before keeping.
-                    call(['herdr-app', 'do', 'space.select', json.dumps({'id': space_id(bot)})])
+                    call(['herdr-app', 'do', 'space.select', json.dumps({'id': space})])
                     call(['herdr-app', 'do', 'terminal.keep', json.dumps({'terminal': address, 'place': 'tab'})])
                 # Without focus: terminal.keep only acts on the selected space, so it stays labeled, parked, for adoption.
                 adopted = False
         if adopted:
-            sync_names(bot, address=address)
+            sync_names(bot, address=address, space=space)
         if focus:
             call(['herdr-app', 'do', 'agent.focus', json.dumps({'terminal': address})])
         print(json.dumps({'terminal': address, 'bot': bot['id'], 'session_id': bot['session_id'],
@@ -199,9 +242,10 @@ def main():
         bots = registry()
         if len(sys.argv) == 2 and sys.argv[1] == 'list':
             items = []
+            live = live_spaces(bots)
             for bot in bots:
                 error_path = HOME / '.bot-state' / (identity(bot) + '.error')
-                items.append({**bot, 'space_id': space_id(bot),
+                items.append({**bot, 'space_id': live.get(bot['id'], space_id(bot)),
                               'last_error': error_path.read_text() if error_path.exists() else '',
                               'last_active': last_active(bot)})
             # The principal bot stays on top; the rest follow the latest session activity.

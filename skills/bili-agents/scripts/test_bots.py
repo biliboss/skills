@@ -90,6 +90,61 @@ class BotsTest(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(self.moves_focus(self.exercise_open(**kw)), [])
 
+    def spaces_with(self, terminals, details):
+        calls = []
+        def call(argv):
+            calls.append(argv)
+            if argv[:2] == ['hc', 'ls']:
+                return {'terminals': terminals}
+            return details[argv[2]]
+        with patch.object(bots, 'call', side_effect=call):
+            return bots.live_spaces([self.bot]), calls
+
+    def test_live_space_comes_from_the_terminal_label(self):
+        labels = {'bili.bot': 'test', 'bili.session': self.bot['session_id'], 'herdr.space': 'bot-real'}
+        terminal = {'address': 't1', 'state': 'live', 'cwd': str(self.root)}
+        self.assertEqual(self.spaces_with([terminal], {'t1': {'labels': labels}})[0], {'test': 'bot-real'})
+
+    def test_named_terminal_counts_and_other_terminals_are_not_fetched(self):
+        named = {'address': 't1', 'state': 'live', 'name': bots.identity(self.bot), 'cwd': '/elsewhere'}
+        others = [{'address': 't2', 'state': 'live', 'name': 'other'}, {'address': 't3', 'state': 'live', 'cwd': '/elsewhere'},
+                  {'address': 't4', 'state': 'done', 'cwd': str(self.root)}]
+        spaces, calls = self.spaces_with([named, *others], {'t1': {'labels': {'herdr.space': 'bot-real'}}})
+        self.assertEqual(spaces, {'test': 'bot-real'})
+        self.assertEqual([c for c in calls if c[:2] == ['hc', 'get']], [['hc', 'get', 't1']])
+
+    def test_list_keeps_the_computed_space_without_a_live_terminal(self):
+        def fail(argv):
+            raise RuntimeError('hc: down')
+        for side_effect in (fail, lambda argv: {'terminals': []}):
+            with patch.object(bots, 'call', side_effect=side_effect), patch.object(sys, 'argv', ['bots.py', 'list']), \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(bots.main(), 0)
+            self.assertEqual(json.loads(out.getvalue())['bots'][0]['space_id'], bots.space_id(self.bot))
+
+    def test_ambiguous_live_spaces_fall_back(self):
+        labels = {'bili.bot': 'test', 'bili.session': self.bot['session_id']}
+        terminals = [{'address': a, 'state': 'live', 'cwd': str(self.root)} for a in ('t1', 't2')]
+        details = {'t1': {'labels': {**labels, 'herdr.space': 'a'}}, 't2': {'labels': {**labels, 'herdr.space': 'b'}}}
+        self.assertEqual(self.spaces_with(terminals, details)[0], {})
+
+    def test_open_relabels_and_renames_in_the_real_workspace(self):
+        calls = []
+        def call(argv):
+            calls.append(argv)
+            if argv[:2] == ['hc', 'ls']:
+                return {'terminals': [{'address': 't99', 'state': 'live', 'name': bots.identity(self.bot)}]}
+            if argv[:2] == ['hc', 'get']:
+                return {'labels': {'herdr.space': 'bot-real'}}
+            if argv == ['herdr-app', 'ls']:
+                return {'spaces': [{'id': 'bot-real', 'name': 'x', 'tabs': [{'terminals': [{'terminal': 'other'}]}]}]}
+            return {}
+        with patch.object(bots, 'call', side_effect=call), patch.object(bots.time, 'sleep'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            bots.open_bot(self.bot)
+        self.assertIn('herdr.space=bot-real', next(c for c in calls if c[:2] == ['hc', 'label']))
+        self.assertFalse(any('terminal.keep' in c or 'space.select' in c or 'agent.focus' in c for c in calls))
+
     def test_never_shown_leaves_terminal_labeled_without_keep(self):
         calls = self.exercise_open([{'terminal': 'other', 'pane': 'p1'}], never_shown=True)
         self.assertTrue(any(c[:2] == ['hc', 'label'] for c in calls))

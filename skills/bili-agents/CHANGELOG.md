@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- `bots.py list`, `open_bot` e `sync_names` usam o workspace real do terminal vivo (rótulo `herdr.space`); o id calculado fica para bot sem terminal vivo. O painel volta a mostrar estado e seleção de bot cuja sessão mudou depois de abrir o workspace.
+
 ## 0.3.0
 
 - `open_bot(bot, focus=False)`: opening never calls `agent.focus`, `space.select` or `terminal.keep` by default. A terminal not yet shown stays labeled for adoption. `bots.py open --focus` / `ag-open --focus` keep the old behavior for the owner's click.
