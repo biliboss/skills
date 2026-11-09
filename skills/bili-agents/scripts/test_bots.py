@@ -90,60 +90,19 @@ class BotsTest(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(self.moves_focus(self.exercise_open(**kw)), [])
 
-    def spaces_with(self, terminals, details):
-        calls = []
-        def call(argv):
-            calls.append(argv)
-            if argv[:2] == ['hc', 'ls']:
-                return {'terminals': terminals}
-            return details[argv[2]]
-        with patch.object(bots, 'call', side_effect=call):
-            return bots.live_spaces([self.bot]), calls
-
-    def test_live_space_comes_from_the_terminal_label(self):
-        labels = {'bili.bot': 'test', 'bili.session': self.bot['session_id'], 'herdr.space': 'bot-real'}
-        terminal = {'address': 't1', 'state': 'live', 'cwd': str(self.root)}
-        self.assertEqual(self.spaces_with([terminal], {'t1': {'labels': labels}})[0], {'test': 'bot-real'})
-
-    def test_named_terminal_counts_and_other_terminals_are_not_fetched(self):
-        named = {'address': 't1', 'state': 'live', 'name': bots.identity(self.bot), 'cwd': '/elsewhere'}
-        others = [{'address': 't2', 'state': 'live', 'name': 'other'}, {'address': 't3', 'state': 'live', 'cwd': '/elsewhere'},
-                  {'address': 't4', 'state': 'done', 'cwd': str(self.root)}]
-        spaces, calls = self.spaces_with([named, *others], {'t1': {'labels': {'herdr.space': 'bot-real'}}})
-        self.assertEqual(spaces, {'test': 'bot-real'})
-        self.assertEqual([c for c in calls if c[:2] == ['hc', 'get']], [['hc', 'get', 't1']])
-
-    def test_list_keeps_the_computed_space_without_a_live_terminal(self):
-        def fail(argv):
-            raise RuntimeError('hc: down')
-        for side_effect in (fail, lambda argv: {'terminals': []}):
-            with patch.object(bots, 'call', side_effect=side_effect), patch.object(sys, 'argv', ['bots.py', 'list']), \
-                    contextlib.redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(bots.main(), 0)
-            self.assertEqual(json.loads(out.getvalue())['bots'][0]['space_id'], bots.space_id(self.bot))
-
-    def test_ambiguous_live_spaces_fall_back(self):
-        labels = {'bili.bot': 'test', 'bili.session': self.bot['session_id']}
-        terminals = [{'address': a, 'state': 'live', 'cwd': str(self.root)} for a in ('t1', 't2')]
-        details = {'t1': {'labels': {**labels, 'herdr.space': 'a'}}, 't2': {'labels': {**labels, 'herdr.space': 'b'}}}
-        self.assertEqual(self.spaces_with(terminals, details)[0], {})
-
-    def test_open_relabels_and_renames_in_the_real_workspace(self):
-        calls = []
-        def call(argv):
-            calls.append(argv)
-            if argv[:2] == ['hc', 'ls']:
-                return {'terminals': [{'address': 't99', 'state': 'live', 'name': bots.identity(self.bot)}]}
-            if argv[:2] == ['hc', 'get']:
-                return {'labels': {'herdr.space': 'bot-real'}}
-            if argv == ['herdr-app', 'ls']:
-                return {'spaces': [{'id': 'bot-real', 'name': 'x', 'tabs': [{'terminals': [{'terminal': 'other'}]}]}]}
-            return {}
-        with patch.object(bots, 'call', side_effect=call), patch.object(bots.time, 'sleep'), \
-                contextlib.redirect_stdout(io.StringIO()):
-            bots.open_bot(self.bot)
-        self.assertIn('herdr.space=bot-real', next(c for c in calls if c[:2] == ['hc', 'label']))
-        self.assertFalse(any('terminal.keep' in c or 'space.select' in c or 'agent.focus' in c for c in calls))
+    def test_only_terminal_gets_the_labels_enviar_needs_and_split_does_not(self):
+        for terminals, expected in (([{'terminal': 't1'}], True), ([{'terminal': 't1'}, {'terminal': 't2'}], False)):
+            calls = []
+            def call(argv):
+                calls.append(argv)
+                if argv == ['herdr-app', 'ls']:
+                    return {'spaces': [{'id': 'bot-real', 'name': 'Test', 'folder': str(self.root),
+                                        'tabs': [{'id': 'tab', 'name': 'Test', 'terminals': terminals}]}]}
+                return {}
+            with patch.object(bots, 'call', side_effect=call), contextlib.redirect_stdout(io.StringIO()):
+                bots.open_bot(self.bot)
+            self.assertEqual(any(c[:2] == ['hc', 'label'] for c in calls), expected)
+            self.assertFalse(any('agent.focus' in c or 'space.select' in c for c in calls))
 
     def test_never_shown_leaves_terminal_labeled_without_keep(self):
         calls = self.exercise_open([{'terminal': 'other', 'pane': 'p1'}], never_shown=True)
@@ -184,24 +143,91 @@ class BotsTest(unittest.TestCase):
         self.assertIn('herdr.space=' + bots.space_id(self.bot), label)
         self.assertFalse(any('terminal.keep' in c for c in calls))
 
-    def test_stale_session_adopts_live_shown_terminal_in_folder(self):
+    def ws(self, terminals, sid=None, folder=None):
+        return {'id': sid or 'bot-real', 'name': 'x', 'folder': folder or str(self.root),
+                'tabs': [{'id': 'tab0', 'terminals': terminals}]}
+
+    def run_list(self, side_effect):
+        with patch.object(bots, 'call', side_effect=side_effect), patch.object(sys, 'argv', ['bots.py', 'list']), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(bots.main(), 0)
+        return json.loads(out.getvalue())['bots'][0]['space_id']
+
+    def test_list_uses_folder_match_without_hc(self):
         calls = []
         def call(argv):
             calls.append(argv)
-            if argv[:2] == ['hc', 'ls']:
-                return {'terminals': [{'address': 't7', 'state': 'live', 'name': 'unrelated'}]}
-            if argv == ['hc', 'get', 't7']:
-                return {'labels': {'bili.bot': 'test', 'bili.session': 'stale'}, 'cwd': str(self.root)}
+            return {'spaces': [self.ws([]), self.ws([], sid='other', folder='/elsewhere')]}
+        self.assertEqual(self.run_list(call), 'bot-real')
+        self.assertEqual(calls, [['herdr-app', 'ls']])
+
+    def test_list_keeps_computed_id_without_workspace_or_on_error(self):
+        def fail(argv):
+            raise RuntimeError('herdr-app: down')
+        for side_effect in (fail, lambda argv: {'spaces': [self.ws([], folder='/elsewhere')]}):
+            self.assertEqual(self.run_list(side_effect), bots.space_id(self.bot))
+
+    def test_two_spaces_same_folder_pick_deterministically(self):
+        two = {'spaces': [self.ws([], sid='b'), self.ws([], sid='a')]}
+        self.assertEqual(bots.workspace_of(self.bot, two)['id'], 'a')
+        computed = {'spaces': [*two['spaces'], self.ws([], sid=bots.space_id(self.bot))]}
+        self.assertEqual(bots.workspace_of(self.bot, computed)['id'], bots.space_id(self.bot))
+
+    def open_in_workspace(self, terminals, labels=None, focus=False, ls=None):
+        calls = []
+        layout = {'spaces': [self.ws(terminals)]}
+        def call(argv):
+            calls.append(argv)
             if argv == ['herdr-app', 'ls']:
-                return {'spaces': [{'tabs': [{'terminals': [{'terminal': 't7', 'pane': 'p1'}]}]}]}
+                return layout
+            if argv[:2] == ['hc', 'get']:
+                result = (labels or {}).get(argv[2], {})
+                if isinstance(result, Exception):
+                    raise result
+                return {'labels': result}
+            if argv[:2] == ['hc', 'ls']:
+                return {'terminals': ls or []}
+            if argv[:2] == ['hc', 'run']:
+                return {'address': 'tnew'}
             return {}
-        with patch.object(bots, 'call', side_effect=call), contextlib.redirect_stdout(io.StringIO()) as out:
-            bots.open_bot(self.bot)
-        self.assertFalse(any(c[:2] == ['hc', 'run'] for c in calls))
-        label = next(c for c in calls if c[:2] == ['hc', 'label'])
-        self.assertEqual(label[2], 't7')
-        self.assertIn('bili.session=' + self.bot['session_id'], label)
-        self.assertEqual(json.loads(out.getvalue())['terminal'], 't7')
+        with patch.object(bots, 'call', side_effect=call), patch.object(bots.time, 'sleep'), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            bots.open_bot(self.bot, focus=focus)
+        return calls, json.loads(out.getvalue())
+
+    def test_two_unlabeled_terminals_pick_first_without_writes(self):
+        calls, out = self.open_in_workspace([{'terminal': 't63'}, {'terminal': 't64'}])
+        self.assertEqual(out['terminal'], 't63')
+        self.assertFalse(any(c[:2] in (['hc', 'label'], ['hc', 'run']) for c in calls))
+        self.assertEqual(self.moves_focus(calls), [])
+
+    def test_name_beats_label_beats_first(self):
+        terminals = [{'terminal': 't1'}, {'terminal': 't2'}, {'terminal': 't3', 'name': bots.identity(self.bot)}]
+        labels = {'t2': {'bili.bot': 'test'}}
+        self.assertEqual(self.open_in_workspace(terminals, labels)[1]['terminal'], 't3')
+        self.assertEqual(self.open_in_workspace(terminals[:2], labels)[1]['terminal'], 't2')
+        self.assertEqual(self.open_in_workspace(terminals[:2])[1]['terminal'], 't1')
+
+    def test_label_lookup_skips_errors_and_ignores_session(self):
+        terminals = [{'terminal': 't1'}, {'terminal': 't2'}]
+        labels = {'t1': RuntimeError('gone'), 't2': {'bili.bot': 'test', 'bili.session': 'stale'}}
+        self.assertEqual(self.open_in_workspace(terminals, labels)[1]['terminal'], 't2')
+
+    def test_focus_true_focuses_the_chosen_terminal(self):
+        calls, _ = self.open_in_workspace([{'terminal': 't63'}, {'terminal': 't64'}], focus=True)
+        self.assertIn(['herdr-app', 'do', 'agent.focus', json.dumps({'terminal': 't63'})], calls)
+
+    def test_no_workspace_and_no_parked_terminal_creates(self):
+        calls = self.exercise_open([], live=False)
+        run = next(c for c in calls if c[:2] == ['hc', 'run'])
+        self.assertIn('herdr.space=' + bots.space_id(self.bot), run)
+
+    def test_empty_workspace_creates_with_its_id(self):
+        calls, out = self.open_in_workspace([])
+        run = next(c for c in calls if c[:2] == ['hc', 'run'])
+        self.assertIn('herdr.space=bot-real', run)
+        self.assertIn('herdr.tab=bot-real-tab', run)
+        self.assertEqual(out['terminal'], 'tnew')
 
     def test_new_terminal_has_dedicated_workspace(self):
         calls = self.exercise_open([], live=False)

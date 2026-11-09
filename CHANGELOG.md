@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.119.4
+
+- bili-agents 0.3.2: o workspace do bot é o espaço cujo `folder` é a pasta do registro; clicar no Bili volta a abrir mesmo com sessão antiga e terminais sem rótulo, e `bots.py list` não chama mais `hc`.
+
 ## 0.119.3
 
 - bili-agents 0.3.1: `bots.py list` devolve o workspace real do terminal vivo, e o painel herdr-bots volta a mostrar estado e seleção do Bili.

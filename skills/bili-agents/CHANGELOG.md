@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Uma regra só: o workspace do bot é o espaço do Herdr cujo `folder` é a pasta do registro (`workspace_of`); `terminal_in` escolhe o terminal por nome, depois rótulo `bili.bot`, depois o primeiro, sem recusar por ambiguidade. Sai a adoção por cwd e o erro "multiple terminals in the bot folder". `bots.py list` faz só um `herdr-app ls` e nenhuma chamada `hc` (`is_candidate` e `live_spaces` removidos), o que barateia a consulta de 5 s do painel.
+
 ## 0.3.1
 
 - `bots.py list`, `open_bot` e `sync_names` usam o workspace real do terminal vivo (rótulo `herdr.space`); o id calculado fica para bot sem terminal vivo. O painel volta a mostrar estado e seleção de bot cuja sessão mudou depois de abrir o workspace.

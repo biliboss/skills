@@ -58,43 +58,48 @@ def space_id(bot):
     return 'bot-' + str(uuid.uuid5(uuid.NAMESPACE_URL, bot['id'] + ':' + bot['session_id']))
 
 
-def is_candidate(entry, names, folders):
-    """Terminal worth an `hc get`: a bot's unique name, or unnamed and inside a bot folder. Keeps the 5s panel poll cheap."""
-    if entry.get('state') != 'live':
-        return False
-    if entry.get('name'):
-        return entry['name'] in names
-    cwd = entry.get('cwd')
-    if not cwd:
-        return False
-    path = Path(cwd).expanduser().resolve()
-    return any(path == folder or folder in path.parents for folder in folders)
-
-
-def live_spaces(bots):
-    """Map bot id to the workspace of its live terminal (label herdr.space); bots without one, or ambiguous, are absent."""
-    errors = (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError)
-    try:
-        entries = call(['hc', 'ls'])['terminals']
-    except errors:
-        return {}
-    names = {identity(bot): bot['id'] for bot in bots}
-    sessions = {(bot['id'], bot['session_id']) for bot in bots}
-    folders = [Path(bot['folder']).expanduser().resolve() for bot in bots]
-    seen = {}
-    for entry in entries:
-        if not is_candidate(entry, names, folders):
-            continue
+def workspace_of(bot, layout):
+    """The bot's workspace: the space whose folder is the registry folder. Several: the computed id, else the lowest id."""
+    folder = Path(bot['folder']).expanduser().resolve()
+    matches = []
+    for space in layout.get('spaces', []):
         try:
-            labels = call(['hc', 'get', entry['address']]).get('labels', {})
-        except errors:
+            if space.get('folder') and Path(space['folder']).expanduser().resolve() == folder:
+                matches.append(space)
+        except (OSError, RuntimeError, TypeError):
             continue
-        owner = names.get(entry.get('name'))
-        if owner is None and (labels.get('bili.bot'), labels.get('bili.session')) in sessions:
-            owner = labels['bili.bot']
-        if owner and labels.get('herdr.space'):
-            seen.setdefault(owner, set()).add(labels['herdr.space'])
-    return {owner: spaces.pop() for owner, spaces in seen.items() if len(spaces) == 1}
+    if not matches:
+        return None
+    computed = [s for s in matches if s.get('id') == space_id(bot)]
+    return computed[0] if computed else min(matches, key=lambda s: str(s.get('id')))
+
+
+def terminal_in(bot, space):
+    """The bot's terminal inside its workspace: by name, else by bili.bot label, else the first one. Never ambiguous."""
+    terminals = [t for tab in space.get('tabs', []) for t in tab.get('terminals', []) if t.get('terminal')]
+    if not terminals:
+        return None
+    for t in terminals:
+        if t.get('name') == identity(bot):
+            return t['terminal']
+    for t in terminals:
+        try:
+            labels = call(['hc', 'get', t['terminal']]).get('labels', {})
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
+            continue
+        if labels.get('bili.bot') == bot['id']:
+            return t['terminal']
+    return terminals[0]['terminal']
+
+
+def mark_only_terminal(bot, space, address):
+    """enviar.sh finds a bot by its bili.* labels: mark a workspace's only terminal. With a split there is no safe guess."""
+    if sum(len(tab.get('terminals', [])) for tab in space.get('tabs', [])) != 1:
+        return
+    wanted = {'bili.bot': bot['id'], 'bili.session': bot['session_id']}
+    labels = call(['hc', 'get', address]).get('labels', {})
+    if any(labels.get(k) != v for k, v in wanted.items()):
+        call(['hc', 'label', address, *[f'{k}={v}' for k, v in wanted.items()]])
 
 
 def lock(bot, suffix):
@@ -140,49 +145,33 @@ def sync_names(bot, layout=None, address=None, space=None):
 def open_bot(bot, focus=False):
     """Open the bot's terminal. Never moves the owner's focus unless focus=True (explicit click/shortcut)."""
     with lock(bot, '.open.lock'):
-        entries = call(['hc', 'ls'])['terminals']
         layout = call(['herdr-app', 'ls'])
         shown = [t for s in layout['spaces'] for tab in s['tabs'] for t in tab['terminals']]
-        found = []
-        live_details = {}
-        for entry in entries:
-            if entry.get('state') != 'live':
-                continue
-            # The unique name exists from creation, before the wrapper adds labels.
-            if entry.get('name') == identity(bot):
-                found.append(entry['address'])
-                continue
-            detail = call(['hc', 'get', entry['address']])
-            live_details[entry['address']] = detail
-            labels = detail.get('labels', {})
-            if labels.get('bili.bot') == bot['id'] and labels.get('bili.session') == bot['session_id']:
-                found.append(entry['address'])
-        if len(found) > 1:
-            raise RuntimeError('multiple terminals match this bot and UUID; refusing to choose')
-        if not found:
-            # Stale session_id: adopt the live terminal already shown in the bot folder instead of opening another tab.
-            folder = Path(bot['folder']).expanduser().resolve()
-            shown_ids = {t.get('terminal') for t in shown}
-            same_folder = []
-            for address, detail in live_details.items():
-                cwd = detail.get('cwd')
-                if address in shown_ids and cwd and Path(cwd).expanduser().resolve() == folder:
-                    same_folder.append(address)
-            if len(same_folder) > 1:
-                raise RuntimeError('multiple terminals in the bot folder; refusing to choose')
-            if same_folder:
-                found = same_folder
-                call(['hc', 'label', found[0], 'bili.bot=' + bot['id'], 'bili.session=' + bot['session_id']])
-        if found:
-            address = found[0]
-            detail = live_details.get(address) or call(['hc', 'get', address])
-            space = detail.get('labels', {}).get('herdr.space') or space_id(bot)
-        else:
-            space = space_id(bot)
+        workspace = workspace_of(bot, layout)
+        space = workspace['id'] if workspace else space_id(bot)
+        address = terminal_in(bot, workspace) if workspace else None
+        if address:
+            mark_only_terminal(bot, workspace, address)
+        if not address:
+            found = []
+            for entry in call(['hc', 'ls'])['terminals']:
+                if entry.get('state') != 'live':
+                    continue
+                # The unique name exists from creation, before the wrapper adds labels.
+                if entry.get('name') == identity(bot):
+                    found.append(entry['address'])
+                    continue
+                labels = call(['hc', 'get', entry['address']]).get('labels', {})
+                if labels.get('bili.bot') == bot['id'] and labels.get('bili.session') == bot['session_id']:
+                    found.append(entry['address'])
+            if len(found) > 1:
+                raise RuntimeError('multiple terminals match this bot and UUID; refusing to choose')
+            address = found[0] if found else None
+        if not address:
             ready(bot)
             result = call(['hc', 'run', '--bg', '--no-parent', '--no-notify', '--name', identity(bot),
-                           '--label', 'herdr.space=' + space_id(bot),
-                           '--label', 'herdr.tab=' + space_id(bot) + '-tab',
+                           '--label', 'herdr.space=' + space,
+                           '--label', 'herdr.tab=' + space + '-tab',
                            '--label', 'bili.bot=' + bot['id'], '--label', 'bili.session=' + bot['session_id'],
                            '--cwd', str(Path(bot['folder']).expanduser()), '--',
                            'env', 'AG_HOME=' + str(HOME), 'AG_BOTS_FILE=' + str(REGISTRY),
@@ -242,10 +231,14 @@ def main():
         bots = registry()
         if len(sys.argv) == 2 and sys.argv[1] == 'list':
             items = []
-            live = live_spaces(bots)
+            try:
+                layout = call(['herdr-app', 'ls'])
+            except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
+                layout = {}
             for bot in bots:
+                workspace = workspace_of(bot, layout)
                 error_path = HOME / '.bot-state' / (identity(bot) + '.error')
-                items.append({**bot, 'space_id': live.get(bot['id'], space_id(bot)),
+                items.append({**bot, 'space_id': workspace['id'] if workspace else space_id(bot),
                               'last_error': error_path.read_text() if error_path.exists() else '',
                               'last_active': last_active(bot)})
             # The principal bot stays on top; the rest follow the latest session activity.
