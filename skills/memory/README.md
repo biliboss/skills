@@ -1,6 +1,6 @@
 # memory
 
-Reduz uma sessão de agente a um `facts.jsonl` pequeno e buscável: decisões, preferências, correções, fatos duráveis e pedidos em aberto. O modelo julga cada janela da conversa; o código confere cada fato contra a mensagem de origem e guarda só o que passa.
+Reduz um agente (todas as sessões da pasta dele) ou uma sessão a um `facts.jsonl` pequeno e buscável: decisões, preferências, correções, fatos duráveis e pedidos em aberto. O modelo julga cada janela da conversa; o código confere cada fato contra a mensagem de origem e guarda só o que passa.
 
 ## Como funciona
 
@@ -13,7 +13,7 @@ Opções e exemplos estão no [SKILL.md](SKILL.md). O prompt está em [resources
 
 | Script | Exemplo |
 |---|---|
-| `scripts/memory.ts` | `bun run scripts/memory.ts 0879d991 --every 20` |
+| `scripts/memory.ts` | `bun run scripts/memory.ts ~/agents/bili --last 10` |
 
 Histórico: [CHANGELOG.md](CHANGELOG.md).
 

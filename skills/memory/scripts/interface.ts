@@ -1,7 +1,7 @@
 /**
  * Domain contract of the memory module.
  *
- * Aggregate root: SessionMemory, the reduced memory of one agent session.
+ * Aggregate root: AgentMemory, the reduced memory of one agent (a folder) or one session.
  * Everything outside it (transcript reading, the model, the disk) is a port.
  * The model only judges: it proposes facts; the aggregate decides what stays.
  */
@@ -40,11 +40,13 @@ export interface Fact {
 /** How many transcript messages are already reflected in the memory. */
 export type Cursor = number;
 
-/** Value object: the masked messages of a session, in order. */
+/** Value object: the masked messages of one or many sessions, in time order. */
 export interface Transcript {
   readonly messages: readonly Message[];
   /** Windows after `from`, each closing every `every` owner messages. */
   windows(from: Cursor, every: number): readonly Window[];
+  /** The tail that starts at the Nth most recent owner message. */
+  last(ownerMessages: number): Transcript;
 }
 
 /** Value object: a slice of the transcript. */
@@ -96,11 +98,12 @@ export interface Proposal {
 }
 
 /**
- * Aggregate root. One instance per session; the only writer of its facts.
+ * Aggregate root. One instance per scope; the only writer of its facts.
  * The cursor only moves forward, so a new run reads only what is new.
  */
-export interface SessionMemory {
-  readonly sessionId: string;
+export interface AgentMemory {
+  /** Agent folder name, or the short id when a single session was asked. */
+  readonly scope: string;
   readonly cursor: Cursor;
   readonly facts: readonly Fact[];
 
@@ -109,12 +112,12 @@ export interface SessionMemory {
    * and moves the cursor to the end of its window.
    * Throws when the proposal has violations or its window is not the next one.
    */
-  absorb(proposal: Proposal): SessionMemory;
+  absorb(proposal: Proposal): AgentMemory;
 }
 
-/** Port: reads a session. */
+/** Port: reads a session id, a session .jsonl, or an agent folder (all its sessions). */
 export interface TranscriptReader {
-  read(sessionIdOrPath: string): Promise<Transcript>;
+  read(input: string): Promise<Transcript>;
 }
 
 /** What the extractor sees for one window. */
@@ -134,6 +137,6 @@ export interface FactExtractor {
 
 /** Port: durable state of the aggregate. */
 export interface MemoryStore {
-  load(sessionId: string): Promise<SessionMemory>;
-  save(memory: SessionMemory): Promise<void>;
+  load(scope: string): Promise<AgentMemory>;
+  save(memory: AgentMemory): Promise<void>;
 }

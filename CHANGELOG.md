@@ -6,6 +6,11 @@ Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versõe
 
 - `skills/agentsmd`: nova skill que cria, migra e audita o `AGENTS.md` de um projeto, com regras estáveis separadas do `STATE.md` datado.
 
+## 0.121.0
+
+- memory 0.2.0: aceita a pasta do agente (todas as sessões) e `--last N`.
+
+
 ## 0.120.0
 
 - `skills/memory`: nova skill que reduz uma sessão de agente a `facts.jsonl`, com o SDK do Devin e validação determinística de cada fato.

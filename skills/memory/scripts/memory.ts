@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 /**
- * Reduces an agent session to facts.jsonl, window by window.
- * Usage: memory.ts <session id or .jsonl> [--out DIR] [--every N] [--model ID] [--rules FILE] [--limit N]
+ * Reduces an agent (a folder, all its sessions) or one session to facts.jsonl, window by window.
+ * Usage: memory.ts [folder | session id | .jsonl] [--last N] [--out DIR] [--every N] [--model ID] [--rules FILE] [--limit N]
  */
 import { LocalDevin } from "@cognition-ai/sdk@0.0.1-beta.7";
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Glob } from "bun";
 import {
@@ -17,7 +17,7 @@ import {
   type MemoryStore,
   type Message,
   type Proposal,
-  type SessionMemory,
+  type AgentMemory,
   type Transcript,
   type TranscriptReader,
   type Violation,
@@ -62,6 +62,14 @@ const isOwnerText = (text: string) => !NOT_OWNER.some((prefix) => text.startsWit
 
 class TranscriptValue implements Transcript {
   constructor(readonly messages: readonly Message[]) {}
+
+  last(ownerMessages: number): Transcript {
+    let seen = 0;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i]!.fromOwner && ++seen === ownerMessages) return new TranscriptValue(this.messages.slice(i));
+    }
+    return this;
+  }
 
   windows(from: Cursor, every: number): readonly Window[] {
     const result: Window[] = [];
@@ -122,15 +130,15 @@ function proposalOf(window: Window, lines: string): Proposal {
   return { window, facts, violations };
 }
 
-class Memory implements SessionMemory {
-  constructor(readonly sessionId: string, readonly cursor: Cursor, readonly facts: readonly Fact[]) {}
+class Memory implements AgentMemory {
+  constructor(readonly scope: string, readonly cursor: Cursor, readonly facts: readonly Fact[]) {}
 
-  absorb(proposal: Proposal): SessionMemory {
+  absorb(proposal: Proposal): AgentMemory {
     const { window, facts, violations } = proposal;
     if (violations.length) throw new Error(`proposta com ${violations.length} violações`);
     if (window.end - window.messages.length !== this.cursor) throw new Error("janela fora de ordem");
     const live = facts.filter((f) => !facts.some((g) => g !== f && g.supersedes === f.source));
-    return new Memory(this.sessionId, window.end, live);
+    return new Memory(this.scope, window.end, live);
   }
 }
 
@@ -143,10 +151,33 @@ function writeAtomic(path: string, content: string) {
   renameSync(temp, path);
 }
 
+const isFolder = (input: string) => existsSync(input) && statSync(input).isDirectory();
+
+function scopeOf(input: string): string {
+  if (isFolder(input)) return basename(resolve(input));
+  return (input.endsWith(".jsonl") ? basename(input) : input).slice(0, 8);
+}
+
 class JsonlTranscriptReader implements TranscriptReader {
-  async read(sessionIdOrPath: string): Promise<Transcript> {
-    const path = sessionIdOrPath.endsWith(".jsonl") ? resolve(sessionIdOrPath) : this.locate(sessionIdOrPath);
-    const short = path.split("/").pop()!.slice(0, 8);
+  async read(input: string): Promise<Transcript> {
+    const messages = this.files(input).flatMap((path) => this.parse(path));
+    return new TranscriptValue(messages.sort((a, b) => a.ts.localeCompare(b.ts)));
+  }
+
+  private files(input: string): string[] {
+    if (input.endsWith(".jsonl")) return [resolve(input)];
+    if (isFolder(input)) {
+      const project = join(PROJECTS, resolve(input).replace(/[^a-zA-Z0-9]/g, "-"));
+      if (!existsSync(project)) throw new Error(`nenhuma sessão para a pasta ${input}`);
+      return [...new Glob("*.jsonl").scanSync({ cwd: project, absolute: true })];
+    }
+    const found = [...new Glob(`*/${input}*.jsonl`).scanSync({ cwd: PROJECTS, absolute: true })];
+    if (found.length !== 1) throw new Error(`sessão ${input}: ${found.length} arquivos encontrados`);
+    return found;
+  }
+
+  private parse(path: string): Message[] {
+    const short = basename(path).slice(0, 8);
     const messages: Message[] = [];
     for (const line of readFileSync(path, "utf8").split("\n")) {
       if (!line.trim()) continue;
@@ -164,30 +195,24 @@ class JsonlTranscriptReader implements TranscriptReader {
       const role = queued || e.type === "user" ? "user" : "assistant";
       messages.push({ source: `${short}:${e.uuid}`, ts: e.timestamp, role, fromOwner: role === "user" && isOwnerText(text), text: mask(text) });
     }
-    return new TranscriptValue(messages);
-  }
-
-  private locate(id: string): string {
-    const found = [...new Glob(`*/${id}*.jsonl`).scanSync({ cwd: PROJECTS, absolute: true })];
-    if (found.length !== 1) throw new Error(`sessão ${id}: ${found.length} arquivos encontrados`);
-    return found[0]!;
+    return messages;
   }
 }
 
 class FileStore implements MemoryStore {
   constructor(private readonly dir: string) {}
 
-  async load(sessionId: string): Promise<SessionMemory> {
+  async load(scope: string): Promise<AgentMemory> {
     const state = join(this.dir, "memory.json");
-    if (!existsSync(state)) return new Memory(sessionId, 0, []);
+    if (!existsSync(state)) return new Memory(scope, 0, []);
     const { cursor } = JSON.parse(readFileSync(state, "utf8"));
     const facts = readFileSync(join(this.dir, "facts.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Fact);
-    return new Memory(sessionId, cursor, facts);
+    return new Memory(scope, cursor, facts);
   }
 
-  async save(memory: SessionMemory): Promise<void> {
+  async save(memory: AgentMemory): Promise<void> {
     writeAtomic(join(this.dir, "facts.jsonl"), toLines(memory.facts));
-    writeAtomic(join(this.dir, "memory.json"), JSON.stringify({ sessionId: memory.sessionId, cursor: memory.cursor }) + "\n");
+    writeAtomic(join(this.dir, "memory.json"), JSON.stringify({ scope: memory.scope, cursor: memory.cursor }) + "\n");
   }
 }
 
@@ -279,25 +304,25 @@ async function main() {
       model: { type: "string", default: process.env.MEMORY_MODEL ?? "swe-2-high" },
       rules: { type: "string" },
       limit: { type: "string" },
+      last: { type: "string" },
     },
   });
-  const session = positionals[0];
-  if (!session) throw new Error("uso: memory.ts <sessão> [--out DIR] [--every N] [--model ID] [--rules FILE] [--limit N]");
-
-  const transcript = await new JsonlTranscriptReader().read(session);
-  const first = transcript.messages[0];
-  if (!first) throw new Error("sessão sem mensagens");
-  const sessionId = first.source.split(":")[0]!;
-  const out = resolve(values.out ?? join(".memory", sessionId));
+  const input = positionals[0] ?? process.cwd();
+  const scope = scopeOf(input);
+  const last = values.last ? Number(values.last) : null;
+  const whole = await new JsonlTranscriptReader().read(input);
+  const transcript = last ? whole.last(last) : whole;
+  if (!transcript.messages.length) throw new Error("nenhuma mensagem encontrada");
+  const out = resolve(values.out ?? join(".memory", last ? `${scope}-last` : scope));
   mkdirSync(join(out, "work"), { recursive: true });
   const work = realpathSync(join(out, "work"));
 
   const store = new FileStore(out);
   const rules = values.rules ? readFileSync(values.rules, "utf8") : null;
-  let memory = await store.load(sessionId);
+  let memory = last ? new Memory(scope, 0, []) : await store.load(scope);
   const windows = transcript.windows(memory.cursor, Number(values.every));
   const todo = values.limit ? windows.slice(0, Number(values.limit)) : windows;
-  console.error(`${sessionId}: ${transcript.messages.length} mensagens, cursor ${memory.cursor}, ${todo.length} janelas`);
+  console.error(`${scope}: ${transcript.messages.length} mensagens, cursor ${memory.cursor}, ${todo.length} janelas`);
   if (!todo.length) return;
 
   const extractor = await DevinExtractor.open(work, values.model!);
