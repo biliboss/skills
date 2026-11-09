@@ -2,7 +2,7 @@
 name: sync
 description: Leave every repo the session touched equal to the remote and clean — commit this session's work by path, rebase on origin, lint the .wiki when it is touched, push, and report what is left dirty and whose it is. Manual, run when closing a piece of work. Use when the user says "commit and sync", "sincroniza", "commit e push", "sync all", "deixa tudo igual ao remoto", "não deixa sujo", "fecha e sobe". Not wiki-smith (that writes and commits wiki pages through its own sync.sh) nor delegate-and-review (a PR on a run/* branch); this one closes the session's work straight on the branch it is on.
 metadata:
-  version: 0.1.5
+  version: 0.1.6
 ---
 
 # sync — o repo igual ao remoto, sem sujeira

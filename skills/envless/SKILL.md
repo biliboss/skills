@@ -2,7 +2,7 @@
 name: envless
 description: "Use um segredo (chave de API, token, senha) num comando sem que o valor passe pela conversa, pelo envless, o cofre da casa (sops + age, um arquivo cifrado por ambiente no git). `envless exec -- <cmd>` injeta o segredo no ambiente do comando; `list` mostra as chaves sem valor; `set` grava pelo stdin; `get` só com `--confirm` e nunca na tela. O `envless mcp` é para cliente sem shell (Cursor, Claude Desktop). Use quando pedirem \"usa a chave do cofre\", \"roda com o token X\", \"guarda esse segredo\", \"põe no envless\", \"qual chave tem no cofre\", \"migra o .env\", \"o script precisa da API key\". Não é a `linear` nem o `gh-app` (essas já leem o token delas por script), nem login OAuth do Claude (esse não vai para o envless)."
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # envless — o segredo entra no comando, nunca na conversa

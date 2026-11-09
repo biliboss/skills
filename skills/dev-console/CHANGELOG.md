@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.31.2] - 2026-11-08
+
+### Fixed
+
+- `scripts/console_domain_draft.py` volta a parsear: o método `import` virou `import_`.
+
 ## [0.31.1] - 2026-11-08
 
 ### Changed

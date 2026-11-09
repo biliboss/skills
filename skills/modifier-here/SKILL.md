@@ -2,7 +2,7 @@
 name: modifier-here
 description: "Use when a request ends in --here. Do it in this session, no subagent."
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # modifier-here
