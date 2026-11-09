@@ -161,8 +161,15 @@ def main():
         subprocess.run(['xcrun', 'clang', '-isysroot', sdk, '-O2', str(HERE / 'option-state.c'), '-framework', 'ApplicationServices', '-o', str(temporary)], check=True)
         os.replace(temporary, helper)
         node['content']['props']['optionState'] = str(helper)
-    for name in ('main.js', 'mod.json'):
-        shutil.copy2(HERE / name, mod / name)
+    sources = [HERE / 'main.js', HERE / 'mod.json']
+    for folder in ('lib', 'widgets'):
+        if not (HERE / folder).is_dir():
+            raise RuntimeError(f'missing mod folder {HERE / folder}')
+        sources += sorted((HERE / folder).glob('*.js'))
+    for source in sources:
+        target = mod / source.relative_to(HERE)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
     subprocess.run(['herdr-app', 'check', str(mod)], check=True)
     write(path, layout)
     bots.call(['herdr-app', 'do', 'layout.switch', json.dumps({'name': destination})])

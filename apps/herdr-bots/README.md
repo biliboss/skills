@@ -1,5 +1,7 @@
 # Herdr Bots
 
+`AGENTS.md` has the screen and widget map.
+
 Requires macOS or Linux, Python 3, `hc`, `herdr-app`, a running Herdr window, and the configured agent command.
 Old-folder preparation additionally requires `lsof`. Herdr must expose `layout.clone`, `mod.clone`, terminal
 labels and the installed gpui-kit mod API. No Node packages or new repository are needed.

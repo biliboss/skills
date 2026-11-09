@@ -127,8 +127,8 @@ class BotsTest(unittest.TestCase):
 
     def test_ag_open_forwards_flags_and_panel_click_requests_focus(self):
         self.assertIn("'open', *sys.argv[1:]", Path(__file__).with_name('ag-open').read_text())
-        main_js = Path(__file__).resolve().parents[3] / 'apps/herdr-bots/main.js'
-        self.assertIn("props().opener, '--focus', bot.id", main_js.read_text())
+        registry_js = Path(__file__).resolve().parents[3] / 'apps/herdr-bots/lib/registry.js'
+        self.assertIn("props().opener, '--focus', bot.id", registry_js.read_text())
 
     def test_focus_existing_without_creation(self):
         calls = self.exercise_open([{'terminal': 't99', 'pane': 'p1'}], focus=True)
