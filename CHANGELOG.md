@@ -2,6 +2,11 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.120.0
+
+- `skills/memory`: nova skill que reduz uma sessão de agente a `facts.jsonl`, com o SDK do Devin e validação determinística de cada fato.
+
+
 ## 0.119.5
 
 - `skills/harness`: mapa de capacidades dos CLIs de agente, gerado do `--help` (`scripts/_utils/map_capabilities.ts`, `resources/map_capabilities.jsonl`).
