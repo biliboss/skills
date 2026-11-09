@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.119.5
+
+- `skills/harness`: mapa de capacidades dos CLIs de agente, gerado do `--help` (`scripts/_utils/map_capabilities.ts`, `resources/map_capabilities.jsonl`).
+
 ## 0.119.4
 
 - bili-agents 0.3.2: o workspace do bot é o espaço cujo `folder` é a pasta do registro; clicar no Bili volta a abrir mesmo com sessão antiga e terminais sem rótulo, e `bots.py list` não chama mais `hc`.
