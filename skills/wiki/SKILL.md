@@ -13,7 +13,7 @@ description: >-
   a new folder under `$WIKI_HOME` with its `wiki.config` (`REPO=owner/name`), created from
   `templates/`; a few repos keep a local `.wiki`, operated with `-w <repo>/.wiki`.
 metadata:
-  version: 0.2.0
+  version: 0.3.0
   license: MIT
 ---
 
@@ -45,6 +45,7 @@ Read the session (and `git diff`, `git log` for the work done). Pick **every** r
 | A new subject with several facets (it will come back, and one page would mix kinds) | A map of content `moc-<topic>.md` plus pages `<topic>-<facet>.md` (cheatsheet, install, integration, comparison with the current tool...). See "New subject" below. |
 | A public skill was installed or studied | **Absorb it**: only what is new goes into the topic's map, with its origin, plus the install id and when to load it. See "Absorbing a public skill" below. |
 | Nothing worth recording (only intermediate steps, or what a commit already says) | Say so in one line and create nothing. Padding the diary makes it unreadable. |
+| The code changed shape and the map went stale (a module in the map's `modules` list has a commit after `last_mapped` — `lint.py` reports `stale-map`), or there is no code map yet | The **map mode**: create or update the code-map page. See "Code map" below. |
 
 Only a fresh note is ever created for the diary; never rewrite another agent's note.
 
@@ -71,6 +72,25 @@ Only a fresh note is ever created for the diary; never rewrite another agent's n
 5. **Push only when the user asked to sync:** the same call with `-p` (fetch, rebase, `push HEAD:<main>`, fast-forward the checkout, remove the worktree). Never force, never touch other people's modified files: a file that differs from what you pushed and may hold another session's edits (index, inbox) is left as it is. If the checkout cannot be fast-forwarded (local `<main>` diverged, or overlapping local edits) it says so and still exits 0, because the push worked. Open a PR only when asked.
 
 Commit what you wrote in the same session without waiting to be asked; publishing is the user's call.
+
+## Code map
+
+The map mode keeps one page that is the blueprint of the code — what each top-level folder does, the flows, the pitfalls — so a fresh session reads the map instead of re-deriving it. The method comes from kingbootoshi's Cartographer (MIT), adapted by Luiz Ribeiro Coelho in viacorretor/the-viacorretor#143; `scripts/map.py` is derived from his `mapear.py` (see [ATTRIBUTION.md](ATTRIBUTION.md)).
+
+**Create.**
+
+1. Measure the repo: `python3 -I scripts/map.py <repo>` (or `--format json`). It lists only git-tracked files — the map does not depend on the checkout — and estimates tokens as bytes/4 per top-level folder.
+2. Split the folders into groups of up to ~120k tokens each (use `por_pasta`; a folder over the budget is its own group).
+3. Send one Explore subagent per group, all in a single message. Each returns its module section: what it does, key files, entry points, who it talks to.
+4. Write the page from [templates/code-map.md](templates/code-map.md) — `mapa-do-codigo.md` in a pt-BR wiki, `code-map.md` otherwise. Fill the frontmatter: `last_mapped` = today, `total_arquivos` and `total_tokens` from the script, `modules` = the top-level folders the page covers (the list `--check` watches). Merge the groups' sections into Módulos and write the mermaid diagrams from what they report.
+
+**Update.**
+
+1. `python3 -I scripts/map.py --check <página> --repo <repo>` lists the stale modules, one per line (exit 2), or exits 0 when the map is current.
+2. Remap only the stale modules — one Explore subagent each — and rewrite only their sections in Módulos, plus any flow or pitfall they invalidate.
+3. Renew `last_mapped`, `total_arquivos` and `total_tokens` from a fresh `map.py` run.
+
+**Rule:** names of things only — variables, functions, files. Never values, secrets or personal data; reference where a secret lives instead.
 
 ## Absorbing a public skill
 
