@@ -357,45 +357,49 @@ def lint(root, cfg, arquivos, existe_fora):
         if "/" not in arquivo:
             fm = L.frontmatter(texto)
             if fm and fm.get("last_mapped"):
-                for linha in mapa_stale(Path(root), arquivo):
+                velhas, nao_conf = mapa_stale(Path(root), arquivo)
+                for linha in velhas:
                     L.add(arquivo, linha, "stale-map", "stale-map",
                           detail="módulo com commit depois do last_mapped (rode o modo mapa)" if L.pt
                           else "module with a commit after last_mapped (run the map mode)")
+                for linha in nao_conf:
+                    L.add(arquivo, linha, "stale-map", "stale-map",
+                          detail="não conferido: o repo do módulo não está na raiz da wiki" if L.pt
+                          else "unchecked: the module's repo is not under the wiki's root")
     return L.problems
 
 
 def mapa_stale(root, arquivo):
-    """Line numbers of the `modules` list items that map.py --check calls stale."""
+    """(stale_lines, unchecked_lines): the `modules` list items that map.py's shared
+    check calls stale, and the ones it cannot verify because the module's repo is not
+    under the root the wiki's folder resolves to (a central wiki lives outside it)."""
     pagina = Path(root) / arquivo
-    fm = mapa_mod.frontmatter(pagina)
-    if not fm:
-        return [1]
-    last_mapped = fm.get("last_mapped") or ""
-    modulos = fm.get("modules") or []
-    if isinstance(modulos, str):
-        modulos = [modulos]
-    if not isinstance(last_mapped, str) or not last_mapped.strip():
-        return [1]
-    velhos = set()
-    for mod in modulos:
-        alvo = "." if mod in (".", "./") else mod.rstrip("/") + "/"
-        if mapa_mod.git(Path(root), "log", "-1", "--format=%h",
-                        "--since=" + last_mapped.strip(), "--", alvo).strip():
-            velhos.add(mod)
-    if not velhos:
-        return []
-    linhas = []
+    res = mapa_mod.mapa_stale(pagina, Path(root))
+    if res is None:
+        return [1], []
+    velhos, nao_conferidos = res
+    if not velhos and not nao_conferidos:
+        return [], []
+    mods_velhos = {mod for mod, _ in velhos}
+    mods_nc = set(nao_conferidos)
     try:
         texto = pagina.read_text(encoding="utf-8")
     except OSError:
-        return [1]
+        return [1], []
     m = mapa_mod.FM_RE.match(texto)
-    fim = m.end(1).count("\n") + 1 if m else 0
+    fim = texto[:m.end(1)].count("\n") + 1 if m else 0
+    linhas_velhas, linhas_nc = [], []
     for i, l in enumerate(texto.split("\n")[:fim], 1):
         item = re.match(r"^\s+-\s+(.*?)\s*$", l)
-        if item and item.group(1).strip("'\"") in velhos:
-            linhas.append(i)
-    return linhas or [1]
+        if not item:
+            continue
+        valor = item.group(1).strip("'\"")
+        if valor in mods_velhos:
+            linhas_velhas.append(i)
+        elif valor in mods_nc:
+            linhas_nc.append(i)
+    return (linhas_velhas or ([1] if mods_velhos else []),
+            linhas_nc or ([1] if mods_nc else []))
 
 
 def paginas(d):

@@ -6,10 +6,14 @@ not depend on the checkout), estimates tokens as bytes/4 and sums them per top-l
 folder. Output is text or JSON.
 
 With `--check <page>` it reads the page's frontmatter (`last_mapped`, `total_arquivos`)
-and the `modules` list, then asks git which of those top-level folders had a commit after
-`last_mapped` (`git log --since`). Exit 2 and one `<page>: mapa-velho: <module> mudou em
-<short sha>` line per stale module when any did; exit 0 when the map is up to date.
-`--repo` points `--check` at the repo the page describes (default: the page's folder).
+and the `modules` list, then asks git which of those folders had a commit after
+`last_mapped`. The repo root comes from `git rev-parse --show-toplevel` and each `git log`
+uses the `:(top)<module>/` pathspec, so the check holds from the root wherever it starts.
+Exit 2 and one `<page>: mapa-velho: <module> mudou em <short sha>` line per stale module,
+plus one `<module> não conferido (use --repo)` per module missing from that root — a
+central wiki lives outside the code repo; exit 0 only when every module was checked and
+none changed. `--repo` points `--check` at the repo the page describes (default: the
+page's folder, which resolves a `.wiki/` inside the repo; anything inside the repo works).
 
 Derived from Luiz Ribeiro Coelho's `mapear.py` (viacorretor/the-viacorretor#143), itself
 an adaptation of kingbootoshi's Cartographer (MIT). See ../ATTRIBUTION.md.
@@ -169,6 +173,48 @@ def frontmatter(pagina: Path) -> dict | None:
     return out
 
 
+def mapa_stale(pagina: Path, pasta: Path) -> tuple[list[tuple[str, str]], list[str]] | None:
+    """(stale, unchecked) modules of a code-map page — the one check `check()` and
+    `lint.py` share.
+
+    `pasta` is where the repo lookup starts (`--repo`, or the page's folder): the root
+    comes from `git rev-parse --show-toplevel` there, and each `git log` uses the
+    `:(top)<module>/` pathspec, so it holds from the root wherever `pasta` sits inside
+    the repo. A module missing from that root — the central wiki lives outside the code
+    repo — goes to the unchecked list, never to "fresh". Returns None when the page has
+    no usable frontmatter (`last_mapped` + `modules`).
+    """
+    fm = frontmatter(pagina)
+    if fm is None:
+        return None
+    last_mapped = fm.get("last_mapped") or ""
+    modulos = fm.get("modules") or []
+    if isinstance(modulos, str):
+        modulos = [modulos]
+    if not isinstance(last_mapped, str) or not last_mapped.strip() or not modulos:
+        return None
+    raiz = git(pasta, "rev-parse", "--show-toplevel").strip()
+    if not raiz:
+        return [], list(modulos)
+    raizp = Path(raiz)
+    velhos, nao_conferidos = [], []
+    for mod in modulos:
+        if mod in (".", "./"):
+            alvo, confere = ":(top).", True
+        else:
+            nome = str(mod).rstrip("/")
+            alvo = f":(top){nome}/"
+            confere = bool(nome) and (raizp / nome).exists()
+        if not confere:
+            nao_conferidos.append(mod)
+            continue
+        sha = git(raizp, "log", "-1", "--format=%h",
+                  f"--since={last_mapped.strip()}", "--", alvo).strip()
+        if sha:
+            velhos.append((mod, sha))
+    return velhos, nao_conferidos
+
+
 def check(pagina: Path, repo: Path) -> int:
     fm = frontmatter(pagina)
     if fm is None:
@@ -181,15 +227,15 @@ def check(pagina: Path, repo: Path) -> int:
     if not isinstance(last_mapped, str) or not last_mapped.strip() or not modulos:
         print(f"{pagina.name}: mapa-velho: frontmatter sem `last_mapped` ou sem `modules`")
         return 2
-    velhos = []
-    for mod in modulos:
-        alvo = "." if mod in (".", "./") else mod.rstrip("/") + "/"
-        sha = git(repo, "log", "-1", "--format=%h", f"--since={last_mapped.strip()}", "--", alvo).strip()
-        if sha:
-            velhos.append((mod, sha))
+    res = mapa_stale(pagina, repo)
+    if res is None:  # unreachable: the frontmatter was validated above
+        return 2
+    velhos, nao_conferidos = res
     for mod, sha in velhos:
         print(f"{pagina.name}: mapa-velho: {mod} mudou em {sha}")
-    return 2 if velhos else 0
+    for mod in nao_conferidos:
+        print(f"{pagina.name}: mapa-velho: {mod} não conferido (use --repo)")
+    return 2 if velhos or nao_conferidos else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -200,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--check", metavar="PÁGINA",
                     help="lê o frontmatter da página e acusa os módulos com commit depois do last_mapped")
     ap.add_argument("--repo", metavar="RAIZ",
-                    help="repo que o --check vigia (default: a pasta da página)")
+                    help="repo que o --check vigia (default: a pasta da página; qualquer pasta dentro do repo vale)")
     args = ap.parse_args(argv)
     if args.check:
         pagina = Path(args.check).resolve()

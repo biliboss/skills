@@ -86,7 +86,7 @@ The map mode keeps one page that is the blueprint of the code — what each top-
 
 **Update.**
 
-1. `python3 -I scripts/map.py --check <página> --repo <repo>` lists the stale modules, one per line (exit 2), or exits 0 when the map is current.
+1. `python3 -I scripts/map.py --check <página> [--repo <repo>]` lists the stale modules, one per line (exit 2), or exits 0 when the map is current. `--repo` defaults to the page's folder and any folder inside the code repo resolves to its root — a `.wiki/` inside the repo needs no flag; a central wiki in `$WIKI_HOME` does, and each module it cannot reach is reported `não conferido (use --repo)` instead of passing as fresh.
 2. Remap only the stale modules — one Explore subagent each — and rewrite only their sections in Módulos, plus any flow or pitfall they invalidate.
 3. Renew `last_mapped`, `total_arquivos` and `total_tokens` from a fresh `map.py` run.
 
