@@ -1,6 +1,6 @@
 # Attribution
 
-wiki-smith is original writing. It copies no code from the projects below; it builds on their ideas and on the shape of its sibling skill. Nothing here is a licensed upstream whose notice must be kept, so this page only gives credit.
+wiki is original writing, with one exception: `scripts/map.py` is derived from Luiz Ribeiro Coelho's `mapear.py` (viacorretor/the-viacorretor#143), itself an adaptation of kingbootoshi's Cartographer (MIT). Beyond it, the skill copies no code from the projects below; it builds on their ideas and on the shape of its sibling skill. This page gives the credit.
 
 | Source | What wiki-smith took |
 |---|---|
@@ -11,5 +11,7 @@ wiki-smith is original writing. It copies no code from the projects below; it bu
 | [skill-smith](https://github.com/biliboss/skill-smith/tree/481f8239b04d59d4d017b945699788660750a3bb) (`481f823`), same author | The structure and tone of the repo: SKILL.md with routing and steps, `references/`, its own `.wiki/`, CHANGELOG, ATTRIBUTION |
 | The [Agent Skills specification](https://agentskills.io/specification) | The SKILL.md format and frontmatter |
 | [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) | The changelog format and the version policy |
+| [Cartographer](https://github.com/kingbootoshi) by kingbootoshi, MIT | The code-map method that became the skill's map mode: measure the repo, split it into token-budget groups, explore each with a subagent, write the blueprint page |
+| Luiz Ribeiro Coelho's adaptation in [viacorretor/the-viacorretor#143](https://github.com/viacorretor/the-viacorretor/pull/143) (`mapear.py`, plus the create/update two-mode method) | `scripts/map.py` is derived from his code — tracked files via `git ls-files`, tokens as bytes/4, the ignore lists — and the map mode's create/update flow is his |
 
 The method in [references/method.md](references/method.md) and the scripts are a generalisation of a working practice in the author's own repositories.

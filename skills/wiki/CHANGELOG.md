@@ -3,6 +3,15 @@
 All notable changes to wiki-smith are recorded here.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-10
+
+### Added
+
+- The **map mode**: `scripts/map.py` (derived from `mapear.py` in viacorretor/the-viacorretor#143, itself from kingbootoshi's Cartographer, MIT) measures a repo's tracked files with `git ls-files`, estimates tokens as bytes/4 per top-level folder and prints text or JSON; `map.py --check <página>` exits 2 and lists the modules with a commit after the page's `last_mapped`.
+- `templates/code-map.md`: the blueprint page — `last_mapped`, `total_arquivos`, `total_tokens` and the `modules` list in the frontmatter; visão geral (mermaid), estrutura, módulos, fluxos, convenções, armadilhas and "onde mexer para…".
+- SKILL.md's "Code map" section: create (measure, split into ~120k-token groups, one Explore subagent per group in a single message, write `mapa-do-codigo.md`/`code-map.md`) and update (`--check`, remap only the stale modules, renew the frontmatter). Names only, never values, secrets or personal data.
+- `lint.py` reports a `stale-map` (`mapa-velho`) problem for each stale module of a page with `last_mapped`, by importing `map.py`.
+
 ## [0.2.0] - 2026-11-08
 
 ### Changed

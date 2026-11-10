@@ -20,7 +20,11 @@ import re
 import subprocess
 import sys
 import unicodedata
+from pathlib import Path
 from urllib.parse import unquote
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import map as mapa_mod  # map.py, same folder: the stale-map check
 
 DEFAULTS = {
     "WIKI_LANG": "en",
@@ -69,7 +73,7 @@ TYPES_PT = {
     "day-name": "nome-do-dia", "stale-index": "indice-desatualizado", "note-name": "nome-da-nota",
     "bad-note": "nota-mal-formatada", "day-not-in-inbox": "dia-fora-do-inbox",
     "note-in-inbox": "nota-no-inbox", "no-dates": "sem-datas", "bad-dates": "datas-invalidas",
-    "bad-history": "historico-mal-formatado",
+    "bad-history": "historico-mal-formatado", "stale-map": "mapa-velho",
 }
 
 MSG_EN = {
@@ -90,6 +94,7 @@ MSG_EN = {
     "hist-line": "each History line is `- YYYY-MM-DD: what changed`",
     "hist-order": "History goes from the newest change to the oldest",
     "hist-new": "the newest History change cannot be after `{u}`: run `{cmd}`",
+    "stale-map": "{detail}",
 }
 
 MSG_PT = {
@@ -110,6 +115,7 @@ MSG_PT = {
     "hist-line": "cada linha do Histórico é `- AAAA-MM-DD: o que mudou`",
     "hist-order": "o Histórico vai da mudança mais nova para a mais velha",
     "hist-new": "a mudança mais nova do Histórico não pode ser depois de `{u}`: rode `{cmd}`",
+    "stale-map": "{detail}",
 }
 
 
@@ -347,7 +353,53 @@ def lint(root, cfg, arquivos, existe_fora):
     for dia, notas in dias.items():
         if arquivos.get("%s/%s.md" % (c["DIARY_DIR"], dia)) != L.indice_do_dia(dia, list(dias), notas):
             L.add("%s/%s.md" % (c["DIARY_DIR"], dia), 1, "stale-index", "stale-index", cmd=c["CMD_DAY_INDEX"])
+    for arquivo, texto in arquivos.items():
+        if "/" not in arquivo:
+            fm = L.frontmatter(texto)
+            if fm and fm.get("last_mapped"):
+                velhas, nao_conf = mapa_stale(Path(root), arquivo)
+                for linha in velhas:
+                    L.add(arquivo, linha, "stale-map", "stale-map",
+                          detail="módulo com commit depois do last_mapped (rode o modo mapa)" if L.pt
+                          else "module with a commit after last_mapped (run the map mode)")
+                for linha in nao_conf:
+                    L.add(arquivo, linha, "stale-map", "stale-map",
+                          detail="não conferido: o repo do módulo não está na raiz da wiki" if L.pt
+                          else "unchecked: the module's repo is not under the wiki's root")
     return L.problems
+
+
+def mapa_stale(root, arquivo):
+    """(stale_lines, unchecked_lines): the `modules` list items that map.py's shared
+    check calls stale, and the ones it cannot verify because the module's repo is not
+    under the root the wiki's folder resolves to (a central wiki lives outside it)."""
+    pagina = Path(root) / arquivo
+    res = mapa_mod.mapa_stale(pagina, Path(root))
+    if res is None:
+        return [1], []
+    velhos, nao_conferidos = res
+    if not velhos and not nao_conferidos:
+        return [], []
+    mods_velhos = {mod for mod, _ in velhos}
+    mods_nc = set(nao_conferidos)
+    try:
+        texto = pagina.read_text(encoding="utf-8")
+    except OSError:
+        return [1], []
+    m = mapa_mod.FM_RE.match(texto)
+    fim = texto[:m.end(1)].count("\n") + 1 if m else 0
+    linhas_velhas, linhas_nc = [], []
+    for i, l in enumerate(texto.split("\n")[:fim], 1):
+        item = re.match(r"^\s+-\s+(.*?)\s*$", l)
+        if not item:
+            continue
+        valor = item.group(1).strip("'\"")
+        if valor in mods_velhos:
+            linhas_velhas.append(i)
+        elif valor in mods_nc:
+            linhas_nc.append(i)
+    return (linhas_velhas or ([1] if mods_velhos else []),
+            linhas_nc or ([1] if mods_nc else []))
 
 
 def paginas(d):
