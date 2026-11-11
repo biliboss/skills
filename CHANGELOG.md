@@ -2,6 +2,10 @@
 
 Formato: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/); versões: [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Cada skill guarda também o próprio `CHANGELOG.md`.
 
+## 0.124.0
+
+- backbrief 0.3.0: fala de diretor, até cinco frases, sem ID nem jargão, pergunta só no texto.
+
 ## 0.123.1
 
 - Mapa do `skills/harness` sai da main para revisão em PR.
