@@ -1,6 +1,6 @@
 ---
 name: duplo-local-agents
-description: Abrir, conduzir, fechar e retomar sessões de agente locais (Claude Code, pi, Hermes, Prime Agent) em panes do herdr, do tmux ou sem multiplexador, e organizar a mesa em fases com o focus (herdr). O mux.sh é a única porta para um pane (panes, abrir, ler, tecla, manda, fila, barra, nomear, fecha). Use quando o dono disser "cria um agente", "novo agente no pi", "abre uma sessão para X", "manda para o H05", "lê o T01", "check pane", "manda reload", "fecha a tab", "retoma a sessão", "organiza o herdr", "traz o próximo para o focus", "move para working", "o cartão está ruim". Não é a `bili` (trabalho do Bili na VPS, por cartão do Linear) nem a `delegate-and-review` (subagente desta sessão que abre PR).
+description: Abrir, conduzir, fechar e retomar sessões de agente locais (Claude Code, pi, Hermes, Prime Agent) em panes do herdr, do tmux ou sem multiplexador, e organizar a mesa em fases com o focus (herdr). O mux.sh é a única porta para um pane (panes, abrir, ler, tecla, manda, fila, barra, nomear, fecha). Use quando o dono disser "cria um agente", "novo agente no pi", "abre uma sessão para X", "manda para o H05", "lê o T01", "check pane", "manda reload", "fecha a tab", "retoma a sessão", "organiza o herdr", "traz o próximo para o focus", "move para working", "o cartão está ruim". Não é a `delegate-and-review` (subagente desta sessão que abre PR).
 metadata:
   version: 1.0.0
 ---
@@ -16,7 +16,6 @@ O que é do herdr (abas, workspaces, mover panes, a mesa em fases, o `esperar`) 
 | O trabalho | Vai para |
 |---|---|
 | Precisa do Mac (navegador do agente, arquivos locais, um login) ou o dono quer ver a sessão de perto | uma sessão local, por esta skill |
-| Pode rodar sozinho na VPS e deixar o resultado num cartão | o Bili, por um cartão do Linear (skill `bili`) |
 | Uma mudança de código com PR, revisada aqui | um subagente (skill `delegate-and-review`) |
 
 ## 1. O `mux.sh`

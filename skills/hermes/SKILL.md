@@ -1,6 +1,6 @@
 ---
 name: hermes
-description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). Not the `bili` skill, which is the VPS Bili through Linear; not for code with a PR (a worktree with a subagent).
+description: Drive the owner's local Hermes profiles (researcher, hipster, sre, via-ads, mantainer, bili) as agents with their own model, SOUL, skills and persistent memory, from Claude Code or pi, through scripts/hermes.sh (list, spawn, resume, sessions, read, memory, route, dm). Use when the owner says "hermes", "ask the researcher", "have the hipster/sre/via-ads/mantainer do it", "spawn a profile", "what does researcher remember", or a task has an owning profile (research, UI, infra, search and ads, machine upkeep). not for code with a PR (a worktree with a subagent).
 metadata:
   version: 0.3.3
   license: MIT
@@ -11,8 +11,7 @@ metadata:
 A Hermes **profile** is an agent with its own model, SOUL.md, skills, cron, bots and **persistent curated memory**
 (`memories/MEMORY.md`, `USER.md`). A Claude Code native subagent starts clean and dies with the session; a profile
 remembers what it already researched or decided. Use a profile when the subject has an owner with history; use a
-native subagent for code in a worktree. Sibling: [`bili`](../bili/SKILL.md) talks to the Bili on the VPS through
-Linear and never directly; this skill talks to profiles on this machine and does not absorb it.
+native subagent for code in a worktree. Bili is reached only from `~/agents` (its local skill `bili`); this skill talks to profiles on this machine and does not absorb it.
 
 All actions go through `scripts/hermes.sh` (thin over the `hermes` CLI; logic in `hermes.py`). Run it by path from
 this skill's folder. Rules and routing below; depth in [references/routing.md](references/routing.md).
